@@ -86,19 +86,19 @@ Os comandos disponíveis são:
 
 ### 1. Iniciar o servidor de desenvolvimento
 ```bash
-poetry run poe serve
+poetry serve
 ```
 Executa a API com hot-reload ativado apontando para o arquivo de entrada `src/pivma/__init__.py`.
 
 ### 2. Verificar qualidade e padrões de código (*Linter*)
 ```bash
-poetry run poe lint
+poetry lint
 ```
 Roda a verificação de código com o **Ruff** sem alterar arquivos.
 
 ### 3. Formatação automática e correção de *Lints*
 ```bash
-poetry run poe format
+poetry format
 ```
 Executa uma sequência automatizada:
 - Analisa lints com `ruff check`
@@ -107,14 +107,14 @@ Executa uma sequência automatizada:
 
 ### 4. Executar os testes automatizados
 ```bash
-poetry run poe test
+poetry test
 ```
 Executa a suíte de testes com `pytest` (interrompe no primeiro erro `-x`, formato verboso `-vv`) e gera um relatório completo de cobertura de código em HTML na pasta `htmlcov/`.
 
 Você também pode passar argumentos extras para o Pytest através de `$POE_EXTRA_ARGS`:
 ```bash
 # Executar apenas um teste específico
-poetry run poe test -k test_create_user
+poetry test -k test_create_user
 ```
 
 ---
@@ -155,6 +155,7 @@ Para adicionar novos testes de rotas ou regras de negócio:
 ```python
 from http import HTTPStatus
 
+
 def test_create_user(client):
     # Act
     response = client.post(
@@ -176,6 +177,7 @@ def test_create_user(client):
 
 ```python
 from http import HTTPStatus
+
 
 def test_create_user_already_exists_username(client, user):
     response = client.post(
@@ -230,7 +232,7 @@ docker run -d \
 ## 💡 Boas Práticas de Desenvolvimento
 
 1. **Format/Lint antes de enviar Código**:
-   Execute sempre `poetry run poe format` e `poetry run poe test` antes de abrir *Pull Requests* ou efetuar commits.
+   Execute sempre `poetry format` e `poetry test` antes de abrir *Pull Requests* ou efetuar commits.
 
 2. **Criação de Migrações do Banco de Dados (Alembic)**:
    Ao alterar modelos em [`src/pivma/core/database/models.py`](file:///home/JASPION/BraCVAM/pivma-back/src/pivma/core/database/models.py), gere uma nova migração autogerada:
