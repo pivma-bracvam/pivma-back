@@ -8,7 +8,11 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.14,<4.0"
 dependencies = [
-    "fastapi[standard] (>=0.141.1,<0.142.0)"
+    "fastapi[standard] (>=0.141.1,<0.142.0)",
+    "pydantic-settings (>=2.15.0,<3.0.0)",
+    "sqlalchemy[asyncio] (>=2.0.51,<3.0.0)",
+    "psycopg[binary] (>=3.3.4,<4.0.0)",
+    "alembic (>=1.19.1,<2.0.0)"
 ]
 
 [tool.poetry]
@@ -24,7 +28,10 @@ dev = [
     "pytest-cov (>=7.1.0,<8.0.0)",
     "ruff (>=0.16.2,<0.17.0)",
     "typos (>=1.49.0,<2.0.0)",
-    "httpx2 (>=2.10.0,<3.0.0)"
+    "httpx2 (>=2.10.0,<3.0.0)",
+    "pytest-asyncio (>=1.4.0,<2.0.0)",
+    "factory-boy (>=3.3.3,<4.0.0)",
+    "testcontainers (>=4.15.0,<5.0.0)"
 ]
 
 [tool.ruff]
