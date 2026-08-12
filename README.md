@@ -1,6 +1,6 @@
 # PIVMA API
 
-API Backend desenvolvida em **Python 3.14** utilizando o framework **FastAPI**, **SQLAlchemy 2.0** (Async), **Pydantic v2**, **Alembic** e banco de dados **PostgreSQL** (com extensão `pgvector`).
+API Backend desenvolvida em **Python 3.14** utilizando o framework **FastAPI**, **SQLAlchemy 2.0** (Async), **Pydantic v2**, **Alembic**, **Argon2id** e banco de dados **PostgreSQL** (com extensão `pgvector`).
 
 ---
 
@@ -9,6 +9,7 @@ API Backend desenvolvida em **Python 3.14** utilizando o framework **FastAPI**, 
 - [Requisitos Mínimos do `.env`](#-requisitos-mínimos-do-env)
 - [Instalação e Configuração](#-instalação-e-configuração)
 - [Executando Comandos com Poe-the-poet (`poe`)](#-executando-comandos-com-poe-the-poet-poe)
+- [Cadastro de Usuários](#-cadastro-de-usuários)
 - [Práticas de Desenvolvimento e Testes](#-práticas-de-desenvolvimento-e-testes)
   - [Como os Testes Estão Estruturados](#como-os-testes-estão-estruturados)
   - [Como Criar um Novo Teste](#como-criar-um-novo-teste)
@@ -75,6 +76,30 @@ cp .env.example .env
    ```bash
    poetry run alembic upgrade head
    ```
+
+---
+
+## 👤 Cadastro de Usuários
+
+**CONFIRMADO:** `POST /users/` cria uma conta e retorna HTTP 201 com `id`, `username` e `email`. A resposta não inclui a senha nem seu hash.
+
+| Campo | Regra |
+| :--- | :--- |
+| `username` | De 3 a 64 caracteres; aceita letras ASCII, números, ponto, hífen e sublinhado. Espaços externos são removidos e a caixa é preservada. |
+| `email` | Deve ter formato de e-mail válido. Espaços externos são removidos e a caixa é preservada. |
+| `password` | De 8 a 128 caracteres Unicode, sem caracteres de espaço em branco. A API armazena somente um hash Argon2id. |
+
+Username e e-mail são únicos entre usuários ativos sem distinguir maiúsculas de minúsculas. Um usuário com exclusão lógica libera ambos os identificadores para novo cadastro.
+
+```bash
+curl -X POST http://localhost:8000/users/ \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"alice","email":"alice@example.com","password":"UmaSenhaSegura2026"}'
+```
+
+Conflitos retornam HTTP 409 com `Username already exists` ou `Email already exists`. Senhas inválidas retornam HTTP 422 com `{"detail":"Invalid password"}`. Falhas inesperadas retornam HTTP 500 sem detalhes internos.
+
+Autenticação, login, JWT e recuperação de senha não fazem parte deste endpoint.
 
 ---
 
@@ -163,7 +188,7 @@ def test_create_user(client):
         json={
             'username': 'alice',
             'email': 'alice@example.com',
-            'password': 'secret',
+            'password': 'UmaSenhaSegura2026',
         },
     )
     # Assert
@@ -185,7 +210,7 @@ def test_create_user_already_exists_username(client, user):
         json={
             'username': user.username,  # Tenta usar username que já existe no banco
             'email': 'different@example.com',
-            'password': 'secret',
+            'password': 'UmaSenhaSegura2026',
         },
     )
     assert response.status_code == HTTPStatus.CONFLICT
