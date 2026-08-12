@@ -220,3 +220,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# AI agents
+.agents/
+.specify/
+
+# Mac files
+.DS_Store

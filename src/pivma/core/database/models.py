@@ -90,12 +90,18 @@ class User(AuditMixin):
 
     username: Mapped[str]
     email: Mapped[str] = mapped_column()
-    password: Mapped[str]
+    password_hash: Mapped[str]
 
     __table_args__ = (
         Index(
-            'ix_uq_users_email_active',
-            'email',
+            'uq_users_username_ci',
+            func.lower(column('username')),
+            unique=True,
+            postgresql_where=(column('deleted_at').is_(None)),
+        ),
+        Index(
+            'uq_users_email_ci',
+            func.lower(column('email')),
             unique=True,
             postgresql_where=(column('deleted_at').is_(None)),
         ),

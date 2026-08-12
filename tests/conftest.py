@@ -12,6 +12,7 @@ from testcontainers.postgres import PostgresContainer
 from pivma import app
 from pivma.core.database import get_session
 from pivma.core.database.models import User, table_registry
+from pivma.core.security import hash_password
 from pivma.core.settings import Settings
 
 
@@ -97,10 +98,22 @@ async def other_user(session):
     return user
 
 
+@pytest_asyncio.fixture
+async def deleted_user(session):
+    user = UserFactory()
+    user.deleted_at = datetime(2026, 8, 12)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
 class UserFactory(factory.Factory):
     class Meta:
         model = User
 
     username = factory.Sequence(lambda n: f'test{n}')
     email = factory.LazyAttribute(lambda obj: f'{obj.username}@test.com')
-    password = factory.LazyAttribute(lambda obj: f'{obj.username}@example.com')
+    password_hash = factory.LazyFunction(
+        lambda: hash_password('Factory-Passphrase-2026')
+    )
