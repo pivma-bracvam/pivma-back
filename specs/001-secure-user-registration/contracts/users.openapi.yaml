@@ -1,0 +1,135 @@
+openapi: 3.1.0
+info:
+  title: pi*VMA Secure User Registration Contract
+  version: 1.0.0
+paths:
+  /users/:
+    post:
+      summary: Cadastrar usuário
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistration'
+      responses:
+        '201':
+          description: Usuário criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPublic'
+        '409':
+          description: Username ou e-mail já utilizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conflict'
+              examples:
+                username:
+                  value:
+                    detail: Username already exists
+                email:
+                  value:
+                    detail: Email already exists
+        '422':
+          description: Dados inválidos ou senha inválida; a resposta nunca ecoa o valor recebido nem revela a causa da política de senha
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ValidationError'
+                  - $ref: '#/components/schemas/InvalidPassword'
+        '500':
+          description: Falha interna inesperada; nenhum detalhe interno ou segredo é exposto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalError'
+components:
+  schemas:
+    UserRegistration:
+      type: object
+      additionalProperties: false
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 64
+          pattern: '^[A-Za-z0-9._-]+$'
+          description: Espaços externos são removidos; a caixa é preservada.
+        email:
+          type: string
+          format: email
+          description: Espaços externos são removidos; a caixa é preservada.
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          description: >-
+            Aceita Unicode e rejeita qualquer whitespace. Não sofre trim ou
+            normalização.
+    UserPublic:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - username
+        - email
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+    Conflict:
+      type: object
+      additionalProperties: false
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          enum:
+            - Username already exists
+            - Email already exists
+    ValidationError:
+      type: object
+      description: >-
+        Estrutura de erro de validação já fornecida pela API para campos que não
+        sejam senha. Erros de senha sempre usam InvalidPassword.
+      additionalProperties: true
+      required:
+        - detail
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+    InvalidPassword:
+      type: object
+      description: Mensagem genérica que não informa a regra de senha que falhou.
+      additionalProperties: false
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          const: Invalid password
+    InternalError:
+      type: object
+      description: Mensagem genérica para falha interna inesperada.
+      additionalProperties: false
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
