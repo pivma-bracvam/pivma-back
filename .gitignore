@@ -233,3 +233,4 @@ __marimo__/
 .vscode/
 *.tmp
 *.swp
+uv.lock
