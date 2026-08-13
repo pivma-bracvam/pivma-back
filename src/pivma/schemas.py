@@ -58,6 +58,20 @@ class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class LoginCredentials(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    identifier: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=320),
+    ]
+    password: Annotated[str, StringConstraints(min_length=8, max_length=128)]
+
+
+class UserIdentity(UserPublic):
+    pass
+
+
 class FilterPage(BaseModel):
     offset: int = Field(0, ge=0)
     limit: int = Field(100, ge=1)

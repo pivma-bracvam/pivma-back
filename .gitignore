@@ -227,3 +227,10 @@ __marimo__/
 
 # Mac files
 .DS_Store
+
+# Editor and temporary files
+.idea/
+.vscode/
+*.tmp
+*.swp
+uv.lock

@@ -31,7 +31,7 @@ Este arquivo organiza as referências atuais do projeto. Ele não cria uma nova 
 | Modelo `User` e `AuditMixin` | [`src/pivma/core/database/models.py`](../src/pivma/core/database/models.py) |
 | Sessão assíncrona do banco | [`src/pivma/core/database/__init__.py`](../src/pivma/core/database/__init__.py) |
 | Configurações de ambiente | [`src/pivma/core/settings.py`](../src/pivma/core/settings.py) |
-| Estado atual da camada de segurança | [`src/pivma/core/security.py`](../src/pivma/core/security.py) |
+| Senhas e tokens de autenticação | [`src/pivma/core/security.py`](../src/pivma/core/security.py) |
 | Migração inicial de usuários | [`migrations/versions/b72da3430b3e_tabela_base_para_user.py`](../migrations/versions/b72da3430b3e_tabela_base_para_user.py) |
 | Teste do endpoint raiz | [`tests/test_app.py`](../tests/test_app.py) |
 | Contrato testado de criação de usuário | [`tests/routers/test_user.py`](../tests/routers/test_user.py) |
@@ -54,8 +54,7 @@ Na árvore de trabalho atual, `.agents/` e `.specify/` estão cobertos pelo `.gi
 ## Estado e pontos a validar
 
 - **CONFIRMADO:** o repositório usa FastAPI, SQLAlchemy assíncrono, Alembic, PostgreSQL/pgvector, Docker Compose e testes com Pytest/Testcontainers.
-- **CONFIRMADO:** a segurança ainda não foi implementada em `src/pivma/core/security.py`.
-- **PROPOSTA informada pela equipe:** usar JWT transportado por cookies. Os detalhes de segurança e ciclo de vida dos tokens ainda precisam de especificação.
+- **CONFIRMADO:** a autenticação usa um JWT de até oito horas transportado por cookie `HttpOnly`, `Secure` e `SameSite=Strict`; `specs/002-user-authentication/` registra escopo, decisões e testes.
 - **CONFIRMADO:** o remoto contém `main` e `develop`; a nomenclatura `dev` mencionada pela equipe precisa ser alinhada com `develop` antes de definir o fluxo de integração.
 - **PENDENTE:** a constituição do Spec Kit ainda não foi preenchida nem ratificada.
 

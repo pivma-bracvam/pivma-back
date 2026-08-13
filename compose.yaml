@@ -20,6 +20,8 @@ services:
       - db
     environment:
       DATABASE_URL: postgresql+psycopg://db_user:db_password@db:5432/db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS}
 
 volumes:
   pgdata:
