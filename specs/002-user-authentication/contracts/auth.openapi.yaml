@@ -1,0 +1,92 @@
+openapi: 3.1.0
+info:
+  title: pi*VMA Authentication API
+  version: 1.0.0
+paths:
+  /auth/login:
+    post:
+      summary: Autentica uma conta ativa por username ou e-mail e senha
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginCredentials'
+      responses:
+        '200':
+          description: Sessão criada; Set-Cookie entrega access_token.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: access_token HttpOnly, Secure, SameSite=Strict, Path=/ e expiração de até 8 horas.
+        '401':
+          description: Credenciais inválidas, conta inexistente ou conta excluída.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /auth/me:
+    get:
+      summary: Retorna a identidade reconhecida na sessão atual
+      responses:
+        '200':
+          description: Identidade da conta autenticada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserIdentity'
+        '401':
+          description: Sessão ausente, inválida, vencida ou vinculada a conta excluída.
+  /auth/logout:
+    post:
+      summary: Remove o cookie de autenticação do navegador
+      parameters:
+        - in: header
+          name: Origin
+          required: true
+          schema:
+            type: string
+          description: Deve corresponder exatamente a uma origem confiável configurada.
+      responses:
+        '204':
+          description: Cookie removido. O token não sofre revogação no servidor.
+        '401':
+          description: Sessão ausente, inválida, vencida ou vinculada a conta excluída.
+        '403':
+          description: Origem ausente, inválida ou não confiável.
+components:
+  schemas:
+    LoginCredentials:
+      type: object
+      additionalProperties: false
+      required: [identifier, password]
+      properties:
+        identifier:
+          type: string
+          description: Username ou e-mail, sem distinção de caixa.
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+    UserIdentity:
+      type: object
+      additionalProperties: false
+      required: [id, username, email]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+    Error:
+      type: object
+      additionalProperties: false
+      required: [detail]
+      properties:
+        detail:
+          type: string

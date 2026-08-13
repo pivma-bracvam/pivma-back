@@ -2,10 +2,20 @@ from fastapi import FastAPI
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.middleware.cors import CORSMiddleware
 
-from pivma.routers import users
+from pivma.core.settings import Settings
+from pivma.routers import auth, users
 
 app = FastAPI()
+settings = Settings()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.AUTH_ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=['GET', 'POST'],
+    allow_headers=['Content-Type'],
+)
 
 
 @app.exception_handler(RequestValidationError)
@@ -19,6 +29,7 @@ async def sanitize_password_validation_error(request, exc):
 
 
 app.include_router(users.router)
+app.include_router(auth.router)
 
 
 @app.get('/')

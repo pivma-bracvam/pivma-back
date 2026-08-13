@@ -1,3 +1,4 @@
+import os
 from contextlib import contextmanager
 from datetime import datetime
 
@@ -8,6 +9,16 @@ from fastapi.testclient import TestClient
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from testcontainers.postgres import PostgresContainer
+
+os.environ.setdefault(
+    'DATABASE_URL',
+    'postgresql+psycopg://unused:unused@localhost/unused',
+)
+os.environ.setdefault(
+    'JWT_SECRET_KEY',
+    'test-jwt-secret-key-with-at-least-32-bytes',
+)
+os.environ.setdefault('AUTH_ALLOWED_ORIGINS', '["https://testserver"]')
 
 from pivma import app
 from pivma.core.database import get_session
@@ -21,7 +32,7 @@ def client(session):
     def get_session_override():
         return session
 
-    with TestClient(app) as client:
+    with TestClient(app, base_url='https://testserver') as client:
         app.dependency_overrides[get_session] = get_session_override
         yield client
 
