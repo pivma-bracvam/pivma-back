@@ -106,6 +106,32 @@ Ao concluir um artefato do Spec Kit, o agente pode sugerir a próxima etapa com 
 - Execute os testes e verificações proporcionais à mudança. Informe exatamente os comandos executados e seus resultados.
 - Nunca declare que testes passaram sem executá-los. O task `poetry test` configura a etapa do Pytest com `ignore_fail = true`; confira a saída do Pytest ou execute `poetry run pytest` diretamente antes de afirmar sucesso.
 
+### Padrão de testes
+
+Ao criar ou alterar testes:
+
+- Prefira Factory Boy para construir entidades de teste e fixtures Pytest reutilizáveis para preparar estados comuns.
+
+- Para entidades persistidas, prefira preparação por SQLAlchemy ORM (`session.add`, `commit`, `refresh`) em vez de comandos SQL escritos manualmente.
+
+- Para comportamentos expostos pela API, prefira testar o contrato HTTP através do `TestClient`, em vez de chamar diretamente a função do router.
+
+- Chame funções diretamente apenas quando o objetivo for realmente um teste unitário do componente isolado.
+
+- Centralize preparações recorrentes em fixtures ou helpers reutilizáveis, evitando repetir setup de banco, usuários autenticados ou outros estados comuns em vários testes.
+
+- Use `pytest.mark.parametrize` quando vários casos representarem o mesmo comportamento com entradas diferentes.
+
+- Use SQL direto somente quando o nível testado exigir acesso ao schema ou a um estado que o ORM atual não represente adequadamente, especialmente em testes de migração Alembic, constraints específicas do banco ou compatibilidade com schemas anteriores.
+
+- Quando SQL direto for necessário, mantenha-o restrito ao teste de persistência ou migração correspondente e não o use como atalho para preparar dados comuns de testes de API.
+
+- Cada teste deve operar no nível adequado ao comportamento que pretende validar: unidade, API, persistência ou migração.
+
+- Antes de criar nova infraestrutura de testes, verifique as factories, fixtures e helpers existentes e reutilize-os quando forem adequados.
+
+- Evite refatorar a estrutura de testes existente apenas por padronização estética. Faça mudanças estruturais somente quando houver ganho concreto de reutilização, clareza ou manutenção.
+
 ## Autenticação planejada
 
 **PROPOSTA informada pela equipe:** planejar autenticação com JWT transportado por cookies, seguindo a experiência de outros projetos.
