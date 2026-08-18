@@ -89,9 +89,7 @@ def test_access_token_rejects_tampering():
     token = create_access_token(uuid4(), JWT_SECRET_KEY)
     header, payload, signature = token.split('.')
     replacement = 'a' if signature[0] != 'a' else 'b'
-    tampered_token = (
-        f'{header}.{payload}.{replacement}{signature[1:]}'
-    )
+    tampered_token = f'{header}.{payload}.{replacement}{signature[1:]}'
 
     with pytest.raises(jwt.InvalidSignatureError):
         decode_access_token(tampered_token, JWT_SECRET_KEY)

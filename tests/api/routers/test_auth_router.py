@@ -75,9 +75,7 @@ def test_me_rejects_tampered_token(client, user):
     token = create_access_token(user.id, JWT_SECRET_KEY)
     header, payload, signature = token.split('.')
     replacement = 'a' if signature[0] != 'a' else 'b'
-    tampered_token = (
-        f'{header}.{payload}.{replacement}{signature[1:]}'
-    )
+    tampered_token = f'{header}.{payload}.{replacement}{signature[1:]}'
     client.cookies.set('access_token', tampered_token)
 
     response = client.get('/auth/me')
@@ -151,9 +149,7 @@ def test_logout_rejects_missing_origin_without_removing_cookie(client, user):
     assert 'access_token' in client.cookies
 
 
-def test_logout_rejects_untrusted_origin_without_removing_cookie(
-    client, user
-):
+def test_logout_rejects_untrusted_origin_without_removing_cookie(client, user):
     assert login(client, user.username).status_code == HTTPStatus.OK
 
     response = client.post(

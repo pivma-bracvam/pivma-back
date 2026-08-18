@@ -27,13 +27,11 @@ def test_create_user(client):
 
 @pytest.mark.asyncio
 async def test_create_user_stores_only_argon2id_hash(session):
-    user = UserSchema.model_validate(
-        {
-            'username': 'Secure.User',
-            'email': 'Secure.User@Example.COM',
-            'password': VALID_PASSWORD,
-        }
-    )
+    user = UserSchema.model_validate({
+        'username': 'Secure.User',
+        'email': 'Secure.User@Example.COM',
+        'password': VALID_PASSWORD,
+    })
 
     db_user = await create_user(user, session)
 
