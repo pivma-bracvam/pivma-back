@@ -4,7 +4,7 @@ from http import HTTPStatus
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pivma import app
@@ -43,18 +43,39 @@ def test_two_concurrent_equivalent_registrations_create_one_user(
                     (first, second),
                 )
             )
+
+        assert sorted(response.status_code for response in responses) == [
+            HTTPStatus.CREATED,
+            HTTPStatus.CONFLICT,
+        ]
+
+        async def count_users():
+            async with AsyncSession(engine) as db_session:
+                return await db_session.scalar(
+                    select(func.count())
+                    .select_from(User)
+                    .where(
+                        func.lower(User.username).in_([
+                            first['username'].lower(),
+                            second['username'].lower(),
+                        ])
+                    )
+                )
+
+        assert asyncio.run(count_users()) == 1
     finally:
         app.dependency_overrides.clear()
 
-    assert sorted(response.status_code for response in responses) == [
-        HTTPStatus.CREATED,
-        HTTPStatus.CONFLICT,
-    ]
+        async def cleanup():
+            async with AsyncSession(engine) as db_session:
+                await db_session.execute(
+                    delete(User).where(
+                        func.lower(User.username).in_([
+                            first['username'].lower(),
+                            second['username'].lower(),
+                        ])
+                    )
+                )
+                await db_session.commit()
 
-    async def count_users():
-        async with AsyncSession(engine) as db_session:
-            return await db_session.scalar(
-                select(func.count()).select_from(User)
-            )
-
-    assert asyncio.run(count_users()) == 1
+        asyncio.run(cleanup())

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 from uuid import uuid4
 
@@ -6,6 +7,8 @@ import pytest_asyncio
 import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
+
+from pivma.core.database.models import table_registry
 
 
 @pytest_asyncio.fixture
@@ -19,16 +22,17 @@ async def migration_database(engine, monkeypatch):
     async with engine.begin() as connection:
         await connection.execute(sa.text('DROP SCHEMA public CASCADE'))
         await connection.execute(sa.text('CREATE SCHEMA public'))
+        await connection.run_sync(table_registry.metadata.create_all)
 
 
 async def run_migration(revision):
-    await __import__('asyncio').to_thread(
+    await asyncio.to_thread(
         command.upgrade, Config('alembic.ini'), revision
     )
 
 
 async def run_downgrade(revision):
-    await __import__('asyncio').to_thread(
+    await asyncio.to_thread(
         command.downgrade, Config('alembic.ini'), revision
     )
 
