@@ -110,6 +110,10 @@ Ao concluir um artefato do Spec Kit, o agente pode sugerir a próxima etapa com 
 
 Ao criar ou alterar testes:
 
+- Siga a skill `fastapi-testing-methodology`. Preserve a separação entre testes unitários, de integração, de API e de segurança, conforme o comportamento e o risco envolvidos.
+
+- Mantenha cada teste focado em um comportamento observável. Use a matriz de risco e o Definition of Done da skill para definir a profundidade da cobertura e os critérios de encerramento.
+
 - Prefira Factory Boy para construir entidades de teste e fixtures Pytest reutilizáveis para preparar estados comuns.
 
 - Para entidades persistidas, prefira preparação por SQLAlchemy ORM (`session.add`, `commit`, `refresh`) em vez de comandos SQL escritos manualmente.
