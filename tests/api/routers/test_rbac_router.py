@@ -50,12 +50,32 @@ def authenticate(client, user) -> str:
     return token
 
 
-def test_profile_assignment_access_and_change_history_happy_path(
-    client, rbac_administrator, other_user
+def create_profile(client, **overrides) -> dict:
+    payload = {
+        'name': 'Research reader',
+        'description': 'May inspect RBAC data',
+        'permission_codes': ['rbac.read'],
+    }
+    payload.update(overrides)
+    response = client.post(
+        '/rbac/profiles', headers=TRUSTED_ORIGIN, json=payload
+    )
+    return response.json()
+
+
+def grant_assignment(client, user_id, profile_id):
+    return client.post(
+        f'/rbac/users/{user_id}/profiles/{profile_id}',
+        headers=TRUSTED_ORIGIN,
+    )
+
+
+def test_create_profile_returns_permission_codes_and_created_by(
+    client, rbac_administrator
 ):
     authenticate(client, rbac_administrator)
 
-    create_response = client.post(
+    response = client.post(
         '/rbac/profiles',
         headers=TRUSTED_ORIGIN,
         json={
@@ -64,36 +84,56 @@ def test_profile_assignment_access_and_change_history_happy_path(
             'permission_codes': ['rbac.read'],
         },
     )
-    assert create_response.status_code == HTTPStatus.CREATED
-    profile = create_response.json()
-    profile_id = profile['id']
+
+    assert response.status_code == HTTPStatus.CREATED
+    profile = response.json()
     assert profile['permission_codes'] == ['rbac.read']
     assert profile['created_by'] == str(rbac_administrator.id)
 
-    update_response = client.patch(
+
+def test_update_profile_changes_description_and_sets_updated_by(
+    client, rbac_administrator
+):
+    authenticate(client, rbac_administrator)
+    profile_id = create_profile(client)['id']
+
+    response = client.patch(
         f'/rbac/profiles/{profile_id}',
         headers=TRUSTED_ORIGIN,
         json={'description': 'Updated reader description'},
     )
-    assert update_response.status_code == HTTPStatus.OK
-    assert (
-        update_response.json()['description'] == 'Updated reader description'
-    )
-    assert update_response.json()['updated_by'] == str(rbac_administrator.id)
 
-    grant_response = client.post(
-        f'/rbac/users/{other_user.id}/profiles/{profile_id}',
-        headers=TRUSTED_ORIGIN,
-    )
-    assert grant_response.status_code == HTTPStatus.CREATED
-    assignment = grant_response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['description'] == 'Updated reader description'
+    assert response.json()['updated_by'] == str(rbac_administrator.id)
+
+
+def test_grant_assignment_returns_created_link_with_created_by(
+    client, rbac_administrator, other_user
+):
+    authenticate(client, rbac_administrator)
+    profile_id = create_profile(client)['id']
+
+    response = grant_assignment(client, other_user.id, profile_id)
+
+    assert response.status_code == HTTPStatus.CREATED
+    assignment = response.json()
     assert assignment['user_id'] == str(other_user.id)
     assert assignment['profile_id'] == profile_id
     assert assignment['created_by'] == str(rbac_administrator.id)
 
-    access_response = client.get(f'/rbac/users/{other_user.id}/access')
-    assert access_response.status_code == HTTPStatus.OK
-    assert access_response.json() == {
+
+def test_get_user_access_lists_active_profiles_and_effective_permissions(
+    client, rbac_administrator, other_user
+):
+    authenticate(client, rbac_administrator)
+    profile_id = create_profile(client)['id']
+    grant_assignment(client, other_user.id, profile_id)
+
+    response = client.get(f'/rbac/users/{other_user.id}/access')
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {
         'user_id': str(other_user.id),
         'profiles': [
             {'id': profile_id, 'name': 'Research reader', 'active': True}
@@ -101,9 +141,23 @@ def test_profile_assignment_access_and_change_history_happy_path(
         'effective_permissions': ['rbac.read'],
     }
 
-    changes_response = client.get('/rbac/changes')
-    assert changes_response.status_code == HTTPStatus.OK
-    changes = changes_response.json()['items']
+
+def test_change_history_lists_recorded_actions_ordered_by_occurred_at_desc(
+    client, rbac_administrator, other_user
+):
+    authenticate(client, rbac_administrator)
+    profile_id = create_profile(client)['id']
+    client.patch(
+        f'/rbac/profiles/{profile_id}',
+        headers=TRUSTED_ORIGIN,
+        json={'description': 'Updated reader description'},
+    )
+    grant_assignment(client, other_user.id, profile_id)
+
+    response = client.get('/rbac/changes')
+
+    assert response.status_code == HTTPStatus.OK
+    changes = response.json()['items']
     assert {
         'profile.created',
         'profile.updated',
@@ -117,22 +171,52 @@ def test_profile_assignment_access_and_change_history_happy_path(
         assert item['actor_user_id'] == str(rbac_administrator.id)
         datetime.fromisoformat(item['occurred_at'])
 
-    revoke_response = client.delete(
+
+def test_revoke_assignment_returns_no_content(
+    client, rbac_administrator, other_user
+):
+    authenticate(client, rbac_administrator)
+    profile_id = create_profile(client)['id']
+    grant_assignment(client, other_user.id, profile_id)
+
+    response = client.delete(
         f'/rbac/users/{other_user.id}/profiles/{profile_id}',
         headers=TRUSTED_ORIGIN,
     )
-    assert revoke_response.status_code == HTTPStatus.NO_CONTENT
 
-    deactivate_response = client.delete(
+    assert response.status_code == HTTPStatus.NO_CONTENT
+
+
+def test_deactivate_profile_returns_no_content(client, rbac_administrator):
+    authenticate(client, rbac_administrator)
+    profile_id = create_profile(client)['id']
+
+    response = client.delete(
         f'/rbac/profiles/{profile_id}', headers=TRUSTED_ORIGIN
     )
-    assert deactivate_response.status_code == HTTPStatus.NO_CONTENT
 
-    final_changes = client.get('/rbac/changes').json()['items']
+    assert response.status_code == HTTPStatus.NO_CONTENT
+
+
+def test_change_history_includes_deactivation_and_revocation_actions(
+    client, rbac_administrator, other_user
+):
+    authenticate(client, rbac_administrator)
+    profile_id = create_profile(client)['id']
+    grant_assignment(client, other_user.id, profile_id)
+    client.delete(
+        f'/rbac/users/{other_user.id}/profiles/{profile_id}',
+        headers=TRUSTED_ORIGIN,
+    )
+    client.delete(f'/rbac/profiles/{profile_id}', headers=TRUSTED_ORIGIN)
+
+    response = client.get('/rbac/changes')
+
+    assert response.status_code == HTTPStatus.OK
     assert {
         'profile.deactivated',
         'assignment.revoked',
-    }.issubset({item['action'] for item in final_changes})
+    }.issubset({item['action'] for item in response.json()['items']})
 
 
 def test_revocation_takes_effect_on_next_request_with_same_cookie(
