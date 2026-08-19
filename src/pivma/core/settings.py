@@ -8,7 +8,7 @@ MIN_JWT_SECRET_BYTES = 32
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file='.env', env_file_encoding='utf-8'
+        env_file='.env', env_file_encoding='utf-8', extra='ignore'
     )
 
     DATABASE_URL: str = Field(init=False)
@@ -30,15 +30,13 @@ class Settings(BaseSettings):
             has_valid_base = (
                 parsed.scheme in {'http', 'https'} and parsed.netloc
             )
-            has_extra_parts = any(
-                (
-                    parsed.path,
-                    parsed.query,
-                    parsed.fragment,
-                    parsed.username,
-                    parsed.password,
-                )
-            )
+            has_extra_parts = any((
+                parsed.path,
+                parsed.query,
+                parsed.fragment,
+                parsed.username,
+                parsed.password,
+            ))
             if not has_valid_base or has_extra_parts:
                 raise ValueError(
                     'AUTH_ALLOWED_ORIGINS must contain valid origins'
