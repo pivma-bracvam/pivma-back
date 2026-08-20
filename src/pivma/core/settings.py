@@ -30,15 +30,13 @@ class Settings(BaseSettings):
             has_valid_base = (
                 parsed.scheme in {'http', 'https'} and parsed.netloc
             )
-            has_extra_parts = any(
-                (
-                    parsed.path,
-                    parsed.query,
-                    parsed.fragment,
-                    parsed.username,
-                    parsed.password,
-                )
-            )
+            has_extra_parts = any((
+                parsed.path,
+                parsed.query,
+                parsed.fragment,
+                parsed.username,
+                parsed.password,
+            ))
             if not has_valid_base or has_extra_parts:
                 raise ValueError(
                     'AUTH_ALLOWED_ORIGINS must contain valid origins'
