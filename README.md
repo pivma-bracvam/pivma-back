@@ -10,6 +10,7 @@ API Backend desenvolvida em **Python 3.14** utilizando o framework **FastAPI**, 
 - [Instalação e Configuração](#-instalação-e-configuração)
 - [Executando Comandos com Poe-the-poet (`poe`)](#-executando-comandos-com-poe-the-poet-poe)
 - [Cadastro de Usuários](#-cadastro-de-usuários)
+- [Autorização RBAC](#-autorização-rbac)
 - [Práticas de Desenvolvimento e Testes](#-práticas-de-desenvolvimento-e-testes)
   - [Como os Testes Estão Estruturados](#como-os-testes-estão-estruturados)
   - [Como Criar um Novo Teste](#como-criar-um-novo-teste)
@@ -100,6 +101,34 @@ curl -X POST http://localhost:8000/users/ \
 Conflitos retornam HTTP 409 com `Username already exists` ou `Email already exists`. Senhas inválidas retornam HTTP 422 com `{"detail":"Invalid password"}`. Falhas inesperadas retornam HTTP 500 sem detalhes internos.
 
 Autenticação, login, JWT e recuperação de senha não fazem parte deste endpoint.
+
+## 🔐 Autorização RBAC
+
+Após aplicar as migrações, o backend disponibiliza autorização global por
+perfis. O catálogo inicial é fechado e contém `rbac.read`,
+`rbac.profiles.manage` e `rbac.assignments.manage`; somente a migração cria
+essas permissões.
+
+| Rota | Permissão necessária |
+| --- | --- |
+| `GET /rbac/permissions`, `GET /rbac/profiles`, `GET /rbac/users/{user_id}/access`, `GET /rbac/changes` | `rbac.read` |
+| `POST /rbac/profiles`, `PATCH/DELETE /rbac/profiles/{profile_id}` | `rbac.profiles.manage` |
+| `POST/DELETE /rbac/users/{user_id}/profiles/{profile_id}` | `rbac.assignments.manage` |
+
+As mutações exigem cookie de sessão e o cabeçalho `Origin` configurado. O
+backend consulta o estado atual das atribuições a cada pedido; não há cache de
+permissões no token. Perfis e atribuições são encerrados por exclusão lógica,
+preservando o histórico de concessões.
+
+Em uma instalação nova, crie a conta inicial, aplique as migrações e execute
+uma única vez o bootstrap para atribuir o perfil `Administrador`:
+
+```bash
+poetry run python -m pivma.bootstrap_rbac --user-id <UUID_DA_CONTA_ATIVA>
+```
+
+O comando é idempotente para a mesma conta e falha se outra conta já recebeu o
+perfil. Ele não cria contas nem deve ser executado no startup da aplicação.
 
 ---
 

@@ -18,10 +18,11 @@ Não presuma que tabelas, endpoints, serviços, modelos, permissões ou fluxos e
 Ao analisar ou documentar o projeto, identifique a natureza das afirmações:
 
 - **CONFIRMADO:** consta diretamente em fonte oficial, código, teste ou configuração inspecionada. Cite a referência.
+- **DECISÃO TÉCNICA REGISTRADA:** define a direção de backend ou infraestrutura e deve orientar a implementação, salvo conflito com o Plano de Trabalho ou decisão formal posterior.
 - **INFERÊNCIA:** é uma interpretação apoiada por indícios, mas não declarada pela fonte.
 - **PROPOSTA:** é uma decisão futura, recomendação ou direção ainda não especificada e aprovada.
 
-Não transforme inferência ou proposta em fato. Se fontes divergirem, registre a divergência e peça validação quando ela afetar a implementação.
+Não transforme inferência ou proposta em fato. Uma decisão técnica registrada pode deixar detalhes para a especificação. Se fontes divergirem, registre a divergência e peça validação quando ela afetar a implementação.
 
 ## Fontes e precedência
 
@@ -29,11 +30,12 @@ Use esta ordem para resolver o contexto, sem permitir que uma fonte de menor aut
 
 1. instrução explícita do usuário para a tarefa atual;
 2. Plano de Trabalho oficial e decisões formais da equipe;
-3. especificação da feature aprovada no Spec Kit;
-4. código, migrações e testes, como registro do comportamento atualmente implementado;
-5. README e configurações operacionais do repositório;
-6. vídeos, roteiros e demais materiais do protótipo, como fontes complementares;
-7. inferências e propostas, sempre identificadas como tais.
+3. diretrizes técnicas de backend e infraestrutura registradas em `docs/planejamento/`;
+4. especificação da feature aprovada no Spec Kit;
+5. código, migrações e testes, como registro do comportamento atualmente implementado;
+6. README e configurações operacionais do repositório;
+7. vídeos, roteiros e demais materiais do protótipo, como fontes complementares;
+8. inferências e propostas, sempre identificadas como tais.
 
 O protótipo não é especificação definitiva. O código existente também não substitui requisitos oficiais: ele confirma apenas o estado atual da implementação.
 
@@ -110,6 +112,10 @@ Ao concluir um artefato do Spec Kit, o agente pode sugerir a próxima etapa com 
 
 Ao criar ou alterar testes:
 
+- Siga a skill `fastapi-testing-methodology`. Preserve a separação entre testes unitários, de integração, de API e de segurança, conforme o comportamento e o risco envolvidos.
+
+- Mantenha cada teste focado em um comportamento observável. Use a matriz de risco e o Definition of Done da skill para definir a profundidade da cobertura e os critérios de encerramento.
+
 - Prefira Factory Boy para construir entidades de teste e fixtures Pytest reutilizáveis para preparar estados comuns.
 
 - Para entidades persistidas, prefira preparação por SQLAlchemy ORM (`session.add`, `commit`, `refresh`) em vez de comandos SQL escritos manualmente.
@@ -134,9 +140,9 @@ Ao criar ou alterar testes:
 
 ## Autenticação planejada
 
-**PROPOSTA informada pela equipe:** planejar autenticação com JWT transportado por cookies, seguindo a experiência de outros projetos.
+**DECISÃO TÉCNICA REGISTRADA:** a autenticação web usa JWTs transportados por cookies, com `access_token` de curta duração, `refresh_token` persistido para renovação e revogação, e proteção CSRF compatível com esse transporte. Consulte o [backlog técnico de Gestão de Usuários](docs/planejamento/gestao-de-usuarios.md) antes de especificar ou alterar esse fluxo.
 
-Isso ainda não define estratégia de access/refresh token, atributos dos cookies, proteção CSRF, expiração, rotação, revogação, claims ou fluxo de logout. Esses pontos devem ser especificados e aprovados antes da implementação. Independentemente da solução escolhida, autenticação e autorização devem ser validadas no backend.
+As durações, rotação, limites de sessão, atributos definitivos dos cookies, mecanismo CSRF, claims, revogação e logout devem ser especificados e aprovados antes da implementação. Autenticação e autorização devem ser validadas no backend.
 
 ## Git e branches
 

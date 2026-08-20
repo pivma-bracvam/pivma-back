@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
 from pivma.core.settings import Settings
-from pivma.routers import auth, users
+from pivma.routers import auth, rbac, users
 
 app = FastAPI()
 settings = Settings()
@@ -13,7 +13,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.AUTH_ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=['GET', 'POST'],
+    allow_methods=['GET', 'POST', 'PATCH', 'DELETE'],
     allow_headers=['Content-Type'],
 )
 
@@ -30,6 +30,7 @@ async def sanitize_password_validation_error(request, exc):
 
 app.include_router(users.router)
 app.include_router(auth.router)
+app.include_router(rbac.router)
 
 
 @app.get('/')

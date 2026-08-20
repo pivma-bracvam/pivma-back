@@ -7,14 +7,16 @@ Este arquivo organiza as referências atuais do projeto. Ele não cria uma nova 
 1. Leia o [Plano de Trabalho da Fase II](plano-de-trabalho-fase-ii.md) para conhecer o escopo oficial, a terminologia e os requisitos RF001 a RF062.
 2. Consulte o [guia do protótipo](guia-prototipo.md) para entender telas e fluxos observados nos materiais complementares.
 3. Verifique [observações e pendências](observacoes-e-pendencias.md) antes de transformar qualquer ponto ambíguo em requisito.
-4. Leia o [README do repositório](../README.md) para instalação, execução, testes e convenções técnicas já registradas.
-5. Para uma feature, use os artefatos aprovados em `specs/`, criados pelo fluxo do Spec Kit.
+4. Para o Módulo de Gestão de Usuários, consulte o [backlog técnico](planejamento/gestao-de-usuarios.md) antes de criar uma feature no Spec Kit.
+5. Leia o [README do repositório](../README.md) para instalação, execução, testes e convenções técnicas já registradas.
+6. Para uma feature, use os artefatos aprovados em `specs/`, criados pelo fluxo do Spec Kit.
 
 ## Mapa de fontes
 
 | Autoridade | Referência | Função | Limitação |
 |---|---|---|---|
 | Principal | [Plano de Trabalho da Fase II](plano-de-trabalho-fase-ii.md) | Conversão fiel do PDF oficial; registra módulos, requisitos, planejamento e equipe | O PDF original não está versionado neste repositório; ambiguidades foram preservadas |
+| Diretriz técnica | [Backlog técnico de Gestão de Usuários](planejamento/gestao-de-usuarios.md) | Organiza decisões técnicas e pendências de especificação para o módulo | Não substitui requisitos oficiais nem artefatos aprovados do Spec Kit |
 | Complementar | [Guia inicial do protótipo](guia-prototipo.md) | Consolida vídeos e roteiros e separa conteúdo confirmado, inferências e dúvidas | O protótipo não comprova regras definitivas nem controles efetivos do backend |
 | Controle de lacunas | [Observações e pendências](observacoes-e-pendencias.md) | Reúne diferenças entre fontes, ambiguidades e perguntas para a equipe | Não decide os pontos registrados |
 | Operacional | [README](../README.md) | Descreve stack, ambiente, comandos, testes e execução com Docker | Reflete o estado técnico atual; não substitui requisitos de negócio |
@@ -47,7 +49,7 @@ Esses arquivos devem ser lidos em conjunto antes de alterar o exemplo existente.
 - Configuração instalada: [`.specify/init-options.json`](../.specify/init-options.json), versão 0.16.2.
 - Fluxo base: [`.specify/workflows/speckit/workflow.yml`](../.specify/workflows/speckit/workflow.yml), com as etapas `specify`, `plan`, `tasks` e `implement` e gates de revisão.
 - Skills locais: diretório [`.agents/skills/`](../.agents/skills/).
-- Constituição: [`.specify/memory/constitution.md`](../.specify/memory/constitution.md). O arquivo ainda é um template sem princípios ratificados.
+- Constituição: [`.specify/memory/constitution.md`](../.specify/memory/constitution.md), versão 1.0.0 ratificada em 2026-08-11.
 
 Na árvore de trabalho atual, `.agents/` e `.specify/` estão cobertos pelo `.gitignore`. Essas referências descrevem a instalação local verificada, mas só estarão disponíveis em outro clone se o Spec Kit também estiver instalado nele.
 
@@ -56,7 +58,7 @@ Na árvore de trabalho atual, `.agents/` e `.specify/` estão cobertos pelo `.gi
 - **CONFIRMADO:** o repositório usa FastAPI, SQLAlchemy assíncrono, Alembic, PostgreSQL/pgvector, Docker Compose e testes com Pytest/Testcontainers.
 - **CONFIRMADO:** a autenticação usa um JWT de até oito horas transportado por cookie `HttpOnly`, `Secure` e `SameSite=Strict`; `specs/002-user-authentication/` registra escopo, decisões e testes.
 - **CONFIRMADO:** o remoto contém `main` e `develop`; a nomenclatura `dev` mencionada pela equipe precisa ser alinhada com `develop` antes de definir o fluxo de integração.
-- **PENDENTE:** a constituição do Spec Kit ainda não foi preenchida nem ratificada.
+- **CONFIRMADO:** a constituição do Spec Kit está na versão 1.0.0 e foi ratificada em 2026-08-11.
 
 ## Manutenção
 

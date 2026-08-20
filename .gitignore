@@ -222,7 +222,6 @@ __marimo__/
 .streamlit/secrets.toml
 
 # AI agents
-.agents/
 .specify/
 
 # Mac files
@@ -234,3 +233,6 @@ __marimo__/
 *.tmp
 *.swp
 uv.lock
+
+
+.agents/skills/speckit-*/

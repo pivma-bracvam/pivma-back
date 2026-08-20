@@ -1,0 +1,534 @@
+openapi: 3.1.0
+info:
+  title: pi*VMA RBAC API
+  version: 1.0.0
+  description: Autorização global por perfil e administração do RBAC da feature 003.
+security:
+  - cookieAuth: []
+paths:
+  /rbac/permissions:
+    get:
+      summary: Lista o catálogo de permissões
+      x-required-permission: rbac.read
+      responses:
+        '200':
+          description: Catálogo ordenado pelo código da permissão.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PermissionPublic'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rbac/profiles:
+    get:
+      summary: Lista perfis ativos e inativos
+      x-required-permission: rbac.read
+      responses:
+        '200':
+          description: Perfis com composição e rastreabilidade atual.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProfilePublic'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      summary: Cria um perfil adicional
+      x-required-permission: rbac.profiles.manage
+      parameters:
+        - $ref: '#/components/parameters/TrustedOrigin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileCreate'
+      responses:
+        '201':
+          description: Perfil criado e mudança persistida na mesma transação.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfilePublic'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/ForbiddenOrInvalidOrigin'
+        '409':
+          description: Nome ativo equivalente, nome oficial reservado ou permissão fora do catálogo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /rbac/profiles/{profile_id}:
+    parameters:
+      - $ref: '#/components/parameters/ProfileId'
+    patch:
+      summary: Altera dados ou substitui a composição de um perfil
+      x-required-permission: rbac.profiles.manage
+      parameters:
+        - $ref: '#/components/parameters/TrustedOrigin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdate'
+      responses:
+        '200':
+          description: Perfil alterado; `permission_codes` substitui o conjunto anterior quando presente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfilePublic'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/ForbiddenOrInvalidOrigin'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+        '409':
+          description: Nome em conflito, renomeação de perfil oficial, permissão desconhecida ou remoção da última capacidade administrativa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      summary: Inativa um perfil
+      x-required-permission: rbac.profiles.manage
+      parameters:
+        - $ref: '#/components/parameters/TrustedOrigin'
+      responses:
+        '204':
+          description: Perfil inativado e mudança persistida.
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/ForbiddenOrInvalidOrigin'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+        '409':
+          description: O perfil já está inativo, é o Administrador ou a mudança eliminaria o último administrador efetivo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /rbac/users/{user_id}/access:
+    get:
+      summary: Consulta perfis e permissões efetivas de uma conta
+      x-required-permission: rbac.read
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Acesso global atual da conta ativa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAccess'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+
+  /rbac/users/{user_id}/profiles/{profile_id}:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/ProfileId'
+    post:
+      summary: Concede um perfil a uma conta
+      x-required-permission: rbac.assignments.manage
+      parameters:
+        - $ref: '#/components/parameters/TrustedOrigin'
+      responses:
+        '201':
+          description: Atribuição criada e mudança persistida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileAssignmentPublic'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/ForbiddenOrInvalidOrigin'
+        '404':
+          description: Conta ou perfil inexistente para uma pessoa autorizada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Conta ou perfil inativo, ou atribuição ativa já existente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Retira um perfil de uma conta
+      x-required-permission: rbac.assignments.manage
+      parameters:
+        - $ref: '#/components/parameters/TrustedOrigin'
+      responses:
+        '204':
+          description: Atribuição encerrada e mudança persistida.
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/ForbiddenOrInvalidOrigin'
+        '404':
+          description: Conta, perfil ou atribuição ativa inexistente para uma pessoa autorizada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: A retirada eliminaria o último administrador efetivo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /rbac/changes:
+    get:
+      summary: Lista mudanças de RBAC concluídas
+      x-required-permission: rbac.read
+      parameters:
+        - in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+      responses:
+        '200':
+          description: Página em ordem decrescente de ocorrência e identificador.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RbacChangePage'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  parameters:
+    TrustedOrigin:
+      in: header
+      name: Origin
+      required: true
+      schema:
+        type: string
+        format: uri
+      description: Deve corresponder a uma origem confiável configurada.
+    ProfileId:
+      in: path
+      name: profile_id
+      required: true
+      schema:
+        type: string
+        format: uuid
+    UserId:
+      in: path
+      name: user_id
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    NotAuthenticated:
+      description: Sessão ausente, inválida, vencida ou ligada a conta excluída.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: A conta não possui a permissão exigida. A resposta não confirma se o alvo existe.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ForbiddenOrInvalidOrigin:
+      description: A origem não é confiável ou a conta não possui a permissão exigida. A resposta não confirma se o alvo existe.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ProfileNotFound:
+      description: Perfil inexistente para uma pessoa autorizada.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    UserNotFound:
+      description: Conta inexistente para uma pessoa autorizada.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationError:
+      description: Corpo inválido ou sem campo para alteração.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    PermissionPublic:
+      type: object
+      additionalProperties: false
+      required: [code, description]
+      properties:
+        code:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+
+    ProfileCreate:
+      type: object
+      additionalProperties: false
+      required: [name, description]
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 64
+        description:
+          type: string
+          minLength: 1
+          maxLength: 500
+        permission_codes:
+          type: array
+          uniqueItems: true
+          default: []
+          items:
+            type: string
+            maxLength: 100
+
+    ProfileUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 64
+        description:
+          type: string
+          minLength: 1
+          maxLength: 500
+        permission_codes:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            maxLength: 100
+
+    ProfilePublic:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - description
+        - active
+        - official
+        - permission_codes
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        active:
+          type: boolean
+        official:
+          type: boolean
+        permission_codes:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        created_by:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        updated_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        updated_by:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        deleted_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        deleted_by:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+
+    ProfileSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, active]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        active:
+          type: boolean
+
+    UserAccess:
+      type: object
+      additionalProperties: false
+      required: [user_id, profiles, effective_permissions]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        profiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileSummary'
+        effective_permissions:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+
+    ProfileAssignmentPublic:
+      type: object
+      additionalProperties: false
+      required: [id, user_id, profile_id, active, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        profile_id:
+          type: string
+          format: uuid
+        active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        created_by:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        deleted_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        deleted_by:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+
+    RbacChange:
+      type: object
+      additionalProperties: false
+      required: [id, action, target_type, target_id, occurred_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          type: string
+        target_type:
+          type: string
+          enum: [profile, profile_permissions, assignment]
+        target_id:
+          type: string
+          format: uuid
+        actor_user_id:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        occurred_at:
+          type: string
+          format: date-time
+
+    RbacChangePage:
+      type: object
+      additionalProperties: false
+      required: [items, offset, limit]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RbacChange'
+        offset:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+
+    Error:
+      type: object
+      additionalProperties: false
+      required: [detail]
+      properties:
+        detail:
+          type: string
