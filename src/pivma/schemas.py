@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from pydantic import (
@@ -184,3 +184,159 @@ class RbacChangePublic(BaseModel):
 class RbacChangePage(FilterPage):
     items: list[RbacChangePublic]
     model_config = ConfigDict(extra='forbid')
+
+
+# ==========================================
+# PROCESS, FORM & TRIAGE SCHEMAS
+# ==========================================
+
+
+class ProcessTemplateSummary(BaseModel):
+    id: UUID
+    key: str
+    name: str
+    description: str | None = None
+    is_active: bool
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProcessTemplateDetail(BaseModel):
+    id: UUID
+    key: str
+    name: str
+    version_number: int
+    definition: dict
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CreateProcessRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    template_key: str = Field(min_length=1, max_length=64)
+    title: str = Field(min_length=3, max_length=255)
+    initial_notes: str | None = None
+
+
+class ProcessInstanceDetail(BaseModel):
+    id: UUID
+    code: str
+    title: str
+    status: str
+    template_key: str
+    version_number: int
+    started_at: datetime | None = None
+    closed_at: datetime | None = None
+    closure_reason: str | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProcessInstanceListResponse(BaseModel):
+    items: list[ProcessInstanceDetail]
+    total: int
+    page: int
+    size: int
+
+
+class FormFieldDefinition(BaseModel):
+    field_key: str
+    label: str
+    help_text: str | None = None
+    field_type: str
+    is_required: bool
+    order_index: int
+    options: Any | None = None
+    validation_rules: dict | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FieldReviewSummary(BaseModel):
+    status: str
+    comments: str | None = None
+    reviewed_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FormInstanceResponse(BaseModel):
+    form_instance_id: UUID
+    template_key: str
+    is_submitted: bool
+    fields: list[FormFieldDefinition]
+    values: dict[str, Any]
+    reviews: dict[str, FieldReviewSummary]
+
+
+class SaveFormValuesRequest(BaseModel):
+    values: dict[str, Any]
+
+
+class SubmitFormRequest(BaseModel):
+    values: dict[str, Any]
+
+
+class FieldReviewItem(BaseModel):
+    field_key: str
+    status: str
+    comments: str | None = None
+
+
+class SaveFieldReviewsRequest(BaseModel):
+    reviews: list[FieldReviewItem]
+
+
+class TriageDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    outcome: str
+    justification: str = Field(min_length=3)
+
+
+class TriageDecisionResponse(BaseModel):
+    process_id: UUID
+    new_process_status: str
+    decision_id: UUID
+    outcome: str
+    next_activity_run: int | None = None
+
+
+class ActivityCompletionResponse(BaseModel):
+    activity_key: str
+    run_number: int
+    status: str
+    artifact_id: UUID | None = None
+
+
+class TaskSummary(BaseModel):
+    id: UUID
+    process_id: UUID
+    process_code: str
+    title: str
+    assigned_role: str | None = None
+    status: str
+    due_date: datetime | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TaskDetail(BaseModel):
+    id: UUID
+    process_id: UUID
+    activity_key: str
+    activity_run_number: int
+    title: str
+    status: str
+    is_blocked: bool
+    blocked_reason: str | None = None
+
+
+class TimelineEvent(BaseModel):
+    id: UUID
+    event_type: str
+    user_id: UUID | None = None
+    activity_run_id: UUID | None = None
+    occurred_at: datetime
+    context_data: dict | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProcessTimelineResponse(BaseModel):
+    process_id: UUID
+    code: str
+    events: list[TimelineEvent]
