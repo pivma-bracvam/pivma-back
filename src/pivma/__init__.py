@@ -1,11 +1,14 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 
 from pivma.core.settings import Settings
-from pivma.routers import auth, rbac, users
+from pivma.routers import auth, forms, processes, rbac, tasks, triage, users
 
 app = FastAPI()
 settings = Settings()
@@ -13,7 +16,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.AUTH_ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=['GET', 'POST', 'PATCH', 'DELETE'],
+    allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allow_headers=['Content-Type'],
 )
 
@@ -31,6 +34,18 @@ async def sanitize_password_validation_error(request, exc):
 app.include_router(users.router)
 app.include_router(auth.router)
 app.include_router(rbac.router)
+app.include_router(processes.router)
+app.include_router(forms.router)
+app.include_router(triage.router)
+app.include_router(tasks.router)
+
+prototypes_path = Path(__file__).parent / 'static' / 'prototypes'
+if prototypes_path.exists():
+    app.mount(
+        '/prototypes',
+        StaticFiles(directory=str(prototypes_path), html=True),
+        name='prototypes',
+    )
 
 
 @app.get('/')

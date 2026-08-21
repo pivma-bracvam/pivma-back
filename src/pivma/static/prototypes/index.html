@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PIVMA — Protótipo Interativo da Fase 1 (Submissão & Triagem)</title>
+    <style>
+        :root {
+            --primary: #0284c7;
+            --primary-dark: #0369a1;
+            --success: #16a34a;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --radius: 8px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; padding: 24px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        header { background: var(--card-bg); padding: 20px 24px; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        header h1 { font-size: 1.4rem; color: var(--primary-dark); }
+        header .badge { background: #e0f2fe; color: var(--primary-dark); padding: 4px 12px; border-radius: 9999px; font-size: 0.85rem; font-weight: 600; }
+        
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+        
+        .card { background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 24px; }
+        .card h2 { font-size: 1.15rem; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        
+        .form-group { margin-bottom: 14px; }
+        label { display: block; font-size: 0.88rem; font-weight: 600; margin-bottom: 4px; color: var(--text); }
+        .help-text { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px; }
+        input[type="text"], input[type="number"], select, textarea {
+            width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; font-family: inherit;
+        }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(2,132,199,0.2); }
+        
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 8px 16px; border-radius: 6px; font-size: 0.88rem; font-weight: 600; cursor: pointer; border: none; transition: 0.2s; text-decoration: none; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-warning { background: var(--warning); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-secondary { background: #e2e8f0; color: #334155; }
+        .btn-secondary:hover { background: #cbd5e1; }
+        
+        .actions-bar { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+        
+        .status-pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.78rem; font-weight: 600; }
+        .status-SUBMISSION { background: #fef3c7; color: #92400e; }
+        .status-TRIAGE { background: #e0f2fe; color: #075985; }
+        .status-PLANNING { background: #dcfce7; color: #166534; }
+        .status-CLOSED { background: #fee2e2; color: #991b1b; }
+        
+        .timeline { list-style: none; margin-top: 10px; }
+        .timeline-item { position: relative; padding-left: 20px; margin-bottom: 12px; border-left: 2px solid var(--primary); }
+        .timeline-item::before { content: ''; position: absolute; left: -6px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--primary); }
+        .timeline-item .event-type { font-weight: 600; font-size: 0.85rem; }
+        .timeline-item .event-time { font-size: 0.75rem; color: var(--text-muted); }
+        
+        .field-review-box { background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 12px; }
+        .review-status-select { width: auto; display: inline-block; margin-top: 4px; }
+        
+        .alert { padding: 10px 14px; border-radius: 6px; font-size: 0.88rem; margin-bottom: 14px; display: none; }
+        .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        
+        .logs-box { background: #0f172a; color: #38bdf8; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 0.78rem; max-height: 180px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1>PIVMA — Plataforma de Validação de Métodos Alternativos</h1>
+                <p style="font-size: 0.85rem; color: var(--text-muted);">Protótipo Operacional da Feature 004: Submissão e Triagem</p>
+            </div>
+            <span class="badge">Ambiente de Demonstração</span>
+        </header>
+
+        <div id="alertBox" class="alert"></div>
+
+        <div class="grid">
+            <!-- COLUNA ESQUERDA: PROCESSO & SUBMISSÃO -->
+            <div>
+                <div class="card">
+                    <h2>
+                        1. Processo de Validação
+                        <button class="btn btn-secondary" onclick="loadProcesses()" style="font-size: 0.75rem; padding: 4px 8px;">Atualizar</button>
+                    </h2>
+                    
+                    <div class="form-group">
+                        <label>Processos Existentes</label>
+                        <select id="processSelect" onchange="onProcessSelected()">
+                            <option value="">Selecione ou crie um novo processo...</option>
+                        </select>
+                    </div>
+
+                    <div style="border-top: 1px dashed var(--border); padding-top: 12px; margin-top: 12px;">
+                        <label>Iniciar Nova Proposta</label>
+                        <div style="display: flex; gap: 8px; margin-top: 6px;">
+                            <input type="text" id="newProcessTitle" placeholder="Título da proposta (ex: Teste Ocular NRU)" />
+                            <button class="btn btn-primary" onclick="createProcess()">Criar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" id="submissionCard" style="display: none;">
+                    <h2>
+                        <span>2. Submissão da Proposta (Proponente)</span>
+                        <span id="currentStatusBadge" class="status-pill status-SUBMISSION">SUBMISSION</span>
+                    </h2>
+
+                    <div id="dynamicFormContainer">Carregando formulário...</div>
+
+                    <div class="actions-bar">
+                        <button class="btn btn-secondary" onclick="saveDraft()">Salvar Rascunho</button>
+                        <button class="btn btn-primary" onclick="submitForm()">Submeter Formalmente</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLUNA DIREITA: TRIAGEM, TAREFAS & AUDITORIA -->
+            <div>
+                <div class="card" id="triageCard" style="display: none;">
+                    <h2>3. Triagem e Decisão Inicial (Triador)</h2>
+                    <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">
+                        Revise os dados enviados pelo proponente, atribua pareceres por campo e delibere a decisão formal.
+                    </p>
+
+                    <div id="triageReviewContainer"></div>
+
+                    <div class="form-group" style="margin-top: 14px;">
+                        <label>Justificativa da Decisão Formal</label>
+                        <textarea id="decisionJustification" rows="2" placeholder="Ex: Proposta atende aos critérios iniciais de elegibilidade..."></textarea>
+                    </div>
+
+                    <div class="actions-bar">
+                        <button class="btn btn-secondary" onclick="saveFieldReviewsOnly()">Salvar Pareceres</button>
+                        <button class="btn btn-success" onclick="makeDecision('APPROVED')">Aprovar</button>
+                        <button class="btn btn-warning" onclick="makeDecision('NEEDS_REVISION')">Diligência</button>
+                        <button class="btn btn-danger" onclick="makeDecision('REJECTED')">Rejeitar</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>4. Linha do Tempo e Auditoria Imutável</h2>
+                    <ul class="timeline" id="timelineList">
+                        <li style="color: var(--text-muted); font-size: 0.85rem;">Selecione um processo para carregar a auditoria.</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <h2>Console de Respostas da API</h2>
+                    <div class="logs-box" id="apiLogs">// Log de chamadas REST aparecerá aqui...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentProcessId = null;
+        let currentFormFields = [];
+
+        function logAPI(action, data) {
+            const el = document.getElementById('apiLogs');
+            el.textContent = `[${new Date().toLocaleTimeString()}] ${action}:\n` + JSON.stringify(data, null, 2);
+        }
+
+        function showAlert(msg, isError = false) {
+            const el = document.getElementById('alertBox');
+            el.textContent = msg;
+            el.className = 'alert ' + (isError ? 'alert-error' : 'alert-success');
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 5000);
+        }
+
+        async function fetchAPI(url, options = {}) {
+            try {
+                const res = await fetch(url, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(options.headers || {})
+                    }
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Erro na requisição');
+                return data;
+            } catch (err) {
+                showAlert(err.message, true);
+                throw err;
+            }
+        }
+
+        async function loadProcesses() {
+            try {
+                const data = await fetchAPI('/processes');
+                const select = document.getElementById('processSelect');
+                select.innerHTML = '<option value="">Selecione um processo...</option>';
+                data.items.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = `[${p.code}] ${p.title} (${p.status})`;
+                    select.appendChild(opt);
+                });
+                if (currentProcessId) select.value = currentProcessId;
+                logAPI('GET /processes', data);
+            } catch (e) {}
+        }
+
+        async function createProcess() {
+            const titleInput = document.getElementById('newProcessTitle');
+            const title = titleInput.value.trim();
+            if (!title) return showAlert('Informe o título do processo', true);
+
+            try {
+                const res = await fetchAPI('/processes', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        template_key: 'full_validation',
+                        title: title
+                    })
+                });
+                titleInput.value = '';
+                showAlert(`Processo ${res.code} criado com sucesso!`);
+                await loadProcesses();
+                document.getElementById('processSelect').value = res.id;
+                onProcessSelected();
+                logAPI('POST /processes', res);
+            } catch (e) {}
+        }
+
+        async function onProcessSelected() {
+            const id = document.getElementById('processSelect').value;
+            currentProcessId = id;
+            if (!id) {
+                document.getElementById('submissionCard').style.display = 'none';
+                document.getElementById('triageCard').style.display = 'none';
+                document.getElementById('timelineList').innerHTML = '<li style="color: var(--text-muted); font-size: 0.85rem;">Selecione um processo.</li>';
+                return;
+            }
+
+            const proc = await fetchAPI(`/processes/${id}`);
+            const badge = document.getElementById('currentStatusBadge');
+            badge.textContent = proc.status;
+            badge.className = `status-pill status-${proc.status}`;
+
+            document.getElementById('submissionCard').style.display = 'block';
+            if (proc.status === 'TRIAGE' || proc.status === 'PLANNING' || proc.status === 'CLOSED') {
+                document.getElementById('triageCard').style.display = 'block';
+            } else {
+                document.getElementById('triageCard').style.display = 'none';
+            }
+
+            await loadForm();
+            await loadTimeline();
+        }
+
+        async function loadForm() {
+            const data = await fetchAPI(`/processes/${currentProcessId}/activities/proposal_submission/form`);
+            currentFormFields = data.fields;
+            const container = document.getElementById('dynamicFormContainer');
+            container.innerHTML = '';
+
+            const triageContainer = document.getElementById('triageReviewContainer');
+            triageContainer.innerHTML = '';
+
+            data.fields.forEach(f => {
+                // Render Proponent Form Field
+                const val = data.values[f.field_key] || '';
+                const grp = document.createElement('div');
+                grp.className = 'form-group';
+                grp.innerHTML = `
+                    <label>${f.label} ${f.is_required ? '<span style="color:red">*</span>' : ''}</label>
+                    ${f.help_text ? `<div class="help-text">${f.help_text}</div>` : ''}
+                    ${f.field_type === 'textarea' 
+                        ? `<textarea id="field_${f.field_key}" rows="3">${val}</textarea>`
+                        : `<input type="${f.field_type === 'integer' ? 'number' : 'text'}" id="field_${f.field_key}" value="${val}" />`}
+                `;
+                container.appendChild(grp);
+
+                // Render Triage Field Review Row
+                const rev = data.reviews[f.field_key] || { status: 'CONFORME', comments: '' };
+                const tBox = document.createElement('div');
+                tBox.className = 'field-review-box';
+                tBox.innerHTML = `
+                    <div style="font-weight: 600; font-size: 0.85rem;">${f.label}: <span style="font-weight: 400; color: #0284c7;">"${val}"</span></div>
+                    <div style="display: flex; gap: 8px; margin-top: 6px;">
+                        <select id="rev_status_${f.field_key}" class="review-status-select">
+                            <option value="CONFORME" ${rev.status === 'CONFORME' ? 'selected' : ''}>Conforme</option>
+                            <option value="OBSERVACAO" ${rev.status === 'OBSERVACAO' ? 'selected' : ''}>Observação</option>
+                            <option value="NAO_CONFORME" ${rev.status === 'NAO_CONFORME' ? 'selected' : ''}>Não Conforme</option>
+                            <option value="NAO_APLICAVEL" ${rev.status === 'NAO_APLICAVEL' ? 'selected' : ''}>Não Aplicável</option>
+                        </select>
+                        <input type="text" id="rev_comment_${f.field_key}" placeholder="Comentário do avaliador..." value="${rev.comments || ''}" />
+                    </div>
+                `;
+                triageContainer.appendChild(tBox);
+            });
+
+            logAPI('GET /form', data);
+        }
+
+        function collectFormValues() {
+            const values = {};
+            currentFormFields.forEach(f => {
+                const el = document.getElementById(`field_${f.field_key}`);
+                if (el) values[f.field_key] = el.value;
+            });
+            return values;
+        }
+
+        async function saveDraft() {
+            const values = collectFormValues();
+            const res = await fetchAPI(`/processes/${currentProcessId}/activities/proposal_submission/form`, {
+                method: 'PUT',
+                body: JSON.stringify({ values })
+            });
+            showAlert('Rascunho salvo com sucesso!');
+            await loadTimeline();
+            logAPI('PUT /form (Draft)', res);
+        }
+
+        async function submitForm() {
+            const values = collectFormValues();
+            const res = await fetchAPI(`/processes/${currentProcessId}/activities/proposal_submission/form`, {
+                method: 'POST',
+                body: JSON.stringify({ values })
+            });
+            showAlert('Proposta submetida formalmente!');
+            await onProcessSelected();
+            logAPI('POST /form (Submit)', res);
+        }
+
+        function collectReviews() {
+            return currentFormFields.map(f => ({
+                field_key: f.field_key,
+                status: document.getElementById(`rev_status_${f.field_key}`).value,
+                comments: document.getElementById(`rev_comment_${f.field_key}`).value
+            }));
+        }
+
+        async function saveFieldReviewsOnly() {
+            const reviews = collectReviews();
+            const res = await fetchAPI(`/processes/${currentProcessId}/triage/reviews`, {
+                method: 'POST',
+                body: JSON.stringify({ reviews })
+            });
+            showAlert('Pareceres por campo salvos!');
+            await loadTimeline();
+            logAPI('POST /triage/reviews', res);
+        }
+
+        async function makeDecision(outcome) {
+            const justification = document.getElementById('decisionJustification').value.trim();
+            if (!justification) return showAlert('Insira a justificativa formal para a decisão', true);
+
+            await saveFieldReviewsOnly();
+
+            const res = await fetchAPI(`/processes/${currentProcessId}/triage/decision`, {
+                method: 'POST',
+                body: JSON.stringify({ outcome, justification })
+            });
+            showAlert(`Decisão '${outcome}' formalizada com sucesso!`);
+            document.getElementById('decisionJustification').value = '';
+            await loadProcesses();
+            await onProcessSelected();
+            logAPI('POST /triage/decision', res);
+        }
+
+        async function loadTimeline() {
+            const data = await fetchAPI(`/processes/${currentProcessId}/timeline`);
+            const list = document.getElementById('timelineList');
+            list.innerHTML = '';
+            data.events.forEach(e => {
+                const li = document.createElement('li');
+                li.className = 'timeline-item';
+                li.innerHTML = `
+                    <div class="event-type">${e.event_type}</div>
+                    <div class="event-time">${new Date(e.occurred_at).toLocaleString()}</div>
+                `;
+                list.appendChild(li);
+            });
+            logAPI('GET /timeline', data);
+        }
+
+        // Auto-bootstrap templates and load processes on start
+        window.addEventListener('DOMContentLoaded', loadProcesses);
+    </script>
+</body>
+</html>

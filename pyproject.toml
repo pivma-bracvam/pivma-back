@@ -14,7 +14,8 @@ dependencies = [
     "psycopg[binary] (>=3.3.4,<4.0.0)",
     "alembic (>=1.19.1,<2.0.0)",
     "argon2-cffi (>=25.1,<26)",
-    "PyJWT (>=2.13,<3.0)"
+    "PyJWT (>=2.13,<3.0)",
+    "pyyaml (>=6.0.3,<7.0.0)"
 ]
 
 [tool.poetry]
@@ -38,7 +39,7 @@ dev = [
 
 [tool.ruff]
 line-length = 79
-extend-exclude = ['migrations']
+extend-exclude = ['migrations', '.agents']
 
 [tool.ruff.lint]
 preview = true
