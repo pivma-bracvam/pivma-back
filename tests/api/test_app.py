@@ -12,3 +12,12 @@ def test_root_should_return_ok_and_hello_world():
 
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {'message': 'Hello World!'}
+
+
+def test_prototypes_endpoint_should_return_html():
+    client = TestClient(app)
+
+    response = client.get('/prototypes/')
+
+    assert response.status_code == HTTPStatus.OK
+    assert 'PIVMA' in response.text
