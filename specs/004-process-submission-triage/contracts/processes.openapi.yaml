@@ -1,0 +1,625 @@
+openapi: 3.1.0
+info:
+  title: PIVMA Process & Submission/Triage API
+  description: Endpoints para instanciação de processos, submissão de propostas, triagem campo a campo, gestão de tarefas e timeline.
+  version: 1.0.0
+paths:
+  /processes/templates:
+    get:
+      summary: Listar templates de processo disponíveis
+      tags: [Process Templates]
+      responses:
+        '200':
+          description: Lista de templates ativos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProcessTemplateSummary'
+
+  /processes/templates/{key}:
+    get:
+      summary: Obter detalhes e versão ativa do template
+      tags: [Process Templates]
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detalhes do template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessTemplateDetail'
+        '404':
+          description: Template não encontrado
+
+  /processes:
+    post:
+      summary: Iniciar uma nova instância de processo (Rascunho de Submissão)
+      tags: [Processes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProcessRequest'
+      responses:
+        '201':
+          description: Instância criada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessInstanceDetail'
+        '422':
+          description: Erro de validação na requisição
+
+    get:
+      summary: Listar instâncias de processo com filtros
+      tags: [Processes]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Lista paginada de processos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessInstanceListResponse'
+
+  /processes/{id}:
+    get:
+      summary: Obter detalhes do processo e status macro
+      tags: [Processes]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detalhes do processo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessInstanceDetail'
+        '404':
+          description: Processo não encontrado
+
+  /processes/{id}/timeline:
+    get:
+      summary: Obter a timeline e histórico completo de eventos e execuções do processo
+      tags: [Processes]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Timeline completa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessTimelineResponse'
+
+  /tasks:
+    get:
+      summary: Listar tarefas operacionais do usuário autenticado (visão de trabalho / Kanban)
+      tags: [Tasks]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: process_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de tarefas disponíveis
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskSummary'
+
+  /tasks/{id}:
+    get:
+      summary: Obter dados completos de uma tarefa (incluindo formulários e pré-condições)
+      tags: [Tasks]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detalhes da tarefa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskDetail'
+        '404':
+          description: Tarefa não encontrada
+
+  /processes/{id}/activities/{activity_key}/form:
+    get:
+      summary: Obter a instância e campos do formulário para a execução atual da atividade
+      tags: [Forms]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: activity_key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Esquema e valores atuais do formulário
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormInstanceResponse'
+
+    put:
+      summary: Salvar rascunho de preenchimento do formulário
+      tags: [Forms]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: activity_key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveFormValuesRequest'
+      responses:
+        '200':
+          description: Valores salvos em rascunho com sucesso
+
+    post:
+      summary: Submeter formalmente o formulário e concluir a execução da atividade
+      tags: [Forms]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: activity_key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitFormRequest'
+      responses:
+        '200':
+          description: Formulário submetido e atividade concluída com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityCompletionResponse'
+        '422':
+          description: Erros de validação nos campos obrigatórios
+
+  /processes/{id}/triage/review:
+    post:
+      summary: Registrar avaliação de um ou mais campos durante a triagem
+      tags: [Triage]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveFieldReviewsRequest'
+      responses:
+        '200':
+          description: Avaliações registradas com sucesso
+
+  /processes/{id}/triage/decision:
+    post:
+      summary: Emitir decisão formal de triagem (Aprovar, Rejeitar ou Solicitar Diligência)
+      tags: [Triage]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriageDecisionRequest'
+      responses:
+        '200':
+          description: Decisão processada e novo estado aplicado ao processo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TriageDecisionResponse'
+        '409':
+          description: Conflito de estado ou triagem já concluída
+
+components:
+  schemas:
+    ProcessTemplateSummary:
+      type: object
+      required: [id, key, name, is_active]
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        is_active:
+          type: boolean
+
+    ProcessTemplateDetail:
+      type: object
+      required: [id, key, name, version_number, definition]
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+        name:
+          type: string
+        version_number:
+          type: integer
+        definition:
+          type: object
+
+    CreateProcessRequest:
+      type: object
+      required: [template_key, title]
+      properties:
+        template_key:
+          type: string
+          example: "full_validation"
+        title:
+          type: string
+          example: "Validação de Método Alternativo para Irritação Ocular"
+        initial_notes:
+          type: string
+
+    ProcessInstanceDetail:
+      type: object
+      required: [id, code, title, status, template_key, version_number]
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          enum: [DRAFT, SUBMISSION, TRIAGE, PLANNING, EXECUTION, REVIEW, FINAL_DECISION, CLOSED]
+        template_key:
+          type: string
+        version_number:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        closure_reason:
+          type: string
+          nullable: true
+
+    ProcessInstanceListResponse:
+      type: object
+      required: [items, total, page, size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProcessInstanceDetail'
+        total:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+
+    TaskSummary:
+      type: object
+      required: [id, process_id, process_code, title, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        process_id:
+          type: string
+          format: uuid
+        process_code:
+          type: string
+        title:
+          type: string
+        assigned_role:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [UNASSIGNED, ASSIGNED, IN_PROGRESS, SUBMITTED, COMPLETED, CANCELLED]
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+
+    TaskDetail:
+      type: object
+      required: [id, process_id, activity_key, status, title]
+      properties:
+        id:
+          type: string
+          format: uuid
+        process_id:
+          type: string
+          format: uuid
+        activity_key:
+          type: string
+        activity_run_number:
+          type: integer
+        title:
+          type: string
+        status:
+          type: string
+        is_blocked:
+          type: boolean
+        blocked_reason:
+          type: string
+          nullable: true
+
+    FormInstanceResponse:
+      type: object
+      required: [form_instance_id, template_key, fields, values, is_submitted]
+      properties:
+        form_instance_id:
+          type: string
+          format: uuid
+        template_key:
+          type: string
+        is_submitted:
+          type: boolean
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormFieldDefinition'
+        values:
+          type: object
+          additionalProperties: true
+        reviews:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/FieldReviewSummary'
+
+    FormFieldDefinition:
+      type: object
+      required: [field_key, label, field_type, is_required, order_index]
+      properties:
+        field_key:
+          type: string
+        label:
+          type: string
+        help_text:
+          type: string
+          nullable: true
+        field_type:
+          type: string
+          enum: [text, integer, float, boolean, select, date, file_upload, textarea]
+        is_required:
+          type: boolean
+        order_index:
+          type: integer
+        options:
+          type: array
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+              label:
+                type: string
+        validation_rules:
+          type: object
+
+    FieldReviewSummary:
+      type: object
+      required: [status, reviewed_at]
+      properties:
+        status:
+          type: string
+          enum: [CONFORME, NAO_CONFORME, OBSERVACAO, NAO_APLICAVEL]
+        comments:
+          type: string
+          nullable: true
+        reviewed_at:
+          type: string
+          format: date-time
+
+    SaveFormValuesRequest:
+      type: object
+      required: [values]
+      properties:
+        values:
+          type: object
+          additionalProperties: true
+
+    SubmitFormRequest:
+      type: object
+      required: [values]
+      properties:
+        values:
+          type: object
+          additionalProperties: true
+
+    SaveFieldReviewsRequest:
+      type: object
+      required: [reviews]
+      properties:
+        reviews:
+          type: array
+          items:
+            type: object
+            required: [field_key, status]
+            properties:
+              field_key:
+                type: string
+              status:
+                type: string
+                enum: [CONFORME, NAO_CONFORME, OBSERVACAO, NAO_APLICAVEL]
+              comments:
+                type: string
+                nullable: true
+
+    TriageDecisionRequest:
+      type: object
+      required: [outcome, justification]
+      properties:
+        outcome:
+          type: string
+          enum: [APPROVED, REJECTED, NEEDS_REVISION]
+        justification:
+          type: string
+          example: "Proposta técnica completa e aderente às diretrizes de validação."
+
+    TriageDecisionResponse:
+      type: object
+      required: [process_id, new_process_status, decision_id, outcome]
+      properties:
+        process_id:
+          type: string
+          format: uuid
+        new_process_status:
+          type: string
+        decision_id:
+          type: string
+          format: uuid
+        outcome:
+          type: string
+        next_activity_run:
+          type: integer
+          nullable: true
+
+    ActivityCompletionResponse:
+      type: object
+      required: [activity_key, run_number, status]
+      properties:
+        activity_key:
+          type: string
+        run_number:
+          type: integer
+        status:
+          type: string
+        artifact_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    ProcessTimelineResponse:
+      type: object
+      required: [process_id, code, events]
+      properties:
+        process_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        events:
+          type: array
+          items:
+            type: object
+            required: [id, event_type, occurred_at]
+            properties:
+              id:
+                type: string
+                format: uuid
+              event_type:
+                type: string
+              user_id:
+                type: string
+                format: uuid
+                nullable: true
+              activity_run_id:
+                type: string
+                format: uuid
+                nullable: true
+              occurred_at:
+                type: string
+                format: date-time
+              context_data:
+                type: object
+                nullable: true
