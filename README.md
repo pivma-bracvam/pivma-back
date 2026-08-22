@@ -8,8 +8,10 @@ API Backend desenvolvida em **Python 3.14** utilizando o framework **FastAPI**, 
 - [Pré-requisitos](#-pré-requisitos)
 - [Requisitos Mínimos do `.env`](#-requisitos-mínimos-do-env)
 - [Instalação e Configuração](#-instalação-e-configuração)
+- [Cadastro do Primeiro Usuário e Inicialização de Administrador](#-cadastro-do-primeiro-usuário-e-inicialização-de-administrador)
+- [Autorização RBAC](#-autorização-rbac)
+- [Documentação Interativa e Protótipos](#-documentação-interativa-e-protótipos)
 - [Executando Comandos com Poe-the-poet (`poe`)](#-executando-comandos-com-poe-the-poet-poe)
-- [Cadastro de Usuários](#-cadastro-de-usuários)
 - [Práticas de Desenvolvimento e Testes](#-práticas-de-desenvolvimento-e-testes)
   - [Como os Testes Estão Estruturados](#como-os-testes-estão-estruturados)
   - [Como Criar um Novo Teste](#como-criar-um-novo-teste)
@@ -30,7 +32,7 @@ Para rodar e desenvolver este projeto localmente, certifique-se de possuir insta
 
 ## 🔑 Requisitos Mínimos do `.env`
 
-As configurações da aplicação são gerenciadas centralidamente pela classe `Settings` em [`src/pivma/core/settings.py`](file:///home/JASPION/BraCVAM/pivma-back/src/pivma/core/settings.py) via `pydantic-settings`.
+As configurações da aplicação são gerenciadas centralidamente pela classe `Settings` em [`src/pivma/core/settings.py`](src/pivma/core/settings.py) via `pydantic-settings`.
 
 ### Variáveis Obrigatórias:
 
@@ -79,33 +81,78 @@ cp .env.example .env
 
 ---
 
-## 👤 Cadastro de Usuários
+## 👤 Cadastro do Primeiro Usuário e Inicialização de Administrador
 
-**CONFIRMADO:** `POST /users/` cria uma conta e retorna HTTP 201 com `id`, `username` e `email`. A resposta não inclui a senha nem seu hash.
+O fluxo de inicialização da primeira conta com privilégios administrativos ocorre em 3 passos:
 
-| Campo | Regra |
-| :--- | :--- |
-| `username` | De 3 a 64 caracteres; aceita letras ASCII, números, ponto, hífen e sublinhado. Espaços externos são removidos e a caixa é preservada. |
-| `email` | Deve ter formato de e-mail válido. Espaços externos são removidos e a caixa é preservada. |
-| `password` | De 8 a 128 caracteres Unicode, sem caracteres de espaço em branco. A API armazena somente um hash Argon2id. |
-
-Username e e-mail são únicos entre usuários ativos sem distinguir maiúsculas de minúsculas. Um usuário com exclusão lógica libera ambos os identificadores para novo cadastro.
+### 1. Criar a conta via API (`POST /users/`)
+O endpoint de cadastro é público e pode ser acessado pelo Swagger (`/docs`) ou via `curl`:
 
 ```bash
 curl -X POST http://localhost:8000/users/ \
   -H 'Content-Type: application/json' \
-  -d '{"username":"alice","email":"alice@example.com","password":"UmaSenhaSegura2026"}'
+  -d '{"username":"admin","email":"admin@example.com","password":"UmaSenhaSegura2026!"}'
 ```
 
-Conflitos retornam HTTP 409 com `Username already exists` ou `Email already exists`. Senhas inválidas retornam HTTP 422 com `{"detail":"Invalid password"}`. Falhas inesperadas retornam HTTP 500 sem detalhes internos.
+- **Regras:** `username` de 3 a 64 caracteres (único no banco, case-insensitive); `password` de 8 a 128 caracteres (criptografada em Argon2id).
+- **Resposta (HTTP 201):** Retorna `id` (UUID), `username` e `email`.
 
-Autenticação, login, JWT e recuperação de senha não fazem parte deste endpoint.
+> [!NOTE]
+> Ao ser cadastrado, o usuário não possui nenhum perfil ou permissão associada por padrão.
+
+### 2. Atribuir o perfil de Administrador via Bootstrap CLI
+Para garantir a segurança, a atribuição do primeiro perfil administrativo é realizada exclusivamente via linha de comando:
+
+```bash
+# Usando Poetry:
+poetry run python -m pivma.bootstrap_rbac --user-id <UUID_RETORNADO_NO_PASSO_1>
+
+# Ou usando uv:
+PYTHONPATH=src uv run python -m pivma.bootstrap_rbac --user-id <UUID_RETORNADO_NO_PASSO_1>
+```
+
+Esse comando:
+- Localiza o usuário ativo no banco.
+- Associa o perfil `Administrator` do catálogo seeded de RBAC.
+- Registra a ação na tabela de auditoria (`RbacChange`).
+- É idempotente para a mesma conta e bloqueia se outra conta já tiver recebido a atribuição.
+
+### 3. Fazer Login e Utilizar a API
+Após o bootstrap:
+- Autentique-se via `POST /auth/login` informando `username` (ou `email`) e `password`.
+- A API retorna cookies seguros de sessão (`access_token`, `refresh_token` e token CSRF).
+- Com a sessão ativa, esse usuário pode gerenciar outros usuários, perfis (`/rbac/users/{user_id}/access`) e processos.
+
+---
+
+## 🔐 Autorização RBAC
+
+Após aplicar as migrações, o backend disponibiliza autorização global por perfis. O catálogo inicial é fechado e contém `rbac.read`, `rbac.profiles.manage` e `rbac.assignments.manage`; somente a migração cria essas permissões.
+
+| Rota | Permissão necessária |
+| --- | --- |
+| `GET /rbac/permissions`, `GET /rbac/profiles`, `GET /rbac/users/{user_id}/access`, `GET /rbac/changes` | `rbac.read` |
+| `POST /rbac/profiles`, `PATCH/DELETE /rbac/profiles/{profile_id}` | `rbac.profiles.manage` |
+| `POST/DELETE /rbac/users/{user_id}/profiles/{profile_id}` | `rbac.assignments.manage` |
+
+As mutações exigem cookie de sessão e o cabeçalho `Origin` configurado. O backend consulta o estado atual das atribuições a cada pedido; não há cache de permissões no token. Perfis e atribuições são encerrados por exclusão lógica, preservando o histórico de concessões.
+
+---
+
+## 🌐 Documentação Interativa e Protótipos
+
+Com o servidor em execução, os seguintes recursos estão disponíveis no navegador:
+
+- **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
+- **ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
+- **Schema OpenAPI (JSON):** [http://localhost:8000/openapi.json](http://localhost:8000/openapi.json)
+- **Protótipo Interativo da Fase 1 (Submissão & Triagem):** [http://localhost:8000/prototypes](http://localhost:8000/prototypes)
 
 ---
 
 ## 🛠 Executando Comandos com Poe-the-poet (`poe`)
 
-O projeto utiliza o **Poe-the-poet** como *task runner* declarativo, configurado no arquivo [`pyproject.toml`](file:///home/JASPION/BraCVAM/pivma-back/pyproject.toml).
+O projeto utiliza o **Poe-the-poet** como *task runner* declarativo, configurado no arquivo [`pyproject.toml`](pyproject.toml).
 
 Os comandos disponíveis são:
 
@@ -151,14 +198,14 @@ poetry test -k test_create_user
 A suíte de testes utiliza **Pytest**, **Testcontainers**, **Factory Boy** e o **TestClient** do FastAPI.
 
 1. **Containers de Banco de Dados Isolados em Tempo de Teste**:
-   - A fixture `engine` em [`tests/conftest.py`](file:///home/JASPION/BraCVAM/pivma-back/tests/conftest.py#L31-L45) utiliza a biblioteca `testcontainers-postgres` (`PostgresContainer`).
+   - A fixture `engine` em [`tests/conftest.py`](tests/conftest.py#L31-L45) utiliza a biblioteca `testcontainers-postgres` (`PostgresContainer`).
    - Ao rodar os testes em ambientes Linux/macOS, um container descartável PostgreSQL com a imagem `pgvector/pgvector:pg17` é levantado automaticamente e destruído ao final da sessão, garantindo isolamento total contra a base de produção/dev.
 
 2. **Injeção de Sessão e Dependency Override**:
    - A fixture `client` substitui a dependência `get_session` da aplicação para forçar as rotas a utilizarem a sessão de teste assíncrona (`AsyncSession`).
 
 3. **Geração de Dados Fictícios com Factory Boy**:
-   - Para evitar cadastros manuais repetitivos, utilizamos `UserFactory` em [`tests/conftest.py`](file:///home/JASPION/BraCVAM/pivma-back/tests/conftest.py#L100-L107) com atributos dinâmicos (`factory.Sequence` e `factory.LazyAttribute`).
+   - Para evitar cadastros manuais repetitivos, utilizamos `UserFactory` em [`tests/conftest.py`](tests/conftest.py#L100-L107) com atributos dinâmicos (`factory.Sequence` e `factory.LazyAttribute`).
 
 4. **Mock Temporal para Banco de Dados**:
    - A fixture `mock_db_time` permite congelar a data/hora dos eventos de inserção (`before_insert`) do SQLAlchemy (`created_at`, `updated_at`), tornando assertions temporais determinísticas.
@@ -223,14 +270,14 @@ def test_create_user_already_exists_username(client, user):
 
 ### 1. Subindo toda a aplicação com Docker Compose (Recomendado)
 
-O arquivo [`compose.yaml`](file:///home/JASPION/BraCVAM/pivma-back/compose.yaml) orquestra a API e o banco de dados PostgreSQL `pgvector`:
+O arquivo [`compose.yaml`](compose.yaml) orquestra a API e o banco de dados PostgreSQL `pgvector`:
 
 ```bash
 # Subir containers em background e forçar o build da imagem
 docker compose up --build -d
 ```
 
-O `compose.yaml` executa automaticamente o script [`entrypoint.sh`](file:///home/JASPION/BraCVAM/pivma-back/entrypoint.sh), aplicando as migrações do Alembic (`alembic upgrade head`) antes de iniciar o servidor Uvicorn.
+O `compose.yaml` executa automaticamente o script [`entrypoint.sh`](entrypoint.sh), aplicando as migrações do Alembic (`alembic upgrade head`) antes de iniciar o servidor Uvicorn.
 
 - **Acessar a documentação Swagger**: `http://localhost:8000/docs`
 - **Acompanhar os logs**: `docker compose logs -f api`
@@ -260,7 +307,7 @@ docker run -d \
    Execute sempre `poetry format` e `poetry test` antes de abrir *Pull Requests* ou efetuar commits.
 
 2. **Criação de Migrações do Banco de Dados (Alembic)**:
-   Ao alterar modelos em [`src/pivma/core/database/models.py`](file:///home/JASPION/BraCVAM/pivma-back/src/pivma/core/database/models.py), gere uma nova migração autogerada:
+   Ao alterar modelos em [`src/pivma/core/database/models.py`](src/pivma/core/database/models.py), gere uma nova migração autogerada:
    ```bash
    poetry run alembic revision --autogenerate -m "add nova coluna x"
    poetry run alembic upgrade head
