@@ -19,6 +19,22 @@ def test_settings_accepts_required_authentication_configuration(monkeypatch):
     assert settings.AUTH_ALLOWED_ORIGINS == ['https://app.example.com']
 
 
+def test_settings_ignores_unknown_environment_variables(monkeypatch):
+    monkeypatch.setenv(
+        'JWT_SECRET_KEY',
+        'configured-jwt-secret-with-at-least-32-bytes',
+    )
+    monkeypatch.setenv(
+        'AUTH_ALLOWED_ORIGINS',
+        '["https://app.example.com"]',
+    )
+    monkeypatch.setenv('UNKNOWN_SETTING', 'ignored')
+
+    settings = Settings()
+
+    assert not hasattr(settings, 'UNKNOWN_SETTING')
+
+
 def test_settings_rejects_short_jwt_secret(monkeypatch):
     monkeypatch.setenv('JWT_SECRET_KEY', 'too-short')
 
