@@ -9,12 +9,14 @@ API Backend desenvolvida em Python 3.14 utilizando FastAPI, SQLAlchemy 2.0 (Asyn
 - [Pré-requisitos](#pré-requisitos)
 - [Requisitos Mínimos do `.env`](#requisitos-mínimos-do-env)
 - [Instalação e Configuração](#instalação-e-configuração)
+- [Promoção de Usuários e Gestão de Cargos](#promoção-de-usuários-e-gestão-de-cargos)
+- [Guia de Integração para o Frontend](#guia-de-integração-para-o-frontend)
 - [Cadastro de Usuários](#cadastro-de-usuários)
 - [Autorização RBAC](#autorização-rbac)
 - [Vinculação Institucional](#vinculação-institucional)
 - [Processos, Submissão e Triagem](#processos-submissão-e-triagem)
 - [Participantes de Processo e Conflito de Interesse](#participantes-de-processo-e-conflito-de-interesse)
-- [Executando Comandos com Poe-the-poet (`poe`)](#executando-comandos-com-poe-the-poet-poe)
+- [Comandos Úteis (`poetry` e `uv`)](#comandos-úteis-poetry-e-uv)
 - [Práticas de Desenvolvimento e Testes](#práticas-de-desenvolvimento-e-testes)
   - [Estrutura da Suíte de Testes](#estrutura-da-suíte-de-testes)
   - [Padrão para Criação de Testes](#padrão-para-criação-de-testes)
@@ -28,7 +30,7 @@ API Backend desenvolvida em Python 3.14 utilizando FastAPI, SQLAlchemy 2.0 (Asyn
 Para executar e desenvolver o projeto localmente, são necessários:
 
 - **Python 3.14** ou superior
-- **Poetry** (gerenciador de dependências e ambientes virtuais)
+- **Poetry** ou **uv** (gerenciador de dependências e ambientes virtuais)
 - **Docker** e **Docker Compose** (para PostgreSQL local com `pgvector` e execução de testes isolados)
 
 ---
@@ -58,42 +60,144 @@ cp .env.example .env
 
 ## Instalação e Configuração
 
-1. **Clonar o repositório:**
-   ```bash
-   git clone <URL_DO_REPOSITORIO>
-   cd pivma-back
+Você pode utilizar tanto **Poetry** quanto **uv** para gerenciar o ambiente:
+
+### Com Poetry:
+
+```bash
+# 1. Instalar dependências
+poetry install
+
+# 2. Iniciar o banco de dados local
+docker compose up db -d
+
+# 3. Aplicar migrações do banco de dados
+poetry run alembic upgrade head
+
+# 4. Carregar templates declarativos de processos
+poetry run python -m pivma.bootstrap_process_templates
+
+# 5. Iniciar o servidor de desenvolvimento
+poetry run poe serve
+```
+
+### Com uv:
+
+```bash
+# 1. Sincronizar dependências
+uv sync
+
+# 2. Iniciar o banco de dados local
+docker compose up db -d
+
+# 3. Aplicar migrações do banco de dados
+uv run alembic upgrade head
+
+# 4. Carregar templates declarativos de processos
+uv run python -m pivma.bootstrap_process_templates
+
+# 5. Iniciar o servidor de desenvolvimento
+uv run fastapi dev src/pivma/__init__.py
+```
+
+---
+
+## Promoção de Usuários e Gestão de Cargos
+
+A aplicação divide permissões e papéis em dois níveis distintos: **Perfis Globais (RBAC)** e **Papéis Locais de Processo (Designações)**.
+
+### 1. Criar e Promover o Primeiro Administrador (Bootstrap CLI)
+
+Para o primeiro acesso administrativo ao sistema:
+
+1. Registre uma conta comum via `POST /users/` (ou use uma conta criada previamente) e copie o `id` (UUID) retornado.
+2. Execute o script de bootstrap no terminal:
+
+```bash
+# Com Poetry:
+poetry run python -m pivma.bootstrap_rbac --user-id <UUID_DO_USUARIO>
+
+# Com uv:
+uv run python -m pivma.bootstrap_rbac --user-id <UUID_DO_USUARIO>
+```
+
+> [!IMPORTANT]
+> Esse comando atribui o perfil global `Administrador` (que contém permissões para gerenciar outros perfis, catálogos institucionais e participantes). O comando é idempotente para o mesmo usuário e falha caso outra conta já possua o perfil `Administrador`.
+
+### 2. Atribuir Outros Cargos/Perfis Globais (via API)
+
+Com uma conta de Administrador autenticada:
+
+1. **Listar perfis disponíveis:**
+   ```http
+   GET /rbac/profiles
+   ```
+   *Perfis pré-semeados na migração:* `Administrador`, `Grupo Gestor`, `Gerente do Estudo`, `Laboratório Participante`, `Avaliador Ad Hoc`, `Revisor`, `Especialista`, `Analista Estatístico`.
+
+2. **Atribuir perfil a um usuário:**
+   ```http
+   POST /rbac/users/{user_id}/profiles/{profile_id}
    ```
 
-2. **Instalar dependências com Poetry:**
-   ```bash
-   poetry install
+3. **Revogar perfil de um usuário:**
+   ```http
+   DELETE /rbac/users/{user_id}/profiles/{profile_id}
    ```
 
-3. **Configurar variáveis de ambiente:**
-   ```bash
-   cp .env.example .env
-   ```
+### 3. Designar Papéis Locais em um Processo Específico
 
-4. **Iniciar o banco de dados via Docker Compose:**
-   ```bash
-   docker compose up db -d
-   ```
+A designação local vincula um usuário a uma instância de processo (`ProcessInstance`):
 
-5. **Executar migrações do banco de dados:**
-   ```bash
-   poetry run alembic upgrade head
-   ```
+```http
+POST /processes/{process_id}/participants
+Content-Type: application/json
 
-6. **Carregar templates declarativos de processos:**
-   ```bash
-   poetry run python -m pivma.bootstrap_process_templates
-   ```
+{
+  "user_id": "00000000-0000-0000-0000-000000000001",
+  "role_key": "ad_hoc_evaluator",
+  "laboratory_id": null
+}
+```
 
-7. **Configurar o usuário administrador inicial (bootstrap RBAC):**
-   Após cadastrar a primeira conta, vincule o perfil `Administrador`:
-   ```bash
-   poetry run python -m pivma.bootstrap_rbac --user-id <UUID_DA_CONTA_ATIVA>
-   ```
+- **Papéis gerais:** `group_manager`, `study_manager`, `statistician`, `adhoc_evaluator`, `peer_reviewer`, `proponent`.
+- **Papéis laboratoriais:** `lead_laboratory`, `participating_laboratory` (campo `laboratory_id` é obrigatório e o usuário deve ter vínculo institucional ativo com aquele laboratório).
+
+---
+
+## Guia de Integração para o Frontend
+
+Esta seção sintetiza os pontos fundamentais para o desenvolvimento e integração da interface com a API.
+
+### 1. Autenticação e Transporte de Sessão por Cookies
+
+- **Login (`POST /auth/token`):** A autenticação bem-sucedida envia um cookie `access_token` seguro (`HttpOnly`, `SameSite=Lax`).
+- **Requisições autenticadas:** O navegador envia o cookie automaticamente. No cliente HTTP do frontend (como `axios` ou `fetch`), configure `credentials: 'include'` (ou `withCredentials: true`).
+- **Logout (`POST /auth/logout`):** Invalida a sessão e limpa o cookie.
+
+### 2. Proteção CSRF e Cabeçalho `Origin`
+
+Todas as requisições de mutação protegidas (`POST`, `PUT`, `PATCH`, `DELETE`) validam a procedência da requisição:
+- O navegador inclui o cabeçalho `Origin` automaticamente em chamadas CORS/Fetch.
+- Em desenvolvimento, certifique-se de que a URL do frontend (ex.: `http://localhost:3000` ou `http://localhost:5173`) esteja na lista de origens confiáveis da configuração.
+
+### 3. Consultas Úteis para o Estado da Interface
+
+| Finalidade | Endpoint | Como a UI deve usar |
+| :--- | :--- | :--- |
+| **Vínculos e Laboratórios do Usuário** | `GET /institutional/me/affiliations` | Carrega os laboratórios ativos aos quais o usuário logado pertence para seleção em formulários |
+| **Permissões Globais Efetivas** | `GET /rbac/users/{id}/access` | Define permissões administrativas e menus visíveis |
+| **Participantes e Conflitos no Processo** | `GET /processes/{process_id}/participants` | Mostra quem está atuando no processo e se há bandeira de conflito ativo (`has_conflict: true`) |
+| **Formulários Dinâmicos da Fase** | `GET /processes/{id}/forms/{form_key}` | Renderiza os campos de entrada, validações e rascunhos da proposta/triagem |
+| **Minhas Tarefas Pendentes** | `GET /tasks` | Lista as ações que exigem atuação do usuário logado |
+
+### 4. Tratamento de Erros e Códigos de Status
+
+- `HTTP 200 / 201 / 204`: Sucesso na consulta / criação / exclusão.
+- `HTTP 401 Unauthorized`: Sessão expirada ou ausente. Redirecionar para tela de login.
+- `HTTP 403 Forbidden`: Usuário sem permissão **OU usuário com conflito de interesse vigente** tentando avaliar/decidir no processo. Exibir mensagem explicativa.
+- `HTTP 404 Not Found`: Entidade (processo, formulário, usuário, laboratório) inexistente.
+- `HTTP 409 Conflict`: Conflito de regra de negócio (ex.: e-mail já cadastrado, usuário já designado com aquele papel, processo ou usuário inativo).
+- `HTTP 422 Unprocessable Entity`: Validação de schema do payload (campos obrigatórios ausentes, tipos incorretos).
 
 ---
 
@@ -199,33 +303,20 @@ A API permite designar, revogar e consultar participantes de um `ProcessInstance
 
 ---
 
-## Executando Comandos com Poe-the-poet (`poe`)
+## Comandos Úteis (`poetry` e `uv`)
 
-O projeto utiliza o **Poe-the-poet** como executor de tarefas declarado em [`pyproject.toml`](pyproject.toml).
+Tabela comparativa de comandos rápidos para o dia a dia de desenvolvimento:
 
-```bash
-# Iniciar servidor de desenvolvimento com hot-reload
-poetry run poe serve
-
-# Executar verificação estática de código com Ruff
-poetry run poe lint
-
-# Formatar código e aplicar correções automáticas seguras
-poetry run poe format
-
-# Executar a suíte de testes com relatório de cobertura HTML
-poetry run poe test
-```
-
-Para executar o Pytest diretamente com parâmetros adicionais:
-
-```bash
-# Executar apenas testes de uma rota específica
-poetry run pytest tests/api/routers/test_participant_router.py -v
-
-# Executar filtrando por nome de teste
-poetry run pytest -k "test_current_conflict"
-```
+| Ação | Com Poetry | Com uv |
+| :--- | :--- | :--- |
+| **Instalar dependências** | `poetry install` | `uv sync` |
+| **Servidor com hot-reload** | `poetry run poe serve` | `uv run fastapi dev src/pivma/__init__.py` |
+| **Verificar Lints** | `poetry run poe lint` | `uv run ruff check` |
+| **Formatar Código** | `poetry run poe format` | `uv run ruff format` |
+| **Executar Testes** | `poetry run poe test` | `uv run pytest` |
+| **Aplicar Migrações** | `poetry run alembic upgrade head` | `uv run alembic upgrade head` |
+| **Bootstrap Templates** | `poetry run python -m pivma.bootstrap_process_templates` | `uv run python -m pivma.bootstrap_process_templates` |
+| **Bootstrap Admin** | `poetry run python -m pivma.bootstrap_rbac --user-id <UUID>` | `uv run python -m pivma.bootstrap_rbac --user-id <UUID>` |
 
 ---
 
@@ -295,7 +386,7 @@ O contêiner executa automaticamente [`entrypoint.sh`](entrypoint.sh), aplicando
 
 ## Diretrizes de Desenvolvimento
 
-1. **Verificação Prévia:** execute `poetry run poe format`, `poetry run poe lint` e `poetry run pytest` antes de submeter alterações.
+1. **Verificação Prévia:** execute `poetry run poe format`, `poetry run poe lint` e `poetry run pytest` (ou os equivalentes `uv`) antes de submeter alterações.
 2. **Migrações de Banco de Dados:** ao alterar modelos em [`src/pivma/core/database/models.py`](src/pivma/core/database/models.py), gere uma revisão com nome descritivo:
    ```bash
    poetry run alembic revision --autogenerate -m "descricao_da_migracao"
