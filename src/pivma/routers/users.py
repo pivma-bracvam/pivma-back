@@ -65,9 +65,7 @@ async def create_user(user: UserSchema, session: Session):
         )
 
     try:
-        password_hash = await run_in_threadpool(
-            hash_password, user.password
-        )
+        password_hash = await run_in_threadpool(hash_password, user.password)
         db_user = await persist_user(session, user, password_hash)
     except IntegrityError:
         await session.rollback()

@@ -1,20 +1,26 @@
 from collections.abc import Iterable
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pivma.core.database.models import (
     AccessProfile,
     AccessProfilePermission,
+    Institution,
+    Laboratory,
     Permission,
     User,
     UserAccessProfile,
+    UserInstitutionalAffiliation,
 )
 
 RBAC_READ = 'rbac.read'
 RBAC_PROFILES_MANAGE = 'rbac.profiles.manage'
 RBAC_ASSIGNMENTS_MANAGE = 'rbac.assignments.manage'
+INSTITUTIONAL_READ = 'institutional.read'
+INSTITUTIONAL_CATALOGS_MANAGE = 'institutional.catalogs.manage'
+INSTITUTIONAL_AFFILIATIONS_MANAGE = 'institutional.affiliations.manage'
 ADMINISTRATIVE_PERMISSIONS = frozenset({
     RBAC_READ,
     RBAC_PROFILES_MANAGE,
@@ -93,6 +99,38 @@ async def active_profiles_for_user(
             AccessProfile.deleted_at.is_(None),
         )
         .order_by(AccessProfile.name)
+    )
+    return list(result)
+
+
+async def active_institutional_affiliations(
+    session: AsyncSession, user_id: UUID
+) -> list[UserInstitutionalAffiliation]:
+    result = await session.scalars(
+        select(UserInstitutionalAffiliation)
+        .join(User, User.id == UserInstitutionalAffiliation.user_id)
+        .join(
+            Institution,
+            Institution.id == UserInstitutionalAffiliation.institution_id,
+        )
+        .outerjoin(
+            Laboratory,
+            Laboratory.id == UserInstitutionalAffiliation.laboratory_id,
+        )
+        .where(
+            UserInstitutionalAffiliation.user_id == user_id,
+            UserInstitutionalAffiliation.deleted_at.is_(None),
+            User.deleted_at.is_(None),
+            Institution.deleted_at.is_(None),
+            or_(
+                UserInstitutionalAffiliation.laboratory_id.is_(None),
+                Laboratory.deleted_at.is_(None),
+            ),
+        )
+        .order_by(
+            UserInstitutionalAffiliation.created_at.desc(),
+            UserInstitutionalAffiliation.id.desc(),
+        )
     )
     return list(result)
 

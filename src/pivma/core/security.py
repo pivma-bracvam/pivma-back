@@ -20,7 +20,7 @@ def hash_password(password: str) -> str:
 def verify_password(password_hash: str, password: str) -> bool:
     try:
         return password_hasher.verify(password_hash, password)
-    except (InvalidHashError, VerificationError):
+    except InvalidHashError, VerificationError:
         return False
 
 
@@ -51,5 +51,5 @@ def decode_access_token(token: str, secret_key: str) -> UUID:
     )
     try:
         return UUID(payload['sub'])
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         raise jwt.InvalidTokenError('Invalid subject') from None

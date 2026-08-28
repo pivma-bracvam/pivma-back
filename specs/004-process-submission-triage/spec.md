@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-21
 
-**Status**: Ready for Planning
+**Status**: Implemented
 
 **Input**: User description: "Os dois documentos de referência para a implementação estão em docs/planejamento/PIVMA_contexto_problemas.md e docs/planejamento/PIVMA_diretrizes_especificacoes.md. Implemente apenas a primeira fase do produto: Submissão e Triagem. Entretanto, a solução deve estabelecer as abstrações necessárias para que as fases posteriores possam utilizar o mesmo modelo de ProcessTemplate, ProcessInstance, Activity, ActivityRun, Task, Artifact, Form e dependências. Não assuma detalhes de negócio que não estejam definidos. Identifique ambiguidades e faça perguntas antes de estabelecer regras."
 
@@ -133,4 +133,3 @@ Como um Usuário do sistema (Proponente ou Membro do Grupo Gestor), quero consul
 - O provisionamento de templates e formulários via sementes declarativas (YAML) estabelece a base para futuros importadores ou conversores de formulários legados/externos.
 - O armazenamento de arquivos anexados aos artefatos e formulários utilizará os padrões já estabelecidos no backend.
 - A exclusão lógica e rastreabilidade seguem o padrão `AuditMixin` adotado no projeto.
-
