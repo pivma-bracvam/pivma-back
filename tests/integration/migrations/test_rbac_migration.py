@@ -55,8 +55,8 @@ async def test_rbac_migration_seeds_catalog_and_downgrades(
         'Administrador',
     }
     assert (permission_count, composition_count, non_admin_compositions) == (
-        6,
-        6,
+        7,
+        7,
         0,
     )
 

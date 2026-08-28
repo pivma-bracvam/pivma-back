@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from pivma.core.authorization import has_current_conflict
 from pivma.core.database.models import (
     ActivityDependency,
     ActivityInstance,
@@ -41,6 +42,19 @@ class ConflictError(ProcessEngineError):
 
 class NotFoundError(ProcessEngineError):
     pass
+
+
+class AuthorizationError(ProcessEngineError):
+    pass
+
+
+async def _guard_against_current_conflict(
+    session: AsyncSession, process_id: UUID, user_id: UUID
+) -> None:
+    if await has_current_conflict(session, user_id, process_id):
+        raise AuthorizationError(
+            'Usuário com conflito de interesse vigente neste processo.'
+        )
 
 
 @dataclass
@@ -174,7 +188,7 @@ async def instantiate_process(
     assignment = Assignment(
         process_instance_id=process.id,
         user_id=creator_user_id,
-        role_key='PROPONENT',
+        role_key='proponent',
         assigned_by=creator_user_id,
     )
     assignment.set_creation_audit(creator_user_id)
@@ -186,6 +200,21 @@ async def instantiate_process(
             user_id=creator_user_id,
             event_type='PROCESS_CREATED',
             context_data={'code': code, 'title': title},
+        )
+    )
+    session.add(
+        AuditEvent(
+            process_instance_id=process.id,
+            user_id=creator_user_id,
+            event_type='PARTICIPANT_ASSIGNED',
+            context_data={
+                'assignment_id': str(assignment.id),
+                'participant_user_id': str(creator_user_id),
+                'role_key': 'proponent',
+                'laboratory_id': None,
+                'result': 'success',
+                'source': 'process_creation',
+            },
         )
     )
 
@@ -548,6 +577,8 @@ async def save_field_reviews(
     reviews_list: list[dict[str, Any]],
     user_id: UUID,
 ) -> None:
+    await _guard_against_current_conflict(session, process_id, user_id)
+
     _, _, sub_form, _, sub_fields = await get_current_form_instance(
         session, process_id, 'proposal_submission'
     )
@@ -743,6 +774,8 @@ async def execute_triage_decision(
     justification: str,
     user_id: UUID,
 ) -> tuple[Decision, str, int | None]:
+    await _guard_against_current_conflict(session, process_id, user_id)
+
     p_stmt = select(ProcessInstance).where(
         ProcessInstance.id == process_id, ProcessInstance.deleted_at.is_(None)
     )

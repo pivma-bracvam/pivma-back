@@ -149,6 +149,40 @@ usam inativação lógica e mantêm o histórico em `GET /institutional/changes`
 Uma conta sem leitura global consulta apenas os próprios vínculos efetivamente
 ativos em `GET /institutional/me/affiliations`.
 
+## 👥 Participantes de processo e conflito de interesse
+
+A API designa, revoga e consulta participantes de um `ProcessInstance` e
+registra declarações imutáveis de conflito de interesse. A migração inclui
+`process.participants.manage` no perfil `Administrador`; uma designação
+efetiva do papel local `group_manager` concede a mesma capacidade somente no
+processo em que está ativa.
+
+Papéis locais aprovados: `group_manager`, `study_manager`, `statistician`,
+`adhoc_evaluator`, `peer_reviewer`, `proponent` e os dois papéis
+laboratoriais `lead_laboratory` e `participating_laboratory`, que exigem
+`laboratory_id` e vínculo institucional vigente entre o usuário e o
+laboratório.
+
+| Operação | Rota | Autorização |
+| --- | --- | --- |
+| Listar participantes atuais | `GET /processes/{process_id}/participants` | gestor (global ou local) vê todos; participante vê os próprios ciclos |
+| Designar participante | `POST /processes/{process_id}/participants` | `process.participants.manage` ou `group_manager` efetivo do processo |
+| Revogar designação | `DELETE /processes/{process_id}/participants/{assignment_id}` | `process.participants.manage` ou `group_manager` efetivo do processo |
+| Declarar conflito de interesse | `POST /processes/{process_id}/participants/{assignment_id}/conflicts` | titular ativo da designação |
+| Consultar histórico paginado | `GET /processes/{process_id}/participants/history` | mesmo escopo da listagem atual |
+
+As três mutações exigem `Origin` confiável. Declarações são *append-only*:
+cada nova declaração cria uma linha e a mais recente (por `declared_at` e,
+em empate, pelo maior `id`) define o estado do ciclo. Qualquer ciclo ativo
+do usuário com conflito vigente bloqueia a gravação de revisões de campo
+(`POST /processes/{id}/triage/reviews`) e decisões de triagem
+(`POST /processes/{id}/triage/decision`) com `403`, mesmo quando outro papel
+ativo do mesmo usuário autorizaria a ação. A timeline do processo
+(`GET /processes/{id}/timeline`) filtra os eventos `PARTICIPANT_ASSIGNED`,
+`PARTICIPANT_REVOKED` e `CONFLICT_DECLARED` pelo mesmo critério: gestores
+veem todos, participantes veem somente os próprios eventos e pessoas
+externas ao processo não os recebem.
+
 ---
 
 ## 🛠 Executando Comandos com Poe-the-poet (`poe`)

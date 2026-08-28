@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException
 
 from pivma.core.process_engine import (
+    AuthorizationError,
     ConflictError,
     NotFoundError,
     ValidationError,
@@ -42,6 +43,10 @@ async def submit_field_reviews(
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail=str(e)
         ) from e
+    except AuthorizationError as e:
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN, detail=str(e)
+        ) from e
 
     return {'message': 'Avaliações de campo registradas com sucesso.'}
 
@@ -68,6 +73,10 @@ async def submit_triage_decision(
     except NotFoundError as e:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail=str(e)
+        ) from e
+    except AuthorizationError as e:
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN, detail=str(e)
         ) from e
     except ConflictError as e:
         raise HTTPException(
