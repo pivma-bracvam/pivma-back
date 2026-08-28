@@ -50,7 +50,7 @@ Fluxo padrão:
 3. revisão e aprovação da especificação;
 4. `speckit-plan`: definir o plano técnico a partir da especificação e do código real;
 5. revisão e aprovação do plano;
-6. `speckit-tasks`: gerar tarefas pequenas, ordenadas e rastreáveis;
+6. `speckit-tasks`: gerar tarefas pequenas, ordenadas e rastreáveis. Quando a feature incluir testes, cada tarefa de teste deve cobrir um único comportamento observável (um caminho de sucesso, um código de erro, uma fronteira de autorização, um caso de paginação/concorrência), nunca vários contratos ou variações agregados numa mesma tarefa — leia o Definition of Done da skill `fastapi-testing-methodology` antes de gerar essas tarefas e use seus critérios como unidade de granularidade;
 7. `speckit-analyze`: verificar consistência entre especificação, plano e tarefas antes da implementação;
 8. `speckit-implement`: executar as tarefas aprovadas;
 9. `speckit-converge`: após a implementação, identificar trabalho ainda não atendido, quando aplicável.

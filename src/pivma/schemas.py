@@ -187,6 +187,116 @@ class RbacChangePage(FilterPage):
 
 
 # ==========================================
+# INSTITUTIONAL AFFILIATION SCHEMAS
+# ==========================================
+
+
+InstitutionalName = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)
+]
+
+
+class InstitutionCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    name: InstitutionalName
+
+
+class InstitutionUpdate(InstitutionCreate):
+    pass
+
+
+class InstitutionSummary(BaseModel):
+    id: UUID
+    name: str
+    active: bool
+    model_config = ConfigDict(extra='forbid')
+
+
+class InstitutionPublic(InstitutionSummary):
+    created_by: UUID | None
+    created_at: datetime
+    updated_by: UUID | None
+    updated_at: datetime | None
+    deleted_by: UUID | None
+    deleted_at: datetime | None
+
+
+class LaboratoryCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    institution_id: UUID
+    name: InstitutionalName
+
+
+class LaboratoryUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    name: InstitutionalName
+
+
+class LaboratorySummary(BaseModel):
+    id: UUID
+    name: str
+    active: bool
+    model_config = ConfigDict(extra='forbid')
+
+
+class LaboratoryPublic(LaboratorySummary):
+    institution_id: UUID
+    created_by: UUID | None
+    created_at: datetime
+    updated_by: UUID | None
+    updated_at: datetime | None
+    deleted_by: UUID | None
+    deleted_at: datetime | None
+
+
+class AffiliationCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    institution_id: UUID
+    laboratory_id: UUID | None = None
+
+
+class AffiliationPublic(BaseModel):
+    id: UUID
+    user_id: UUID
+    institution: InstitutionSummary
+    laboratory: LaboratorySummary | None
+    active: bool
+    created_by: UUID | None
+    created_at: datetime
+    updated_by: UUID | None
+    updated_at: datetime | None
+    deleted_by: UUID | None
+    deleted_at: datetime | None
+    model_config = ConfigDict(extra='forbid')
+
+
+class SelfAffiliationPublic(BaseModel):
+    id: UUID
+    institution: InstitutionSummary
+    laboratory: LaboratorySummary | None
+    model_config = ConfigDict(extra='forbid')
+
+
+class InstitutionalChangePublic(BaseModel):
+    id: UUID
+    action: str
+    target_type: str
+    target_id: UUID
+    actor_user_id: UUID | None
+    occurred_at: datetime
+    model_config = ConfigDict(extra='forbid')
+
+
+class InstitutionalChangePage(FilterPage):
+    items: list[InstitutionalChangePublic]
+    model_config = ConfigDict(extra='forbid')
+
+
+# ==========================================
 # PROCESS, FORM & TRIAGE SCHEMAS
 # ==========================================
 

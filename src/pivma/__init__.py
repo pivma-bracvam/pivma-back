@@ -8,7 +8,16 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 
 from pivma.core.settings import Settings
-from pivma.routers import auth, forms, processes, rbac, tasks, triage, users
+from pivma.routers import (
+    auth,
+    forms,
+    institutional,
+    processes,
+    rbac,
+    tasks,
+    triage,
+    users,
+)
 
 app = FastAPI()
 settings = Settings()
@@ -34,6 +43,7 @@ async def sanitize_password_validation_error(request, exc):
 app.include_router(users.router)
 app.include_router(auth.router)
 app.include_router(rbac.router)
+app.include_router(institutional.router)
 app.include_router(processes.router)
 app.include_router(forms.router)
 app.include_router(triage.router)

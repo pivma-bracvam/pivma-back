@@ -8,11 +8,13 @@ from sqlalchemy import (
     Boolean,
     Date,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     column,
     func,
 )
@@ -250,6 +252,143 @@ class RbacChange(AuditMixin):
     __table_args__ = (
         Index(
             'ix_rbac_changes_created_at_id_desc',
+            column('created_at').desc(),
+            column('id').desc(),
+        ),
+    )
+
+
+# ==========================================
+# INSTITUTIONAL AFFILIATION MODELS
+# ==========================================
+
+
+@table_registry.mapped_as_dataclass
+class Institution(AuditMixin):
+    __tablename__ = 'institutions'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    name: Mapped[str] = mapped_column(String(255))
+
+    __table_args__ = (
+        Index(
+            'uq_institutions_name_ci_active',
+            func.lower(column('name')),
+            unique=True,
+            postgresql_where=column('deleted_at').is_(None),
+        ),
+        Index('ix_institutions_name_id', func.lower(column('name')), 'id'),
+    )
+
+
+@table_registry.mapped_as_dataclass
+class Laboratory(AuditMixin):
+    __tablename__ = 'laboratories'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    institution_id: Mapped[UUID] = mapped_column(ForeignKey('institutions.id'))
+    name: Mapped[str] = mapped_column(String(255))
+
+    __table_args__ = (
+        UniqueConstraint(
+            'id', 'institution_id', name='uq_laboratories_id_institution_id'
+        ),
+        Index(
+            'uq_laboratories_institution_name_ci_active',
+            'institution_id',
+            func.lower(column('name')),
+            unique=True,
+            postgresql_where=column('deleted_at').is_(None),
+        ),
+        Index(
+            'ix_laboratories_institution_name_id',
+            'institution_id',
+            func.lower(column('name')),
+            'id',
+        ),
+    )
+
+
+@table_registry.mapped_as_dataclass
+class UserInstitutionalAffiliation(AuditMixin):
+    __tablename__ = 'user_institutional_affiliations'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    user_id: Mapped[UUID] = mapped_column(ForeignKey('users.id'))
+    institution_id: Mapped[UUID] = mapped_column(ForeignKey('institutions.id'))
+    laboratory_id: Mapped[Optional[UUID]] = mapped_column(
+        nullable=True, default=None
+    )
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ['laboratory_id', 'institution_id'],
+            ['laboratories.id', 'laboratories.institution_id'],
+            name='fk_affiliations_laboratory_institution',
+        ),
+        Index(
+            'uq_affiliations_active_institution',
+            'user_id',
+            'institution_id',
+            unique=True,
+            postgresql_where=(
+                column('deleted_at').is_(None)
+                & column('laboratory_id').is_(None)
+            ),
+        ),
+        Index(
+            'uq_affiliations_active_laboratory',
+            'user_id',
+            'institution_id',
+            'laboratory_id',
+            unique=True,
+            postgresql_where=(
+                column('deleted_at').is_(None)
+                & column('laboratory_id').is_not(None)
+            ),
+        ),
+        Index(
+            'ix_affiliations_active_scope',
+            'user_id',
+            'institution_id',
+            'laboratory_id',
+            postgresql_where=column('deleted_at').is_(None),
+        ),
+    )
+
+
+@table_registry.mapped_as_dataclass
+class InstitutionalChange(AuditMixin):
+    __tablename__ = 'institutional_changes'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    action: Mapped[str] = mapped_column(String(64))
+    target_type: Mapped[str] = mapped_column(String(32))
+    target_id: Mapped[UUID]
+
+    __table_args__ = (
+        Index(
+            'ix_institutional_changes_created_at_id_desc',
             column('created_at').desc(),
             column('id').desc(),
         ),

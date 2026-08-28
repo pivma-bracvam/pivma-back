@@ -11,6 +11,7 @@ API Backend desenvolvida em **Python 3.14** utilizando o framework **FastAPI**, 
 - [Executando Comandos com Poe-the-poet (`poe`)](#-executando-comandos-com-poe-the-poet-poe)
 - [Cadastro de Usuários](#-cadastro-de-usuários)
 - [Autorização RBAC](#-autorização-rbac)
+- [Vinculação institucional](#-vinculação-institucional)
 - [Práticas de Desenvolvimento e Testes](#-práticas-de-desenvolvimento-e-testes)
   - [Como os Testes Estão Estruturados](#como-os-testes-estão-estruturados)
   - [Como Criar um Novo Teste](#como-criar-um-novo-teste)
@@ -129,6 +130,24 @@ poetry run python -m pivma.bootstrap_rbac --user-id <UUID_DA_CONTA_ATIVA>
 
 O comando é idempotente para a mesma conta e falha se outra conta já recebeu o
 perfil. Ele não cria contas nem deve ser executado no startup da aplicação.
+
+## 🏛 Vinculação institucional
+
+A API mantém instituições, laboratórios e vínculos de usuários. A migração
+inclui `institutional.read`, `institutional.catalogs.manage` e
+`institutional.affiliations.manage` no perfil `Administrador`.
+
+| Operações | Permissão necessária |
+| --- | --- |
+| `GET /institutional/institutions`, `GET /institutional/laboratories`, `GET /institutional/users/{user_id}/affiliations`, `GET /institutional/changes` | `institutional.read` |
+| `POST`, `PATCH` e `DELETE` de instituições e laboratórios | `institutional.catalogs.manage` |
+| `POST` e `DELETE /institutional/users/{user_id}/affiliations` | `institutional.affiliations.manage` |
+| `GET /institutional/me/affiliations` | Conta autenticada |
+
+As mutações exigem `Origin` confiável. Instituições, laboratórios e vínculos
+usam inativação lógica e mantêm o histórico em `GET /institutional/changes`.
+Uma conta sem leitura global consulta apenas os próprios vínculos efetivamente
+ativos em `GET /institutional/me/affiliations`.
 
 ---
 
