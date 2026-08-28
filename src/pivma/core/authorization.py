@@ -1,4 +1,4 @@
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pivma.core.database.models import (
     AccessProfile,
     AccessProfilePermission,
+    Assignment,
+    ConflictInterestDeclaration,
     Institution,
     Laboratory,
     Permission,
@@ -21,12 +23,18 @@ RBAC_ASSIGNMENTS_MANAGE = 'rbac.assignments.manage'
 INSTITUTIONAL_READ = 'institutional.read'
 INSTITUTIONAL_CATALOGS_MANAGE = 'institutional.catalogs.manage'
 INSTITUTIONAL_AFFILIATIONS_MANAGE = 'institutional.affiliations.manage'
+PROCESS_PARTICIPANTS_MANAGE = 'process.participants.manage'
 ADMINISTRATIVE_PERMISSIONS = frozenset({
     RBAC_READ,
     RBAC_PROFILES_MANAGE,
     RBAC_ASSIGNMENTS_MANAGE,
 })
 ADMINISTRATOR_SYSTEM_KEY = 'administrator'
+LABORATORY_ROLE_KEYS = frozenset({
+    'lead_laboratory',
+    'participating_laboratory',
+})
+GROUP_MANAGER_ROLE_KEY = 'group_manager'
 
 
 async def effective_permission_codes(
@@ -209,3 +217,218 @@ async def ensure_administrator_remains(session: AsyncSession) -> None:
     )
     if result.first() is None:
         raise ValueError('At least one administrator must remain')
+
+
+# ==========================================
+# PROCESS PARTICIPANT AUTHORIZATION
+# ==========================================
+
+
+async def has_active_laboratory_affiliation(
+    session: AsyncSession, user_id: UUID, laboratory_id: UUID
+) -> bool:
+    result = await session.scalar(
+        select(UserInstitutionalAffiliation.id)
+        .join(User, User.id == UserInstitutionalAffiliation.user_id)
+        .join(
+            Institution,
+            Institution.id == UserInstitutionalAffiliation.institution_id,
+        )
+        .where(
+            UserInstitutionalAffiliation.user_id == user_id,
+            UserInstitutionalAffiliation.laboratory_id == laboratory_id,
+            UserInstitutionalAffiliation.deleted_at.is_(None),
+            User.deleted_at.is_(None),
+            Institution.deleted_at.is_(None),
+        )
+    )
+    return result is not None
+
+
+async def is_effective_group_manager(
+    session: AsyncSession, user_id: UUID, process_id: UUID
+) -> bool:
+    result = await session.scalar(
+        select(Assignment.id)
+        .join(User, User.id == Assignment.user_id)
+        .where(
+            Assignment.process_instance_id == process_id,
+            Assignment.user_id == user_id,
+            Assignment.role_key == GROUP_MANAGER_ROLE_KEY,
+            Assignment.revoked_at.is_(None),
+            Assignment.deleted_at.is_(None),
+            User.deleted_at.is_(None),
+        )
+    )
+    return result is not None
+
+
+async def can_manage_participants(
+    session: AsyncSession, user_id: UUID, process_id: UUID
+) -> bool:
+    if await has_permission(session, user_id, PROCESS_PARTICIPANTS_MANAGE):
+        return True
+    return await is_effective_group_manager(session, user_id, process_id)
+
+
+async def participant_read_scope(
+    session: AsyncSession, user_id: UUID, process_id: UUID
+) -> str | None:
+    if await can_manage_participants(session, user_id, process_id):
+        return 'manager'
+    result = await session.scalar(
+        select(Assignment.id)
+        .where(
+            Assignment.process_instance_id == process_id,
+            Assignment.user_id == user_id,
+        )
+        .limit(1)
+    )
+    return 'self' if result is not None else None
+
+
+async def compute_effectiveness_map(
+    session: AsyncSession, assignments: Sequence[Assignment]
+) -> dict[UUID, bool]:
+    if not assignments:
+        return {}
+
+    user_ids = {assignment.user_id for assignment in assignments}
+    laboratory_ids = {
+        assignment.laboratory_id
+        for assignment in assignments
+        if assignment.laboratory_id is not None
+    }
+
+    active_user_ids = set(
+        await session.scalars(
+            select(User.id).where(
+                User.id.in_(user_ids), User.deleted_at.is_(None)
+            )
+        )
+    )
+
+    active_laboratory_ids: set[UUID] = set()
+    active_affiliation_pairs: set[tuple[UUID, UUID]] = set()
+    if laboratory_ids:
+        active_laboratory_ids = set(
+            await session.scalars(
+                select(Laboratory.id).where(
+                    Laboratory.id.in_(laboratory_ids),
+                    Laboratory.deleted_at.is_(None),
+                )
+            )
+        )
+        affiliation_rows = await session.execute(
+            select(
+                UserInstitutionalAffiliation.user_id,
+                UserInstitutionalAffiliation.laboratory_id,
+            )
+            .join(User, User.id == UserInstitutionalAffiliation.user_id)
+            .where(
+                UserInstitutionalAffiliation.user_id.in_(user_ids),
+                UserInstitutionalAffiliation.laboratory_id.in_(laboratory_ids),
+                UserInstitutionalAffiliation.deleted_at.is_(None),
+                User.deleted_at.is_(None),
+            )
+        )
+        active_affiliation_pairs = {
+            (row.user_id, row.laboratory_id) for row in affiliation_rows
+        }
+
+    effectiveness: dict[UUID, bool] = {}
+    for assignment in assignments:
+        if (
+            assignment.revoked_at is not None
+            or assignment.deleted_at is not None
+        ):
+            effectiveness[assignment.id] = False
+            continue
+        if assignment.user_id not in active_user_ids:
+            effectiveness[assignment.id] = False
+            continue
+        if assignment.role_key in LABORATORY_ROLE_KEYS:
+            if assignment.laboratory_id not in active_laboratory_ids:
+                effectiveness[assignment.id] = False
+                continue
+            if (
+                assignment.user_id,
+                assignment.laboratory_id,
+            ) not in active_affiliation_pairs:
+                effectiveness[assignment.id] = False
+                continue
+        effectiveness[assignment.id] = True
+    return effectiveness
+
+
+async def latest_declarations_map(
+    session: AsyncSession, assignment_ids: Sequence[UUID]
+) -> dict[UUID, ConflictInterestDeclaration]:
+    if not assignment_ids:
+        return {}
+    result = await session.scalars(
+        select(ConflictInterestDeclaration)
+        .where(ConflictInterestDeclaration.assignment_id.in_(assignment_ids))
+        .distinct(ConflictInterestDeclaration.assignment_id)
+        .order_by(
+            ConflictInterestDeclaration.assignment_id,
+            ConflictInterestDeclaration.declared_at.desc(),
+            ConflictInterestDeclaration.id.desc(),
+        )
+    )
+    return {row.assignment_id: row for row in result}
+
+
+async def declarations_by_assignment(
+    session: AsyncSession, assignment_ids: Sequence[UUID]
+) -> dict[UUID, list[ConflictInterestDeclaration]]:
+    grouped: dict[UUID, list[ConflictInterestDeclaration]] = {
+        assignment_id: [] for assignment_id in assignment_ids
+    }
+    if not assignment_ids:
+        return grouped
+    result = await session.scalars(
+        select(ConflictInterestDeclaration)
+        .where(ConflictInterestDeclaration.assignment_id.in_(assignment_ids))
+        .order_by(
+            ConflictInterestDeclaration.declared_at.asc(),
+            ConflictInterestDeclaration.id.asc(),
+        )
+    )
+    for row in result:
+        grouped[row.assignment_id].append(row)
+    return grouped
+
+
+async def has_current_conflict(
+    session: AsyncSession, user_id: UUID, process_id: UUID
+) -> bool:
+    latest = (
+        select(
+            ConflictInterestDeclaration.assignment_id,
+            ConflictInterestDeclaration.has_conflict,
+        )
+        .join(
+            Assignment,
+            Assignment.id == ConflictInterestDeclaration.assignment_id,
+        )
+        .where(
+            Assignment.process_instance_id == process_id,
+            Assignment.user_id == user_id,
+            Assignment.revoked_at.is_(None),
+            Assignment.deleted_at.is_(None),
+        )
+        .distinct(ConflictInterestDeclaration.assignment_id)
+        .order_by(
+            ConflictInterestDeclaration.assignment_id,
+            ConflictInterestDeclaration.declared_at.desc(),
+            ConflictInterestDeclaration.id.desc(),
+        )
+        .subquery()
+    )
+    count = await session.scalar(
+        select(func.count())
+        .select_from(latest)
+        .where(latest.c.has_conflict.is_(True))
+    )
+    return (count or 0) > 0

@@ -980,6 +980,9 @@ class Assignment(AuditMixin):
     revoked_at: Mapped[Optional[datetime]] = mapped_column(
         nullable=True, default=None
     )
+    laboratory_id: Mapped[Optional[UUID]] = mapped_column(
+        ForeignKey('laboratories.id'), nullable=True, default=None
+    )
 
     process_instance: Mapped[ProcessInstance] = relationship(
         back_populates='assignments', init=False
@@ -995,6 +998,33 @@ class Assignment(AuditMixin):
             postgresql_where=(
                 column('revoked_at').is_(None) & column('deleted_at').is_(None)
             ),
+        ),
+    )
+
+
+@table_registry.mapped_as_dataclass
+class ConflictInterestDeclaration(AuditMixin):
+    __tablename__ = 'conflict_interest_declarations'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    assignment_id: Mapped[UUID] = mapped_column(ForeignKey('assignments.id'))
+    has_conflict: Mapped[bool] = mapped_column(Boolean)
+    justification: Mapped[str] = mapped_column(Text)
+    declared_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), default_factory=datetime.utcnow
+    )
+
+    __table_args__ = (
+        Index(
+            'ix_conflict_declarations_assignment_time',
+            'assignment_id',
+            column('declared_at').desc(),
+            column('id').desc(),
         ),
     )
 

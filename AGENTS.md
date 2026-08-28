@@ -161,7 +161,12 @@ Pedidos explícitos como `faça o commit`, `faça push`, `abra um PR` ou `publiq
 - Crie commits pequenos, com mensagem concisa e fiel ao conteúdo. Não faça commits automáticos ao final de uma tarefa sem pedido explícito do usuário.
 - Um pedido para abrir PR inclui, quando necessário, criar ou selecionar uma branch de feature, fazer staging seletivo, criar o commit, enviar a branch ao remoto e abrir o PR.
 - Para abrir PR, use a skill `gh-create-pr`. Inspecione a base, o diff e os metadados disponíveis antes da criação; registre no corpo o escopo e os testes executados.
-- A convenção inicial para PRs de feature é usar `develop` como base, pois essa é a branch de integração existente no remoto. Use outra base somente quando o usuário, a feature ou uma convenção posterior indicar.
+- A convenção padrão para PRs de feature é usar `develop` como base, pois essa é a branch de integração existente no remoto.
+- **PRs encadeadas (dependentes):** quando uma feature depender do código de outra feature cuja PR ainda estiver aberta em revisão:
+  - Crie a nova branch a partir da ponta da branch da PR dependente.
+  - Ao abrir a nova PR via `gh-create-pr`, configure a branch da PR anterior como **base** no GitHub (PR encadeada) e inclua no topo da descrição: `> Depende da PR #<número>`.
+  - Se a PR anterior receber novos commits durante o code review, atualize a branch filha executando `git rebase <branch-da-pr-anterior>`.
+  - Assim que a PR anterior for mergeada na `develop`, atualize a branch com `git rebase origin/develop` e altere a base da PR no GitHub para `develop`.
 - Crie branch com nome curto e descritivo, usando prefixo compatível com o escopo, como `feat/`, `fix/`, `docs/`, `test/` ou `chore/`.
 - Em PRs, aplique apenas labels, milestone e projeto que já existam e tenham relação clara com a mudança. Atribua o PR a `brugabi` quando a plataforma permitir.
 - Após commit, push ou PR, informe hash ou URL, branches de origem e destino, arquivos incluídos, testes executados e qualquer item que não tenha sido aplicado.

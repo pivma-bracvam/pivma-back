@@ -223,6 +223,7 @@ __marimo__/
 
 # AI agents
 .specify/
+.claude/
 
 # Mac files
 .DS_Store

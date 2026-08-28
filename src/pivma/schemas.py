@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -450,3 +450,98 @@ class ProcessTimelineResponse(BaseModel):
     process_id: UUID
     code: str
     events: list[TimelineEvent]
+
+
+# ==========================================
+# PROCESS PARTICIPANT & CONFLICT SCHEMAS
+# ==========================================
+
+
+ParticipantRole = Literal[
+    'group_manager',
+    'study_manager',
+    'statistician',
+    'adhoc_evaluator',
+    'peer_reviewer',
+    'lead_laboratory',
+    'participating_laboratory',
+    'proponent',
+]
+
+LABORATORY_ROLE_KEYS = frozenset({
+    'lead_laboratory',
+    'participating_laboratory',
+})
+
+ParticipantJustification = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1)
+]
+
+
+class ParticipantAssignmentCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid', validate_default=True)
+
+    user_id: UUID
+    role_key: ParticipantRole
+    laboratory_id: UUID | None = None
+
+    @field_validator('laboratory_id')
+    @classmethod
+    def validate_laboratory_requirement(cls, value, info):
+        role = info.data.get('role_key')
+        if role is None:
+            return value
+        if role in LABORATORY_ROLE_KEYS and value is None:
+            raise ValueError('laboratory_id is required for laboratory roles')
+        if role not in LABORATORY_ROLE_KEYS and value is not None:
+            raise ValueError('laboratory_id is not allowed for this role')
+        return value
+
+
+class ParticipantAssignmentPublic(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    id: UUID
+    process_id: UUID
+    user_id: UUID
+    role_key: str
+    laboratory_id: UUID | None
+    assigned_by: UUID
+    assigned_at: datetime
+    revoked_at: datetime | None
+    active: bool
+    effective: bool
+    has_conflict: bool | None
+    latest_declared_at: datetime | None
+
+
+class ConflictDeclarationCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    has_conflict: bool
+    justification: ParticipantJustification
+
+
+class ConflictDeclarationPublic(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    id: UUID
+    assignment_id: UUID
+    has_conflict: bool
+    justification: str
+    declared_at: datetime
+
+
+class ParticipantHistoryItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    assignment: ParticipantAssignmentPublic
+    declarations: list[ConflictDeclarationPublic]
+
+
+class ParticipantHistoryPage(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    offset: int
+    limit: int
+    items: list[ParticipantHistoryItem]

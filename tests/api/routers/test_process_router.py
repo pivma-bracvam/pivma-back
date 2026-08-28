@@ -1,10 +1,13 @@
 # ruff: noqa: PLR2004, PLR0914, PLR0915
 
 from http import HTTPStatus
+from uuid import UUID
 
 import pytest
+from sqlalchemy import func, select
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
+from pivma.core.database.models import Assignment, AuditEvent
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
@@ -63,3 +66,63 @@ async def test_create_and_list_process_instances(client, session):
     list_data = resp_list.json()
     assert list_data['total'] >= 1
     assert any(p['id'] == process_id for p in list_data['items'])
+
+
+@pytest.mark.asyncio
+async def test_process_creation_keeps_a_single_local_proponent_assignment(
+    client, session
+):
+    await bootstrap_all_templates(session)
+    user = UserFactory()
+    session.add(user)
+    await session.commit()
+    authenticate(client, user)
+
+    resp = client.post(
+        '/processes',
+        json={
+            'template_key': 'full_validation',
+            'title': 'Processo com proponente local',
+        },
+    )
+    process_id = UUID(resp.json()['id'])
+
+    count = await session.scalar(
+        select(func.count())
+        .select_from(Assignment)
+        .where(
+            Assignment.process_instance_id == process_id,
+            Assignment.role_key == 'proponent',
+        )
+    )
+    assert count == 1
+
+
+@pytest.mark.asyncio
+async def test_process_creation_records_participant_assigned_for_proponent(
+    client, session
+):
+    await bootstrap_all_templates(session)
+    user = UserFactory()
+    session.add(user)
+    await session.commit()
+    authenticate(client, user)
+
+    resp = client.post(
+        '/processes',
+        json={
+            'template_key': 'full_validation',
+            'title': 'Processo com evento de designação',
+        },
+    )
+    process_id = UUID(resp.json()['id'])
+
+    event = await session.scalar(
+        select(AuditEvent).where(
+            AuditEvent.process_instance_id == process_id,
+            AuditEvent.event_type == 'PARTICIPANT_ASSIGNED',
+        )
+    )
+    assert event.context_data['participant_user_id'] == str(user.id)
+    assert event.context_data['role_key'] == 'proponent'
+    assert event.context_data['source'] == 'process_creation'
