@@ -1,0 +1,487 @@
+openapi: 3.1.0
+info:
+  title: pi*VMA Process Participants API
+  version: 1.0.0
+  description: Designações locais, declarações de conflito e histórico da feature 006.
+security:
+  - cookieAuth: []
+paths:
+  /processes/{process_id}/participants:
+    parameters:
+      - $ref: '#/components/parameters/ProcessId'
+    get:
+      summary: Lista participantes atuais do processo
+      x-access: process-manager-or-participant-self
+      responses:
+        '200':
+          description: Gestores recebem todos os ciclos ativos; participantes recebem somente os próprios.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ParticipantAssignmentPublic'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Processo inexistente para uma pessoa com gestão global.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: Designa um participante no processo
+      x-access: process.participants.manage-or-local-group-manager
+      parameters:
+        - $ref: '#/components/parameters/TrustedOrigin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParticipantAssignmentCreate'
+      responses:
+        '201':
+          description: Designação e evento persistidos na mesma transação.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipantAssignmentPublic'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/ForbiddenOrInvalidOrigin'
+        '404':
+          description: Processo, usuário ou laboratório inexistente para um gestor autorizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Processo, usuário ou laboratório inativo, vínculo incompatível ou designação ativa duplicada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /processes/{process_id}/participants/history:
+    parameters:
+      - $ref: '#/components/parameters/ProcessId'
+    get:
+      summary: Consulta ciclos e declarações do processo
+      x-access: process-manager-or-participant-self
+      parameters:
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Histórico paginado conforme o escopo do usuário autenticado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipantHistoryPage'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Processo inexistente para uma pessoa com gestão global.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /processes/{process_id}/participants/{assignment_id}:
+    parameters:
+      - $ref: '#/components/parameters/ProcessId'
+      - $ref: '#/components/parameters/AssignmentId'
+    delete:
+      summary: Revoga uma designação ativa
+      x-access: process.participants.manage-or-local-group-manager
+      parameters:
+        - $ref: '#/components/parameters/TrustedOrigin'
+      responses:
+        '204':
+          description: Designação revogada e evento persistido.
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/ForbiddenOrInvalidOrigin'
+        '404':
+          description: Designação inexistente no processo para um gestor autorizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: A designação já foi revogada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /processes/{process_id}/participants/{assignment_id}/conflicts:
+    parameters:
+      - $ref: '#/components/parameters/ProcessId'
+      - $ref: '#/components/parameters/AssignmentId'
+    post:
+      summary: Registra declaração do titular da designação
+      x-access: assignment-owner
+      parameters:
+        - $ref: '#/components/parameters/TrustedOrigin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConflictDeclarationCreate'
+      responses:
+        '201':
+          description: Declaração imutável e evento persistidos na mesma transação.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictDeclarationPublic'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/ForbiddenOrInvalidOrigin'
+        '409':
+          description: A designação está revogada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /processes/{process_id}/timeline:
+    parameters:
+      - $ref: '#/components/parameters/ProcessId'
+    get:
+      summary: Consulta a timeline com filtragem dos eventos da feature 006
+      description: >-
+        Mantém os eventos anteriores. Gestores recebem todos os eventos de participantes;
+        participantes recebem somente eventos cujo participant_user_id seja o próprio;
+        pessoas externas não recebem PARTICIPANT_ASSIGNED, PARTICIPANT_REVOKED ou
+        CONFLICT_DECLARED.
+      x-access: authenticated-with-participant-event-filter
+      responses:
+        '200':
+          description: Timeline ordenada por ocorrência e identificador.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessTimelineResponse'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '404':
+          description: Processo inexistente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  parameters:
+    ProcessId:
+      name: process_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AssignmentId:
+      name: assignment_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TrustedOrigin:
+      name: Origin
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Origem presente em AUTH_ALLOWED_ORIGINS.
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 100
+
+  schemas:
+    ParticipantRole:
+      type: string
+      enum:
+        - group_manager
+        - study_manager
+        - statistician
+        - adhoc_evaluator
+        - peer_reviewer
+        - lead_laboratory
+        - participating_laboratory
+        - proponent
+
+    ParticipantAssignmentCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - user_id
+        - role_key
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        role_key:
+          $ref: '#/components/schemas/ParticipantRole'
+        laboratory_id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+          default: null
+          description: >-
+            Obrigatório para lead_laboratory e participating_laboratory;
+            proibido para os demais papéis.
+
+    ParticipantAssignmentPublic:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - process_id
+        - user_id
+        - role_key
+        - laboratory_id
+        - assigned_by
+        - assigned_at
+        - revoked_at
+        - active
+        - effective
+        - has_conflict
+        - latest_declared_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        process_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        role_key:
+          $ref: '#/components/schemas/ParticipantRole'
+        laboratory_id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        assigned_by:
+          type: string
+          format: uuid
+        assigned_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        active:
+          type: boolean
+        effective:
+          type: boolean
+        has_conflict:
+          type:
+            - boolean
+            - 'null'
+          description: Nulo quando a designação não possui declaração.
+        latest_declared_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+
+    ConflictDeclarationCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - has_conflict
+        - justification
+      properties:
+        has_conflict:
+          type: boolean
+        justification:
+          type: string
+          minLength: 1
+          description: Espaços externos são removidos antes da validação.
+
+    ConflictDeclarationPublic:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - assignment_id
+        - has_conflict
+        - justification
+        - declared_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        assignment_id:
+          type: string
+          format: uuid
+        has_conflict:
+          type: boolean
+        justification:
+          type: string
+        declared_at:
+          type: string
+          format: date-time
+
+    ParticipantHistoryItem:
+      type: object
+      additionalProperties: false
+      required:
+        - assignment
+        - declarations
+      properties:
+        assignment:
+          $ref: '#/components/schemas/ParticipantAssignmentPublic'
+        declarations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConflictDeclarationPublic'
+
+    ParticipantHistoryPage:
+      type: object
+      additionalProperties: false
+      required:
+        - offset
+        - limit
+        - items
+      properties:
+        offset:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 200
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParticipantHistoryItem'
+
+    TimelineEvent:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - event_type
+        - occurred_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+        user_id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        activity_run_id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        occurred_at:
+          type: string
+          format: date-time
+        context_data:
+          type:
+            - object
+            - 'null'
+          additionalProperties: true
+
+    ProcessTimelineResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - process_id
+        - code
+        - events
+      properties:
+        process_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimelineEvent'
+
+    Error:
+      type: object
+      additionalProperties: false
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+
+  responses:
+    NotAuthenticated:
+      description: Cookie ausente, inválido ou associado a conta inativa.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: A conta não possui escopo para a operação ou recurso.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ForbiddenOrInvalidOrigin:
+      description: A conta não possui escopo ou a origem não é confiável.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationError:
+      description: Corpo, papel, combinação laboratorial ou paginação inválida.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

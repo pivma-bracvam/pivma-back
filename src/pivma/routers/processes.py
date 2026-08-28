@@ -5,12 +5,14 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
+from pivma.core.authorization import can_manage_participants
 from pivma.core.database.models import (
     AuditEvent,
     ProcessInstance,
     ProcessTemplate,
     ProcessTemplateVersion,
 )
+from pivma.core.database.models import User as UserModel
 from pivma.core.process_engine import (
     instantiate_process,
 )
@@ -26,6 +28,34 @@ from pivma.schemas import (
 )
 
 router = APIRouter(prefix='/processes', tags=['Processes'])
+
+PARTICIPANT_EVENT_TYPES = frozenset({
+    'PARTICIPANT_ASSIGNED',
+    'PARTICIPANT_REVOKED',
+    'CONFLICT_DECLARED',
+})
+
+
+async def _visible_events(
+    session: Session,
+    current_user: UserModel,
+    process_id,
+    events: list[AuditEvent],
+) -> list[AuditEvent]:
+    manages_participants = await can_manage_participants(
+        session, current_user.id, process_id
+    )
+    if manages_participants:
+        return events
+
+    visible = []
+    for event in events:
+        if event.event_type in PARTICIPANT_EVENT_TYPES:
+            context = event.context_data or {}
+            if context.get('participant_user_id') != str(current_user.id):
+                continue
+        visible.append(event)
+    return visible
 
 
 @router.get(
@@ -245,7 +275,9 @@ async def get_process(id: UUID, session: Session, _: CurrentUser):
     response_model=ProcessTimelineResponse,
     status_code=HTTPStatus.OK,
 )
-async def get_process_timeline(id: UUID, session: Session, _: CurrentUser):
+async def get_process_timeline(
+    id: UUID, session: Session, current_user: CurrentUser
+):
     p_stmt = select(ProcessInstance).where(
         ProcessInstance.id == id, ProcessInstance.deleted_at.is_(None)
     )
@@ -263,7 +295,8 @@ async def get_process_timeline(id: UUID, session: Session, _: CurrentUser):
         )
         .order_by(AuditEvent.occurred_at.asc(), AuditEvent.id.asc())
     )
-    events = (await session.execute(events_stmt)).scalars().all()
+    events = list((await session.execute(events_stmt)).scalars().all())
+    events = await _visible_events(session, current_user, id, events)
 
     return ProcessTimelineResponse(
         process_id=p.id,

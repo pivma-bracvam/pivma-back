@@ -52,3 +52,32 @@ async def test_list_and_filter_tasks(client, session):
     task_detail = task_detail_resp.json()
     assert task_detail['activity_key'] == 'proposal_submission'
     assert not task_detail['is_blocked']
+
+
+@pytest.mark.asyncio
+async def test_task_listing_preserves_legacy_proponent_assigned_role(
+    client, session
+):
+    await bootstrap_all_templates(session)
+    user = UserFactory()
+    session.add(user)
+    await session.commit()
+    authenticate(client, user)
+
+    resp = client.post(
+        '/processes',
+        json={
+            'template_key': 'full_validation',
+            'title': 'Processo para papel legado da tarefa',
+        },
+    )
+    process_id = resp.json()['id']
+
+    tasks_resp = client.get('/tasks')
+    assert tasks_resp.status_code == HTTPStatus.OK
+    prop_task = next(
+        t
+        for t in tasks_resp.json()
+        if t['process_id'] == process_id and t['assigned_role'] == 'PROPONENT'
+    )
+    assert prop_task['assigned_role'] == 'PROPONENT'

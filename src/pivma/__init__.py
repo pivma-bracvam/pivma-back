@@ -12,6 +12,7 @@ from pivma.routers import (
     auth,
     forms,
     institutional,
+    process_participants,
     processes,
     rbac,
     tasks,
@@ -45,6 +46,7 @@ app.include_router(auth.router)
 app.include_router(rbac.router)
 app.include_router(institutional.router)
 app.include_router(processes.router)
+app.include_router(process_participants.router)
 app.include_router(forms.router)
 app.include_router(triage.router)
 app.include_router(tasks.router)
