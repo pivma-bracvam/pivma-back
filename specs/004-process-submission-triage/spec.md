@@ -133,3 +133,7 @@ Como um Usuário do sistema (Proponente ou Membro do Grupo Gestor), quero consul
 - O provisionamento de templates e formulários via sementes declarativas (YAML) estabelece a base para futuros importadores ou conversores de formulários legados/externos.
 - O armazenamento de arquivos anexados aos artefatos e formulários utilizará os padrões já estabelecidos no backend.
 - A exclusão lógica e rastreabilidade seguem o padrão `AuditMixin` adotado no projeto.
+<<<<<<< HEAD
+
+=======
+>>>>>>> 78b49f6d0ae39fde803136db74be7bd1d7e46af1

@@ -15,13 +15,13 @@ from tests.factories.rbac_factory import (
 from tests.factories.user_factory import UserFactory
 
 __all__ = [
-    'AccessProfileFactory',
-    'AssignmentFactory',
-    'ConflictInterestDeclarationFactory',
-    'InstitutionFactory',
-    'InstitutionalChangeFactory',
-    'LaboratoryFactory',
-    'UserAccessProfileFactory',
-    'UserFactory',
-    'UserInstitutionalAffiliationFactory',
+    "AccessProfileFactory",
+    "AssignmentFactory",
+    "ConflictInterestDeclarationFactory",
+    "InstitutionFactory",
+    "InstitutionalChangeFactory",
+    "LaboratoryFactory",
+    "UserAccessProfileFactory",
+    "UserFactory",
+    "UserInstitutionalAffiliationFactory",
 ]

@@ -12,7 +12,7 @@ from pydantic import (
     field_validator,
 )
 
-USERNAME_PATTERN = r'^[A-Za-z0-9._-]+$'
+USERNAME_PATTERN = r"^[A-Za-z0-9._-]+$"
 email_adapter = TypeAdapter(EmailStr)
 
 
@@ -21,7 +21,7 @@ class Message(BaseModel):
 
 
 class UserSchema(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     username: Annotated[
         str,
@@ -32,10 +32,10 @@ class UserSchema(BaseModel):
             pattern=USERNAME_PATTERN,
         ),
     ]
-    email: Annotated[str, Field(json_schema_extra={'format': 'email'})]
+    email: Annotated[str, Field(json_schema_extra={"format": "email"})]
     password: Annotated[str, StringConstraints(min_length=8, max_length=128)]
 
-    @field_validator('email', mode='before')
+    @field_validator("email", mode="before")
     @classmethod
     def validate_email_preserving_case(cls, value):
         if not isinstance(value, str):
@@ -44,23 +44,23 @@ class UserSchema(BaseModel):
         email_adapter.validate_python(trimmed)
         return trimmed
 
-    @field_validator('password')
+    @field_validator("password")
     @classmethod
     def reject_password_whitespace(cls, value):
         if any(character.isspace() for character in value):
-            raise ValueError('Invalid password')
+            raise ValueError("Invalid password")
         return value
 
 
 class UserPublic(BaseModel):
     id: UUID
     username: str
-    email: Annotated[str, Field(json_schema_extra={'format': 'email'})]
+    email: Annotated[str, Field(json_schema_extra={"format": "email"})]
     model_config = ConfigDict(from_attributes=True)
 
 
 class LoginCredentials(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     identifier: Annotated[
         str,
@@ -96,37 +96,37 @@ class PermissionPublic(BaseModel):
 
 
 class ProfileCreate(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     name: ProfileName
     description: ProfileDescription
     permission_codes: list[PermissionCode] = Field(default_factory=list)
 
-    @field_validator('permission_codes')
+    @field_validator("permission_codes")
     @classmethod
     def unique_permission_codes(cls, value):
         if len(value) != len(set(value)):
-            raise ValueError('permission_codes must be unique')
+            raise ValueError("permission_codes must be unique")
         return value
 
 
 class ProfileUpdate(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     name: ProfileName | None = None
     description: ProfileDescription | None = None
     permission_codes: list[PermissionCode] | None = None
 
-    @field_validator('permission_codes')
+    @field_validator("permission_codes")
     @classmethod
     def unique_permission_codes(cls, value):
         if value is not None and len(value) != len(set(value)):
-            raise ValueError('permission_codes must be unique')
+            raise ValueError("permission_codes must be unique")
         return value
 
     def model_post_init(self, __context) -> None:
         if not self.model_fields_set:
-            raise ValueError('At least one field is required')
+            raise ValueError("At least one field is required")
 
 
 class ProfilePublic(BaseModel):
@@ -142,21 +142,21 @@ class ProfilePublic(BaseModel):
     updated_at: datetime | None
     deleted_by: UUID | None
     deleted_at: datetime | None
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
 
 class ProfileSummary(BaseModel):
     id: UUID
     name: str
     active: bool
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
 
 class UserAccess(BaseModel):
     user_id: UUID
     profiles: list[ProfileSummary]
     effective_permissions: list[str]
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
 
 class ProfileAssignmentPublic(BaseModel):
@@ -168,7 +168,7 @@ class ProfileAssignmentPublic(BaseModel):
     active: bool
     deleted_by: UUID | None
     deleted_at: datetime | None
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
 
 class RbacChangePublic(BaseModel):
@@ -178,12 +178,12 @@ class RbacChangePublic(BaseModel):
     target_id: UUID
     actor_user_id: UUID | None
     occurred_at: datetime
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
 
 class RbacChangePage(FilterPage):
     items: list[RbacChangePublic]
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
 
 # ==========================================
@@ -197,7 +197,7 @@ InstitutionalName = Annotated[
 
 
 class InstitutionCreate(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     name: InstitutionalName
 
@@ -210,7 +210,7 @@ class InstitutionSummary(BaseModel):
     id: UUID
     name: str
     active: bool
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
 
 class InstitutionPublic(InstitutionSummary):
@@ -223,14 +223,14 @@ class InstitutionPublic(InstitutionSummary):
 
 
 class LaboratoryCreate(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     institution_id: UUID
     name: InstitutionalName
 
 
 class LaboratoryUpdate(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     name: InstitutionalName
 
@@ -239,7 +239,7 @@ class LaboratorySummary(BaseModel):
     id: UUID
     name: str
     active: bool
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
 
 class LaboratoryPublic(LaboratorySummary):
@@ -253,7 +253,7 @@ class LaboratoryPublic(LaboratorySummary):
 
 
 class AffiliationCreate(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     institution_id: UUID
     laboratory_id: UUID | None = None
@@ -271,14 +271,14 @@ class AffiliationPublic(BaseModel):
     updated_at: datetime | None
     deleted_by: UUID | None
     deleted_at: datetime | None
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
 
 class SelfAffiliationPublic(BaseModel):
     id: UUID
     institution: InstitutionSummary
     laboratory: LaboratorySummary | None
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
 
 class InstitutionalChangePublic(BaseModel):
@@ -288,12 +288,12 @@ class InstitutionalChangePublic(BaseModel):
     target_id: UUID
     actor_user_id: UUID | None
     occurred_at: datetime
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
 
 class InstitutionalChangePage(FilterPage):
     items: list[InstitutionalChangePublic]
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
 
 # ==========================================
@@ -320,7 +320,7 @@ class ProcessTemplateDetail(BaseModel):
 
 
 class CreateProcessRequest(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     template_key: str = Field(min_length=1, max_length=64)
     title: str = Field(min_length=3, max_length=255)
@@ -394,7 +394,7 @@ class SaveFieldReviewsRequest(BaseModel):
 
 
 class TriageDecisionRequest(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
     outcome: str
     justification: str = Field(min_length=3)
 
@@ -458,19 +458,19 @@ class ProcessTimelineResponse(BaseModel):
 
 
 ParticipantRole = Literal[
-    'group_manager',
-    'study_manager',
-    'statistician',
-    'adhoc_evaluator',
-    'peer_reviewer',
-    'lead_laboratory',
-    'participating_laboratory',
-    'proponent',
+    "group_manager",
+    "study_manager",
+    "statistician",
+    "adhoc_evaluator",
+    "peer_reviewer",
+    "lead_laboratory",
+    "participating_laboratory",
+    "proponent",
 ]
 
 LABORATORY_ROLE_KEYS = frozenset({
-    'lead_laboratory',
-    'participating_laboratory',
+    "lead_laboratory",
+    "participating_laboratory",
 })
 
 ParticipantJustification = Annotated[
@@ -479,27 +479,27 @@ ParticipantJustification = Annotated[
 
 
 class ParticipantAssignmentCreate(BaseModel):
-    model_config = ConfigDict(extra='forbid', validate_default=True)
+    model_config = ConfigDict(extra="forbid", validate_default=True)
 
     user_id: UUID
     role_key: ParticipantRole
     laboratory_id: UUID | None = None
 
-    @field_validator('laboratory_id')
+    @field_validator("laboratory_id")
     @classmethod
     def validate_laboratory_requirement(cls, value, info):
-        role = info.data.get('role_key')
+        role = info.data.get("role_key")
         if role is None:
             return value
         if role in LABORATORY_ROLE_KEYS and value is None:
-            raise ValueError('laboratory_id is required for laboratory roles')
+            raise ValueError("laboratory_id is required for laboratory roles")
         if role not in LABORATORY_ROLE_KEYS and value is not None:
-            raise ValueError('laboratory_id is not allowed for this role')
+            raise ValueError("laboratory_id is not allowed for this role")
         return value
 
 
 class ParticipantAssignmentPublic(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     id: UUID
     process_id: UUID
@@ -516,14 +516,14 @@ class ParticipantAssignmentPublic(BaseModel):
 
 
 class ConflictDeclarationCreate(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     has_conflict: bool
     justification: ParticipantJustification
 
 
 class ConflictDeclarationPublic(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     id: UUID
     assignment_id: UUID
@@ -533,14 +533,14 @@ class ConflictDeclarationPublic(BaseModel):
 
 
 class ParticipantHistoryItem(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     assignment: ParticipantAssignmentPublic
     declarations: list[ConflictDeclarationPublic]
 
 
 class ParticipantHistoryPage(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
 
     offset: int
     limit: int

@@ -21,3 +21,13 @@ def test_prototypes_endpoint_should_return_html():
 
     assert response.status_code == HTTPStatus.OK
     assert 'PIVMA' in response.text
+
+
+def test_forms_and_triage_prototype_endpoint_should_return_html():
+    client = TestClient(app)
+
+    response = client.get('/prototypes/forms-and-triage/')
+
+    assert response.status_code == HTTPStatus.OK
+    assert 'Modelagem e Customização do Formulário' in response.text
+

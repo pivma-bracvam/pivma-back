@@ -9,6 +9,8 @@ API Backend desenvolvida em Python 3.14 utilizando FastAPI, SQLAlchemy 2.0 (Asyn
 - [Pré-requisitos](#pré-requisitos)
 - [Requisitos Mínimos do `.env`](#requisitos-mínimos-do-env)
 - [Instalação e Configuração](#instalação-e-configuração)
+- [Semeadura Completa do Banco (Seed Demo)](#semeadura-completa-do-banco-seed-demo)
+- [Protótipos Interativos Isolados](#protótipos-interativos-isolados)
 - [Promoção de Usuários e Gestão de Cargos](#promoção-de-usuários-e-gestão-de-cargos)
 - [Guia de Integração para o Frontend](#guia-de-integração-para-o-frontend)
 - [Cadastro de Usuários](#cadastro-de-usuários)
@@ -99,6 +101,56 @@ uv run python -m pivma.bootstrap_process_templates
 # 5. Iniciar o servidor de desenvolvimento
 uv run fastapi dev src/pivma/__init__.py
 ```
+
+---
+
+## Semeadura Completa do Banco (Seed Demo)
+
+Para inicializar rapidamente um ambiente local completo de desenvolvimento, testes e protótipos, utilize o script unificado `pivma.seed_demo`.
+
+Esse script executa automaticamente:
+1. Sincronização dos templates declarativos de processos e formulários YAML (`full_validation_v1.yaml`).
+2. Criação das contas de demonstração para todos os papéis canônicos.
+3. Promoção automática do Administrador do sistema (`bootstrap_administrator`).
+4. Atribuição dos perfis de acesso globais RBAC (`proponent`, `management_group`, `ad_hoc_evaluator`).
+5. Criação de instituição de demonstração (*Fiocruz*) e laboratório com filiação dos usuários.
+
+### Executar a Semeadura:
+
+```bash
+# Com Poetry:
+poetry run python -m pivma.seed_demo
+
+# Com uv:
+uv run python -m pivma.seed_demo
+```
+
+### Contas de Demonstração Criadas:
+
+| Papel / Perfil | Nome | E-mail | Usuário | Senha Padrão |
+| :--- | :--- | :--- | :--- | :--- |
+| **Administrador** | Administrador Geral | `admin@bracvam.gov.br` | `admin` | `Password123!` |
+| **Proponente** | Dra. Helena Souza | `helena.proponente@fiocruz.br` | `helena.souza` | `Password123!` |
+| **Grupo Gestor / Triador** | Dr. Carlos Mendes | `carlos.gestor@bracvam.gov.br` | `carlos.mendes` | `Password123!` |
+| **Avaliador Ad Hoc** | Dr. Roberto Silva | `avaliador.adhoc@fiocruz.br` | `roberto.silva` | `Password123!` |
+
+---
+
+## Protótipos Interativos Isolados
+
+O repositório disponibiliza protótipos interativos acessíveis diretamente no navegador através da rota `/prototypes/` quando o backend está em execução (`poetry run poe serve` ou `uv run fastapi dev src/pivma/__init__.py`).
+
+### Catálogo de Protótipos:
+
+- **Hub Central de Protótipos:**
+  - URL: `http://localhost:8000/prototypes/`
+  - Descrição: Catálogo unificado com visão geral de todos os fluxos do sistema e status do ambiente.
+- **Modelagem, Preenchimento e Triagem de Formulários (Fase 1):**
+  - URL: `http://localhost:8000/prototypes/forms-and-triage/`
+  - Descrição: Ambiente interativo dividido em 3 sessões integradas:
+    - **Sessão 1:** Construtor e editor dinâmico de campos (*Form Builder*);
+    - **Sessão 2:** Preenchimento da proposta pelo Proponente com validações em tempo real e submissão formal ("Dar OK");
+    - **Sessão 3:** Avaliação técnica pelo Triador BraCVAM com apontamento de parecer campo a campo e deliberação (Aprovação, Rejeição ou Solicitação de Diligência).
 
 ---
 
@@ -222,6 +274,34 @@ curl -X POST http://localhost:8000/users/ \
 - Conflito de unicidade retorna HTTP 409 (`Username already exists` ou `Email already exists`).
 - Senhas fora da política retornam HTTP 422 (`{"detail":"Invalid password"}`).
 - Falhas de infraestrutura retornam HTTP 500 sem vazamento de detalhes internos.
+
+## 🔐 Autorização RBAC
+
+Após aplicar as migrações, o backend disponibiliza autorização global por
+perfis. O catálogo inicial é fechado e contém `rbac.read`,
+`rbac.profiles.manage` e `rbac.assignments.manage`; somente a migração cria
+essas permissões.
+
+| Rota | Permissão necessária |
+| --- | --- |
+| `GET /rbac/permissions`, `GET /rbac/profiles`, `GET /rbac/users/{user_id}/access`, `GET /rbac/changes` | `rbac.read` |
+| `POST /rbac/profiles`, `PATCH/DELETE /rbac/profiles/{profile_id}` | `rbac.profiles.manage` |
+| `POST/DELETE /rbac/users/{user_id}/profiles/{profile_id}` | `rbac.assignments.manage` |
+
+As mutações exigem cookie de sessão e o cabeçalho `Origin` configurado. O
+backend consulta o estado atual das atribuições a cada pedido; não há cache de
+permissões no token. Perfis e atribuições são encerrados por exclusão lógica,
+preservando o histórico de concessões.
+
+Em uma instalação nova, crie a conta inicial, aplique as migrações e execute
+uma única vez o bootstrap para atribuir o perfil `Administrador`:
+
+```bash
+poetry run python -m pivma.bootstrap_rbac --user-id <UUID_DA_CONTA_ATIVA>
+```
+
+O comando é idempotente para a mesma conta e falha se outra conta já recebeu o
+perfil. Ele não cria contas nem deve ser executado no startup da aplicação.
 
 ---
 

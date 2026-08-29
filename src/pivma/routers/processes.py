@@ -2,9 +2,6 @@ from http import HTTPStatus
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
-
 from pivma.core.authorization import can_manage_participants
 from pivma.core.database.models import (
     AuditEvent,
@@ -26,13 +23,15 @@ from pivma.schemas import (
     ProcessTimelineResponse,
     TimelineEvent,
 )
+from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
-router = APIRouter(prefix='/processes', tags=['Processes'])
+router = APIRouter(prefix="/processes", tags=["Processes"])
 
 PARTICIPANT_EVENT_TYPES = frozenset({
-    'PARTICIPANT_ASSIGNED',
-    'PARTICIPANT_REVOKED',
-    'CONFLICT_DECLARED',
+    "PARTICIPANT_ASSIGNED",
+    "PARTICIPANT_REVOKED",
+    "CONFLICT_DECLARED",
 })
 
 
@@ -52,14 +51,14 @@ async def _visible_events(
     for event in events:
         if event.event_type in PARTICIPANT_EVENT_TYPES:
             context = event.context_data or {}
-            if context.get('participant_user_id') != str(current_user.id):
+            if context.get("participant_user_id") != str(current_user.id):
                 continue
         visible.append(event)
     return visible
 
 
 @router.get(
-    '/templates',
+    "/templates",
     response_model=list[ProcessTemplateSummary],
     status_code=HTTPStatus.OK,
 )
@@ -73,16 +72,14 @@ async def list_templates(session: Session, _: CurrentUser):
 
 
 @router.get(
-    '/templates/{key}',
+    "/templates/{key}",
     response_model=ProcessTemplateDetail,
     status_code=HTTPStatus.OK,
 )
 async def get_template_detail(key: str, session: Session, _: CurrentUser):
     stmt = (
         select(ProcessTemplate)
-        .where(
-            ProcessTemplate.key == key, ProcessTemplate.deleted_at.is_(None)
-        )
+        .where(ProcessTemplate.key == key, ProcessTemplate.deleted_at.is_(None))
         .options(selectinload(ProcessTemplate.versions))
     )
     res = await session.execute(stmt)
@@ -94,20 +91,14 @@ async def get_template_detail(key: str, session: Session, _: CurrentUser):
         )
 
     published_versions = sorted(
-        [
-            v
-            for v in template.versions
-            if v.deleted_at is None and v.is_published
-        ],
+        [v for v in template.versions if v.deleted_at is None and v.is_published],
         key=lambda x: x.version_number,
         reverse=True,
     )
     if not published_versions:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail=(
-                f"Nenhuma versão publicada encontrada para o template '{key}'."
-            ),
+            detail=(f"Nenhuma versão publicada encontrada para o template '{key}'."),
         )
 
     latest = published_versions[0]
@@ -121,7 +112,7 @@ async def get_template_detail(key: str, session: Session, _: CurrentUser):
 
 
 @router.post(
-    '',
+    "",
     response_model=ProcessInstanceDetail,
     status_code=HTTPStatus.CREATED,
 )
@@ -147,9 +138,7 @@ async def create_process(
     if not latest_version:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail=(
-                f"Template '{body.template_key}' não encontrado ou inativo."
-            ),
+            detail=(f"Template '{body.template_key}' não encontrado ou inativo."),
         )
 
     try:
@@ -162,7 +151,7 @@ async def create_process(
     except Exception as e:
         raise HTTPException(
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-            detail=f'Erro ao instanciar processo: {str(e)}',
+            detail=f"Erro ao instanciar processo: {e!s}",
         )
 
     return ProcessInstanceDetail(
@@ -179,7 +168,7 @@ async def create_process(
 
 
 @router.get(
-    '',
+    "",
     response_model=ProcessInstanceListResponse,
     status_code=HTTPStatus.OK,
 )
@@ -237,7 +226,7 @@ async def list_processes(
 
 
 @router.get(
-    '/{id}',
+    "/{id}",
     response_model=ProcessInstanceDetail,
     status_code=HTTPStatus.OK,
 )
@@ -254,7 +243,7 @@ async def get_process(id: UUID, session: Session, _: CurrentUser):
     p = (await session.execute(stmt)).scalar_one_or_none()
     if not p:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Processo não encontrado.'
+            status_code=HTTPStatus.NOT_FOUND, detail="Processo não encontrado."
         )
 
     return ProcessInstanceDetail(
@@ -271,20 +260,18 @@ async def get_process(id: UUID, session: Session, _: CurrentUser):
 
 
 @router.get(
-    '/{id}/timeline',
+    "/{id}/timeline",
     response_model=ProcessTimelineResponse,
     status_code=HTTPStatus.OK,
 )
-async def get_process_timeline(
-    id: UUID, session: Session, current_user: CurrentUser
-):
+async def get_process_timeline(id: UUID, session: Session, current_user: CurrentUser):
     p_stmt = select(ProcessInstance).where(
         ProcessInstance.id == id, ProcessInstance.deleted_at.is_(None)
     )
     p = (await session.execute(p_stmt)).scalar_one_or_none()
     if not p:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Processo não encontrado.'
+            status_code=HTTPStatus.NOT_FOUND, detail="Processo não encontrado."
         )
 
     events_stmt = (
