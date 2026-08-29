@@ -2,7 +2,7 @@ services:
   db:
     image: pgvector/pgvector:pg17
     volumes:
-      - pgdata:/var/lib/postgresql/
+      - pgdata:/var/lib/postgresql/data
     environment: # Jogar isso pro .env depois
       POSTGRES_USER: db_user
       POSTGRES_DB: db
