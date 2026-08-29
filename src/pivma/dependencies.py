@@ -3,7 +3,8 @@ from http import HTTPStatus
 from typing import Annotated
 
 import jwt
-from fastapi import Cookie, Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Request, Security
+from fastapi.security import APIKeyCookie
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +17,10 @@ from pivma.core.settings import Settings, get_settings
 logger = logging.getLogger(__name__)
 Session = Annotated[AsyncSession, Depends(get_session)]
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
+access_token_cookie = APIKeyCookie(
+    name='access_token',
+    auto_error=False,
+)
 
 
 def not_authenticated() -> HTTPException:
@@ -27,7 +32,7 @@ def not_authenticated() -> HTTPException:
 async def get_current_user(
     session: Session,
     settings: SettingsDependency,
-    access_token: Annotated[str | None, Cookie()] = None,
+    access_token: Annotated[str | None, Security(access_token_cookie)],
 ) -> User:
     if access_token is None:
         raise not_authenticated()

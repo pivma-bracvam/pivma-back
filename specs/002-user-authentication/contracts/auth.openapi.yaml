@@ -28,14 +28,16 @@ paths:
                 $ref: '#/components/schemas/Error'
   /auth/me:
     get:
-      summary: Retorna a identidade reconhecida na sessão atual
+      summary: Retorna a identidade e o acesso efetivo da sessão atual
+      security:
+        - cookieAuth: []
       responses:
         '200':
           description: Identidade da conta autenticada.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserIdentity'
+                $ref: '#/components/schemas/CurrentUserResponse'
         '401':
           description: Sessão ausente, inválida, vencida ou vinculada a conta excluída.
   /auth/logout:
@@ -56,6 +58,11 @@ paths:
         '403':
           description: Origem ausente, inválida ou não confiável.
 components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
   schemas:
     LoginCredentials:
       type: object
@@ -83,6 +90,47 @@ components:
         email:
           type: string
           format: email
+    AccessScope:
+      type: object
+      additionalProperties: false
+      required: [process_id, institution_id, laboratory_id, roles]
+      properties:
+        process_id:
+          type: string
+          format: uuid
+        institution_id:
+          type: [string, 'null']
+          format: uuid
+        laboratory_id:
+          type: [string, 'null']
+          format: uuid
+        roles:
+          type: array
+          items:
+            type: string
+    CurrentUserAccess:
+      type: object
+      additionalProperties: false
+      required: [global_permissions, scopes]
+      properties:
+        global_permissions:
+          type: array
+          items:
+            type: string
+        scopes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccessScope'
+    CurrentUserResponse:
+      allOf:
+        - $ref: '#/components/schemas/UserIdentity'
+        - type: object
+          required: [user, access]
+          properties:
+            user:
+              $ref: '#/components/schemas/UserIdentity'
+            access:
+              $ref: '#/components/schemas/CurrentUserAccess'
     Error:
       type: object
       additionalProperties: false

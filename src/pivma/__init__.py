@@ -20,7 +20,9 @@ from pivma.routers import (
     users,
 )
 
-app = FastAPI()
+app = FastAPI(
+    swagger_ui_parameters={'withCredentials': True},
+)
 settings = Settings()
 app.add_middleware(
     CORSMiddleware,

@@ -226,6 +226,37 @@ Esta seção sintetiza os pontos fundamentais para o desenvolvimento e integraç
 - **Requisições autenticadas:** O navegador envia o cookie automaticamente. No cliente HTTP do frontend (como `axios` ou `fetch`), configure `credentials: 'include'` (ou `withCredentials: true`).
 - **Logout (`POST /auth/logout`):** Invalida a sessão e limpa o cookie.
 
+Após o login, `GET /auth/me` retorna a identidade autenticada e o estado de
+acesso necessário para inicializar a interface. O campo `access` contém as
+permissões globais efetivas e os escopos ativos por processo:
+
+```json
+{
+  "id": "...",
+  "username": "maria",
+  "email": "maria@exemplo.org",
+  "user": {
+    "id": "...",
+    "username": "maria",
+    "email": "maria@exemplo.org"
+  },
+  "access": {
+    "global_permissions": ["rbac.read"],
+    "scopes": [
+      {
+        "process_id": "...",
+        "institution_id": null,
+        "laboratory_id": null,
+        "roles": ["proponent"]
+      }
+    ]
+  }
+}
+```
+
+Esses dados apoiam a renderização da interface. As rotas protegidas continuam
+reavaliando a autorização no banco a cada requisição.
+
 ### 2. Proteção CSRF e Cabeçalho `Origin`
 
 Todas as requisições de mutação protegidas (`POST`, `PUT`, `PATCH`, `DELETE`) validam a procedência da requisição:

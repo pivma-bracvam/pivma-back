@@ -1,7 +1,15 @@
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 
+import pytest
+
+from pivma.core.database.models import Assignment
 from pivma.core.security import create_access_token
+from tests.factories.process_factory import (
+    ProcessInstanceFactory,
+    ProcessTemplateFactory,
+    ProcessTemplateVersionFactory,
+)
 
 VALID_PASSWORD = 'Factory-Passphrase-2026'
 JWT_SECRET_KEY = 'test-jwt-secret-key-with-at-least-32-bytes'
@@ -29,6 +37,15 @@ def test_login_with_username_and_recognize_identity(client, user):
         'id': str(user.id),
         'username': user.username,
         'email': user.email,
+        'user': {
+            'id': str(user.id),
+            'username': user.username,
+            'email': user.email,
+        },
+        'access': {
+            'global_permissions': [],
+            'scopes': [],
+        },
     }
 
 
@@ -37,6 +54,40 @@ def test_login_with_email(client, user):
 
     assert response.status_code == HTTPStatus.OK
     assert 'access_token' in client.cookies
+
+
+@pytest.mark.asyncio
+async def test_me_returns_effective_permissions_and_process_scopes(
+    client, user, session
+):
+    template = ProcessTemplateFactory()
+    version = ProcessTemplateVersionFactory(template=template)
+    process = ProcessInstanceFactory(template_version=version)
+    session.add_all([template, version, process])
+    await session.flush()
+    session.add(
+        Assignment(
+            process_instance_id=process.id,
+            user_id=user.id,
+            role_key='proponent',
+            assigned_by=user.id,
+        )
+    )
+    await session.flush()
+
+    assert login(client, user.username).status_code == HTTPStatus.OK
+    response = client.get('/auth/me')
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['access']['global_permissions'] == []
+    assert response.json()['access']['scopes'] == [
+        {
+            'process_id': str(process.id),
+            'institution_id': None,
+            'laboratory_id': None,
+            'roles': ['proponent'],
+        }
+    ]
 
 
 def test_login_rejects_incorrect_password_without_secret(client, user):
@@ -196,3 +247,22 @@ def test_cors_does_not_allow_untrusted_origin(client):
     )
 
     assert 'access-control-allow-origin' not in response.headers
+
+
+def test_openapi_declares_access_token_as_cookie_security_scheme(client):
+    schema = client.get('/openapi.json').json()
+
+    assert schema['components']['securitySchemes']['APIKeyCookie'] == {
+        'type': 'apiKey',
+        'in': 'cookie',
+        'name': 'access_token',
+    }
+    assert {
+        'APIKeyCookie': [],
+    } in schema['paths']['/auth/me']['get']['security']
+    assert not any(
+        parameter['name'] == 'access_token'
+        for parameter in schema['paths']['/auth/me']['get'].get(
+            'parameters', []
+        )
+    )

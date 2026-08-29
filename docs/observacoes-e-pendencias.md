@@ -6,6 +6,14 @@ Este documento reúne ambiguidades, inconsistências, informações ausentes e p
 
 Nenhum item abaixo altera o conteúdo das fontes. O PDF oficial permanece como fonte principal; roteiros e vídeos são fontes complementares e não constituem, isoladamente, especificação definitiva.
 
+## Contrato de sessão e acesso
+
+### DECISÃO REGISTRADA
+
+- Por solicitação explícita da equipe, `GET /auth/me` retorna a identidade autenticada e um resumo do acesso efetivo para inicializar o frontend: permissões globais e escopos ativos por processo.
+- O resumo não substitui as verificações de autorização do backend e não inclui capacidades derivadas, tarefas, justificativas de conflito ou dados de auditoria.
+- A resposta mantém os campos legados `id`, `username` e `email` para reduzir impacto nos consumidores existentes.
+
 ## Acesso e limitações dos materiais
 
 ### CONFIRMADO

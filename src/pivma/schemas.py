@@ -73,6 +73,25 @@ class UserIdentity(UserPublic):
     pass
 
 
+class AccessScope(BaseModel):
+    process_id: UUID
+    institution_id: UUID | None
+    laboratory_id: UUID | None
+    roles: list[str]
+    model_config = ConfigDict(extra='forbid')
+
+
+class CurrentUserAccess(BaseModel):
+    global_permissions: list[str]
+    scopes: list[AccessScope]
+    model_config = ConfigDict(extra='forbid')
+
+
+class CurrentUserResponse(UserIdentity):
+    user: UserIdentity
+    access: CurrentUserAccess
+
+
 class FilterPage(BaseModel):
     offset: int = Field(0, ge=0)
     limit: int = Field(100, ge=1)
