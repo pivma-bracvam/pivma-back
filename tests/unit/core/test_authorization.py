@@ -1,5 +1,6 @@
 import pytest
 
+from pivma.core import authorization
 from pivma.core.authorization import effective_permission_codes
 from pivma.core.database.models import (
     AccessProfile,
@@ -7,6 +8,14 @@ from pivma.core.database.models import (
     Permission,
     UserAccessProfile,
 )
+
+
+def test_users_read_is_not_an_administrative_rbac_permission():
+    assert authorization.USERS_READ == 'users.read'
+    assert (
+        authorization.USERS_READ
+        not in authorization.ADMINISTRATIVE_PERMISSIONS
+    )
 
 
 @pytest.mark.asyncio

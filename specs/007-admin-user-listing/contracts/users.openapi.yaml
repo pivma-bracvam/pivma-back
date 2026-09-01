@@ -1,0 +1,146 @@
+openapi: 3.1.0
+info:
+  title: pi*VMA Administrative User Listing API
+  version: 1.0.0
+  description: Consulta administrativa paginada da coleção de usuários da feature 007.
+security:
+  - cookieAuth: []
+paths:
+  /users/:
+    get:
+      summary: Lista contas para administração
+      operationId: listUsers
+      x-required-permission: users.read
+      parameters:
+        - in: query
+          name: search
+          required: false
+          schema:
+            type: string
+          description: >-
+            Substring literal, sem distinção de caixa, aplicada a username ou
+            e-mail. Espaços externos são removidos; vazio equivale à ausência.
+        - in: query
+          name: active
+          required: false
+          schema:
+            type: boolean
+            default: true
+          description: Verdadeiro seleciona contas ativas; falso seleciona contas inativas.
+        - in: query
+          name: profile_id
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: >-
+            Seleciona contas com atribuição ativa ao perfil ativo. UUID
+            desconhecido ou ligado a perfil inativo produz página vazia.
+        - in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+      responses:
+        '200':
+          description: >-
+            Página ordenada por username sem distinção de caixa e por UUID como
+            desempate. Filtros válidos sem correspondência retornam items vazio.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserPage'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  responses:
+    NotAuthenticated:
+      description: Sessão ausente, inválida, vencida ou ligada a conta inativa.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: >-
+        A conta não possui users.read. A resposta não contém itens, contagem ou
+        indicação de correspondência.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationError:
+      description: Offset, limit, active ou profile_id possui formato ou faixa inválida.
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: true
+            required: [detail]
+            properties:
+              detail:
+                type: array
+                items:
+                  type: object
+
+  schemas:
+    AdminUser:
+      type: object
+      additionalProperties: false
+      required: [id, username, email, active]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        active:
+          type: boolean
+
+    AdminUserPage:
+      type: object
+      additionalProperties: false
+      required: [offset, limit, items]
+      properties:
+        offset:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUser'
+
+    Error:
+      type: object
+      additionalProperties: false
+      required: [detail]
+      properties:
+        detail:
+          type: string

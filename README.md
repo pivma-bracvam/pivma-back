@@ -196,7 +196,39 @@ Com uma conta de Administrador autenticada:
    DELETE /rbac/users/{user_id}/profiles/{profile_id}
    ```
 
-### 3. Designar Papéis Locais em um Processo Específico
+### 3. Consultar Contas para Administração
+
+Uma conta com a permissão `users.read` pode consultar a listagem administrativa:
+
+```http
+GET /users/?search=joao&active=true&profile_id=<UUID>&offset=0&limit=20
+```
+
+Os parâmetros são opcionais. A consulta usa contas ativas por padrão, remove
+espaços externos de `search`, procura por substring literal sem distinção de
+caixa em username ou e-mail e aceita `active=false` para contas inativas.
+`profile_id` considera somente atribuições ativas a perfis ativos. `offset`
+começa em zero e `limit` aceita valores entre 1 e 100, com padrão 100.
+
+A resposta ordena por username sem distinção de caixa e usa o UUID como
+desempate. Cada item contém somente `id`, `username`, `email` e `active`:
+
+```json
+{
+  "offset": 0,
+  "limit": 20,
+  "items": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "username": "joao",
+      "email": "joao@example.com",
+      "active": true
+    }
+  ]
+}
+```
+
+### 4. Designar Papéis Locais em um Processo Específico
 
 A designação local vincula um usuário a uma instância de processo (`ProcessInstance`):
 
