@@ -59,6 +59,11 @@ class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AdminUser(UserPublic):
+    active: bool
+    model_config = ConfigDict(extra='forbid', from_attributes=True)
+
+
 class LoginCredentials(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -95,6 +100,13 @@ class CurrentUserResponse(UserIdentity):
 class FilterPage(BaseModel):
     offset: int = Field(0, ge=0)
     limit: int = Field(100, ge=1)
+
+
+class AdminUserPage(FilterPage):
+    offset: int = Field(..., ge=0)
+    limit: int = Field(..., ge=1, le=100)
+    items: list[AdminUser]
+    model_config = ConfigDict(extra='forbid')
 
 
 PermissionCode = Annotated[

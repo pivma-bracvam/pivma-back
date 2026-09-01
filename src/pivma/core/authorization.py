@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 RBAC_READ = "rbac.read"
 RBAC_PROFILES_MANAGE = "rbac.profiles.manage"
 RBAC_ASSIGNMENTS_MANAGE = "rbac.assignments.manage"
+USERS_READ = "users.read"
 INSTITUTIONAL_READ = "institutional.read"
 INSTITUTIONAL_CATALOGS_MANAGE = "institutional.catalogs.manage"
 INSTITUTIONAL_AFFILIATIONS_MANAGE = "institutional.affiliations.manage"
