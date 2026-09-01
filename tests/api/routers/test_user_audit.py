@@ -9,7 +9,7 @@ from pivma.schemas import UserSchema
 @pytest.mark.asyncio
 async def test_public_registration_initializes_audit_fields(client, session):
     response = client.post(
-        '/users/',
+        '/users',
         json={
             'username': 'audit.user',
             'email': 'audit@example.com',

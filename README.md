@@ -162,7 +162,7 @@ A aplicação divide permissões e papéis em dois níveis distintos: **Perfis G
 
 Para o primeiro acesso administrativo ao sistema:
 
-1. Registre uma conta comum via `POST /users/` (ou use uma conta criada previamente) e copie o `id` (UUID) retornado.
+1. Registre uma conta comum via `POST /users` (ou use uma conta criada previamente) e copie o `id` (UUID) retornado.
 2. Execute o script de bootstrap no terminal:
 
 ```bash
@@ -201,7 +201,7 @@ Com uma conta de Administrador autenticada:
 Uma conta com a permissão `users.read` pode consultar a listagem administrativa:
 
 ```http
-GET /users/?search=joao&active=true&profile_id=<UUID>&offset=0&limit=20
+GET /users?search=joao&active=true&profile_id=<UUID>&offset=0&limit=20
 ```
 
 Os parâmetros são opcionais. A consulta usa contas ativas por padrão, remove
@@ -318,7 +318,7 @@ Todas as requisições de mutação protegidas (`POST`, `PUT`, `PATCH`, `DELETE`
 
 ## Cadastro de Usuários
 
-O endpoint `POST /users/` registra uma nova conta e retorna HTTP 201 com `id`, `username` e `email`. A resposta não expõe a senha nem seu hash.
+O endpoint `POST /users` registra uma nova conta e retorna HTTP 201 com `id`, `username` e `email`. A resposta não expõe a senha nem seu hash.
 
 | Campo | Regra de Validação |
 | :--- | :--- |
@@ -329,7 +329,7 @@ O endpoint `POST /users/` registra uma nova conta e retorna HTTP 201 com `id`, `
 Identificadores `username` e `email` são únicos entre contas ativas com comparação case-insensitive. Contas com exclusão lógica liberam os identificadores para novos cadastros.
 
 ```bash
-curl -X POST http://localhost:8000/users/ \
+curl -X POST http://localhost:8000/users \
   -H 'Content-Type: application/json' \
   -d '{"username":"alice","email":"alice@example.com","password":"UmaSenhaSegura2026"}'
 ```

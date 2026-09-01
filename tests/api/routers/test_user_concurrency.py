@@ -39,7 +39,7 @@ def test_two_concurrent_equivalent_registrations_create_one_user(
         with TestClient(app) as client, ThreadPoolExecutor(2) as executor:
             responses = list(
                 executor.map(
-                    lambda payload: client.post('/users/', json=payload),
+                    lambda payload: client.post('/users', json=payload),
                     (first, second),
                 )
             )
