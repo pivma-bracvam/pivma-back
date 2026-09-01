@@ -87,7 +87,7 @@ Ao concluir um artefato do Spec Kit, o agente pode sugerir a próxima etapa com 
 - A aplicação usa Python 3.14, FastAPI, Pydantic v2, SQLAlchemy 2.0 assíncrono, Psycopg e Alembic.
 - O banco local é PostgreSQL com a extensão pgvector, executado pelo `compose.yaml`.
 - A aplicação é criada em `src/pivma/__init__.py`.
-- O exemplo funcional atual inclui `GET /` e `POST /users/`.
+- O exemplo funcional atual inclui `GET /` e `POST /users`.
 - O fluxo de criação de usuário está distribuído entre `src/pivma/routers/users.py`, `src/pivma/schemas.py`, `src/pivma/core/database/models.py` e a migração correspondente.
 - Os testes usam Pytest, TestClient, Testcontainers, Factory Boy e PostgreSQL/pgvector descartável fora do Windows.
 - `tests/test_app.py`, `tests/routers/test_user.py` e `tests/conftest.py` registram o contrato e a infraestrutura de teste existentes.

@@ -6,7 +6,7 @@ info:
 security:
   - cookieAuth: []
 paths:
-  /users/:
+  /users:
     get:
       summary: Lista contas para administração
       operationId: listUsers

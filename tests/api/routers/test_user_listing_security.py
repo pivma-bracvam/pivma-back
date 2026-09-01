@@ -32,14 +32,12 @@ async def grant_permission(session, user, code):
     )
     session.add_all([permission, profile])
     await session.flush()
-    session.add_all(
-        [
-            AccessProfilePermission(
-                profile_id=profile.id, permission_id=permission.id
-            ),
-            UserAccessProfile(user_id=user.id, profile_id=profile.id),
-        ]
-    )
+    session.add_all([
+        AccessProfilePermission(
+            profile_id=profile.id, permission_id=permission.id
+        ),
+        UserAccessProfile(user_id=user.id, profile_id=profile.id),
+    ])
     await session.commit()
 
 
@@ -56,7 +54,7 @@ async def administrative_permission_user(request, session, user):
 
 
 def test_list_users_requires_authentication(client):
-    response = client.get('/users/')
+    response = client.get('/users')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
     assert response.json() == {'detail': 'Not authenticated'}
@@ -66,7 +64,7 @@ def test_list_users_requires_authentication(client):
 def test_list_users_requires_users_read(client, user):
     authenticate(client, user)
 
-    response = client.get('/users/')
+    response = client.get('/users')
 
     assert response.status_code == HTTPStatus.FORBIDDEN
     assert response.json() == {'detail': 'Forbidden'}
@@ -83,7 +81,7 @@ def test_rbac_administrative_permissions_do_not_grant_user_listing(
 ):
     authenticate(client, administrative_permission_user)
 
-    response = client.get('/users/')
+    response = client.get('/users')
 
     assert response.status_code == HTTPStatus.FORBIDDEN
     assert response.json() == {'detail': 'Forbidden'}
@@ -92,19 +90,17 @@ def test_rbac_administrative_permissions_do_not_grant_user_listing(
 def test_users_read_allows_user_listing(client, users_read_user):
     authenticate(client, users_read_user)
 
-    response = client.get('/users/')
+    response = client.get('/users')
 
     assert response.status_code == HTTPStatus.OK
 
 
-def test_denied_user_listing_emits_operational_log(
-    client, user, caplog
-):
+def test_denied_user_listing_emits_operational_log(client, user, caplog):
     authenticate(client, user)
     logging.getLogger('pivma.dependencies').disabled = False
 
     with caplog.at_level(logging.WARNING, logger='pivma.dependencies'):
-        response = client.get('/users/')
+        response = client.get('/users')
 
     assert response.status_code == HTTPStatus.FORBIDDEN
     records = [
@@ -123,7 +119,7 @@ async def test_denied_user_listing_does_not_create_rbac_change(
 ):
     authenticate(client, user)
 
-    response = client.get('/users/')
+    response = client.get('/users')
 
     assert response.status_code == HTTPStatus.FORBIDDEN
     assert list(await session.scalars(select(RbacChange))) == []
@@ -135,7 +131,7 @@ async def test_authorized_user_listing_does_not_create_rbac_change(
 ):
     authenticate(client, users_read_user)
 
-    response = client.get('/users/')
+    response = client.get('/users')
 
     assert response.status_code == HTTPStatus.OK
     assert list(await session.scalars(select(RbacChange))) == []

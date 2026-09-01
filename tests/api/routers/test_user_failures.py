@@ -12,7 +12,7 @@ def test_hashing_failure_rolls_back_without_exposing_secret(
 
     monkeypatch.setattr('pivma.routers.users.hash_password', fail_hashing)
     response = client.post(
-        '/users/',
+        '/users',
         json={
             'username': 'hash.failure',
             'email': 'hash.failure@example.com',
@@ -38,7 +38,7 @@ def test_persistence_failure_rolls_back(
     monkeypatch.setattr(session, 'rollback', rollback)
 
     response = client.post(
-        '/users/',
+        '/users',
         json={
             'username': f'{method_name}.failure',
             'email': f'{method_name}.failure@example.com',

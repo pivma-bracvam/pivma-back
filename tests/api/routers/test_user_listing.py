@@ -93,7 +93,7 @@ def test_list_users_defaults_to_first_page_of_active_accounts(
 ):
     authenticate(client, listing_reader)
 
-    response = client.get('/users/')
+    response = client.get('/users')
 
     assert response.status_code == HTTPStatus.OK
     assert response.json()['offset'] == 0
@@ -108,7 +108,7 @@ def test_list_users_defaults_to_active_accounts(
     authenticate(client, listing_reader)
     params = {} if active_query is None else {'active': active_query}
 
-    response = client.get('/users/', params=params)
+    response = client.get('/users', params=params)
 
     assert response.status_code == HTTPStatus.OK
     assert str(deleted_user.id) not in user_ids(response)
@@ -124,7 +124,7 @@ async def test_list_users_searches_username_substring(
     )
     authenticate(client, listing_reader)
 
-    response = client.get('/users/', params={'search': 'Santo'})
+    response = client.get('/users', params={'search': 'Santo'})
 
     assert response.status_code == HTTPStatus.OK
     assert user_ids(response) == [str(target.id)]
@@ -139,7 +139,7 @@ async def test_list_users_searches_email_substring(
     )
     authenticate(client, listing_reader)
 
-    response = client.get('/users/', params={'search': 'SANTOS@EXAMPLE'})
+    response = client.get('/users', params={'search': 'SANTOS@EXAMPLE'})
 
     assert response.status_code == HTTPStatus.OK
     assert user_ids(response) == [str(target.id)]
@@ -155,7 +155,7 @@ async def test_list_users_username_search_is_case_insensitive(
     authenticate(client, listing_reader)
 
     responses = [
-        client.get('/users/', params={'search': search})
+        client.get('/users', params={'search': search})
         for search in ('joaodasilva', 'JoaoDaSilva', 'JOAODASILVA')
     ]
 
@@ -177,7 +177,7 @@ async def test_list_users_email_search_is_case_insensitive(
     authenticate(client, listing_reader)
 
     responses = [
-        client.get('/users/', params={'search': search})
+        client.get('/users', params={'search': search})
         for search in ('joao.silva@EXAMPLE', 'Joao.Silva@example.com', 'JOAO')
     ]
 
@@ -198,7 +198,7 @@ async def test_list_users_strips_search_outer_spaces(
     )
     authenticate(client, listing_reader)
 
-    response = client.get('/users/', params={'search': '  TrimmedTarget  '})
+    response = client.get('/users', params={'search': '  TrimmedTarget  '})
 
     assert response.status_code == HTTPStatus.OK
     assert user_ids(response) == [str(target.id)]
@@ -214,8 +214,8 @@ async def test_list_users_empty_search_matches_search_omission(
     )
     authenticate(client, listing_reader)
 
-    without_search = client.get('/users/')
-    with_search = client.get('/users/', params={'search': search})
+    without_search = client.get('/users')
+    with_search = client.get('/users', params={'search': search})
 
     assert without_search.status_code == HTTPStatus.OK
     assert with_search.status_code == HTTPStatus.OK
@@ -240,7 +240,7 @@ async def test_list_users_search_treats_wildcards_as_literals(
     )
     authenticate(client, listing_reader)
 
-    response = client.get('/users/', params={'search': search})
+    response = client.get('/users', params={'search': search})
 
     assert response.status_code == HTTPStatus.OK
     assert user_ids(response) == [str(target.id)]
@@ -250,7 +250,7 @@ def test_list_users_without_match_returns_empty_page(client, listing_reader):
     authenticate(client, listing_reader)
 
     response = client.get(
-        '/users/', params={'search': 'does-not-exist', 'offset': 3, 'limit': 7}
+        '/users', params={'search': 'does-not-exist', 'offset': 3, 'limit': 7}
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -260,7 +260,7 @@ def test_list_users_without_match_returns_empty_page(client, listing_reader):
 def test_list_users_response_has_only_page_fields(client, listing_reader):
     authenticate(client, listing_reader)
 
-    response = client.get('/users/')
+    response = client.get('/users')
 
     assert response.status_code == HTTPStatus.OK
     assert set(response.json()) == {'offset', 'limit', 'items'}
@@ -271,7 +271,7 @@ def test_list_users_items_have_only_administrative_fields(
 ):
     authenticate(client, listing_reader)
 
-    response = client.get('/users/')
+    response = client.get('/users')
 
     assert response.status_code == HTTPStatus.OK
     assert all(
@@ -290,47 +290,56 @@ def test_list_users_openapi_matches_versioned_contract(client):
         / 'users.openapi.yaml'
     )
     contract = yaml.safe_load(contract_path.read_text())
-    generated_operation = generated['paths']['/users/']['get']
-    contract_operation = contract['paths']['/users/']['get']
+    generated_operation = generated['paths']['/users']['get']
+    contract_operation = contract['paths']['/users']['get']
 
-    assert generated_operation['operationId'] == contract_operation[
-        'operationId'
-    ]
-    assert generated_operation['x-required-permission'] == contract_operation[
-        'x-required-permission'
-    ]
+    assert (
+        generated_operation['operationId'] == contract_operation['operationId']
+    )
+    assert (
+        generated_operation['x-required-permission']
+        == contract_operation['x-required-permission']
+    )
 
     generated_page = generated['components']['schemas']['AdminUserPage']
     contract_page = contract['components']['schemas']['AdminUserPage']
     assert generated_page['required'] == contract_page['required']
-    assert generated_page['properties']['offset']['type'] == contract_page[
-        'properties'
-    ]['offset']['type']
-    assert generated_page['properties']['offset']['minimum'] == contract_page[
-        'properties'
-    ]['offset']['minimum']
-    assert generated_page['properties']['limit']['type'] == contract_page[
-        'properties'
-    ]['limit']['type']
-    assert generated_page['properties']['limit']['minimum'] == contract_page[
-        'properties'
-    ]['limit']['minimum']
-    assert generated_page['properties']['limit']['maximum'] == contract_page[
-        'properties'
-    ]['limit']['maximum']
-    assert generated_page['properties']['items']['type'] == contract_page[
-        'properties'
-    ]['items']['type']
-    assert generated_page['properties']['items']['items'] == contract_page[
-        'properties'
-    ]['items']['items']
+    assert (
+        generated_page['properties']['offset']['type']
+        == contract_page['properties']['offset']['type']
+    )
+    assert (
+        generated_page['properties']['offset']['minimum']
+        == contract_page['properties']['offset']['minimum']
+    )
+    assert (
+        generated_page['properties']['limit']['type']
+        == contract_page['properties']['limit']['type']
+    )
+    assert (
+        generated_page['properties']['limit']['minimum']
+        == contract_page['properties']['limit']['minimum']
+    )
+    assert (
+        generated_page['properties']['limit']['maximum']
+        == contract_page['properties']['limit']['maximum']
+    )
+    assert (
+        generated_page['properties']['items']['type']
+        == contract_page['properties']['items']['type']
+    )
+    assert (
+        generated_page['properties']['items']['items']
+        == contract_page['properties']['items']['items']
+    )
 
     response_components = contract['components']['responses']
     response_refs = {'401': 'NotAuthenticated', '403': 'Forbidden'}
     for status, component_name in response_refs.items():
         assert status in generated_operation['responses']
-        assert generated_operation['responses'][status]['description'] == (
-            response_components[component_name]['description']
+        assert (
+            generated_operation['responses'][status]['description']
+            == (response_components[component_name]['description'])
         )
 
 
@@ -343,7 +352,7 @@ async def test_listed_user_id_is_accepted_by_rbac_access_endpoint(
     )
     authenticate(client, listing_reader)
 
-    listing = client.get('/users/', params={'search': 'RbacTarget'})
+    listing = client.get('/users', params={'search': 'RbacTarget'})
     assert listing.status_code == HTTPStatus.OK
     listed_id = listing.json()['items'][0]['id']
     access = client.get(f'/rbac/users/{listed_id}/access')
@@ -366,7 +375,7 @@ async def test_list_users_limit_restricts_matching_items(
     authenticate(client, listing_reader)
 
     response = client.get(
-        '/users/', params={'search': 'LimitedTarget', 'limit': PAGE_LIMIT}
+        '/users', params={'search': 'LimitedTarget', 'limit': PAGE_LIMIT}
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -377,7 +386,7 @@ async def test_list_users_limit_restricts_matching_items(
 def test_list_users_accepts_valid_limits(client, listing_reader, limit):
     authenticate(client, listing_reader)
 
-    response = client.get('/users/', params={'limit': limit})
+    response = client.get('/users', params={'limit': limit})
 
     assert response.status_code == HTTPStatus.OK
     assert response.json()['limit'] == limit
@@ -399,7 +408,7 @@ async def test_list_users_pages_cover_each_matching_account_once(
 
     pages = [
         client.get(
-            '/users/',
+            '/users',
             params={
                 'search': 'PageTarget',
                 'offset': offset,
@@ -429,13 +438,15 @@ async def test_list_users_orders_by_username_case_insensitively(
             username=username,
             email=f'{index}@ordering.example.com',
         )
-        for index, username in enumerate(
-            ('OrderTarget-Z', 'ordertarget-a', 'OrderTarget-B')
-        )
+        for index, username in enumerate((
+            'OrderTarget-Z',
+            'ordertarget-a',
+            'OrderTarget-B',
+        ))
     ]
     authenticate(client, listing_reader)
 
-    response = client.get('/users/', params={'search': 'OrderTarget'})
+    response = client.get('/users', params={'search': 'OrderTarget'})
 
     assert response.status_code == HTTPStatus.OK
     assert user_ids(response) == [
@@ -464,7 +475,7 @@ async def test_list_users_breaks_case_insensitive_username_ties_by_uuid(
     authenticate(client, listing_reader)
 
     response = client.get(
-        '/users/', params={'search': 'TieTarget', 'active': 'false'}
+        '/users', params={'search': 'TieTarget', 'active': 'false'}
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -481,7 +492,7 @@ def test_list_users_active_false_returns_only_inactive_accounts(
 ):
     authenticate(client, listing_reader)
 
-    response = client.get('/users/', params={'active': 'false'})
+    response = client.get('/users', params={'active': 'false'})
 
     assert response.status_code == HTTPStatus.OK
     assert response.json()['items'] == [
@@ -505,7 +516,7 @@ async def test_list_users_profile_filter_matches_active_assignment(
     await persist_assignment(session, target, profile)
     authenticate(client, listing_reader)
 
-    response = client.get('/users/', params={'profile_id': str(profile.id)})
+    response = client.get('/users', params={'profile_id': str(profile.id)})
 
     assert response.status_code == HTTPStatus.OK
     assert user_ids(response) == [str(target.id)]
@@ -524,7 +535,7 @@ async def test_list_users_profile_filter_ignores_ended_assignment(
     )
     authenticate(client, listing_reader)
 
-    response = client.get('/users/', params={'profile_id': str(profile.id)})
+    response = client.get('/users', params={'profile_id': str(profile.id)})
 
     assert response.status_code == HTTPStatus.OK
     assert response.json()['items'] == []
@@ -543,7 +554,7 @@ async def test_list_users_profile_filter_ignores_inactive_profile(
     await persist_assignment(session, target, profile)
     authenticate(client, listing_reader)
 
-    response = client.get('/users/', params={'profile_id': str(profile.id)})
+    response = client.get('/users', params={'profile_id': str(profile.id)})
 
     assert response.status_code == HTTPStatus.OK
     assert response.json()['items'] == []
@@ -552,7 +563,7 @@ async def test_list_users_profile_filter_ignores_inactive_profile(
 def test_list_users_unknown_profile_returns_empty_page(client, listing_reader):
     authenticate(client, listing_reader)
 
-    response = client.get('/users/', params={'profile_id': str(UUID(int=999))})
+    response = client.get('/users', params={'profile_id': str(UUID(int=999))})
 
     assert response.status_code == HTTPStatus.OK
     assert response.json()['items'] == []
@@ -572,7 +583,7 @@ async def test_profile_filter_ignores_historical_duplicates(
     )
     authenticate(client, listing_reader)
 
-    response = client.get('/users/', params={'profile_id': str(profile.id)})
+    response = client.get('/users', params={'profile_id': str(profile.id)})
 
     assert response.status_code == HTTPStatus.OK
     assert user_ids(response) == [str(target.id)]
@@ -597,7 +608,7 @@ async def test_list_users_combines_filters_before_pagination(
     authenticate(client, listing_reader)
 
     response = client.get(
-        '/users/',
+        '/users',
         params={
             'search': 'CombinedTarget',
             'active': 'true',
@@ -621,7 +632,7 @@ async def test_list_users_offset_beyond_matches_returns_empty_page(
     authenticate(client, listing_reader)
 
     response = client.get(
-        '/users/', params={'search': 'OffsetTarget', 'offset': 2, 'limit': 1}
+        '/users', params={'search': 'OffsetTarget', 'offset': 2, 'limit': 1}
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -632,7 +643,7 @@ async def test_list_users_offset_beyond_matches_returns_empty_page(
 def test_list_users_rejects_negative_offset(client, listing_reader, offset):
     authenticate(client, listing_reader)
 
-    response = client.get('/users/', params={'offset': offset})
+    response = client.get('/users', params={'offset': offset})
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert 'items' not in response.json()
@@ -641,7 +652,7 @@ def test_list_users_rejects_negative_offset(client, listing_reader, offset):
 def test_list_users_rejects_zero_limit(client, listing_reader):
     authenticate(client, listing_reader)
 
-    response = client.get('/users/', params={'limit': 0})
+    response = client.get('/users', params={'limit': 0})
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert 'items' not in response.json()
@@ -650,7 +661,7 @@ def test_list_users_rejects_zero_limit(client, listing_reader):
 def test_list_users_rejects_limit_above_maximum(client, listing_reader):
     authenticate(client, listing_reader)
 
-    response = client.get('/users/', params={'limit': 101})
+    response = client.get('/users', params={'limit': 101})
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert 'items' not in response.json()
@@ -659,7 +670,7 @@ def test_list_users_rejects_limit_above_maximum(client, listing_reader):
 def test_list_users_rejects_invalid_active(client, listing_reader):
     authenticate(client, listing_reader)
 
-    response = client.get('/users/', params={'active': 'not-a-boolean'})
+    response = client.get('/users', params={'active': 'not-a-boolean'})
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert 'items' not in response.json()
@@ -668,7 +679,7 @@ def test_list_users_rejects_invalid_active(client, listing_reader):
 def test_list_users_rejects_malformed_profile_id(client, listing_reader):
     authenticate(client, listing_reader)
 
-    response = client.get('/users/', params={'profile_id': 'not-a-uuid'})
+    response = client.get('/users', params={'profile_id': 'not-a-uuid'})
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert 'items' not in response.json()

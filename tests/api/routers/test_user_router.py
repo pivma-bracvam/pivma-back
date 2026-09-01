@@ -11,7 +11,7 @@ VALID_PASSWORD = 'Unique-Passphrase-2026'
 
 def test_create_user(client):
     response = client.post(
-        '/users/',
+        '/users',
         json={
             'username': 'alice',
             'email': 'alice@example.com',
@@ -42,7 +42,7 @@ async def test_create_user_stores_only_argon2id_hash(session):
 
 def test_create_user_already_exists_username(client, user):
     response = client.post(
-        '/users/',
+        '/users',
         json={
             'username': user.username,
             'email': 'different@example.com',
@@ -55,7 +55,7 @@ def test_create_user_already_exists_username(client, user):
 
 def test_create_user_already_exists_email(client, user):
     response = client.post(
-        '/users/',
+        '/users',
         json={
             'username': 'different',
             'email': user.email,
@@ -68,7 +68,7 @@ def test_create_user_already_exists_email(client, user):
 
 def test_create_user_rejects_case_insensitive_username(client, user):
     response = client.post(
-        '/users/',
+        '/users',
         json={
             'username': user.username.swapcase(),
             'email': 'available@example.com',
@@ -82,7 +82,7 @@ def test_create_user_rejects_case_insensitive_username(client, user):
 
 def test_create_user_rejects_case_insensitive_email(client, user):
     response = client.post(
-        '/users/',
+        '/users',
         json={
             'username': 'available',
             'email': user.email.swapcase(),
@@ -96,7 +96,7 @@ def test_create_user_rejects_case_insensitive_email(client, user):
 
 def test_create_user_preserves_username_and_email_case_after_trim(client):
     response = client.post(
-        '/users/',
+        '/users',
         json={
             'username': '  Alice.Example  ',
             'email': '  Alice.Example@Example.COM  ',
@@ -111,7 +111,7 @@ def test_create_user_preserves_username_and_email_case_after_trim(client):
 
 def test_create_user_reports_username_before_email(client, user):
     response = client.post(
-        '/users/',
+        '/users',
         json={
             'username': user.username,
             'email': user.email,
@@ -125,7 +125,7 @@ def test_create_user_reports_username_before_email(client, user):
 
 def test_create_user_frees_identifiers_after_deletion(client, deleted_user):
     response = client.post(
-        '/users/',
+        '/users',
         json={
             'username': deleted_user.username.swapcase(),
             'email': 'available-after-delete@example.com',
@@ -139,7 +139,7 @@ def test_create_user_frees_identifiers_after_deletion(client, deleted_user):
 
 def test_create_user_sanitizes_password_validation_error(client):
     response = client.post(
-        '/users/',
+        '/users',
         json={
             'username': 'invalid-password',
             'email': 'invalid@example.com',

@@ -62,7 +62,7 @@ async def persist_user(
 
 
 @router.get(
-    '/',
+    '',
     operation_id='listUsers',
     response_model=AdminUserPage,
     openapi_extra={'x-required-permission': USERS_READ},
@@ -91,9 +91,7 @@ async def list_users(  # noqa: PLR0913, PLR0917
 ):
     del actor
     predicates = [
-        User.deleted_at.is_(None)
-        if active
-        else User.deleted_at.is_not(None)
+        User.deleted_at.is_(None) if active else User.deleted_at.is_not(None)
     ]
     search_term = search.strip() if search is not None else ''
     if search_term:
@@ -142,7 +140,7 @@ async def list_users(  # noqa: PLR0913, PLR0917
     )
 
 
-@router.post('/', status_code=HTTPStatus.CREATED, response_model=UserPublic)
+@router.post('', status_code=HTTPStatus.CREATED, response_model=UserPublic)
 async def create_user(user: UserSchema, session: Session):
     conflict = await find_conflict(session, user)
     if conflict:
