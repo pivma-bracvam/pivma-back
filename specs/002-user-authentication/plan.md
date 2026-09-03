@@ -6,7 +6,7 @@
 
 ## Summary
 
-Implementar login por username ou e-mail, emitir um JWT de 8 horas em cookie e disponibilizar a identidade atual no backend. O plano adiciona somente PyJWT, configura segredos e origens pelo ambiente, cria três rotas de autenticação e testa os contratos de sessão e proteção de origem. Não haverá migração nem tabelas de sessão.
+Implementar login por username ou e-mail, emitir um JWT de 8 horas em cookie e disponibilizar a identidade atual no backend. A identidade inclui os perfis globais ativos apenas como informação descritiva. O plano adiciona somente PyJWT, configura segredos e origens pelo ambiente, cria três rotas de autenticação e testa os contratos de sessão e proteção de origem. Não haverá migração nem tabelas de sessão.
 
 ## Technical Context
 
@@ -34,7 +34,7 @@ Implementar login por username ou e-mail, emitir um JWT de 8 horas em cookie e d
 
 **Pré-pesquisa: APROVADO.**
 
-- **Requisitos e evidência**: o plano atende ao RF001 e às decisões registradas em `spec.md`. Perfis, permissões e vínculos dos RF002 a RF006 ficam fora do escopo.
+- **Requisitos e evidência**: o plano atende ao RF001 e às decisões registradas em `spec.md`. A gestão de perfis, permissões e vínculos dos RF002 a RF006 fica fora do escopo; `GET /auth/me` apenas apresenta perfis globais já atribuídos.
 - **Auditoria e versionamento**: não há evento de domínio ou alteração de entidade que exija nova auditoria. O plano preserva `AuditMixin` e não altera a tabela `users`.
 - **Segurança**: o backend valida assinatura, claims, expiração e atividade da conta em cada requisição autenticada. O logout valida `Origin` antes de alterar o cookie.
 - **Mudança mínima e verificável**: o plano reutiliza o hash Argon2id, a sessão do banco e a estrutura de routers e testes existentes. Cada comportamento novo terá teste de rota ou unidade.

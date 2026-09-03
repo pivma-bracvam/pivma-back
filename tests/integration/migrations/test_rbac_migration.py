@@ -24,7 +24,9 @@ async def test_rbac_migration_seeds_catalog_and_downgrades(
 
     async with migration_database.connect() as connection:
         profile_names = set(
-            await connection.scalars(sa.text("SELECT name FROM access_profiles"))
+            await connection.scalars(
+                sa.text("SELECT name FROM access_profiles")
+            )
         )
         permission_count = await connection.scalar(
             sa.text("SELECT count(*) FROM permissions")
@@ -53,8 +55,8 @@ async def test_rbac_migration_seeds_catalog_and_downgrades(
         "Administrador",
     }
     assert (permission_count, composition_count, non_admin_compositions) == (
-        8,
-        8,
+        9,
+        9,
         0,
     )
 
@@ -62,7 +64,10 @@ async def test_rbac_migration_seeds_catalog_and_downgrades(
     async with migration_database.connect() as connection:
         tables = set(
             await connection.scalars(
-                sa.text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+                sa.text(
+                    "SELECT tablename FROM pg_tables "
+                    "WHERE schemaname = 'public'"
+                )
             )
         )
     assert "users" in tables

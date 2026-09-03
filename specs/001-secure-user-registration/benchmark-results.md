@@ -34,7 +34,7 @@
 
 1. Confirmou-se que `users` continha zero linhas.
 2. Dois workers foram sincronizados por uma barreira e enviaram exatamente dois
-   `POST /users/` simultâneos, com usernames, e-mails e senhas válidos e distintos.
+   `POST /users` simultâneos, com usernames, e-mails e senhas válidos e distintos.
 3. A duração foi medida por relógio monotônico no cliente. O pico de memória foi lido em
    `VmHWM` do processo Uvicorn antes e depois dos pedidos.
 4. Após os pedidos, conferiram-se a contagem de linhas e apenas o prefixo e o comprimento dos
@@ -55,7 +55,7 @@
 - `VmHWM` após os pedidos: 246.856 kB;
 - aumento observado do pico: 132.172 kB, aproximadamente 129,07 MiB;
 - memória corrente do container após a execução: 90,25 MiB;
-- logs da API: exatamente dois `POST /users/`, ambos com HTTP 201.
+- logs da API: exatamente dois `POST /users`, ambos com HTTP 201.
 
 O `VmHWM` representa o maior RSS do processo desde sua inicialização. A diferença entre as duas
 leituras isola o aumento observado durante este benchmark, mas não constitui uma garantia para

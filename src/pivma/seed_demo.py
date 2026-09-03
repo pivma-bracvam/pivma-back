@@ -81,11 +81,13 @@ async def _get_or_create_user(
             username=user_data["username"],
             email=user_data["email"],
             password_hash=hash_password(DEMO_PASSWORD),
+            full_name=user_data["name"],
         )
         session.add(user)
         await session.flush()
         print(f"  + Usuário criado: {user_data['email']}")
     else:
+        user.full_name = user_data["name"]
         print(f"  * Usuário existente: {user_data['email']}")
 
     return user

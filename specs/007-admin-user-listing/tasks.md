@@ -73,7 +73,7 @@
 
 > Escrever cada teste e confirmar sua falha pelo comportamento ausente antes da implementação.
 
-- [X] T016 [US1] Testar que `GET /users/` autorizado sem parâmetros retorna HTTP 200 com `offset=0` e `limit=100` em `tests/api/routers/test_user_listing.py`
+- [X] T016 [US1] Testar que `GET /users` autorizado sem parâmetros retorna HTTP 200 com `offset=0` e `limit=100` em `tests/api/routers/test_user_listing.py`
 - [X] T017 [US1] Testar por parametrização que a omissão de `active` e `active=true` retornam somente contas ativas em `tests/api/routers/test_user_listing.py`
 - [X] T018 [US1] Testar busca por substring de username com retorno do UUID esperado em `tests/api/routers/test_user_listing.py`
 - [X] T019 [US1] Testar busca por substring de e-mail com retorno do UUID esperado em `tests/api/routers/test_user_listing.py`
@@ -88,7 +88,7 @@
 ### Implementation for User Story 1
 
 - [X] T027 [US1] Criar `AdminUser` a partir de `UserPublic` e `AdminUserPage` a partir de `FilterPage` em `src/pivma/schemas.py`; configurar ambos para produzir schemas compatíveis com `additionalProperties: false` no contrato versionado, redeclarar somente `AdminUserPage.limit` como `Field(100, ge=1, le=100)`, adicionar `items: list[AdminUser]` e não modificar os schemas compartilhados
-- [X] T028 [US1] Declarar `GET /users/` com `operation_id="listUsers"`, `response_model=AdminUserPage`, sessão existente, `Depends(require_permission(USERS_READ))` e parâmetros FastAPI `search`, `active`, `profile_id`, `offset` e `limit` validados em `src/pivma/routers/users.py`
+- [X] T028 [US1] Declarar `GET /users` com `operation_id="listUsers"`, `response_model=AdminUserPage`, sessão existente, `Depends(require_permission(USERS_READ))` e parâmetros FastAPI `search`, `active`, `profile_id`, `offset` e `limit` validados em `src/pivma/routers/users.py`
 - [X] T029 [US1] Implementar o predicado padrão de conta ativa e a busca em username ou e-mail com `strip()`, `or_` e `icontains(autoescape=True)` em `src/pivma/routers/users.py`
 - [X] T030 [US1] Aplicar ordem `lower(username), id`, depois `offset` e `limit`, e construir explicitamente `AdminUserPage` sem contagem total em `src/pivma/routers/users.py`
 - [X] T031 [US1] Executar `poetry run pytest tests/api/routers/test_user_listing.py -q` e corrigir somente os comportamentos US1 em `src/pivma/schemas.py` e `src/pivma/routers/users.py`
@@ -150,10 +150,10 @@
 
 - [X] T053 [US3] Testar que requisição sem sessão recebe HTTP 401 sem conteúdo da coleção em `tests/api/routers/test_user_listing_security.py`
 - [X] T054 [US3] Testar que conta autenticada sem `users.read` recebe HTTP 403 sem conteúdo da coleção em `tests/api/routers/test_user_listing_security.py`
-- [X] T055 [US3] Testar por parametrização que cada permissão de `ADMINISTRATIVE_PERMISSIONS` isolada não concede `GET /users/` em `tests/api/routers/test_user_listing_security.py`
+- [X] T055 [US3] Testar por parametrização que cada permissão de `ADMINISTRATIVE_PERMISSIONS` isolada não concede `GET /users` em `tests/api/routers/test_user_listing_security.py`
 - [X] T056 [US3] Testar que uma conta com `users.read` recebe HTTP 200 em `tests/api/routers/test_user_listing_security.py`
 - [X] T057 [US3] Testar que a resposta 200 possui somente `offset`, `limit` e `items` no topo em `tests/api/routers/test_user_listing.py`
-- [X] T058 [US3] Testar que cada item possui somente `id`, `username`, `email` e `active` em `tests/api/routers/test_user_listing.py`
+- [X] T058 [US3] Testar que cada item possui somente `id`, `username`, `email`, `active` e `profiles` em `tests/api/routers/test_user_listing.py`
 - [X] T059 [US3] Testar que uma recusa por ausência de `users.read` gera um registro operacional em `pivma.dependencies` em `tests/api/routers/test_user_listing_security.py`
 - [X] T060 [US3] Testar que uma recusa por ausência de `users.read` não cria `RbacChange` em `tests/api/routers/test_user_listing_security.py`
 - [X] T061 [US3] Testar que uma leitura autorizada não cria `RbacChange` em `tests/api/routers/test_user_listing_security.py`
@@ -167,8 +167,8 @@
 
 **Purpose**: Confirmar contrato, documentação, regressão e limite de escopo.
 
-- [X] T063 [P] Documentar `GET /users/`, seus parâmetros, a projeção administrativa e a permissão `users.read` na seção de Gestão de Usuários de `README.md`
-- [X] T064 Conferir o OpenAPI gerado para `GET /users/` contra `specs/007-admin-user-listing/contracts/users.openapi.yaml`, com atenção a `AdminUserPage.limit` entre 1 e 100, ajustando somente `src/pivma/schemas.py`, `src/pivma/routers/users.py` ou o teste de contrato em `tests/api/routers/test_user_listing.py`
+- [X] T063 [P] Documentar `GET /users`, seus parâmetros, a projeção administrativa e a permissão `users.read` na seção de Gestão de Usuários de `README.md`
+- [X] T064 Conferir o OpenAPI gerado para `GET /users` contra `specs/007-admin-user-listing/contracts/users.openapi.yaml`, com atenção a `AdminUserPage.limit` entre 1 e 100, ajustando somente `src/pivma/schemas.py`, `src/pivma/routers/users.py` ou o teste de contrato em `tests/api/routers/test_user_listing.py`
 - [X] T065 Executar `poetry run pytest tests/api/routers/test_user_router.py -q` e confirmar a regressão do cadastro em `tests/api/routers/test_user_router.py`
 - [X] T066 Executar `poetry run pytest tests/api/routers/test_auth_router.py -q` e confirmar a regressão da autenticação em `tests/api/routers/test_auth_router.py`
 - [X] T067 Executar `poetry run pytest tests/api/routers/test_rbac_router.py tests/api/routers/test_rbac_security.py -q` e confirmar a regressão dos contratos HTTP do RBAC nesses arquivos
@@ -293,4 +293,51 @@ US1 representa o primeiro incremento funcional, mas a entrega publicável inclui
 
 ## Phase 7: Convergence
 
-- [X] T074 Alinhar o OpenAPI gerado de `GET /users/` ao contrato em `contracts/users.openapi.yaml`: declarar `offset`, `limit` e `items` como obrigatórios em `AdminUserPage`, publicar `x-required-permission: users.read` e as respostas 401/403; adicionar teste de contrato correspondente (plan: contrato OpenAPI; T064)
+- [X] T074 Alinhar o OpenAPI gerado de `GET /users` ao contrato em `contracts/users.openapi.yaml`: declarar `offset`, `limit` e `items` como obrigatórios em `AdminUserPage`, publicar `x-required-permission: users.read` e as respostas 401/403; adicionar teste de contrato correspondente (plan: contrato OpenAPI; T064)
+
+---
+
+## Phase 8: Exibição dos cargos globais
+
+**Purpose**: Tornar o nome dos perfis globais disponível nas duas consultas de usuário sem expor
+permissões, atribuições históricas ou dados de autenticação.
+
+- [X] T075 [P] Testar que `GET /auth/me` retorna `access.profiles` com `id`, `name` e `active` para perfis globais ativos em `tests/api/routers/test_auth_router.py`
+- [X] T076 [P] Testar que `GET /users` retorna `items[].profiles` com o resumo dos perfis globais ativos em `tests/api/routers/test_user_listing.py`
+- [X] T077 Implementar o schema compartilhado de resumo de perfil, adicionar `profiles` aos contratos de `CurrentUserAccess` e `AdminUser` e carregar os perfis ativos em lote na listagem em `src/pivma/schemas.py`, `src/pivma/core/authorization.py`, `src/pivma/routers/auth.py` e `src/pivma/routers/users.py`
+- [X] T078 Alinhar os contratos OpenAPI, a documentação e os testes ao caminho canônico sem barra final (`/users`) e aos campos `profiles` em `specs/002-user-authentication/contracts/auth.openapi.yaml`, `specs/007-admin-user-listing/contracts/users.openapi.yaml`, `README.md` e `tests/`
+
+---
+
+## Phase 9: Atributo de nome completo e compatibilidade legada
+
+**Purpose**: Persistir e expor `full_name` nas respostas de usuário, exigindo o campo em novos
+cadastros e preservando contas antigas que ainda não o possuem.
+
+### Tests
+
+- [X] T079 Testar que `UserSchema` remove espaços externos de `full_name` em `tests/unit/schemas/test_user_schemas.py`
+- [X] T080 Testar que `UserSchema` rejeita `full_name` vazio, composto por espaços ou acima de 255 caracteres em `tests/unit/schemas/test_user_schemas.py`
+- [X] T081 Testar que `POST /users` rejeita HTTP 422 quando `full_name` é omitido em `tests/api/routers/test_user_router.py`
+- [X] T082 Testar que `POST /users` retorna `full_name` aparado quando o campo é informado em `tests/api/routers/test_user_router.py`
+- [X] T083 Testar que `GET /auth/me` retorna `full_name` na identidade externa e em `user` em `tests/api/routers/test_auth_router.py`
+- [X] T084 Testar que `GET /users` retorna `full_name` no item administrativo em `tests/api/routers/test_user_listing.py`
+- [X] T085 Testar que o upgrade cria `users.full_name` como coluna anulável e preserva `null` para conta legada em `tests/integration/migrations/test_user_full_name_migration.py`
+- [X] T086 Testar que o downgrade remove a coluna `users.full_name` em `tests/integration/migrations/test_user_full_name_migration.py`
+
+### Implementation
+
+- [X] T087 Adicionar `User.full_name` como coluna `String(255)` anulável com valor padrão `None` em `src/pivma/core/database/models.py` e declarar o campo obrigatório aparado em `UserSchema` e anulável em `UserPublic` em `src/pivma/schemas.py`
+- [X] T088 Propagar `full_name` no cadastro e na projeção de `GET /users` em `src/pivma/routers/users.py`, mantendo `GET /auth/me` coberto pelo schema compartilhado
+- [X] T089 Preencher `full_name` das contas de demonstração a partir dos dados existentes em `src/pivma/seed_demo.py`
+- [X] T090 Criar a migração incremental sucessora de `7a3e1c9b4d82` para adicionar e remover `users.full_name` em `migrations/versions/7b4f5d6e8a90_user_full_name.py`
+- [X] T091 Alinhar os contratos OpenAPI, o modelo de dados, o quickstart e o README ao campo obrigatório em novos cadastros e anulável no legado em `specs/002-user-authentication/contracts/auth.openapi.yaml`, `specs/007-admin-user-listing/contracts/users.openapi.yaml`, `specs/007-admin-user-listing/data-model.md`, `specs/007-admin-user-listing/quickstart.md` e `README.md`
+
+### Validation
+
+- [X] T092 Executar os testes focados de schema, cadastro, autenticação, listagem e migração e corrigir somente os arquivos desta fase
+- [X] T093 Executar `poetry run pytest`, `poetry run ruff check` e `PYTHONPATH=src poetry run alembic check`, conferindo a saída direta e corrigindo somente regressões causadas por esta fase
+
+**Evidência de validação**: os testes focados passaram (93 testes) e a suíte completa passou (381 testes). O Ruff passou nos arquivos desta fase; a execução global ainda reporta violações preexistentes em outros arquivos.
+
+**Checkpoint**: `full_name` é exigido em novos cadastros, pode completar contas legadas via PATCH e aparece em `POST /users`, `GET /auth/me` e `GET /users`; contas antigas sem valor retornam `null`.

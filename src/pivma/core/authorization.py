@@ -20,6 +20,7 @@ RBAC_READ = "rbac.read"
 RBAC_PROFILES_MANAGE = "rbac.profiles.manage"
 RBAC_ASSIGNMENTS_MANAGE = "rbac.assignments.manage"
 USERS_READ = "users.read"
+USERS_MANAGE = "users.manage"
 INSTITUTIONAL_READ = "institutional.read"
 INSTITUTIONAL_CATALOGS_MANAGE = "institutional.catalogs.manage"
 INSTITUTIONAL_AFFILIATIONS_MANAGE = "institutional.affiliations.manage"
@@ -90,17 +91,38 @@ async def active_profile_permissions(
 async def active_profiles_for_user(
     session: AsyncSession, user_id: UUID
 ) -> list[AccessProfile]:
-    result = await session.scalars(
-        select(AccessProfile)
-        .join(UserAccessProfile, UserAccessProfile.profile_id == AccessProfile.id)
+    profiles_by_user = await active_profiles_for_users(session, [user_id])
+    return profiles_by_user.get(user_id, [])
+
+
+async def active_profiles_for_users(
+    session: AsyncSession, user_ids: Sequence[UUID]
+) -> dict[UUID, list[AccessProfile]]:
+    if not user_ids:
+        return {}
+
+    result = await session.execute(
+        select(UserAccessProfile.user_id, AccessProfile)
+        .select_from(UserAccessProfile)
+        .join(
+            AccessProfile,
+            AccessProfile.id == UserAccessProfile.profile_id,
+        )
         .where(
-            UserAccessProfile.user_id == user_id,
+            UserAccessProfile.user_id.in_(user_ids),
             UserAccessProfile.deleted_at.is_(None),
             AccessProfile.deleted_at.is_(None),
         )
-        .order_by(AccessProfile.name)
+        .order_by(
+            UserAccessProfile.user_id,
+            AccessProfile.name,
+            AccessProfile.id,
+        )
     )
-    return list(result)
+    profiles_by_user = {user_id: [] for user_id in user_ids}
+    for user_id, profile in result:
+        profiles_by_user[user_id].append(profile)
+    return profiles_by_user
 
 
 async def active_institutional_affiliations(

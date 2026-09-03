@@ -55,7 +55,8 @@ paths:
         '200':
           description: >-
             Página ordenada por username sem distinção de caixa e por UUID como
-            desempate. Filtros válidos sem correspondência retornam items vazio.
+            desempate. Cada item inclui os perfis globais ativos da conta. Filtros
+            válidos sem correspondência retornam items vazio.
           content:
             application/json:
               schema:
@@ -107,16 +108,38 @@ components:
     AdminUser:
       type: object
       additionalProperties: false
-      required: [id, username, email, active]
+      required: [id, username, email, full_name, active, profiles]
       properties:
         id:
           type: string
           format: uuid
+        full_name:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Full Name
         username:
           type: string
         email:
           type: string
           format: email
+        active:
+          type: boolean
+        profiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileSummary'
+
+    ProfileSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, active]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
         active:
           type: boolean
 

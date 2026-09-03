@@ -55,6 +55,7 @@ components:
       required:
         - username
         - email
+        - full_name
         - password
       properties:
         username:
@@ -67,6 +68,11 @@ components:
           type: string
           format: email
           description: Espaços externos são removidos; a caixa é preservada.
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Campo obrigatório em novos cadastros; espaços externos são removidos.
         password:
           type: string
           minLength: 8
@@ -81,6 +87,7 @@ components:
         - id
         - username
         - email
+        - full_name
       properties:
         id:
           type: string
@@ -90,6 +97,11 @@ components:
         email:
           type: string
           format: email
+        full_name:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Full Name
     Conflict:
       type: object
       additionalProperties: false

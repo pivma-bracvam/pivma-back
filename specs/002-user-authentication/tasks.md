@@ -83,6 +83,7 @@ description: "Tarefas de implementação para autenticação de usuários"
 - [X] T016 [P] Executar `poetry run pytest` e conferir a saída do Pytest para regressões em `tests/`.
 - [X] T017 [P] Executar `poetry run ruff check` e corrigir somente problemas introduzidos em `src/pivma/`, `tests/`, `pyproject.toml`, `compose.yaml` e `.env.example`.
 - [X] T018 Validar os cenários de `specs/002-user-authentication/quickstart.md` e alinhar os artefatos da feature se o contrato implementado divergir.
+- [X] T019 [P] Validar que `GET /auth/me` publica os perfis globais ativos em `access.profiles`, sem transformar essa leitura em autorização ou gestão de perfis.
 
 ---
 
@@ -97,7 +98,7 @@ US1: login e identidade (T008–T011)
     ↓
 US2: cookie e logout protegido (T012–T015)
     ↓
-Polish e regressão (T016–T018)
+Polish e regressão (T016–T019)
 ```
 
 - US1 depende da fundação para assinar e validar o JWT.
@@ -128,4 +129,4 @@ Polish e regressão (T016–T018)
 
 - Não criar migrações, tabelas, refresh token, rotação, blacklist, revogação persistente, gerenciamento de sessões ou MFA.
 - Não incluir perfis, permissões, vínculos institucionais ou laboratoriais, designação de participantes, recuperação ou troca de senha.
-- Preservar `POST /users/` e a regra atual de reutilização de identificadores de conta excluída logicamente.
+- Preservar `POST /users` e a regra atual de reutilização de identificadores de conta excluída logicamente.

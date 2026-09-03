@@ -73,7 +73,7 @@ trim, Argon2id verificável e nenhuma senha ou representação na resposta.
 - [x] T016 [P] [US1] Implementar trim e validações aprovadas de username, e-mail e senha, sem normalizar a senha, em `src/pivma/schemas.py`
 - [x] T017 [P] [US1] Implementar blocklist validada em cache e hashing Argon2id no perfil aprovado em `src/pivma/core/security.py`
 - [x] T018 [US1] Validar a blocklist na inicialização e sanitizar erros de senha para o contrato 422 sem alterar erros alheios à senha em `src/pivma/__init__.py`
-- [x] T019 [US1] Integrar blocklist, hashing em worker thread, rollback e persistência de `password_hash` no `POST /users/` em `src/pivma/routers/users.py`
+- [x] T019 [US1] Integrar blocklist, hashing em worker thread, rollback e persistência de `password_hash` no `POST /users` em `src/pivma/routers/users.py`
 - [x] T020 [US1] Executar a validação independente da US1 e registrar comandos e resultados em `specs/001-secure-user-registration/quickstart.md`
 
 **Checkpoint**: US1 entrega cadastro válido seguro sem depender de US2 ou US3.
