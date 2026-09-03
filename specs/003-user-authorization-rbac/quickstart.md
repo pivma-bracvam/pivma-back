@@ -38,7 +38,7 @@ Confirme a saída direta de `poetry run pytest`. O task `poetry test` usa `ignor
 
 ## Validação manual
 
-1. Crie uma conta pelo contrato existente `POST /users/` e copie seu `id`.
+1. Crie uma conta pelo contrato existente `POST /users` e copie seu `id`.
 2. Execute o [bootstrap](contracts/bootstrap.md) com esse UUID.
 3. Autentique a conta em `POST /auth/login` e mantenha o cookie recebido.
 4. Crie uma segunda conta ativa e registre seu `id` para receber o perfil.

@@ -111,8 +111,12 @@ components:
     CurrentUserAccess:
       type: object
       additionalProperties: false
-      required: [global_permissions, scopes]
+      required: [profiles, global_permissions, scopes]
       properties:
+        profiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileSummary'
         global_permissions:
           type: array
           items:
@@ -121,6 +125,18 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AccessScope'
+    ProfileSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, active]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        active:
+          type: boolean
     CurrentUserResponse:
       allOf:
         - $ref: '#/components/schemas/UserIdentity'

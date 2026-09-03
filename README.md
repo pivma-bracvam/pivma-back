@@ -211,7 +211,8 @@ caixa em username ou e-mail e aceita `active=false` para contas inativas.
 começa em zero e `limit` aceita valores entre 1 e 100, com padrão 100.
 
 A resposta ordena por username sem distinção de caixa e usa o UUID como
-desempate. Cada item contém somente `id`, `username`, `email` e `active`:
+desempate. Cada item contém `id`, `username`, `email`, `active` e os perfis
+globais ativos em `profiles`:
 
 ```json
 {
@@ -222,7 +223,10 @@ desempate. Cada item contém somente `id`, `username`, `email` e `active`:
       "id": "00000000-0000-0000-0000-000000000001",
       "username": "joao",
       "email": "joao@example.com",
-      "active": true
+      "active": true,
+      "profiles": [
+        {"id": "00000000-0000-0000-0000-000000000002", "name": "Grupo Gestor", "active": true}
+      ]
     }
   ]
 }
@@ -273,6 +277,9 @@ permissões globais efetivas e os escopos ativos por processo:
     "email": "maria@exemplo.org"
   },
   "access": {
+    "profiles": [
+      {"id": "...", "name": "Grupo Gestor", "active": true}
+    ],
     "global_permissions": ["rbac.read"],
     "scopes": [
       {

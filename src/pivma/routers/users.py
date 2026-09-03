@@ -8,7 +8,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pivma.core.authorization import USERS_READ
+from pivma.core.authorization import USERS_READ, active_profiles_for_users
 from pivma.core.database import get_session
 from pivma.core.database.models import AccessProfile, User, UserAccessProfile
 from pivma.core.security import hash_password
@@ -16,6 +16,7 @@ from pivma.dependencies import require_permission
 from pivma.schemas import (
     AdminUser,
     AdminUserPage,
+    ProfileSummary,
     UserPublic,
     UserSchema,
 )
@@ -125,6 +126,9 @@ async def list_users(  # noqa: PLR0913, PLR0917
             .limit(limit)
         )
     )
+    profiles_by_user = await active_profiles_for_users(
+        session, [user.id for user in users]
+    )
     return AdminUserPage(
         offset=offset,
         limit=limit,
@@ -134,6 +138,12 @@ async def list_users(  # noqa: PLR0913, PLR0917
                 username=user.username,
                 email=user.email,
                 active=user.deleted_at is None,
+                profiles=[
+                    ProfileSummary(
+                        id=profile.id, name=profile.name, active=True
+                    )
+                    for profile in profiles_by_user.get(user.id, [])
+                ],
             )
             for user in users
         ],

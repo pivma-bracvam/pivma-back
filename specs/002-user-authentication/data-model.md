@@ -14,6 +14,12 @@
 
 Nenhuma coluna, índice ou migração será criada.
 
+## Perfis globais na identidade
+
+`GET /auth/me` apresenta, em `access.profiles`, os perfis globais ativos já atribuídos à conta.
+Cada resumo contém `id`, `name` e `active=true`. A lista é informativa e não concede acesso nem
+substitui a verificação de permissões feita pelo backend.
+
 ## JWT de autenticação
 
 O JWT não é persistido. Ele contém apenas os dados abaixo.

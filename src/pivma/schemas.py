@@ -59,8 +59,16 @@ class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ProfileSummary(BaseModel):
+    id: UUID
+    name: str
+    active: bool
+    model_config = ConfigDict(extra="forbid")
+
+
 class AdminUser(UserPublic):
     active: bool
+    profiles: list[ProfileSummary]
     model_config = ConfigDict(extra='forbid', from_attributes=True)
 
 
@@ -87,6 +95,7 @@ class AccessScope(BaseModel):
 
 
 class CurrentUserAccess(BaseModel):
+    profiles: list[ProfileSummary]
     global_permissions: list[str]
     scopes: list[AccessScope]
     model_config = ConfigDict(extra='forbid')
@@ -173,13 +182,6 @@ class ProfilePublic(BaseModel):
     updated_at: datetime | None
     deleted_by: UUID | None
     deleted_at: datetime | None
-    model_config = ConfigDict(extra="forbid")
-
-
-class ProfileSummary(BaseModel):
-    id: UUID
-    name: str
-    active: bool
     model_config = ConfigDict(extra="forbid")
 
 

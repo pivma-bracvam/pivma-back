@@ -10,6 +10,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pivma.core.authorization import (
+    active_profiles_for_user,
     compute_effectiveness_map,
     effective_permission_codes,
 )
@@ -36,6 +37,7 @@ from pivma.schemas import (
     CurrentUserAccess,
     CurrentUserResponse,
     LoginCredentials,
+    ProfileSummary,
     UserIdentity,
 )
 
@@ -157,11 +159,16 @@ async def read_current_user(
             laboratory_id,
         ), roles in sorted(grouped_scopes.items(), key=lambda item: item[0])
     ]
+    profiles = await active_profiles_for_user(session, current_user.id)
     identity = UserIdentity.model_validate(current_user)
     return CurrentUserResponse(
         **identity.model_dump(),
         user=identity,
         access=CurrentUserAccess(
+            profiles=[
+                ProfileSummary(id=profile.id, name=profile.name, active=True)
+                for profile in profiles
+            ],
             global_permissions=await effective_permission_codes(
                 session, current_user.id
             ),

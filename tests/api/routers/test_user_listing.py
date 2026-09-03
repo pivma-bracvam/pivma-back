@@ -275,9 +275,28 @@ def test_list_users_items_have_only_administrative_fields(
 
     assert response.status_code == HTTPStatus.OK
     assert all(
-        set(item) == {'id', 'username', 'email', 'active'}
+        set(item) == {'id', 'username', 'email', 'active', 'profiles'}
         for item in response.json()['items']
     )
+
+
+@pytest.mark.asyncio
+async def test_list_users_includes_active_profile_name(
+    client, listing_reader, session
+):
+    target = await persist_user(
+        session, username='ProfileTarget', email='profile.target@example.com'
+    )
+    profile = await persist_profile(session, name='Avaliador Ad Hoc')
+    await persist_assignment(session, target, profile)
+    authenticate(client, listing_reader)
+
+    response = client.get('/users', params={'search': 'ProfileTarget'})
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['items'][0]['profiles'] == [
+        {'id': str(profile.id), 'name': 'Avaliador Ad Hoc', 'active': True}
+    ]
 
 
 def test_list_users_openapi_matches_versioned_contract(client):
@@ -501,6 +520,7 @@ def test_list_users_active_false_returns_only_inactive_accounts(
             'username': deleted_user.username,
             'email': deleted_user.email,
             'active': False,
+            'profiles': [],
         }
     ]
 

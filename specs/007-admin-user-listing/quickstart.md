@@ -37,7 +37,7 @@ Confira a saída direta de `poetry run pytest`. O task `poetry test` ignora o c�
 | Risco | Evidência esperada |
 |---|---|
 | Autenticação e autorização | 401 sem sessão; 403 sem `users.read`; permissões RBAC não concedem a leitura; `users.read` permite a consulta. |
-| Não vazamento | Topo restrito a `offset`, `limit`, `items`; cada item restrito a `id`, `username`, `email`, `active`; respostas 401/403 sem coleção. |
+| Não vazamento | Topo restrito a `offset`, `limit`, `items`; cada item restrito a `id`, `username`, `email`, `active`, `profiles`; cada perfil restrito a `id`, `name`, `active`; respostas 401/403 sem coleção. |
 | Busca | Username e e-mail por substring; caixa equivalente; espaços externos removidos; busca vazia omitida; `%` e `_` literais. |
 | Estado | Padrão e `active=true` retornam contas ativas; `active=false` retorna inativas. |
 | Perfil | Somente perfil e atribuição ativos; UUID desconhecido retorna página vazia; nenhuma conta duplicada. |
@@ -50,11 +50,11 @@ Confira a saída direta de `poetry run pytest`. O task `poetry test` ignora o c�
 Com uma sessão autorizada, execute as consultas abaixo e compare as respostas com [o contrato OpenAPI](contracts/users.openapi.yaml):
 
 ```http
-GET /users/?offset=0&limit=20
-GET /users/?search=Joao&offset=0&limit=20
-GET /users/?active=false&offset=0&limit=20
-GET /users/?profile_id=<UUID>&offset=0&limit=20
-GET /users/?search=joao&active=true&profile_id=<UUID>&offset=0&limit=20
+GET /users?offset=0&limit=20
+GET /users?search=Joao&offset=0&limit=20
+GET /users?active=false&offset=0&limit=20
+GET /users?profile_id=<UUID>&offset=0&limit=20
+GET /users?search=joao&active=true&profile_id=<UUID>&offset=0&limit=20
 ```
 
 Confirme estes resultados:
@@ -64,7 +64,7 @@ Confirme estes resultados:
 3. `%` e `_` não ampliam o conjunto como curingas.
 4. A concatenação das páginas de um conjunto sem mudanças mantém a ordem e não repete UUIDs.
 5. O UUID retornado funciona em uma operação RBAC existente que aceite `user_id`.
-6. Nenhuma resposta contém `password_hash`, token, sessão, permissões ou auditoria.
+6. Nenhuma resposta contém `password_hash`, token, sessão, permissões ou auditoria; os perfis aparecem somente com `id`, `name` e `active`.
 
 O [modelo de dados](data-model.md) registra os predicados de estado e perfil. `research.md` registra a escolha de `EXISTS`, escape literal e os limites de `FilterPage`.
 

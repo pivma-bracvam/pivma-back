@@ -78,8 +78,10 @@ Projeção pública da API, sem persistência própria:
 | `username` | string | `users.username` |
 | `email` | string com formato e-mail | `users.email` |
 | `active` | boolean | `users.deleted_at IS NULL` |
+| `profiles` | lista de resumos | Perfis globais ativos vinculados à conta. |
 
-O schema não aceita nem devolve senha, hash, tokens, sessões, permissões, perfis ou campos de auditoria.
+Cada resumo de perfil contém `id`, `name` e `active=true`. O schema não aceita nem devolve senha,
+hash, tokens, sessões, permissões, atribuições históricas ou campos de auditoria.
 
 ## Página administrativa
 
