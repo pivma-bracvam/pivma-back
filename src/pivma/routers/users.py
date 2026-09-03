@@ -8,22 +8,31 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pivma.core.authorization import USERS_READ, active_profiles_for_users
+from pivma.core.authorization import (
+    USERS_MANAGE,
+    USERS_READ,
+    active_profiles_for_users,
+)
 from pivma.core.database import get_session
 from pivma.core.database.models import AccessProfile, User, UserAccessProfile
 from pivma.core.security import hash_password
-from pivma.dependencies import require_permission
+from pivma.dependencies import (
+    TrustedOrigin,
+    require_permission,
+)
 from pivma.schemas import (
     AdminUser,
     AdminUserPage,
     ProfileSummary,
     UserPublic,
     UserSchema,
+    UserUpdate,
 )
 
 router = APIRouter(prefix='/users', tags=['users'])
 Session = Annotated[AsyncSession, Depends(get_session)]
 UserListingReader = Annotated[User, Depends(require_permission(USERS_READ))]
+UserManager = Annotated[User, Depends(require_permission(USERS_MANAGE))]
 
 
 async def find_conflict(session: AsyncSession, user: UserSchema):
@@ -54,6 +63,7 @@ async def persist_user(
         email=user.email,
         username=user.username,
         password_hash=password_hash,
+        full_name=user.full_name,
     )
     session.add(db_user)
     await session.flush()
@@ -137,6 +147,7 @@ async def list_users(  # noqa: PLR0913, PLR0917
                 id=user.id,
                 username=user.username,
                 email=user.email,
+                full_name=user.full_name,
                 active=user.deleted_at is None,
                 profiles=[
                     ProfileSummary(
@@ -182,3 +193,43 @@ async def create_user(user: UserSchema, session: Session):
         ) from None
 
     return db_user
+
+
+@router.patch(
+    '/{user_id}',
+    operation_id='updateUser',
+    response_model=UserPublic,
+    openapi_extra={'x-required-permission': USERS_MANAGE},
+    responses={
+        HTTPStatus.UNAUTHORIZED: {
+            'description': (
+                'Sessão ausente, inválida, vencida ou ligada a conta inativa.'
+            ),
+        },
+        HTTPStatus.FORBIDDEN: {
+            'description': (
+                'A conta não possui users.manage ou a origem não é confiável.'
+            ),
+        },
+        HTTPStatus.NOT_FOUND: {
+            'description': 'O UUID não identifica uma conta existente.',
+        },
+    },
+)
+async def update_user(
+    user_id: UUID,
+    payload: UserUpdate,
+    session: Session,
+    actor: UserManager,
+    _: TrustedOrigin,
+):
+    item = await session.get(User, user_id)
+    if item is None:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail='User not found'
+        )
+    item.full_name = payload.full_name
+    item.set_update_audit(actor.id)
+    await session.commit()
+    await session.refresh(item)
+    return item

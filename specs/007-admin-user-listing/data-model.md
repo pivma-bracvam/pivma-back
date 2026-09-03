@@ -2,7 +2,7 @@
 
 ## Visão geral
 
-A feature não cria tabela nem modelo ORM. Ela lê `users` e, quando solicitado, verifica relações existentes do RBAC. A única mudança persistente é a ampliação do catálogo e da composição oficial por uma migração de dados.
+A feature não cria uma nova tabela. Ela amplia o modelo `users` com `full_name` e, quando solicitado, verifica relações existentes do RBAC. A migração também amplia o catálogo e a composição oficial já previstos.
 
 ```text
 users
@@ -17,6 +17,7 @@ users
 | `id` | Identificador público | Mesmo UUID usado nas operações `/rbac/users/{user_id}/...`. |
 | `username` | Exibição, busca e ordenação | Busca de substring case-insensitive; ordem por `lower(username)`. |
 | `email` | Exibição e busca | Busca de substring case-insensitive. |
+| `full_name` | Exibição | Obrigatório em novos cadastros; contas antigas/mockadas podem manter `null`; entre 1 e 255 caracteres após trim. Não participa da busca ou ordenação. |
 | `password_hash` | Nenhum | Não integra o statement de resposta nem o schema público. |
 | `deleted_at` | Filtro e estado derivado | Nulo representa `active=true`; preenchido representa `active=false`. |
 | demais campos de auditoria | Nenhum | Não aparecem no item administrativo. |
@@ -77,11 +78,14 @@ Projeção pública da API, sem persistência própria:
 | `id` | UUID | `users.id` |
 | `username` | string | `users.username` |
 | `email` | string com formato e-mail | `users.email` |
+| `full_name` | string ou nulo | `users.full_name` |
 | `active` | boolean | `users.deleted_at IS NULL` |
 | `profiles` | lista de resumos | Perfis globais ativos vinculados à conta. |
 
-Cada resumo de perfil contém `id`, `name` e `active=true`. O schema não aceita nem devolve senha,
-hash, tokens, sessões, permissões, atribuições históricas ou campos de auditoria.
+Cada resumo de perfil contém `id`, `name` e `active=true`. `full_name` pode ser nulo em contas
+antigas ou mockadas. A feature 008 permite completar esse valor. O schema não
+aceita nem devolve senha, hash, tokens, sessões, permissões, atribuições históricas ou campos de
+auditoria.
 
 ## Página administrativa
 
@@ -107,6 +111,11 @@ O backend não executa contagem total e não grava estado durante a consulta.
 
 ## Migração e downgrade
 
-O upgrade sucede `6f2c9a1d4e70` e insere a permissão e a composição oficial. Ele preserva tabelas, índices, contas, perfis e atribuições existentes.
+O upgrade sucede `7a3e1c9b4d82`, adiciona `users.full_name` como coluna anulável e preserva tabelas,
+índices, contas, perfis e atribuições existentes. A coluna não recebe valor inventado para registros
+legados.
 
-O downgrade remove primeiro todas as composições cujo `permission_id` pertence a `users.read`, inclusive composições criadas depois para perfis adicionais, e depois remove a permissão. Ele preserva contas, perfis e atribuições de perfil.
+O downgrade da revisão de nome remove a coluna `users.full_name`. O downgrade da revisão de RBAC
+remove primeiro todas as composições cujo `permission_id` pertence a `users.read`, inclusive
+composições criadas depois para perfis adicionais, e depois remove a permissão. Ele preserva contas,
+perfis e atribuições de perfil.

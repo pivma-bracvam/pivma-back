@@ -1,13 +1,16 @@
 import pytest
 from pydantic import ValidationError
 
-from pivma.schemas import UserPublic, UserSchema
+from pivma.schemas import UserPublic, UserSchema, UserUpdate
+
+MAX_FULL_NAME_LENGTH = 255
 
 
 def make_user(**overrides):
     values = {
         'username': 'valid.user',
         'email': 'Valid.User@Example.COM',
+        'full_name': 'Valid User',
         'password': 'Valid-Passphrase-2026',
     }
     return UserSchema(**(values | overrides))
@@ -34,6 +37,37 @@ def test_user_schema_trims_identifiers_and_preserves_case():
 
     assert user.username == 'User.Name'
     assert user.email == 'User.Name@Example.COM'
+
+
+def test_user_schema_trims_full_name():
+    assert make_user(full_name='  Maria Silva  ').full_name == 'Maria Silva'
+
+
+def test_user_schema_accepts_full_name_limit():
+    assert len(make_user(full_name='a' * MAX_FULL_NAME_LENGTH).full_name) == (
+        MAX_FULL_NAME_LENGTH
+    )
+
+
+def test_user_update_trims_full_name():
+    assert UserUpdate(full_name='  Maria Silva  ').full_name == 'Maria Silva'
+
+
+def test_user_schema_requires_full_name():
+    with pytest.raises(ValidationError):
+        UserSchema(
+            username='valid.user',
+            email='Valid.User@Example.COM',
+            password='Valid-Passphrase-2026',
+        )
+
+
+@pytest.mark.parametrize(
+    'full_name', ['', '   ', 'a' * (MAX_FULL_NAME_LENGTH + 1)]
+)
+def test_user_schema_rejects_invalid_full_name(full_name):
+    with pytest.raises(ValidationError):
+        make_user(full_name=full_name)
 
 
 @pytest.mark.parametrize(

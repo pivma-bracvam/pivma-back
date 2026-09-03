@@ -15,6 +15,7 @@ def test_create_user(client):
         json={
             'username': 'alice',
             'email': 'alice@example.com',
+            'full_name': 'Alice Example',
             'password': VALID_PASSWORD,
         },
     )
@@ -22,7 +23,36 @@ def test_create_user(client):
     assert 'id' in response.json()
     assert response.json()['username'] == 'alice'
     assert response.json()['email'] == 'alice@example.com'
+    assert response.json()['full_name'] == 'Alice Example'
     assert 'password' not in response.json()
+
+
+def test_create_user_requires_full_name(client):
+    response = client.post(
+        '/users',
+        json={
+            'username': 'missing-full-name',
+            'email': 'missing.full.name@example.com',
+            'password': VALID_PASSWORD,
+        },
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+def test_create_user_returns_trimmed_full_name(client):
+    response = client.post(
+        '/users',
+        json={
+            'full_name': '  Alice Example  ',
+            'username': 'alice-full-name',
+            'email': 'alice.full.name@example.com',
+            'password': VALID_PASSWORD,
+        },
+    )
+
+    assert response.status_code == HTTPStatus.CREATED
+    assert response.json()['full_name'] == 'Alice Example'
 
 
 @pytest.mark.asyncio
@@ -30,6 +60,7 @@ async def test_create_user_stores_only_argon2id_hash(session):
     user = UserSchema.model_validate({
         'username': 'Secure.User',
         'email': 'Secure.User@Example.COM',
+        'full_name': 'Secure User',
         'password': VALID_PASSWORD,
     })
 
@@ -46,6 +77,7 @@ def test_create_user_already_exists_username(client, user):
         json={
             'username': user.username,
             'email': 'different@example.com',
+            'full_name': 'Different User',
             'password': VALID_PASSWORD,
         },
     )
@@ -59,6 +91,7 @@ def test_create_user_already_exists_email(client, user):
         json={
             'username': 'different',
             'email': user.email,
+            'full_name': 'Different User',
             'password': VALID_PASSWORD,
         },
     )
@@ -72,6 +105,7 @@ def test_create_user_rejects_case_insensitive_username(client, user):
         json={
             'username': user.username.swapcase(),
             'email': 'available@example.com',
+            'full_name': 'Available User',
             'password': VALID_PASSWORD,
         },
     )
@@ -86,6 +120,7 @@ def test_create_user_rejects_case_insensitive_email(client, user):
         json={
             'username': 'available',
             'email': user.email.swapcase(),
+            'full_name': 'Available User',
             'password': VALID_PASSWORD,
         },
     )
@@ -100,6 +135,7 @@ def test_create_user_preserves_username_and_email_case_after_trim(client):
         json={
             'username': '  Alice.Example  ',
             'email': '  Alice.Example@Example.COM  ',
+            'full_name': 'Alice Example',
             'password': VALID_PASSWORD,
         },
     )
@@ -115,6 +151,7 @@ def test_create_user_reports_username_before_email(client, user):
         json={
             'username': user.username,
             'email': user.email,
+            'full_name': 'Duplicate User',
             'password': VALID_PASSWORD,
         },
     )
@@ -129,6 +166,7 @@ def test_create_user_frees_identifiers_after_deletion(client, deleted_user):
         json={
             'username': deleted_user.username.swapcase(),
             'email': 'available-after-delete@example.com',
+            'full_name': 'Available User',
             'password': VALID_PASSWORD,
         },
     )
@@ -143,6 +181,7 @@ def test_create_user_sanitizes_password_validation_error(client):
         json={
             'username': 'invalid-password',
             'email': 'invalid@example.com',
+            'full_name': 'Invalid Password User',
             'password': 'secret value',
         },
     )

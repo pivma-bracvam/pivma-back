@@ -16,6 +16,7 @@ def test_hashing_failure_rolls_back_without_exposing_secret(
         json={
             'username': 'hash.failure',
             'email': 'hash.failure@example.com',
+            'full_name': 'Hash Failure',
             'password': 'Failure-Passphrase-2026',
         },
     )
@@ -42,6 +43,7 @@ def test_persistence_failure_rolls_back(
         json={
             'username': f'{method_name}.failure',
             'email': f'{method_name}.failure@example.com',
+            'full_name': f'{method_name} Failure',
             'password': 'Failure-Passphrase-2026',
         },
     )

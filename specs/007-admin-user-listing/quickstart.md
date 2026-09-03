@@ -37,13 +37,14 @@ Confira a saída direta de `poetry run pytest`. O task `poetry test` ignora o c�
 | Risco | Evidência esperada |
 |---|---|
 | Autenticação e autorização | 401 sem sessão; 403 sem `users.read`; permissões RBAC não concedem a leitura; `users.read` permite a consulta. |
-| Não vazamento | Topo restrito a `offset`, `limit`, `items`; cada item restrito a `id`, `username`, `email`, `active`, `profiles`; cada perfil restrito a `id`, `name`, `active`; respostas 401/403 sem coleção. |
+| Não vazamento | Topo restrito a `offset`, `limit`, `items`; cada item restrito a `id`, `full_name`, `username`, `email`, `active`, `profiles`; cada perfil restrito a `id`, `name`, `active`; respostas 401/403 sem coleção. |
 | Busca | Username e e-mail por substring; caixa equivalente; espaços externos removidos; busca vazia omitida; `%` e `_` literais. |
 | Estado | Padrão e `active=true` retornam contas ativas; `active=false` retorna inativas. |
 | Perfil | Somente perfil e atribuição ativos; UUID desconhecido retorna página vazia; nenhuma conta duplicada. |
 | Paginação | Defaults 0/100, máximo 100, ordem `lower(username), id`, filtros antes da página e offset além do fim com lista vazia. |
 | Migração | `users.read` semeada no Administrador, efeito em atribuição existente, nenhuma mudança em `ADMINISTRATIVE_PERMISSIONS` e downgrade restrito à nova permissão. |
 | Auditoria | Leitura bem-sucedida não cria `RbacChange`; 403 produz o log operacional existente. |
+| Nome completo | `POST /users` exige `full_name`, remove espaços externos e devolve o valor em `POST /users`, `GET /auth/me` e `GET /users`; contas antigas podem devolver `null` até o PATCH administrativo. |
 
 ## Validação manual do contrato
 
@@ -64,7 +65,7 @@ Confirme estes resultados:
 3. `%` e `_` não ampliam o conjunto como curingas.
 4. A concatenação das páginas de um conjunto sem mudanças mantém a ordem e não repete UUIDs.
 5. O UUID retornado funciona em uma operação RBAC existente que aceite `user_id`.
-6. Nenhuma resposta contém `password_hash`, token, sessão, permissões ou auditoria; os perfis aparecem somente com `id`, `name` e `active`.
+6. `full_name` aparece com o valor persistido ou `null`; nenhuma resposta contém `password_hash`, token, sessão, permissões ou auditoria; os perfis aparecem somente com `id`, `name` e `active`.
 
 O [modelo de dados](data-model.md) registra os predicados de estado e perfil. `research.md` registra a escolha de `EXISTS`, escape literal e os limites de `FilterPage`.
 

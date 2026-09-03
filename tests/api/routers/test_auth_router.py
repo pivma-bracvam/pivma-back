@@ -39,10 +39,12 @@ def test_login_with_username_and_recognize_identity(client, user):
     assert identity.status_code == HTTPStatus.OK
     assert identity.json() == {
         'id': str(user.id),
+        'full_name': None,
         'username': user.username,
         'email': user.email,
         'user': {
             'id': str(user.id),
+            'full_name': None,
             'username': user.username,
             'email': user.email,
         },
@@ -52,6 +54,19 @@ def test_login_with_username_and_recognize_identity(client, user):
             'scopes': [],
         },
     }
+
+
+@pytest.mark.asyncio
+async def test_me_returns_full_name(client, user, session):
+    user.full_name = 'Maria Silva'
+    await session.commit()
+
+    assert login(client, user.username).status_code == HTTPStatus.OK
+    response = client.get('/auth/me')
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['full_name'] == 'Maria Silva'
+    assert response.json()['user']['full_name'] == 'Maria Silva'
 
 
 def test_login_with_email(client, user):
@@ -288,6 +303,14 @@ def test_openapi_declares_access_token_as_cookie_security_scheme(client):
         'APIKeyCookie': [],
     } in schema['paths']['/auth/me']['get']['security']
     current_user_access = schema['components']['schemas']['CurrentUserAccess']
+    user_identity = schema['components']['schemas']['UserIdentity']
+    assert user_identity['required'] == [
+        'id', 'username', 'email', 'full_name'
+    ]
+    assert user_identity['properties']['full_name'] == {
+        'anyOf': [{'type': 'string'}, {'type': 'null'}],
+        'title': 'Full Name',
+    }
     assert current_user_access['required'] == [
         'profiles',
         'global_permissions',

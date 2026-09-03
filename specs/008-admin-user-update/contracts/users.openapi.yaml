@@ -1,0 +1,116 @@
+openapi: 3.1.0
+info:
+  title: pi*VMA Administrative User Update API
+  version: 1.0.0
+  description: Atualização administrativa limitada ao nome completo de uma conta.
+security:
+  - cookieAuth: []
+paths:
+  /users/{user_id}:
+    patch:
+      summary: Atualiza o nome completo de uma conta
+      operationId: updateUser
+      x-required-permission: users.manage
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: Conta atualizada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPublic'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  responses:
+    NotAuthenticated:
+      description: Sessão ausente, inválida, vencida ou ligada a conta inativa.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: A conta não possui users.manage ou a origem não é confiável.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: O UUID não identifica uma conta existente.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationError:
+      description: O corpo não atende ao contrato de atualização.
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: true
+            required: [detail]
+            properties:
+              detail:
+                type: array
+                items:
+                  type: object
+
+  schemas:
+    UserUpdate:
+      type: object
+      additionalProperties: false
+      required: [full_name]
+      properties:
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Full Name
+    UserPublic:
+      type: object
+      additionalProperties: false
+      required: [id, username, email, full_name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        full_name:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Full Name
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail: {}

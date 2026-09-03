@@ -306,3 +306,38 @@ permissões, atribuições históricas ou dados de autenticação.
 - [X] T076 [P] Testar que `GET /users` retorna `items[].profiles` com o resumo dos perfis globais ativos em `tests/api/routers/test_user_listing.py`
 - [X] T077 Implementar o schema compartilhado de resumo de perfil, adicionar `profiles` aos contratos de `CurrentUserAccess` e `AdminUser` e carregar os perfis ativos em lote na listagem em `src/pivma/schemas.py`, `src/pivma/core/authorization.py`, `src/pivma/routers/auth.py` e `src/pivma/routers/users.py`
 - [X] T078 Alinhar os contratos OpenAPI, a documentação e os testes ao caminho canônico sem barra final (`/users`) e aos campos `profiles` em `specs/002-user-authentication/contracts/auth.openapi.yaml`, `specs/007-admin-user-listing/contracts/users.openapi.yaml`, `README.md` e `tests/`
+
+---
+
+## Phase 9: Atributo de nome completo e compatibilidade legada
+
+**Purpose**: Persistir e expor `full_name` nas respostas de usuário, exigindo o campo em novos
+cadastros e preservando contas antigas que ainda não o possuem.
+
+### Tests
+
+- [X] T079 Testar que `UserSchema` remove espaços externos de `full_name` em `tests/unit/schemas/test_user_schemas.py`
+- [X] T080 Testar que `UserSchema` rejeita `full_name` vazio, composto por espaços ou acima de 255 caracteres em `tests/unit/schemas/test_user_schemas.py`
+- [X] T081 Testar que `POST /users` rejeita HTTP 422 quando `full_name` é omitido em `tests/api/routers/test_user_router.py`
+- [X] T082 Testar que `POST /users` retorna `full_name` aparado quando o campo é informado em `tests/api/routers/test_user_router.py`
+- [X] T083 Testar que `GET /auth/me` retorna `full_name` na identidade externa e em `user` em `tests/api/routers/test_auth_router.py`
+- [X] T084 Testar que `GET /users` retorna `full_name` no item administrativo em `tests/api/routers/test_user_listing.py`
+- [X] T085 Testar que o upgrade cria `users.full_name` como coluna anulável e preserva `null` para conta legada em `tests/integration/migrations/test_user_full_name_migration.py`
+- [X] T086 Testar que o downgrade remove a coluna `users.full_name` em `tests/integration/migrations/test_user_full_name_migration.py`
+
+### Implementation
+
+- [X] T087 Adicionar `User.full_name` como coluna `String(255)` anulável com valor padrão `None` em `src/pivma/core/database/models.py` e declarar o campo obrigatório aparado em `UserSchema` e anulável em `UserPublic` em `src/pivma/schemas.py`
+- [X] T088 Propagar `full_name` no cadastro e na projeção de `GET /users` em `src/pivma/routers/users.py`, mantendo `GET /auth/me` coberto pelo schema compartilhado
+- [X] T089 Preencher `full_name` das contas de demonstração a partir dos dados existentes em `src/pivma/seed_demo.py`
+- [X] T090 Criar a migração incremental sucessora de `7a3e1c9b4d82` para adicionar e remover `users.full_name` em `migrations/versions/7b4f5d6e8a90_user_full_name.py`
+- [X] T091 Alinhar os contratos OpenAPI, o modelo de dados, o quickstart e o README ao campo obrigatório em novos cadastros e anulável no legado em `specs/002-user-authentication/contracts/auth.openapi.yaml`, `specs/007-admin-user-listing/contracts/users.openapi.yaml`, `specs/007-admin-user-listing/data-model.md`, `specs/007-admin-user-listing/quickstart.md` e `README.md`
+
+### Validation
+
+- [X] T092 Executar os testes focados de schema, cadastro, autenticação, listagem e migração e corrigir somente os arquivos desta fase
+- [X] T093 Executar `poetry run pytest`, `poetry run ruff check` e `PYTHONPATH=src poetry run alembic check`, conferindo a saída direta e corrigindo somente regressões causadas por esta fase
+
+**Evidência de validação**: os testes focados passaram (93 testes) e a suíte completa passou (381 testes). O Ruff passou nos arquivos desta fase; a execução global ainda reporta violações preexistentes em outros arquivos.
+
+**Checkpoint**: `full_name` é exigido em novos cadastros, pode completar contas legadas via PATCH e aparece em `POST /users`, `GET /auth/me` e `GET /users`; contas antigas sem valor retornam `null`.

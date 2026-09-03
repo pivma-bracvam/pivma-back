@@ -18,6 +18,14 @@ def test_users_read_is_not_an_administrative_rbac_permission():
     )
 
 
+def test_users_manage_is_not_an_administrative_rbac_permission():
+    assert authorization.USERS_MANAGE == 'users.manage'
+    assert (
+        authorization.USERS_MANAGE
+        not in authorization.ADMINISTRATIVE_PERMISSIONS
+    )
+
+
 @pytest.mark.asyncio
 async def test_effective_permissions_union_and_ignore_inactive_records(
     session, user

@@ -80,11 +80,16 @@ components:
     UserIdentity:
       type: object
       additionalProperties: false
-      required: [id, username, email]
+      required: [id, username, email, full_name]
       properties:
         id:
           type: string
           format: uuid
+        full_name:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Full Name
         username:
           type: string
         email:
