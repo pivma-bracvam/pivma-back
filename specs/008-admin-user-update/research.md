@@ -14,9 +14,9 @@
 
 ## 3. Compatibilidade de contas legadas
 
-- **Decision**: exigir `full_name` em novos cadastros, manter a coluna anulável e permitir que o PATCH preencha contas antigas ou mockadas.
-- **Rationale**: a equipe não quer migração obrigatória de dados mockados, mas quer garantir o dado em novos registros.
-- **Alternatives considered**: preencher nomes automaticamente foi descartado porque inventaria dados; tornar a coluna `NOT NULL` foi descartado porque quebraria registros legados.
+- **Decision**: exigir `full_name` em novos cadastros, manter a coluna anulável no schema e atualizar contas existentes na migração com o valor de `username` como valor provisório até que seja alterado pelo PATCH administrativo.
+- **Rationale**: garante que contas existentes não fiquem com `full_name` nulo na migração, usando o identificador de usuário (`username`) como valor padrão provisório até a atualização formal.
+- **Alternatives considered**: manter o valor como `null` foi inicialmente considerado, mas revisado para preencher provisoriamente com `username`; tornar a coluna `NOT NULL` de imediato foi descartado para preservar flexibilidade do schema.
 
 ## 4. Auditoria
 

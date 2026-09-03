@@ -52,7 +52,7 @@ async def test_upgrade_adds_nullable_full_name_column(migration_database):
         )
 
     assert column.scalar_one() == 'YES'
-    assert full_name is None
+    assert full_name == 'legacy-full-name'
 
 
 @pytest.mark.asyncio

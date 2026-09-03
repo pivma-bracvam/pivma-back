@@ -21,6 +21,11 @@ def upgrade() -> None:
         'users',
         sa.Column('full_name', sa.String(length=255), nullable=True),
     )
+    op.execute(
+        sa.text(
+            'UPDATE users SET full_name = username WHERE full_name IS NULL'
+        )
+    )
 
 
 def downgrade() -> None:

@@ -103,9 +103,10 @@ async def active_profiles_for_users(
 
     result = await session.execute(
         select(UserAccessProfile.user_id, AccessProfile)
+        .select_from(UserAccessProfile)
         .join(
-            UserAccessProfile,
-            UserAccessProfile.profile_id == AccessProfile.id,
+            AccessProfile,
+            AccessProfile.id == UserAccessProfile.profile_id,
         )
         .where(
             UserAccessProfile.user_id.in_(user_ids),
