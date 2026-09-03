@@ -211,7 +211,8 @@ caixa em username ou e-mail e aceita `active=false` para contas inativas.
 começa em zero e `limit` aceita valores entre 1 e 100, com padrão 100.
 
 A resposta ordena por username sem distinção de caixa e usa o UUID como
-desempate. Cada item contém somente `id`, `username`, `email` e `active`:
+desempate. Cada item contém `id`, `full_name`, `username`, `email`, `active` e
+os perfis globais ativos em `profiles`:
 
 ```json
 {
@@ -220,15 +221,37 @@ desempate. Cada item contém somente `id`, `username`, `email` e `active`:
   "items": [
     {
       "id": "00000000-0000-0000-0000-000000000001",
+      "full_name": "João da Silva",
       "username": "joao",
       "email": "joao@example.com",
-      "active": true
+      "active": true,
+      "profiles": [
+        {"id": "00000000-0000-0000-0000-000000000002", "name": "Grupo Gestor", "active": true}
+      ]
     }
   ]
 }
 ```
 
-### 4. Designar Papéis Locais em um Processo Específico
+### 4. Atualizar dados de uma conta
+
+Uma conta com a permissão `users.manage` pode preencher ou substituir o nome
+completo de uma conta existente:
+
+```http
+PATCH /users/{user_id}
+Origin: https://testserver
+Content-Type: application/json
+
+{"full_name":"Maria Silva"}
+```
+
+O endpoint retorna HTTP 200 com `id`, `full_name`, `username` e `email`. O
+campo `full_name` é aparado e deve conter de 1 a 255 caracteres. O endpoint
+não altera username, e-mail, senha, perfis, vínculos ou estado da conta.
+Contas antigas podem continuar com `full_name: null` até essa atualização.
+
+### 5. Designar Papéis Locais em um Processo Específico
 
 A designação local vincula um usuário a uma instância de processo (`ProcessInstance`):
 
@@ -273,6 +296,9 @@ permissões globais efetivas e os escopos ativos por processo:
     "email": "maria@exemplo.org"
   },
   "access": {
+    "profiles": [
+      {"id": "...", "name": "Grupo Gestor", "active": true}
+    ],
     "global_permissions": ["rbac.read"],
     "scopes": [
       {
@@ -318,12 +344,13 @@ Todas as requisições de mutação protegidas (`POST`, `PUT`, `PATCH`, `DELETE`
 
 ## Cadastro de Usuários
 
-O endpoint `POST /users` registra uma nova conta e retorna HTTP 201 com `id`, `username` e `email`. A resposta não expõe a senha nem seu hash.
+O endpoint `POST /users` registra uma nova conta e retorna HTTP 201 com `id`, `full_name`, `username` e `email`. `full_name` é obrigatório em novos cadastros. Contas antigas podem retornar `null`; a resposta não expõe a senha nem seu hash.
 
 | Campo | Regra de Validação |
 | :--- | :--- |
 | `username` | 3 a 64 caracteres; aceita letras ASCII, números, ponto, hífen e sublinhado. Espaços externos são removidos e a caixa original é preservada. |
 | `email` | Formato de e-mail RFC válido. Espaços externos são removidos e a caixa original é preservada. |
+| `full_name` | Obrigatório em novos cadastros; 1 a 255 caracteres. Espaços externos são removidos. |
 | `password` | 8 a 128 caracteres Unicode, sem espaços em branco. O hash é gerado com Argon2id. |
 
 Identificadores `username` e `email` são únicos entre contas ativas com comparação case-insensitive. Contas com exclusão lógica liberam os identificadores para novos cadastros.
@@ -331,7 +358,7 @@ Identificadores `username` e `email` são únicos entre contas ativas com compar
 ```bash
 curl -X POST http://localhost:8000/users \
   -H 'Content-Type: application/json' \
-  -d '{"username":"alice","email":"alice@example.com","password":"UmaSenhaSegura2026"}'
+  -d '{"full_name":"Alice Example","username":"alice","email":"alice@example.com","password":"UmaSenhaSegura2026"}'
 ```
 
 - Conflito de unicidade retorna HTTP 409 (`Username already exists` ou `Email already exists`).
@@ -341,15 +368,16 @@ curl -X POST http://localhost:8000/users \
 ## 🔐 Autorização RBAC
 
 Após aplicar as migrações, o backend disponibiliza autorização global por
-perfis. O catálogo inicial é fechado e contém `rbac.read`,
-`rbac.profiles.manage` e `rbac.assignments.manage`; somente a migração cria
-essas permissões.
+perfis. O catálogo inicial também contém `users.read` para consulta e
+`users.manage` para atualização administrativa de contas; somente as
+migrações criam essas permissões.
 
 | Rota | Permissão necessária |
 | --- | --- |
 | `GET /rbac/permissions`, `GET /rbac/profiles`, `GET /rbac/users/{user_id}/access`, `GET /rbac/changes` | `rbac.read` |
 | `POST /rbac/profiles`, `PATCH/DELETE /rbac/profiles/{profile_id}` | `rbac.profiles.manage` |
 | `POST/DELETE /rbac/users/{user_id}/profiles/{profile_id}` | `rbac.assignments.manage` |
+| `PATCH /users/{user_id}` | `users.manage` |
 
 As mutações exigem cookie de sessão e o cabeçalho `Origin` configurado. O
 backend consulta o estado atual das atribuições a cada pedido; não há cache de
@@ -377,6 +405,7 @@ Após as migrações, a aplicação disponibiliza controle de acesso baseado em 
 | `GET /rbac/permissions`, `GET /rbac/profiles`, `GET /rbac/users/{user_id}/access`, `GET /rbac/changes` | `rbac.read` |
 | `POST /rbac/profiles`, `PATCH/DELETE /rbac/profiles/{profile_id}` | `rbac.profiles.manage` |
 | `POST/DELETE /rbac/users/{user_id}/profiles/{profile_id}` | `rbac.assignments.manage` |
+| `PATCH /users/{user_id}` | `users.manage` |
 
 Operações de mutação exigem cookie de autenticação e validação do cabeçalho `Origin`. O backend verifica as atribuições diretamente no banco a cada requisição, sem cache em token. Perfis e atribuições utilizam exclusão lógica (`deleted_at`), mantendo histórico completo de concessões.
 
@@ -500,11 +529,11 @@ async def test_example_participant_listing(client, session):
     authenticate(client, user)
 
     # Act
-    response = client.get('/processes')
+    response = client.get("/processes")
 
     # Assert
     assert response.status_code == HTTPStatus.OK
-    assert 'items' in response.json()
+    assert "items" in response.json()
 ```
 
 ---

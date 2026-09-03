@@ -3,7 +3,11 @@ from http import HTTPStatus
 
 import pytest
 
-from pivma.core.database.models import Assignment
+from pivma.core.database.models import (
+    AccessProfile,
+    Assignment,
+    UserAccessProfile,
+)
 from pivma.core.security import create_access_token
 from tests.factories.process_factory import (
     ProcessInstanceFactory,
@@ -35,18 +39,34 @@ def test_login_with_username_and_recognize_identity(client, user):
     assert identity.status_code == HTTPStatus.OK
     assert identity.json() == {
         'id': str(user.id),
+        'full_name': None,
         'username': user.username,
         'email': user.email,
         'user': {
             'id': str(user.id),
+            'full_name': None,
             'username': user.username,
             'email': user.email,
         },
         'access': {
+            'profiles': [],
             'global_permissions': [],
             'scopes': [],
         },
     }
+
+
+@pytest.mark.asyncio
+async def test_me_returns_full_name(client, user, session):
+    user.full_name = 'Maria Silva'
+    await session.commit()
+
+    assert login(client, user.username).status_code == HTTPStatus.OK
+    response = client.get('/auth/me')
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['full_name'] == 'Maria Silva'
+    assert response.json()['user']['full_name'] == 'Maria Silva'
 
 
 def test_login_with_email(client, user):
@@ -80,6 +100,7 @@ async def test_me_returns_effective_permissions_and_process_scopes(
 
     assert response.status_code == HTTPStatus.OK
     assert response.json()['access']['global_permissions'] == []
+    assert response.json()['access']['profiles'] == []
     assert response.json()['access']['scopes'] == [
         {
             'process_id': str(process.id),
@@ -87,6 +108,27 @@ async def test_me_returns_effective_permissions_and_process_scopes(
             'laboratory_id': None,
             'roles': ['proponent'],
         }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_me_returns_active_global_profile_names(client, user, session):
+    profile = AccessProfile(
+        system_key=None,
+        name='Grupo Gestor',
+        description='Perfil de gestão',
+    )
+    session.add(profile)
+    await session.flush()
+    session.add(UserAccessProfile(user_id=user.id, profile_id=profile.id))
+    await session.flush()
+
+    assert login(client, user.username).status_code == HTTPStatus.OK
+    response = client.get('/auth/me')
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['access']['profiles'] == [
+        {'id': str(profile.id), 'name': 'Grupo Gestor', 'active': True}
     ]
 
 
@@ -260,6 +302,25 @@ def test_openapi_declares_access_token_as_cookie_security_scheme(client):
     assert {
         'APIKeyCookie': [],
     } in schema['paths']['/auth/me']['get']['security']
+    current_user_access = schema['components']['schemas']['CurrentUserAccess']
+    user_identity = schema['components']['schemas']['UserIdentity']
+    assert user_identity['required'] == [
+        'id', 'username', 'email', 'full_name'
+    ]
+    assert user_identity['properties']['full_name'] == {
+        'anyOf': [{'type': 'string'}, {'type': 'null'}],
+        'title': 'Full Name',
+    }
+    assert current_user_access['required'] == [
+        'profiles',
+        'global_permissions',
+        'scopes',
+    ]
+    assert current_user_access['properties']['profiles'] == {
+        'items': {'$ref': '#/components/schemas/ProfileSummary'},
+        'title': 'Profiles',
+        'type': 'array',
+    }
     assert not any(
         parameter['name'] == 'access_token'
         for parameter in schema['paths']['/auth/me']['get'].get(

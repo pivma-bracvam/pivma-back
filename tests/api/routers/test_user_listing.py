@@ -275,9 +275,47 @@ def test_list_users_items_have_only_administrative_fields(
 
     assert response.status_code == HTTPStatus.OK
     assert all(
-        set(item) == {'id', 'username', 'email', 'active'}
+        set(item)
+        == {'id', 'full_name', 'username', 'email', 'active', 'profiles'}
         for item in response.json()['items']
     )
+
+
+@pytest.mark.asyncio
+async def test_list_users_includes_full_name(
+    client, listing_reader, session
+):
+    await persist_user(
+        session,
+        username='FullNameTarget',
+        email='full.name@example.com',
+        full_name='Maria Silva',
+    )
+    authenticate(client, listing_reader)
+
+    response = client.get('/users', params={'search': 'FullNameTarget'})
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['items'][0]['full_name'] == 'Maria Silva'
+
+
+@pytest.mark.asyncio
+async def test_list_users_includes_active_profile_name(
+    client, listing_reader, session
+):
+    target = await persist_user(
+        session, username='ProfileTarget', email='profile.target@example.com'
+    )
+    profile = await persist_profile(session, name='Avaliador Ad Hoc')
+    await persist_assignment(session, target, profile)
+    authenticate(client, listing_reader)
+
+    response = client.get('/users', params={'search': 'ProfileTarget'})
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['items'][0]['profiles'] == [
+        {'id': str(profile.id), 'name': 'Avaliador Ad Hoc', 'active': True}
+    ]
 
 
 def test_list_users_openapi_matches_versioned_contract(client):
@@ -303,6 +341,12 @@ def test_list_users_openapi_matches_versioned_contract(client):
 
     generated_page = generated['components']['schemas']['AdminUserPage']
     contract_page = contract['components']['schemas']['AdminUserPage']
+    generated_item = generated['components']['schemas']['AdminUser']
+    contract_item = contract['components']['schemas']['AdminUser']
+    assert generated_item['required'] == contract_item['required']
+    assert generated_item['properties']['full_name'] == contract_item[
+        'properties'
+    ]['full_name']
     assert generated_page['required'] == contract_page['required']
     assert (
         generated_page['properties']['offset']['type']
@@ -498,9 +542,11 @@ def test_list_users_active_false_returns_only_inactive_accounts(
     assert response.json()['items'] == [
         {
             'id': str(deleted_user.id),
+            'full_name': deleted_user.full_name,
             'username': deleted_user.username,
             'email': deleted_user.email,
             'active': False,
+            'profiles': [],
         }
     ]
 

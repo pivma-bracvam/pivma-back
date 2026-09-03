@@ -13,6 +13,7 @@ async def test_public_registration_initializes_audit_fields(client, session):
         json={
             'username': 'audit.user',
             'email': 'audit@example.com',
+            'full_name': 'Audit User',
             'password': 'Audit-Passphrase-2026',
         },
     )
@@ -22,6 +23,7 @@ async def test_public_registration_initializes_audit_fields(client, session):
         UserSchema(
             username='audit.direct',
             email='audit.direct@example.com',
+            full_name='Audit Direct',
             password='Audit-Direct-Passphrase-2026',
         ),
         session,
@@ -32,4 +34,4 @@ async def test_public_registration_initializes_audit_fields(client, session):
     assert db_user.updated_by is None
     assert db_user.deleted_at is None
     assert db_user.deleted_by is None
-    assert set(response.json()) == {'id', 'username', 'email'}
+    assert set(response.json()) == {'id', 'full_name', 'username', 'email'}

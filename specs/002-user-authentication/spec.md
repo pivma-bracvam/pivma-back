@@ -16,6 +16,12 @@
 - Q2: Qual ciclo de vida a sessão deve ter? → A: JWT único por 8 horas. O logout remove o cookie; a feature não inclui revogação no servidor antes da expiração.
 - Q3: Qual proteção contra requisições forjadas entre sites deve ser adotada? → A: Cookie com `SameSite=Strict` e validação de origem para operações autenticadas que alterem estado.
 
+### Session 2026-09-02
+
+- Q: Como a identidade autenticada deve apresentar os cargos globais da conta? → A: `GET /auth/me`
+  deve incluir `access.profiles`, uma lista dos perfis globais ativos com `id`, `name` e `active`.
+  Essa informação é somente descritiva e não altera a autorização aplicada pelo backend.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Iniciar sessão (Priority: P1)
@@ -29,7 +35,7 @@ Uma pessoa com conta ativa fornece suas credenciais e inicia uma sessão autenti
 **Acceptance Scenarios**:
 
 1. **Given** uma conta ativa e credenciais corretas, **When** a pessoa inicia sessão, **Then** o sistema cria uma sessão autenticada e entrega o JWT em cookie.
-2. **Given** uma sessão autenticada válida, **When** a pessoa faz uma requisição posterior com o cookie da sessão, **Then** o backend reconhece a identidade da conta associada.
+2. **Given** uma sessão autenticada válida, **When** a pessoa faz uma requisição posterior com o cookie da sessão, **Then** o backend reconhece a identidade da conta associada e seus cargos globais ativos.
 3. **Given** credenciais incorretas, uma conta inexistente ou uma conta excluída logicamente, **When** a pessoa tenta iniciar sessão, **Then** o sistema não cria sessão e responde com a mesma falha pública, sem revelar qual dado falhou.
 
 ---
@@ -68,6 +74,9 @@ Uma pessoa autenticada mantém sua identidade somente enquanto a sessão for vá
 - **FR-007**: O sistema DEVE criar uma sessão com validade máxima de 8 horas, sem token de renovação. O logout DEVE remover o cookie de autenticação; a feature não inclui revogação no servidor antes da expiração.
 - **FR-008**: Para operações autenticadas que alterem estado, o sistema DEVE usar cookie com `SameSite=Strict` e validar a origem da requisição antes de aceitá-la.
 - **FR-009**: A feature DEVE tornar a identidade autenticada disponível ao processamento de requisições no backend, sem conceder perfis, permissões ou acesso a recursos de domínio.
+- **FR-012**: A resposta de `GET /auth/me` DEVE incluir em `access.profiles` os perfis globais ativos
+  da conta, cada um com somente `id`, `name` e `active`. Essa lista é informativa e não substitui a
+  verificação de autorização no backend.
 - **FR-010**: A feature NÃO DEVE incluir gestão de perfis ou permissões, vínculos institucionais ou laboratoriais, designação de participantes, declaração de conflito de interesse, recuperação ou troca de senha, cadastro de contas ou funcionalidades dos RF002 a RF006.
 - **FR-011**: A feature DEVE preservar o contrato atual de criação de usuários e a regra de que identificadores de contas excluídas logicamente podem ser reutilizados.
 
@@ -87,6 +96,8 @@ Uma pessoa autenticada mantém sua identidade somente enquanto a sessão for vá
 - **SC-004**: Todos os casos automatizados de autenticação bem-sucedida entregam o JWT somente em cookie protegido contra leitura por scripts e transmissão insegura.
 - **SC-005**: Todos os casos automatizados de operações autenticadas que alteram estado rejeitam origem inválida, e todos os cookies de autenticação usam `SameSite=Strict`.
 - **SC-006**: Todos os casos automatizados de expiração e logout deixam de reconhecer a identidade após oito horas ou após a remoção do cookie.
+- **SC-007**: Todos os casos automatizados de `GET /auth/me` retornam os nomes dos perfis globais
+  ativos da conta autenticada sem incluir permissões dentro de `profiles`.
 
 ## Assumptions
 
@@ -94,8 +105,11 @@ Uma pessoa autenticada mantém sua identidade somente enquanto a sessão for vá
 - **CONFIRMADO, decisão técnica da equipe na solicitação atual**: a autenticação usa JWT transportado por cookies.
 - **CONFIRMADO, implementação atual**: as contas existentes armazenam a senha como hash Argon2id e usam `deleted_at` para exclusão lógica, conforme `src/pivma/core/security.py` e `src/pivma/core/database/models.py`.
 - **CONFIRMADO, contrato existente**: username e e-mail são únicos entre contas ativas, sem distinção de caixa, e ficam disponíveis após exclusão lógica, conforme `specs/001-secure-user-registration/spec.md` e `tests/routers/test_user.py`.
-- **PROPOSTA desta feature**: a autenticação não atribui perfil, permissão, vínculo institucional ou laboratorial. Esses comportamentos dependem dos RF002 a RF006 e de especificações próprias.
+- **PROPOSTA desta feature**: a autenticação não atribui nem gerencia perfil, permissão, vínculo institucional ou laboratorial. `GET /auth/me` pode ler e apresentar perfis globais já atribuídos; as regras de atribuição e autorização dependem dos RF002 a RF006 e de especificações próprias.
 - **DECISÃO da Session 2026-08-13**: a conta pode iniciar sessão com username ou e-mail. As comparações respeitam a regra existente de unicidade sem distinção de caixa.
 - **DECISÃO da Session 2026-08-13**: a sessão usa somente um JWT de até 8 horas. A remoção do cookie encerra a sessão no navegador; não há token de renovação nem revogação antecipada no servidor nesta feature.
 - **DECISÃO da Session 2026-08-13**: operações autenticadas que alterem estado usam `SameSite=Strict` e validação de origem. A lista exata de origens autorizadas pertence ao plano técnico.
+- **DECISÃO da Session 2026-09-02**: `GET /auth/me` expõe os perfis globais ativos em `access.profiles`,
+  reutilizando o resumo `{id, name, active}` do contrato RBAC. A lista é descritiva; a autorização
+  continua sendo recalculada no backend.
 - A rota pública que recebe as credenciais e a forma de expor uma identidade reconhecida serão definidas no plano técnico após a aprovação desta especificação.

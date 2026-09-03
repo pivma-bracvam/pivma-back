@@ -14,6 +14,10 @@ from pydantic import (
 
 USERNAME_PATTERN = r"^[A-Za-z0-9._-]+$"
 email_adapter = TypeAdapter(EmailStr)
+FullNameValue = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
+]
 
 
 class Message(BaseModel):
@@ -33,6 +37,7 @@ class UserSchema(BaseModel):
         ),
     ]
     email: Annotated[str, Field(json_schema_extra={"format": "email"})]
+    full_name: FullNameValue
     password: Annotated[str, StringConstraints(min_length=8, max_length=128)]
 
     @field_validator("email", mode="before")
@@ -56,11 +61,26 @@ class UserPublic(BaseModel):
     id: UUID
     username: str
     email: Annotated[str, Field(json_schema_extra={"format": "email"})]
+    full_name: str | None
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    full_name: FullNameValue
+
+
+class ProfileSummary(BaseModel):
+    id: UUID
+    name: str
+    active: bool
+    model_config = ConfigDict(extra="forbid")
 
 
 class AdminUser(UserPublic):
     active: bool
+    profiles: list[ProfileSummary]
     model_config = ConfigDict(extra='forbid', from_attributes=True)
 
 
@@ -87,6 +107,7 @@ class AccessScope(BaseModel):
 
 
 class CurrentUserAccess(BaseModel):
+    profiles: list[ProfileSummary]
     global_permissions: list[str]
     scopes: list[AccessScope]
     model_config = ConfigDict(extra='forbid')
@@ -173,13 +194,6 @@ class ProfilePublic(BaseModel):
     updated_at: datetime | None
     deleted_by: UUID | None
     deleted_at: datetime | None
-    model_config = ConfigDict(extra="forbid")
-
-
-class ProfileSummary(BaseModel):
-    id: UUID
-    name: str
-    active: bool
     model_config = ConfigDict(extra="forbid")
 
 

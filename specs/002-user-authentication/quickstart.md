@@ -19,9 +19,9 @@ Os testes devem cobrir login por username e e-mail, falha pública uniforme, atr
 
 ## Validação manual
 
-1. Crie uma conta pelo contrato existente de `POST /users/`.
+1. Crie uma conta pelo contrato existente de `POST /users`.
 2. Faça `POST /auth/login` com username ou e-mail e senha. A resposta deve criar `access_token` somente por `Set-Cookie`.
-3. Faça `GET /auth/me` enviando o cookie. A resposta deve conter somente `id`, `username` e `email` da mesma conta.
+3. Faça `GET /auth/me` enviando o cookie. A resposta deve conter a identidade da mesma conta e os perfis globais ativos em `access.profiles`, cada um com `id`, `name` e `active`.
 4. Faça `POST /auth/logout` com o cookie e uma origem configurada. A resposta deve retornar 204 e remover o cookie.
 5. Repita `GET /auth/me`; a resposta deve retornar 401.
 

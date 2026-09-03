@@ -22,6 +22,19 @@ filtros compatíveis com o domínio atual e proteção pelo RBAC existente."
 - Q: Como a busca textual e a paginação devem operar? → A: Busca textual case-insensitive por substring literal em username ou e-mail. Paginação determinística por `offset` e `limit`, ordenada por username ascendente (case-insensitive) com `id` da conta como critério de desempate.
 - Q: Há requisito de benchmark de performance com 10.000 contas nesta feature? → A: Não. O critério de benchmark com 10.000 contas em até 2 segundos foi removido da especificação sem substituição por outro requisito de performance.
 
+### Session 2026-09-02
+
+- Q: Como a resposta deve apresentar o cargo global da conta? → A: Cada resposta deve incluir os perfis globais ativos em `profiles`, com `id`, `name` e `active`. Uma conta pode ter mais de um perfil.
+- Q: Qual é o caminho canônico da coleção de usuários? → A: `GET /users`, sem barra final. O cadastro público também usa `POST /users`.
+
+### Session 2026-09-03
+
+- Q: Como o nome completo deve ser armazenado e exposto? → A: O campo `full_name` é obrigatório em
+  novos cadastros e o sistema remove espaços externos, aceitando de 1 a 255 caracteres. Contas
+  antigas ou mockadas podem permanecer com `null` e podem ser completadas pela feature
+  `008-admin-user-update`. O campo aparece no cadastro público, na identidade de `GET /auth/me` e
+  nos itens de `GET /users`; ele não participa da busca, ordenação, filtros ou autorização.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Localizar uma conta ativa (Priority: P1)
@@ -30,22 +43,22 @@ Uma pessoa autorizada consulta a coleção de usuários e localiza uma conta ati
 e-mail. Cada resultado fornece o identificador necessário para operações administrativas
 posteriores, como a atribuição de um perfil pelo RBAC.
 
-**Why this priority**: A localização da conta e de seu identificador atende ao caso de uso que
+**Why this priority**: A localização da conta, do nome completo e de seu identificador atende ao caso de uso que
 motivou a feature e permite reutilizar as operações administrativas existentes.
 
-**Independent Test**: Cadastrar contas ativas, consultar `GET /users/` com e sem busca e confirmar
+**Independent Test**: Cadastrar contas ativas, consultar `GET /users` com e sem busca e confirmar
 que a pessoa autorizada recebe páginas limitadas com os identificadores e dados administrativos
 permitidos.
 
 **Acceptance Scenarios**:
 
 1. **Given** contas ativas cadastradas e uma pessoa autenticada com a permissão `users.read`,
-   **When** ela consulta `GET /users/` sem parâmetros, **Then** o sistema retorna HTTP 200 com a
+   **When** ela consulta `GET /users` sem parâmetros, **Then** o sistema retorna HTTP 200 com a
    primeira página de contas ativas, limitada a 100 itens.
 2. **Given** uma conta ativa conhecida, **When** a pessoa autorizada busca parte de seu username,
    **Then** o resultado contém a conta e seu identificador.
 3. **Given** uma conta ativa conhecida, **When** a pessoa autorizada busca parte de seu e-mail,
-   **Then** o resultado contém a conta e seu identificador.
+   **Then** o resultado contém a conta, seu nome completo e seu identificador.
 4. **Given** as buscas `joao`, `Joao` e `JOAO` sobre o mesmo conjunto de contas, **When** a pessoa
    autorizada executa cada busca, **Then** as três consultas retornam os mesmos itens na mesma
    ordem.
@@ -100,15 +113,15 @@ autorizada, conferindo os códigos de resposta e os campos devolvidos.
 
 **Acceptance Scenarios**:
 
-1. **Given** uma requisição sem identidade autenticada, **When** ela consulta `GET /users/`,
+1. **Given** uma requisição sem identidade autenticada, **When** ela consulta `GET /users`,
    **Then** o sistema retorna HTTP 401 e não devolve itens nem metadados da coleção.
-2. **Given** uma conta autenticada sem `users.read`, **When** ela consulta `GET /users/`, **Then** o
+2. **Given** uma conta autenticada sem `users.read`, **When** ela consulta `GET /users`, **Then** o
    sistema retorna HTTP 403 e não revela contas, contagens ou correspondências de busca.
 3. **Given** uma conta que possui somente `rbac.read`, `rbac.profiles.manage` ou
-   `rbac.assignments.manage`, **When** ela consulta `GET /users/`, **Then** o sistema retorna HTTP
+   `rbac.assignments.manage`, **When** ela consulta `GET /users`, **Then** o sistema retorna HTTP
    403 enquanto essa conta não receber também `users.read`.
 4. **Given** uma pessoa autorizada, **When** ela examina os itens retornados, **Then** cada item
-   contém somente `id`, `username`, `email` e `active`.
+   contém somente `id`, `username`, `email`, `active` e os perfis globais ativos em `profiles`.
 5. **Given** qualquer consulta autorizada, **When** a pessoa examina a resposta, **Then** ela não
    encontra hash de senha, senha, token, credencial, dado interno de sessão nem campo interno de
    autenticação.
@@ -135,6 +148,8 @@ autorizada, conferindo os códigos de resposta e os campos devolvidos.
   `active=false`, sem dados sobre a causa, autoria ou momento da inativação.
 - A reutilização de username ou e-mail após inativação pode produzir contas ativa e inativa com o
   mesmo identificador textual. A ordenação pelo identificador da conta desfaz o empate.
+- `full_name` ausente retorna `null`; valor composto somente por espaços ou com mais de 255 caracteres
+  retorna HTTP 422.
 - Inserções, inativações ou mudanças de perfil entre duas requisições podem alterar a composição
   das páginas. A garantia de sequência entre páginas considera um conjunto sem mudanças durante a
   navegação.
@@ -143,8 +158,9 @@ autorizada, conferindo os códigos de resposta e os campos devolvidos.
 
 ### Functional Requirements
 
-- **FR-001**: O sistema DEVE disponibilizar a consulta administrativa na coleção `GET /users/` sem
-  alterar o contrato público de cadastro `POST /users/`.
+- **FR-001**: O sistema DEVE disponibilizar a consulta administrativa na coleção `GET /users`;
+  `POST /users` DEVE preservar os campos e comportamentos existentes e aceitar também `full_name`
+  conforme FR-029.
 - **FR-002**: O sistema DEVE exigir uma identidade autenticada antes de processar busca, filtros ou
   paginação da listagem administrativa.
 - **FR-003**: O backend DEVE exigir a permissão estável `users.read` para devolver qualquer dado ou
@@ -190,13 +206,16 @@ autorizada, conferindo os códigos de resposta e os campos devolvidos.
   parcial.
 - **FR-021**: Um `profile_id` bem formado sem perfil ativo correspondente DEVE produzir uma página
   vazia e não um erro de recurso inexistente.
-- **FR-022**: Cada item da listagem DEVE conter somente `id`, `username`, `email` e `active`.
+- **FR-022**: Cada item da listagem DEVE conter somente `id`, `full_name`, `username`, `email`,
+  `active` e `profiles`. `profiles` DEVE listar os perfis globais ativos da conta e cada perfil DEVE
+  conter somente `id`, `name` e `active`.
 - **FR-023**: O campo `id` DEVE identificar a mesma conta aceita pelas operações administrativas de
   RBAC existentes.
 - **FR-024**: O campo `active` DEVE ser verdadeiro quando a conta não possui exclusão lógica e falso
   quando possui exclusão lógica.
 - **FR-025**: A resposta NÃO DEVE conter `password_hash`, senha, tokens, credenciais, dados de
-  sessão, permissões efetivas, dados internos de autenticação ou campos de auditoria.
+  sessão, permissões efetivas, dados internos de autenticação ou campos de auditoria. A lista de
+  perfis não deve incluir permissões nem atribuições históricas.
 - **FR-026**: A feature NÃO DEVE alterar cadastro, autenticação, ciclo de sessão, operações de RBAC,
   vínculos institucionais, vínculos laboratoriais nem designações de processo.
 - **FR-027**: A feature NÃO DEVE criar filtros por instituição, laboratório, participação em
@@ -204,19 +223,29 @@ autorizada, conferindo os códigos de resposta e os campos devolvidos.
 - **FR-028**: A consulta, por não alterar conta ou RBAC, NÃO DEVE criar evento na trilha persistente
   de mudanças de RBAC. Recusas por ausência de `users.read` DEVEM manter o registro operacional de
   negação já definido pela feature 003.
+- **FR-029**: O cadastro `POST /users` DEVE exigir `full_name` para novas contas. O valor DEVE ser
+  uma string de 1 a 255 caracteres após a remoção de espaços externos.
+- **FR-030**: O sistema DEVE rejeitar `full_name` vazio, composto somente por espaços ou com mais de
+  255 caracteres, retornando HTTP 422 sem criar a conta.
+- **FR-031**: O sistema DEVE preservar `full_name` como nulo somente para contas antigas ou mockadas
+  que já não possuam o campo e DEVE persistir o valor aparado em novos cadastros e atualizações.
+- **FR-032**: As respostas de `POST /users`, `GET /auth/me` e `GET /users` DEVEM expor `full_name`;
+  seu valor DEVE corresponder ao valor persistido ou ser `null`.
+- **FR-033**: `full_name` NÃO DEVE alterar busca, ordenação, filtros, autenticação, autorização ou
+  os campos sensíveis expostos pelas respostas de usuário.
 
 ### Key Entities
 
-- **Conta de usuário**: Registro identificado por id, username e e-mail. A presença de exclusão
-  lógica determina se a conta está ativa para esta listagem.
+- **Conta de usuário**: Registro identificado por id, username e e-mail, com `full_name` opcional.
+  A presença de exclusão lógica determina se a conta está ativa para esta listagem.
 - **Perfil de acesso**: Perfil global do RBAC existente. O filtro considera somente perfil ativo e
   sua atribuição ativa à conta.
 - **Permissão de consulta de usuários**: Capacidade `users.read` do catálogo existente que autoriza
   a leitura da coleção administrativa sem conceder gestão de perfis ou atribuições.
 - **Página de usuários**: Resultado limitado que informa `offset`, `limit` e uma coleção de itens
   administrativos.
-- **Item administrativo de usuário**: Projeção com id, username, e-mail e estado ativo, sem
-  credenciais, dados de sessão, permissões ou auditoria.
+- **Item administrativo de usuário**: Projeção com id, nome completo, username, e-mail, estado ativo
+  e perfis globais ativos, sem credenciais, dados de sessão, permissões ou auditoria.
 
 ## Success Criteria *(mandatory)*
 
@@ -234,8 +263,9 @@ autorizada, conferindo os códigos de resposta e os campos devolvidos.
   identificadores na mesma ordem para buscas por username e por e-mail.
 - **SC-006**: Todos os cenários de `search`, `active` e `profile_id`, isolados e combinados com
   paginação, retornam somente contas que atendem a todos os critérios informados.
-- **SC-007**: Em 100% das respostas de listagem, cada item contém os quatro campos permitidos e
-  nenhum campo de senha, token, credencial, sessão, permissão ou auditoria.
+- **SC-007**: Em 100% das respostas de listagem, cada item contém os seis campos permitidos e cada
+  perfil contém somente `id`, `name` e `active`; nenhuma resposta contém senha, token, credencial,
+  sessão, permissão ou auditoria.
 - **SC-008**: Durante a validação manual, uma pessoa autorizada localiza uma conta conhecida e copia
   seu identificador em até 2 minutos, sem consultar outra fonte de dados.
 - **SC-009**: Todos os cenários existentes de cadastro, autenticação e RBAC preservam seus resultados
@@ -245,6 +275,10 @@ autorizada, conferindo os códigos de resposta e os campos devolvidos.
   sem possuir um perfil ativo que a contenha.
 - **SC-011**: Em 100% das recusas por ausência de `users.read`, o acompanhamento operacional recebe
   o registro da negação e a trilha persistente de mudanças de RBAC permanece inalterada.
+- **SC-012**: Em 100% dos cadastros automatizados que informam `full_name`, o mesmo valor aparado
+  aparece no cadastro, na identidade autenticada e na listagem administrativa.
+- **SC-013**: Em 100% das contas antigas ou mockadas sem `full_name`, as três respostas de usuário
+  continuam válidas e devolvem o campo com valor `null` até uma atualização posterior.
 
 ## Assumptions
 
@@ -268,6 +302,9 @@ autorizada, conferindo os códigos de resposta e os campos devolvidos.
   estado de conta.
 - **CONFIRMADO, contratos atuais**: Páginas administrativas existentes usam `offset`, `limit` e
   `items`, com limite máximo de 100. O schema público de usuário expõe id, username e e-mail.
+- **DECISÃO EXPLÍCITA DESTA ALTERAÇÃO, atualizada pela feature 008**: `full_name` é obrigatório em
+  novos cadastros e anulável no armazenamento para preservar contas antigas ou mockadas. O valor
+  informado é aparado e validado entre 1 e 255 caracteres.
 - **DECISÃO EXPLÍCITA DESTA FEATURE**: A listagem usa a permissão específica e estável `users.read`,
   que passa a integrar a composição de permissões do perfil oficial Administrador, assegurando que
   contas com esse perfil ativo a obtenham pelo cálculo padrão de permissões efetivas, para separar
@@ -282,6 +319,9 @@ autorizada, conferindo os códigos de resposta e os campos devolvidos.
 - **DECISÃO EXPLÍCITA DESTA FEATURE**: O filtro por perfil usa `profile_id` e considera somente
   atribuições ativas e perfis ativos. A resposta não replica a composição do RBAC; a consulta de
   acesso de uma conta permanece no contrato da feature 003.
+- **DECISÃO EXPLÍCITA DESTA FEATURE**: Cada item também expõe `profiles`, com os perfis globais
+  ativos da conta e seus nomes de exibição. A lista pode conter mais de um perfil e não expõe
+  permissões ou atribuições históricas.
 
 
 
@@ -295,7 +335,7 @@ autorizada, conferindo os códigos de resposta e os campos devolvidos.
 | RF005 | Requisito oficial futuro | Entrega o identificador que pode apoiar designações futuras, sem implementar seleção ou designação por processo. |
 | RF034 | Requisito oficial transversal | Preserva o registro operacional de recusas do RBAC; a política de auditoria de leituras continua pendente. |
 | Backlog de Gestão de Usuários | Decisão técnica registrada | Entrega a operação de consulta e delimita atualização e inativação como features próprias. |
-| Feature 001 | Especificação existente | Preserva o contrato de cadastro, o schema público e a regra de reutilização após exclusão lógica. |
+| Feature 001 | Especificação existente | Preserva os campos e comportamentos existentes do cadastro, ampliando o schema de forma compatível, além da regra de reutilização após exclusão lógica. |
 | Feature 002 | Especificação existente | Reutiliza identidade autenticada e rejeita sessão ligada a conta inativa. |
 | Feature 003 | Especificação existente | Reutiliza catálogo, perfis, permissões efetivas e registro operacional de recusas. |
 | Código, testes e contratos atuais | Estado confirmado | Usa os campos existentes de conta, o padrão de página e os identificadores aceitos pelo RBAC. |
@@ -310,6 +350,9 @@ autorizada, conferindo os códigos de resposta e os campos devolvidos.
 - Refresh token, revogação antecipada ou outra evolução do gerenciamento de sessão.
 - Notificações, mensageria e mudanças no fluxo de cadastro ou autenticação.
 - Ordenação configurável, busca avançada, exportação em lote ou CRUD completo de usuários.
-- Exposição de perfis, permissões efetivas, vínculos, participações ou dados de auditoria nos itens.
+- Busca, ordenação ou filtros baseados em `full_name`; o campo serve apenas para identificação e
+  exibição nesta alteração.
+- Exposição de permissões efetivas, vínculos, participações ou dados de auditoria nos itens. Os
+  perfis globais ativos e seus nomes de exibição fazem parte do contrato desta feature.
 - Registro persistente de cada consulta bem-sucedida. A equipe deve decidir essa política na feature
   geral de auditoria do RF034 antes de exigir retenção, consulta ou imutabilidade desses eventos.

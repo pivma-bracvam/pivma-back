@@ -23,11 +23,13 @@ def test_two_concurrent_equivalent_registrations_create_one_user(
     first = {
         'username': 'Concurrent.User',
         'email': 'concurrent.first@example.com',
+        'full_name': 'Concurrent First',
         'password': 'Concurrent-Passphrase-2026-A',
     }
     second = {
         'username': 'concurrent.user',
         'email': 'concurrent.second@example.com',
+        'full_name': 'Concurrent Second',
         'password': 'Concurrent-Passphrase-2026-B',
     }
     if conflict_field == 'email':

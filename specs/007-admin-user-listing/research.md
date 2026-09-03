@@ -107,15 +107,15 @@
 
 ## Schemas e exposição de dados
 
-**Decisão**: criar um item administrativo `AdminUser` que herda `id`, `username` e `email` de `UserPublic` e adiciona `active: bool`. Criar uma página `AdminUserPage` que herda de `FilterPage`, especializa `limit` para a faixa de 1 a 100 sem modificar a classe base compartilhada e declara `items` com a lista de itens administrativos. A rota construirá os itens de forma explícita.
+**Decisão**: criar um item administrativo `AdminUser` que herda `id`, `username` e `email` de `UserPublic`, adiciona `active: bool` e `profiles` com os perfis globais ativos resumidos por `id`, `name` e `active`. Criar uma página `AdminUserPage` que herda de `FilterPage`, especializa `limit` para a faixa de 1 a 100 sem modificar a classe base compartilhada e declara `items` com a lista de itens administrativos. A rota construirá os itens de forma explícita e carregará os perfis em lote.
 
-**Justificativa**: `UserPublic` já preserva o formato UUID e e-mail sem expor `password_hash` ou auditoria. A especialização acrescenta somente o estado aprovado. O response model restringe os campos de topo e dos itens.
+**Justificativa**: `UserPublic` já preserva o formato UUID e e-mail sem expor `password_hash` ou auditoria. A especialização acrescenta o estado e os nomes de perfil necessários à administração. O response model restringe os campos de topo, dos itens e dos resumos de perfil.
 
 **Alternativas consideradas**:
 
-- Alterar `UserPublic`: mudaria `POST /users/` e `GET /auth/me`.
+- Alterar `UserPublic`: mudaria `POST /users` e `GET /auth/me`.
 - Retornar o modelo ORM: poderia expor campos internos e não possui atributo público `active`.
-- Incluir perfis nos itens: duplica o contrato de acesso RBAC e excede a spec.
+- Incluir permissões efetivas nos itens: duplicaria o contrato de acesso RBAC e excederia a spec; os itens incluem somente o resumo dos perfis ativos.
 
 ## Auditoria da leitura
 
