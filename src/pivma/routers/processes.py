@@ -2,7 +2,13 @@ from http import HTTPStatus
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
-from pivma.core.authorization import can_manage_participants
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import selectinload
+
+from pivma.core.authorization import (
+    active_proponent_process_scope,
+    can_manage_participants,
+)
 from pivma.core.database.models import (
     AuditEvent,
     ProcessInstance,
@@ -23,8 +29,6 @@ from pivma.schemas import (
     ProcessTimelineResponse,
     TimelineEvent,
 )
-from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
 
 router = APIRouter(prefix="/processes", tags=["Processes"])
 
@@ -174,14 +178,22 @@ async def create_process(
 )
 async def list_processes(
     session: Session,
-    _: CurrentUser,
+    current_user: CurrentUser,
     status: str | None = None,
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
 ):
     stmt = (
         select(ProcessInstance)
-        .where(ProcessInstance.deleted_at.is_(None))
+        .where(
+            ProcessInstance.deleted_at.is_(None),
+            or_(
+                ProcessInstance.status != "SUBMISSION",
+                ProcessInstance.id.in_(
+                    active_proponent_process_scope(current_user.id)
+                ),
+            ),
+        )
         .options(
             selectinload(ProcessInstance.template_version).selectinload(
                 ProcessTemplateVersion.template
@@ -230,10 +242,19 @@ async def list_processes(
     response_model=ProcessInstanceDetail,
     status_code=HTTPStatus.OK,
 )
-async def get_process(id: UUID, session: Session, _: CurrentUser):
+async def get_process(id: UUID, session: Session, current_user: CurrentUser):
     stmt = (
         select(ProcessInstance)
-        .where(ProcessInstance.id == id, ProcessInstance.deleted_at.is_(None))
+        .where(
+            ProcessInstance.id == id,
+            ProcessInstance.deleted_at.is_(None),
+            or_(
+                ProcessInstance.status != "SUBMISSION",
+                ProcessInstance.id.in_(
+                    active_proponent_process_scope(current_user.id)
+                ),
+            ),
+        )
         .options(
             selectinload(ProcessInstance.template_version).selectinload(
                 ProcessTemplateVersion.template
@@ -266,7 +287,14 @@ async def get_process(id: UUID, session: Session, _: CurrentUser):
 )
 async def get_process_timeline(id: UUID, session: Session, current_user: CurrentUser):
     p_stmt = select(ProcessInstance).where(
-        ProcessInstance.id == id, ProcessInstance.deleted_at.is_(None)
+        ProcessInstance.id == id,
+        ProcessInstance.deleted_at.is_(None),
+        or_(
+            ProcessInstance.status != "SUBMISSION",
+            ProcessInstance.id.in_(
+                active_proponent_process_scope(current_user.id)
+            ),
+        ),
     )
     p = (await session.execute(p_stmt)).scalar_one_or_none()
     if not p:

@@ -1,6 +1,9 @@
 from collections.abc import Iterable, Sequence
 from uuid import UUID
 
+from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from pivma.core.database.models import (
     AccessProfile,
     AccessProfilePermission,
@@ -13,8 +16,6 @@ from pivma.core.database.models import (
     UserAccessProfile,
     UserInstitutionalAffiliation,
 )
-from sqlalchemy import func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 RBAC_READ = "rbac.read"
 RBAC_PROFILES_MANAGE = "rbac.profiles.manage"
@@ -36,6 +37,7 @@ LABORATORY_ROLE_KEYS = frozenset({
     "participating_laboratory",
 })
 GROUP_MANAGER_ROLE_KEY = "group_manager"
+PROPONENT_ROLE_KEY = "proponent"
 
 
 async def effective_permission_codes(session: AsyncSession, user_id: UUID) -> list[str]:
@@ -271,6 +273,33 @@ async def is_effective_group_manager(
             Assignment.deleted_at.is_(None),
             User.deleted_at.is_(None),
         )
+    )
+    return result is not None
+
+
+def active_proponent_process_scope(user_id: UUID):
+    """Return a SQL subquery for processes owned by an active proponent."""
+    return (
+        select(Assignment.process_instance_id)
+        .join(User, User.id == Assignment.user_id)
+        .where(
+            Assignment.user_id == user_id,
+            Assignment.role_key == PROPONENT_ROLE_KEY,
+            Assignment.revoked_at.is_(None),
+            Assignment.deleted_at.is_(None),
+            User.deleted_at.is_(None),
+        )
+    )
+
+
+async def is_active_effective_proponent(
+    session: AsyncSession, user_id: UUID, process_id: UUID
+) -> bool:
+    result = await session.scalar(
+        active_proponent_process_scope(user_id)
+        .with_only_columns(Assignment.id)
+        .where(Assignment.process_instance_id == process_id)
+        .limit(1)
     )
     return result is not None
 

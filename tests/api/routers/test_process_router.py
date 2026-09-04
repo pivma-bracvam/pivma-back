@@ -2,10 +2,10 @@ from http import HTTPStatus
 from uuid import UUID
 
 import pytest
-from pivma.bootstrap_process_templates import bootstrap_all_templates
-from pivma.core.database.models import Assignment, AuditEvent
 from sqlalchemy import func, select
 
+from pivma.bootstrap_process_templates import bootstrap_all_templates
+from pivma.core.database.models import Assignment, AuditEvent
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
@@ -124,3 +124,33 @@ async def test_process_creation_records_participant_assigned_for_proponent(
     assert event.context_data["participant_user_id"] == str(user.id)
     assert event.context_data["role_key"] == "proponent"
     assert event.context_data["source"] == "process_creation"
+
+
+@pytest.mark.asyncio
+async def test_process_list_is_scoped_to_active_proponent(client, session):
+    await bootstrap_all_templates(session)
+    owner = UserFactory()
+    outsider = UserFactory()
+    session.add_all([owner, outsider])
+    await session.commit()
+    authenticate(client, owner)
+    created = client.post(
+        '/processes',
+        json={'template_key': 'full_validation', 'title': 'Processo do dono'},
+    )
+    process_id = created.json()['id']
+
+    authenticate(client, outsider)
+    response = client.get('/processes')
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['total'] == 0
+    assert all(item['id'] != process_id for item in response.json()['items'])
+    assert (
+        client.get(f'/processes/{process_id}').status_code
+        == HTTPStatus.NOT_FOUND
+    )
+    assert (
+        client.get(f'/processes/{process_id}/timeline').status_code
+        == HTTPStatus.NOT_FOUND
+    )
