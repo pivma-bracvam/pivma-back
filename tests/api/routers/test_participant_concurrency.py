@@ -45,6 +45,7 @@ async def setup_actor(engine) -> tuple[UUID, UUID, UUID]:
             username=f'participant-actor-{suffix}',
             email=f'participant-actor-{suffix}@test.com',
             password_hash='unused',
+            full_name=f'Participant Actor {suffix}',
         )
         permission = Permission(
             code=PROCESS_PARTICIPANTS_MANAGE,
@@ -70,6 +71,7 @@ async def setup_process_and_target(engine) -> tuple[UUID, UUID]:
             username=f'participant-target-{suffix}',
             email=f'participant-target-{suffix}@test.com',
             password_hash='unused',
+            full_name=f'Participant Target {suffix}',
         )
         template = ProcessTemplate(
             key=f'concurrency-{suffix}', name='Concurrency template'

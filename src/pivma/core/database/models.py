@@ -112,9 +112,7 @@ class User(AuditMixin):
     username: Mapped[str]
     email: Mapped[str] = mapped_column()
     password_hash: Mapped[str]
-    full_name: Mapped[str | None] = mapped_column(
-        String(255), nullable=True, default=None
-    )
+    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
 
     __table_args__ = (
         Index(

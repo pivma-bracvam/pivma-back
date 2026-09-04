@@ -46,6 +46,7 @@ async def setup_actor(engine, permission_code: str) -> tuple[UUID, UUID, UUID]:
             username=f'institutional-actor-{suffix}',
             email=f'institutional-actor-{suffix}@test.com',
             password_hash='unused',
+            full_name=f'Institutional Actor {suffix}',
         )
         permission = Permission(
             code=permission_code,
@@ -192,6 +193,7 @@ def test_concurrent_equivalent_affiliations_create_one_active_record(engine):
                 username=f'institutional-target-{suffix}',
                 email=f'institutional-target-{suffix}@test.com',
                 password_hash='unused',
+                full_name=f'Institutional Target {suffix}',
             )
             institution = Institution(name=f'Institution {suffix}')
             session.add_all([target, institution])

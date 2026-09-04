@@ -152,6 +152,7 @@ def test_update_user_requires_authentication(client, other_user):
 async def test_update_user_requires_users_manage(
     client, session, user, other_user
 ):
+    initial_full_name = other_user.full_name
     authenticate(client, user)
     response = client.patch(
         f'/users/{other_user.id}',
@@ -161,7 +162,7 @@ async def test_update_user_requires_users_manage(
 
     assert response.status_code == HTTPStatus.FORBIDDEN
     await session.refresh(other_user)
-    assert other_user.full_name is None
+    assert other_user.full_name == initial_full_name
 
 
 def test_update_user_requires_trusted_origin(client, user_manager, other_user):

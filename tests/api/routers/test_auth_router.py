@@ -39,12 +39,12 @@ def test_login_with_username_and_recognize_identity(client, user):
     assert identity.status_code == HTTPStatus.OK
     assert identity.json() == {
         'id': str(user.id),
-        'full_name': None,
+        'full_name': user.full_name,
         'username': user.username,
         'email': user.email,
         'user': {
             'id': str(user.id),
-            'full_name': None,
+            'full_name': user.full_name,
             'username': user.username,
             'email': user.email,
         },

@@ -42,6 +42,7 @@ def new_user(label: str) -> User:
         username=f'{label}-{suffix}',
         email=f'{label}-{suffix}@test.com',
         password_hash='unused-in-token-authentication',
+        full_name=f'{label.capitalize()} {suffix}',
     )
 
 

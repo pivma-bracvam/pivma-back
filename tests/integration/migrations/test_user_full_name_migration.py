@@ -37,7 +37,7 @@ async def test_upgrade_adds_nullable_full_name_column(migration_database):
             },
         )
 
-    await run_migration('head')
+    await run_migration('7b4f5d6e8a90')
 
     async with migration_database.connect() as connection:
         column = await connection.execute(

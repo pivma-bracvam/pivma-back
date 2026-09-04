@@ -13,3 +13,4 @@ class UserFactory(factory.Factory):
     password_hash = factory.LazyFunction(
         lambda: hash_password('Factory-Passphrase-2026')
     )
+    full_name = factory.LazyAttribute(lambda obj: f'User {obj.username}')
