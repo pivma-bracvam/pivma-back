@@ -48,7 +48,7 @@ jobs:
             cd /home/${{ secrets.USERNAME }}/apps/develop/pivma-back
 
             # Atualiza o código
-            git pull origin main --ff-only
+            git pull origin develop --ff-only
 
             # Constrói a imagem localmente e recria o container usando o compose.yaml atual
             docker compose up -d --build --force-recreate api
