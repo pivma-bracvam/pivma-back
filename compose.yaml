@@ -3,25 +3,26 @@ services:
     image: pgvector/pgvector:pg17
     volumes:
       - pgdata:/var/lib/postgresql/data
-    environment: # Jogar isso pro .env depois
+    environment:
+      # Jogar isso pro .env depois
       POSTGRES_USER: db_user
       POSTGRES_DB: db
       POSTGRES_PASSWORD: db_password
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${DB_PORT}:5432"
 
   api:
     image: pivma_api
     entrypoint: ./entrypoint.sh
     build: .
     ports:
-      - "8000:8000"
+      - "127.0.0.1:${API_PORT}:8000"
     depends_on:
       - db
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql+psycopg://db_user:db_password@db:5432/db
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
-      AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS}
 
 volumes:
   pgdata:
