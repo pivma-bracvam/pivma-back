@@ -27,7 +27,7 @@ async def test_concurrent_process_creation_yields_distinct_crcodes(engine):
     devem gravar `code` distintos sem violar a restrição única do banco."""
     suffix = uuid4().hex
     async with AsyncSession(engine, expire_on_commit=False) as setup_session:
-        user = User(
+        user = UserFactory(
             username=f'crcode-actor-{suffix}',
             email=f'crcode-actor-{suffix}@test.com',
             password_hash='unused',
