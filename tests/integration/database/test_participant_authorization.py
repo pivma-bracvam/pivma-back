@@ -7,6 +7,7 @@ from pivma.core.authorization import (
     PROCESS_PARTICIPANTS_MANAGE,
     can_manage_participants,
     has_current_conflict,
+    is_active_effective_proponent,
     participant_read_scope,
 )
 from pivma.core.database.models import (
@@ -148,6 +149,63 @@ async def test_common_participant_receives_self_scope_without_management(
 async def test_outsider_has_no_participant_scope(session, user):
     process = await create_process(session)
     assert await participant_read_scope(session, user.id, process.id) is None
+
+
+@pytest.mark.asyncio
+async def test_active_proponent_assignment_authorizes_submission_scope(
+    session, user
+):
+    process = await create_process(session)
+    session.add(
+        AssignmentFactory(
+            process=process,
+            user=user,
+            assigner=user,
+            role_key='proponent',
+        )
+    )
+    await session.commit()
+
+    assert await is_active_effective_proponent(session, user.id, process.id)
+
+
+@pytest.mark.asyncio
+async def test_revoked_proponent_assignment_denies_submission_scope(
+    session, user
+):
+    process = await create_process(session)
+    session.add(
+        AssignmentFactory(
+            process=process,
+            user=user,
+            assigner=user,
+            role_key='proponent',
+            revoked_at=datetime.now(timezone.utc),
+        )
+    )
+    await session.commit()
+
+    assert not await is_active_effective_proponent(
+        session, user.id, process.id
+    )
+
+
+@pytest.mark.asyncio
+async def test_non_proponent_assignment_denies_submission_scope(session, user):
+    process = await create_process(session)
+    session.add(
+        AssignmentFactory(
+            process=process,
+            user=user,
+            assigner=user,
+            role_key='study_manager',
+        )
+    )
+    await session.commit()
+
+    assert not await is_active_effective_proponent(
+        session, user.id, process.id
+    )
 
 
 # --- I-C: estado de conflito vigente ---

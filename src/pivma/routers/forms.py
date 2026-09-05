@@ -28,8 +28,12 @@ router = APIRouter(prefix='/processes', tags=['Forms'])
 def _extract_form_field_value(fv: Any, field_type: str) -> Any:
     if field_type in {'text', 'textarea', 'file_upload'}:
         return fv.text_value
-    if field_type in {'integer', 'float'}:
-        return fv.numeric_value
+    if field_type == 'integer':
+        return int(fv.numeric_value) if fv.numeric_value is not None else None
+    if field_type == 'float':
+        return (
+            float(fv.numeric_value) if fv.numeric_value is not None else None
+        )
     if field_type == 'boolean':
         return fv.boolean_value
     if field_type == 'date':
@@ -46,11 +50,11 @@ async def get_activity_form(
     id: UUID,
     activity_key: str,
     session: Session,
-    _: CurrentUser,
+    current_user: CurrentUser,
 ):
     try:
         _, _, form_inst, template, fields = await get_current_form_instance(
-            session, id, activity_key
+            session, id, activity_key, current_user.id
         )
     except NotFoundError as e:
         raise HTTPException(
@@ -124,6 +128,11 @@ async def save_form_draft(
     except ConflictError as e:
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT, detail=str(e)
+        ) from e
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            detail={"code": "invalid_form_values", "errors": e.errors},
         ) from e
 
     return {

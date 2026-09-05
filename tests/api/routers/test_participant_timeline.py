@@ -18,11 +18,6 @@ from pivma.core.settings import Settings
 from tests.factories.user_factory import UserFactory
 
 ORIGIN = {'Origin': 'https://testserver'}
-NEW_EVENT_TYPES = {
-    'PARTICIPANT_ASSIGNED',
-    'PARTICIPANT_REVOKED',
-    'CONFLICT_DECLARED',
-}
 
 
 def authenticate(client, user):
@@ -98,7 +93,9 @@ async def test_manager_sees_all_new_participant_events(session, client):
 
 
 @pytest.mark.asyncio
-async def test_participant_sees_only_own_participant_events(session, client):
+async def test_non_proponent_participant_cannot_read_submission_timeline(
+    session, client
+):
     (
         manager,
         _outsider,
@@ -108,16 +105,7 @@ async def test_participant_sees_only_own_participant_events(session, client):
 
     authenticate(client, participant)
     timeline = client.get(f'/processes/{process_id}/timeline')
-    assert timeline.status_code == HTTPStatus.OK
-    participant_events = [
-        e
-        for e in timeline.json()['events']
-        if e['event_type'] in NEW_EVENT_TYPES
-    ]
-    assert len(participant_events) == 1
-    assert participant_events[0]['context_data']['participant_user_id'] == str(
-        participant.id
-    )
+    assert timeline.status_code == HTTPStatus.NOT_FOUND
 
 
 @pytest.mark.asyncio
@@ -133,9 +121,7 @@ async def test_outsider_does_not_receive_new_participant_events(
 
     authenticate(client, outsider)
     timeline = client.get(f'/processes/{process_id}/timeline')
-    assert timeline.status_code == HTTPStatus.OK
-    event_types = {e['event_type'] for e in timeline.json()['events']}
-    assert event_types.isdisjoint(NEW_EVENT_TYPES)
+    assert timeline.status_code == HTTPStatus.NOT_FOUND
 
 
 @pytest.mark.asyncio
@@ -151,8 +137,7 @@ async def test_filtering_new_events_preserves_previous_timeline_events(
 
     authenticate(client, outsider)
     timeline = client.get(f'/processes/{process_id}/timeline')
-    event_types = {e['event_type'] for e in timeline.json()['events']}
-    assert 'PROCESS_CREATED' in event_types
+    assert timeline.status_code == HTTPStatus.NOT_FOUND
 
 
 @pytest.mark.asyncio

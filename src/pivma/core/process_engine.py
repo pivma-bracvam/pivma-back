@@ -1,9 +1,17 @@
+import secrets
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any
 from uuid import UUID
 
-from pivma.core.authorization import has_current_conflict
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from pivma.core.authorization import (
+    has_current_conflict,
+    is_active_effective_proponent,
+)
 from pivma.core.database.models import (
     ActivityDependency,
     ActivityInstance,
@@ -22,9 +30,6 @@ from pivma.core.database.models import (
     ProcessTemplateVersion,
     Task,
 )
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 
 class ProcessEngineError(Exception):
@@ -32,7 +37,14 @@ class ProcessEngineError(Exception):
 
 
 class ValidationError(ProcessEngineError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        errors: list[dict[str, str]] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.errors = errors or []
 
 
 class ConflictError(ProcessEngineError):
@@ -71,10 +83,7 @@ def utc_now() -> datetime:
 
 async def generate_process_code(session: AsyncSession) -> str:
     year = datetime.now(UTC).year
-    stmt = select(func.count(ProcessInstance.id))
-    res = await session.execute(stmt)
-    count = (res.scalar() or 0) + 1
-    return f"VAL-{year}-{count:04d}"
+    return f"VAL-{year}-{secrets.token_hex(8)}"
 
 
 async def _create_phases_and_activities(
@@ -182,7 +191,11 @@ async def instantiate_process(
     )
     process.set_creation_audit(creator_user_id)
     session.add(process)
-    await session.flush()
+    try:
+        await session.flush()
+    except Exception:
+        await session.rollback()
+        raise
 
     assignment = Assignment(
         process_instance_id=process.id,
@@ -217,36 +230,47 @@ async def instantiate_process(
         )
     )
 
-    act_map, act_meta = await _create_phases_and_activities(
-        session, process.id, payload, creator_user_id
-    )
+    try:  # noqa: PLW0717
+        act_map, act_meta = await _create_phases_and_activities(
+            session, process.id, payload, creator_user_id
+        )
 
-    for act_key, a_data in act_meta.items():
-        act = act_map[act_key]
-        deps = a_data.get("dependencies", [])
-        if not deps:
-            await _init_first_activity(session, act, a_data, creator_user_id)
-        else:
-            act.status = "BLOCKED"
-            act.blocked_reason = "Aguardando atividades predecessoras."
-            for dep in deps:
-                req_key = dep.get("required_activity_key")
-                req_act = act_map.get(req_key) if req_key else None
-                dep_row = ActivityDependency(
-                    dependent_activity_id=act.id,
-                    required_activity_id=req_act.id if req_act else None,
-                    required_status=dep.get("required_status", "COMPLETED"),
-                    condition_type=dep.get("condition_type", "ACTIVITY_COMPLETED"),
+        for act_key, a_data in act_meta.items():
+            act = act_map[act_key]
+            deps = a_data.get("dependencies", [])
+            if not deps:
+                await _init_first_activity(
+                    session, act, a_data, creator_user_id
                 )
-                dep_row.set_creation_audit(creator_user_id)
-                session.add(dep_row)
+            else:
+                act.status = "BLOCKED"
+                act.blocked_reason = "Aguardando atividades predecessoras."
+                for dep in deps:
+                    req_key = dep.get("required_activity_key")
+                    req_act = act_map.get(req_key) if req_key else None
+                    dep_row = ActivityDependency(
+                        dependent_activity_id=act.id,
+                        required_activity_id=req_act.id if req_act else None,
+                        required_status=dep.get("required_status", "COMPLETED"),
+                        condition_type=dep.get(
+                            "condition_type", "ACTIVITY_COMPLETED"
+                        ),
+                    )
+                    dep_row.set_creation_audit(creator_user_id)
+                    session.add(dep_row)
 
-    await session.commit()
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
     return process
 
 
 async def get_current_form_instance(
-    session: AsyncSession, process_id: UUID, activity_key: str
+    session: AsyncSession,
+    process_id: UUID,
+    activity_key: str,
+    user_id: UUID | None = None,
 ) -> tuple[
     ActivityInstance,
     ActivityRun,
@@ -254,6 +278,20 @@ async def get_current_form_instance(
     FormTemplate,
     list[FormField],
 ]:
+    if user_id is not None:
+        process_status = await session.scalar(
+            select(ProcessInstance.status).where(
+                ProcessInstance.id == process_id,
+                ProcessInstance.deleted_at.is_(None),
+            )
+        )
+        if process_status is None:
+            raise NotFoundError("Processo não encontrado.")
+        if process_status == "SUBMISSION" and not await is_active_effective_proponent(
+            session, user_id, process_id
+        ):
+            raise NotFoundError("Processo não encontrado.")
+
     stmt = (
         select(ActivityInstance)
         .where(
@@ -330,6 +368,129 @@ def _set_value_on_field(form_value: FormValue, field_type: str, val: Any) -> Non
         form_value.json_value = val
 
 
+def _draft_validation_error(
+    field_key: str, code: str, message: str
+) -> dict[str, str]:
+    return {"field_key": field_key, "code": code, "message": message}
+
+
+def _configured_option_values(options: Any) -> list[Any]:
+    if not isinstance(options, list):
+        return []
+    result: list[Any] = []
+    for option in options:
+        if isinstance(option, dict) and "value" in option:
+            result.append(option["value"])
+        elif isinstance(option, (str, int, float, bool)):
+            result.append(option)
+    return result
+
+
+def _validate_draft_values(  # noqa: PLR0912
+    fields: list[FormField], values_dict: dict[str, Any]
+) -> None:
+    field_map = {field.field_key: field for field in fields}
+    errors: list[dict[str, str]] = []
+
+    for field_key, value in values_dict.items():
+        field = field_map.get(field_key)
+        if field is None:
+            errors.append(
+                _draft_validation_error(
+                    field_key,
+                    "unknown_field",
+                    (
+                        f"O campo '{field_key}' não pertence à definição "
+                        "do formulário."
+                    ),
+                )
+            )
+            continue
+
+        field_type = field.field_type
+        if field_type == "file_upload":
+            errors.append(
+                _draft_validation_error(
+                    field_key,
+                    "file_upload_not_supported",
+                    (
+                        "Anexos não fazem parte do salvamento de rascunho "
+                        "desta feature."
+                    ),
+                )
+            )
+            continue
+
+        if value is None:
+            continue
+
+        compatible = True
+        code = "invalid_type"
+        if field_type in {"text", "textarea"}:
+            compatible = isinstance(value, str)
+        elif field_type == "integer":
+            compatible = isinstance(value, int) and not isinstance(value, bool)
+        elif field_type == "float":
+            compatible = isinstance(value, (int, float)) and not isinstance(
+                value, bool
+            )
+        elif field_type == "boolean":
+            compatible = isinstance(value, bool)
+        elif field_type == "date":
+            if isinstance(value, str):
+                try:
+                    compatible = date.fromisoformat(value).isoformat() == value
+                except ValueError:
+                    compatible = False
+            else:
+                compatible = False
+        elif field_type == "select":
+            compatible = any(
+                value == option
+                for option in _configured_option_values(field.options)
+            )
+            code = "invalid_option"
+        else:
+            compatible = False
+            code = "unsupported_field_type"
+
+        if not compatible:
+            errors.append(
+                _draft_validation_error(
+                    field_key,
+                    code,
+                    f"Valor incompatível com o tipo '{field_type}'.",
+                )
+            )
+            continue
+
+        if field_type in {"integer", "float"}:
+            rules = field.validation_rules or {}
+            minimum = rules.get("min")
+            maximum = rules.get("max")
+            if minimum is not None and value < minimum:
+                errors.append(
+                    _draft_validation_error(
+                        field_key,
+                        "min_value",
+                        f"O valor deve ser maior ou igual a {minimum}.",
+                    )
+                )
+            if maximum is not None and value > maximum:
+                errors.append(
+                    _draft_validation_error(
+                        field_key,
+                        "max_value",
+                        f"O valor deve ser menor ou igual a {maximum}.",
+                    )
+                )
+
+    if errors:
+        raise ValidationError(
+            "Valores de formulário inválidos.", errors=errors
+        )
+
+
 async def save_form_values_draft(
     session: AsyncSession,
     process_id: UUID,
@@ -338,11 +499,13 @@ async def save_form_values_draft(
     user_id: UUID,
 ) -> FormInstance:
     _, current_run, form_instance, _, fields = await get_current_form_instance(
-        session, process_id, activity_key
+        session, process_id, activity_key, user_id
     )
 
     if form_instance.is_submitted:
         raise ConflictError("Formulário já submetido.")
+
+    _validate_draft_values(fields, values_dict)
 
     field_map = {f.field_key: f for f in fields}
     val_stmt = select(FormValue).where(
@@ -354,8 +517,6 @@ async def save_form_values_draft(
     }
 
     for f_key, val in values_dict.items():
-        if f_key not in field_map:
-            continue
         field = field_map[f_key]
         fv = existing_vals.get(field.id)
         if fv is None:
@@ -497,7 +658,9 @@ async def submit_proposal_form(
         form_inst,
         template,
         fields,
-    ) = await get_current_form_instance(session, process_id, activity_key)
+    ) = await get_current_form_instance(
+        session, process_id, activity_key, user_id
+    )
 
     if form_inst.is_submitted:
         raise ConflictError("O formulário desta execução já foi submetido.")
