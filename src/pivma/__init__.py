@@ -28,17 +28,17 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.AUTH_ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allow_headers=["Content-Type"],
+    allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    allow_headers=['Content-Type'],
 )
 
 
 @app.exception_handler(RequestValidationError)
 async def sanitize_password_validation_error(request, exc):
-    if any("password" in error.get("loc", ()) for error in exc.errors()):
+    if any('password' in error.get('loc', ()) for error in exc.errors()):
         return JSONResponse(
             status_code=422,
-            content={"detail": "Invalid password"},
+            content={'detail': 'Invalid password'},
         )
     return await request_validation_exception_handler(request, exc)
 
@@ -53,15 +53,15 @@ app.include_router(forms.router)
 app.include_router(triage.router)
 app.include_router(tasks.router)
 
-prototypes_path = Path(__file__).parent / "static" / "prototypes"
-if prototypes_path.exists():
+demos_path = Path(__file__).parent / 'static' / 'demos'
+if demos_path.exists():
     app.mount(
-        "/prototypes",
-        StaticFiles(directory=str(prototypes_path), html=True),
-        name="prototypes",
+        '/demos',
+        StaticFiles(directory=str(demos_path), html=True),
+        name='demos',
     )
 
 
-@app.get("/")
+@app.get('/')
 def read_root():
-    return {"message": "Hello World!"}
+    return {'message': 'Hello World!'}

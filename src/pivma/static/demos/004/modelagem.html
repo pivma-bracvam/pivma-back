@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pi*VMA - Spec 004 | 1. Modelagem do Formulário (API Real)</title>
+  <link rel="stylesheet" href="shared.css" />
+</head>
+<body>
+
+  <!-- Top Nav Compartilhado -->
+  <header id="sharedTopNav" class="top-nav"></header>
+  <nav id="sharedBreadcrumb" class="breadcrumb"></nav>
+
+  <main class="container">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">1. Modelagem do Formulário (Form Builder)</h1>
+        <p class="page-subtitle">
+          Inspeciona a definição estrutural declarativa provisionada pelo backend via <code>GET /processes/templates/{key}</code>.
+        </p>
+      </div>
+      <div>
+        <button onclick="loadTemplateData()" class="btn btn-primary">&#8635; Recarregar da API</button>
+      </div>
+    </div>
+
+    <!-- Metadados da Definição Retornada pela API -->
+    <div class="card" style="background-color: #f8fafc; font-size: 12px; margin-bottom: 20px;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+        <div>
+          <span style="color: var(--color-text-muted); display: block;">Template Key:</span>
+          <strong style="font-family: var(--font-mono);" id="tplKeyDisplay">Carregando...</strong>
+        </div>
+        <div>
+          <span style="color: var(--color-text-muted); display: block;">Nome do Pipeline:</span>
+          <strong id="tplNameDisplay">-</strong>
+        </div>
+        <div>
+          <span style="color: var(--color-text-muted); display: block;">Versão Publicada:</span>
+          <strong id="tplVersionDisplay">-</strong>
+        </div>
+        <div>
+          <span style="color: var(--color-text-muted); display: block;">Fases Declaradas:</span>
+          <strong id="tplPhasesDisplay">-</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lista de Campos em Tabela Vanilla -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h2 class="card-title" style="margin: 0;">Campos Declarados do Formulário de Submissão</h2>
+        <code style="font-size: 11px; color: var(--color-primary);" id="formKeyBadge">submission_full_validation_v1</code>
+      </div>
+      <p class="card-desc">Campos estruturados na definição do template declarativo para a Fase 1.</p>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th style="width: 50px;">Ordem</th>
+            <th style="width: 220px;">Rótulo (Label)</th>
+            <th style="width: 180px;">Chave (field_key)</th>
+            <th style="width: 130px;">Tipo</th>
+            <th style="width: 90px;">Obrigatório</th>
+            <th>Texto de Ajuda / Regras</th>
+          </tr>
+        </thead>
+        <tbody id="fieldsTableBody">
+          <tr><td colspan="6" style="text-align: center; color: var(--color-text-muted); padding: 24px;">Consultando GET /processes/templates/full_validation...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Navegação entre Páginas -->
+    <div class="page-nav-footer">
+      <a href="index.html">&larr; Voltar ao Índice da Spec 004</a>
+      <a id="btnNextPreenchimento" href="preenchimento.html" class="btn btn-primary">
+        Avançar para 2. Preenchimento da Proposta &rarr;
+      </a>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      await setupSharedHeader("1. Modelagem do Formulário");
+      const procId = getSelectedProcessId();
+      if (procId) {
+        document.getElementById("btnNextPreenchimento").href = `preenchimento.html?process_id=${procId}`;
+      }
+      await loadTemplateData();
+    });
+
+    async function loadTemplateData() {
+      const tbody = document.getElementById("fieldsTableBody");
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--color-text-muted); padding: 24px;">Consultando GET /processes/templates/full_validation...</td></tr>`;
+
+      // Chamada à API Real
+      const res = await apiRequest("GET", "/processes/templates/full_validation");
+
+      if (!res.ok) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--color-danger); padding: 24px;">Erro ao carregar template: ${escapeHtml(res.error)}</td></tr>`;
+        return;
+      }
+
+      const tpl = res.data;
+      document.getElementById("tplKeyDisplay").textContent = tpl.key;
+      document.getElementById("tplNameDisplay").textContent = tpl.name;
+      document.getElementById("tplVersionDisplay").textContent = `v${tpl.version_number}`;
+
+      const def = tpl.definition || {};
+      const phases = def.phases || [];
+      document.getElementById("tplPhasesDisplay").textContent = `${phases.length} fases`;
+
+      // Extrai os campos do formulário de submissão dentro do payload declarativo
+      let fields = [];
+      const forms = def.forms || [];
+      const subForm = forms.find(f => f.key && f.key.includes("submission")) || forms[0];
+
+      if (subForm) {
+        document.getElementById("formKeyBadge").textContent = subForm.key;
+        fields = subForm.fields || [];
+      } else if (phases[0] && phases[0].activities && phases[0].activities[0] && phases[0].activities[0].form) {
+        fields = phases[0].activities[0].form.fields || [];
+      }
+
+      if (fields.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--color-text-muted); padding: 24px;">Nenhum campo estruturado encontrado no payload deste template.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = fields.map((f, idx) => `
+        <tr>
+          <td style="font-weight: 600; color: var(--color-text-muted);">${f.order_index || (idx + 1)}</td>
+          <td><strong>${escapeHtml(f.label)}</strong></td>
+          <td><code style="font-family: var(--font-mono); font-size: 11px;">${escapeHtml(f.field_key)}</code></td>
+          <td><span style="font-size: 12px;">${escapeHtml(f.field_type)}</span></td>
+          <td>${f.is_required ? '<span style="color: var(--color-danger); font-weight: 600;">Sim</span>' : '<span style="color: var(--color-text-muted);">Não</span>'}</td>
+          <td style="font-size: 12px; color: var(--color-text-muted);">
+            ${escapeHtml(f.help_text || "-")}
+            ${f.options && f.options.length ? `<div style="font-size: 11px; margin-top: 2px;">Opções: ${f.options.map(o => escapeHtml(o.label || o.value)).join(", ")}</div>` : ""}
+          </td>
+        </tr>
+      `).join("");
+    }
+  </script>
+</body>
+</html>

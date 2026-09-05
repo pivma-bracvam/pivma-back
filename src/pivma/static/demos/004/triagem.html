@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pi*VMA - Spec 004 | 3. Avaliação e Triagem (API Real)</title>
+  <link rel="stylesheet" href="shared.css" />
+</head>
+<body>
+
+  <!-- Top Nav Compartilhado -->
+  <header id="sharedTopNav" class="top-nav"></header>
+  <nav id="sharedBreadcrumb" class="breadcrumb"></nav>
+
+  <main class="container">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">3. Avaliação e Triagem Técnica do Método (API Real)</h1>
+        <p class="page-subtitle">
+          Visão do <strong>Triador / Grupo Gestor</strong>. Consome diretamente <code>POST /processes/{id}/triage/reviews</code> e <code>POST /processes/{id}/triage/decision</code>.
+        </p>
+      </div>
+      <div>
+        <span class="badge" style="background-color: #ede9fe; color: #6d28d9; border-color: #ddd6fe; font-size: 12px; padding: 4px 8px;">
+          Papel Requerido: Triador / Grupo Gestor
+        </span>
+      </div>
+    </div>
+
+    <!-- Status Atual do Processo -->
+    <div id="triageStatusBanner"></div>
+
+    <!-- Container dos Campos Submetidos para Inspeção -->
+    <div id="inspectionSection" class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--color-border-light);">
+        <h2 class="card-title" style="margin: 0;">Inspeção Campo a Campo da Proposta</h2>
+        <button onclick="saveCurrentFieldReviews()" class="btn btn-sm btn-primary">Salvar Pareceres de Campos (POST .../reviews)</button>
+      </div>
+
+      <div id="triageFieldsList" style="display: flex; flex-direction: column; gap: 14px;">
+        <div style="padding: 24px; text-align: center; color: var(--color-text-muted);">
+          Carregando dados da submissão da API real...
+        </div>
+      </div>
+    </div>
+
+    <!-- Painel de Decisão Formal -->
+    <div id="decisionSection" class="card" style="background-color: #ffffff; border: 2px solid var(--color-border);">
+      <h2 class="card-title" style="margin-bottom: 6px;">Deliberação Formal da Triagem (POST /processes/{id}/triage/decision)</h2>
+      <p class="card-desc">
+        Formaliza a deliberação inicial da Fase 1 no motor de processos.
+      </p>
+
+      <div class="form-group">
+        <label class="form-label">Justificativa Formal do Parecer (mínimo 3 caracteres) <span class="req">*</span>:</label>
+        <textarea id="triageJustification" class="form-control" rows="2" placeholder="Descreva a fundamentação técnica da deliberação da equipe gestora..."></textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--color-border-light);">
+        <button onclick="executeDecision('REJECTED')" class="btn btn-danger">
+          Rejeitar e Arquivar (REJECTED)
+        </button>
+        <button onclick="executeDecision('NEEDS_REVISION')" class="btn btn-warning">
+          Solicitar Diligência (NEEDS_REVISION)
+        </button>
+        <button onclick="executeDecision('APPROVED')" class="btn btn-success">
+          Aprovar para Planejamento (APPROVED) &rarr;
+        </button>
+      </div>
+    </div>
+
+    <!-- Navegação de Rodapé -->
+    <div class="page-nav-footer">
+      <a id="btnBackPreenchimento" href="preenchimento.html">&larr; Voltar para 2. Preenchimento</a>
+      <a href="index.html">Voltar ao Catálogo da Spec 004 &rarr;</a>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    let currentProcessId = null;
+    let currentProcessData = null;
+    let formResponseData = null;
+    let localFieldReviews = {}; // { [field_key]: { status: 'CONFORME' | 'NAO_CONFORME', comments: '' } }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      await setupSharedHeader("3. Avaliação e Triagem");
+      currentProcessId = getSelectedProcessId();
+
+      if (currentProcessId) {
+        document.getElementById("btnBackPreenchimento").href = `preenchimento.html?process_id=${currentProcessId}`;
+        await loadTriageData();
+      } else {
+        document.getElementById("triageStatusBanner").innerHTML = `
+          <div class="alert alert-warning">
+            Nenhum processo selecionado no menu superior.
+          </div>`;
+        document.getElementById("triageFieldsList").innerHTML = "";
+      }
+    });
+
+    async function loadTriageData() {
+      // 1. Carrega dados do processo: GET /processes/{id}
+      const resProc = await apiRequest("GET", `/processes/${currentProcessId}`);
+      if (resProc.ok) {
+        currentProcessData = resProc.data;
+      }
+
+      // 2. Carrega formulário da atividade: GET /processes/{id}/activities/proposal_submission/form
+      const resForm = await apiRequest("GET", `/processes/${currentProcessId}/activities/proposal_submission/form`);
+      if (!resForm.ok) {
+        document.getElementById("triageStatusBanner").innerHTML = `
+          <div class="alert alert-danger">
+            Erro ao carregar proposta: ${escapeHtml(resForm.error)}
+          </div>`;
+        document.getElementById("triageFieldsList").innerHTML = `
+          <div style="padding: 24px; text-align: center; color: var(--color-danger);">
+            Falha na consulta HTTP à API: ${escapeHtml(resForm.error)}
+          </div>`;
+        return;
+      }
+
+      formResponseData = resForm.data;
+
+      // Inicializa os pareceres locais a partir dos já gravados no banco
+      localFieldReviews = {};
+      const serverReviews = formResponseData.reviews || {};
+      (formResponseData.fields || []).forEach(f => {
+        if (serverReviews[f.field_key]) {
+          localFieldReviews[f.field_key] = {
+            status: serverReviews[f.field_key].status,
+            comments: serverReviews[f.field_key].comments || ""
+          };
+        } else {
+          localFieldReviews[f.field_key] = {
+            status: "CONFORME",
+            comments: ""
+          };
+        }
+      });
+
+      renderTriageUI();
+    }
+
+    function renderTriageUI() {
+      const banner = document.getElementById("triageStatusBanner");
+      const list = document.getElementById("triageFieldsList");
+      const decisionSec = document.getElementById("decisionSection");
+      const status = currentProcessData ? currentProcessData.status : "SUBMISSION";
+
+      if (status === "APPROVED") {
+        banner.innerHTML = `<div class="alert alert-success"><strong>Processo Aprovado na Triagem:</strong> A Fase 1 foi concluída e o processo avançou para <code>PLANNING</code>.</div>`;
+      } else if (status === "CLOSED") {
+        banner.innerHTML = `<div class="alert alert-danger"><strong>Processo Encerrado (CLOSED):</strong> Esta proposta foi recusada ou concluída. Novas decisões bloqueadas.</div>`;
+      } else if (status === "SUBMISSION") {
+        banner.innerHTML = `
+          <div class="alert alert-warning" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <strong>Aguardando Submissão do Proponente:</strong> O processo está atualmente no estado <code>SUBMISSION</code>.
+              A triagem deve ser deliberada quando a proposta estiver submetida (<code>TRIAGE</code>).
+            </div>
+            <a href="preenchimento.html?process_id=${currentProcessId}" class="btn btn-sm btn-primary">Ir para Preenchimento &rarr;</a>
+          </div>`;
+      } else {
+        banner.innerHTML = `
+          <div class="alert alert-info">
+            <strong>Processo em Triagem (${status}):</strong> Avalie os campos abaixo, salve os pareceres (<code>POST .../reviews</code>) e emita a deliberação final.
+          </div>`;
+      }
+
+      const fields = formResponseData.fields || [];
+      const values = formResponseData.values || {};
+
+      if (fields.length === 0) {
+        list.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--color-text-muted);">Nenhum campo associado a esta submissão.</div>`;
+        return;
+      }
+
+      list.innerHTML = fields.map(f => {
+        const rawVal = values[f.field_key];
+        const rev = localFieldReviews[f.field_key] || { status: "CONFORME", comments: "" };
+        const isConforme = rev.status === "CONFORME";
+
+        let displayVal = rawVal;
+        if (rawVal === undefined || rawVal === null || rawVal === "") {
+          displayVal = "<em style='color: var(--color-text-light);'>Não informado pelo proponente</em>";
+        } else if (f.field_type === "select") {
+          let optLabel = rawVal;
+          if (f.options) {
+            const opts = Array.isArray(f.options) ? f.options : Object.entries(f.options).map(([k, v]) => ({ value: k, label: v }));
+            const found = opts.find(o => String(o.value) === String(rawVal));
+            if (found) optLabel = found.label || found.value;
+          }
+          displayVal = optLabel;
+        } else if (f.field_type === "boolean") {
+          displayVal = rawVal ? "Sim" : "Não";
+        } else if (f.field_type === "file_upload") {
+          displayVal = `<strong>[Arquivo PDF]:</strong> ${escapeHtml(rawVal)}`;
+        } else {
+          displayVal = escapeHtml(String(rawVal));
+        }
+
+        return `
+          <div style="border: 1px solid var(--color-border); border-radius: 4px; padding: 12px; background-color: #ffffff;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; flex-wrap: wrap; gap: 8px;">
+              <div>
+                <strong>${escapeHtml(f.label)}</strong>
+                <code style="font-size: 11px; color: var(--color-text-muted); margin-left: 6px;">${escapeHtml(f.field_key)}</code>
+              </div>
+              <div style="display: flex; gap: 6px;">
+                <button type="button" onclick="setLocalReview('${f.field_key}', 'CONFORME')" class="btn btn-sm ${isConforme ? 'btn-success' : ''}" style="${!isConforme ? 'background-color: #f1f5f9;' : ''}">
+                  &check; Conforme
+                </button>
+                <button type="button" onclick="setLocalReview('${f.field_key}', 'NAO_CONFORME')" class="btn btn-sm ${!isConforme ? 'btn-warning' : ''}" style="${isConforme ? 'background-color: #f1f5f9;' : ''}">
+                  &#9888; Não Conforme
+                </button>
+              </div>
+            </div>
+
+            <!-- Valor Submetido pelo Proponente -->
+            <div style="background-color: #f8fafc; border: 1px solid var(--color-border-light); padding: 8px 10px; border-radius: 3px; font-size: 13px; margin-bottom: 6px;">
+              ${displayVal}
+            </div>
+
+            <!-- Apontamento do Triador -->
+            ${!isConforme ? `
+              <div style="margin-top: 8px;">
+                <label style="font-size: 11px; font-weight: 600; color: var(--color-warning); display: block; margin-bottom: 3px;">
+                  Apontamento Técnico / Ajuste Necessário:
+                </label>
+                <input type="text" class="form-control" style="font-size: 12px;" value="${escapeHtml(rev.comments || '')}" placeholder="Descreva o problema identificado para o proponente..." onchange="setLocalComment('${f.field_key}', this.value)" />
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join("");
+    }
+
+    function setLocalReview(key, status) {
+      if (!localFieldReviews[key]) localFieldReviews[key] = { status: "CONFORME", comments: "" };
+      localFieldReviews[key].status = status;
+      renderTriageUI();
+    }
+
+    function setLocalComment(key, comment) {
+      if (!localFieldReviews[key]) localFieldReviews[key] = { status: "NAO_CONFORME", comments: "" };
+      localFieldReviews[key].comments = comment;
+    }
+
+    async function saveCurrentFieldReviews() {
+      // Converte para formato esperado pela API: SaveFieldReviewsRequest
+      // { reviews: [{ field_key: "...", status: "CONFORME" | "NAO_CONFORME", comments: "..." }] }
+      const payload = {
+        reviews: Object.entries(localFieldReviews).map(([k, v]) => ({
+          field_key: k,
+          status: v.status,
+          comments: v.comments || null
+        }))
+      };
+
+      const res = await apiRequest("POST", `/processes/${currentProcessId}/triage/reviews`, payload);
+      if (res.ok) {
+        showToast("Pareceres de campo salvos com sucesso no banco!", "success");
+        await loadTriageData();
+      } else {
+        showToast(`Erro ao salvar pareceres: ${res.error}`, "error");
+      }
+    }
+
+    async function executeDecision(outcome) {
+      const justEl = document.getElementById("triageJustification");
+      const justification = justEl ? justEl.value.trim() : "";
+
+      if (justification.length < 3) {
+        showToast("A justificativa técnica deve conter no mínimo 3 caracteres.", "error");
+        if (justEl) justEl.focus();
+        return;
+      }
+
+      // Se for diligência e tiver campos marcados como NÃO_CONFORME, salva primeiro os pareceres
+      if (outcome === "NEEDS_REVISION") {
+        await saveCurrentFieldReviews();
+      }
+
+      // Chama API Real: POST /processes/{id}/triage/decision
+      const res = await apiRequest("POST", `/processes/${currentProcessId}/triage/decision`, {
+        outcome: outcome,
+        justification: justification
+      });
+
+      if (res.ok) {
+        showToast(`Decisão '${outcome}' executada com sucesso no motor!`, "success");
+        await loadTriageData();
+      } else {
+        showToast(`Erro na decisão: ${res.error}`, "error");
+      }
+    }
+  </script>
+</body>
+</html>

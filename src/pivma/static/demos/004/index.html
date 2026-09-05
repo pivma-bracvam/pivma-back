@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pi*VMA - Spec 004: Submissão e Triagem (API Real)</title>
+  <link rel="stylesheet" href="shared.css" />
+</head>
+<body>
+
+  <!-- Top Nav Compartilhado -->
+  <header id="sharedTopNav" class="top-nav"></header>
+  <nav id="sharedBreadcrumb" class="breadcrumb"></nav>
+
+  <main class="container">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Spec 004: Submissão e Triagem de Métodos</h1>
+        <p class="page-subtitle">
+          Ambiente de prototipação conectado à API Real FastAPI (PostgreSQL).
+          Valide os contratos HTTP, requisições e respostas JSON diretamente.
+        </p>
+      </div>
+      <div>
+        <button onclick="openCreateProcessModal()" class="btn btn-primary">+ Criar Novo Processo (POST /processes)</button>
+      </div>
+    </div>
+
+    <!-- Resumo do Processo Selecionado no Banco -->
+    <div class="card" style="background-color: #f8fafc; border: 1px solid var(--color-border); margin-bottom: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <span style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: #475569; display: block;">Instância Selecionada no Banco de Dados:</span>
+          <strong style="font-size: 16px;" id="procTitleDisplay">Carregando processo...</strong>
+          <span id="procStatusBadgeDisplay" style="margin-left: 8px;"></span>
+        </div>
+        <div style="font-size: 12px; color: var(--color-text-muted);">
+          ID: <code id="procIdDisplay" style="font-family: var(--font-mono); font-size: 11px;">-</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grid de Cartões dos Protótipos da Spec 004 -->
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px; color: var(--color-text);">
+      Protótipos da Fase 1 (API Real)
+    </h2>
+
+    <div class="cards-grid">
+
+      <!-- Card 1: Modelagem (Form Builder / Template Definition) -->
+      <div class="proto-card">
+        <div>
+          <span class="proto-card-badge">Página 1</span>
+          <h3>1. Modelagem do Formulário</h3>
+          <p>
+            Inspeciona a definição declarativa da versão publicada do template <code>full_validation</code> (fases, atividades, formulários e campos cadastrados).
+          </p>
+        </div>
+        <div>
+          <div class="proto-card-role">Endpoint: <code>GET /processes/templates/full_validation</code></div>
+          <a id="linkModelagem" href="modelagem.html" class="btn btn-primary" style="width: 100%;">
+            Abrir Modelagem &rarr;
+          </a>
+        </div>
+      </div>
+
+      <!-- Card 2: Preenchimento (Proponente) -->
+      <div class="proto-card">
+        <div>
+          <span class="proto-card-badge">Página 2</span>
+          <h3>2. Preenchimento e Submissão</h3>
+          <p>
+            Carrega o formulário real da atividade <code>proposal_submission</code>, salva rascunhos (<code>PUT</code>) e submete a proposta formalmente (<code>POST</code>).
+          </p>
+        </div>
+        <div>
+          <div class="proto-card-role">Endpoints: <code>GET / PUT / POST .../form</code></div>
+          <a id="linkPreenchimento" href="preenchimento.html" class="btn btn-primary" style="width: 100%;">
+            Abrir Preenchimento &rarr;
+          </a>
+        </div>
+      </div>
+
+      <!-- Card 3: Triagem (Triador) -->
+      <div class="proto-card">
+        <div>
+          <span class="proto-card-badge">Página 3</span>
+          <h3>3. Avaliação e Triagem Técnica</h3>
+          <p>
+            Inspeciona dados submetidos, registra pareceres campo a campo (<code>POST .../reviews</code>) e emite deliberação formal (<code>POST .../decision</code>).
+          </p>
+        </div>
+        <div>
+          <div class="proto-card-role">Endpoints: <code>POST .../reviews</code> | <code>POST .../decision</code></div>
+          <a id="linkTriagem" href="triagem.html" class="btn btn-primary" style="width: 100%;">
+            Abrir Avaliação e Triagem &rarr;
+          </a>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Trilha de Auditoria Real (GET /processes/{id}/timeline) -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--color-border-light);">
+        <h3 class="card-title" style="margin: 0;">Trilha de Auditoria Real da Instância (GET /processes/{id}/timeline)</h3>
+        <span style="font-size: 11px; color: var(--color-text-muted);">Eventos imutáveis gravados no PostgreSQL</span>
+      </div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th style="width: 150px;">Data/Hora</th>
+            <th style="width: 180px;">Tipo de Evento</th>
+            <th style="width: 220px;">Contexto / Detalhes</th>
+          </tr>
+        </thead>
+        <tbody id="timelineTableBody">
+          <tr><td colspan="3" style="text-align: center; color: var(--color-text-muted); padding: 20px;">Carregando eventos de auditoria da API...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Navegação de Rodapé -->
+    <div class="page-nav-footer">
+      <span style="color: var(--color-text-muted); font-size: 12px;">Plataforma pi*VMA &bull; BraCVAM &bull; Fiocruz</span>
+      <span style="font-size: 12px; font-family: var(--font-mono);">FastAPI + PostgreSQL pgvector</span>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      await setupSharedHeader(null);
+      await loadSelectedProcessData();
+    });
+
+    async function loadSelectedProcessData() {
+      const processId = getSelectedProcessId();
+
+      // Atualiza links com o process_id atual
+      if (processId) {
+        document.getElementById("linkModelagem").href = `modelagem.html?process_id=${processId}`;
+        document.getElementById("linkPreenchimento").href = `preenchimento.html?process_id=${processId}`;
+        document.getElementById("linkTriagem").href = `triagem.html?process_id=${processId}`;
+      }
+
+      if (!processId) {
+        document.getElementById("procTitleDisplay").textContent = "Nenhum processo selecionado";
+        document.getElementById("timelineTableBody").innerHTML = `<tr><td colspan="3" style="text-align: center; padding: 20px; color: var(--color-text-muted);">Clique em "+ Criar Novo Processo" acima para instanciar no banco.</td></tr>`;
+        return;
+      }
+
+      document.getElementById("procIdDisplay").textContent = processId;
+
+      // Chama API Real: GET /processes/{id}
+      const resProc = await apiRequest("GET", `/processes/${processId}`);
+      if (resProc.ok) {
+        const p = resProc.data;
+        document.getElementById("procTitleDisplay").textContent = `${p.code} — ${p.title}`;
+        document.getElementById("procStatusBadgeDisplay").className = `badge badge-${p.status.toLowerCase()}`;
+        document.getElementById("procStatusBadgeDisplay").textContent = p.status;
+      } else {
+        document.getElementById("procTitleDisplay").textContent = `Erro ao carregar (${resProc.error})`;
+      }
+
+      // Chama API Real: GET /processes/{id}/timeline
+      const resTimeline = await apiRequest("GET", `/processes/${processId}/timeline`);
+      const tbody = document.getElementById("timelineTableBody");
+
+      if (resTimeline.ok) {
+        const events = resTimeline.data.events || [];
+        if (events.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; padding: 16px; color: var(--color-text-muted);">Nenhum evento registrado ainda para este processo.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = events.map(ev => {
+          const dateStr = new Date(ev.occurred_at).toLocaleString();
+          const ctxStr = ev.context_data ? JSON.stringify(ev.context_data) : "-";
+          return `
+            <tr>
+              <td style="font-family: var(--font-mono); font-size: 11px;">${escapeHtml(dateStr)}</td>
+              <td><code style="font-size: 11px; color: var(--color-primary);">${escapeHtml(ev.event_type)}</code></td>
+              <td style="font-size: 12px; color: var(--color-text-muted); font-family: var(--font-mono);">${escapeHtml(ctxStr)}</td>
+            </tr>
+          `;
+        }).join("");
+      } else {
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--color-danger); padding: 16px;">Erro ao buscar timeline: ${escapeHtml(resTimeline.error)}</td></tr>`;
+      }
+    }
+  </script>
+</body>
+</html>

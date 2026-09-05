@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pi*VMA - Spec 004 | 2. Preenchimento da Proposta (API Real)</title>
+  <link rel="stylesheet" href="shared.css" />
+</head>
+<body>
+
+  <!-- Top Nav Compartilhado -->
+  <header id="sharedTopNav" class="top-nav"></header>
+  <nav id="sharedBreadcrumb" class="breadcrumb"></nav>
+
+  <main class="container">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">2. Preenchimento e Submissão da Proposta (API Real)</h1>
+        <p class="page-subtitle">
+          Visão do <strong>Proponente</strong>. Consome diretamente <code>GET / PUT / POST /processes/{id}/activities/proposal_submission/form</code>.
+        </p>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button id="btnSaveDraft" onclick="saveDraftValues()" class="btn">Salvar Rascunho (PUT)</button>
+        <button id="btnSubmitProposal" onclick="submitProposalValues()" class="btn btn-primary">Submeter Proposta (POST) &rarr;</button>
+      </div>
+    </div>
+
+    <!-- Alertas de Status / Modo Leitura / Diligência -->
+    <div id="statusAlertBox"></div>
+
+    <!-- Formulário Dinâmico Vanilla -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--color-border-light);">
+        <h2 class="card-title" style="margin: 0;">Dados da Proposta de Validação</h2>
+        <span style="font-size: 11px; color: var(--color-text-muted);">Campos com <span style="color: var(--color-danger);">*</span> são obrigatórios</span>
+      </div>
+
+      <form id="proposalForm" onsubmit="event.preventDefault()">
+        <div id="formFieldsContainer">
+          <div style="padding: 24px; text-align: center; color: var(--color-text-muted);">
+            Carregando campos do formulário da API real...
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Navegação entre Páginas -->
+    <div class="page-nav-footer">
+      <a id="btnBackModelagem" href="modelagem.html">&larr; Voltar para 1. Modelagem</a>
+      <a id="btnGoToTriage" href="triagem.html" class="btn btn-primary">
+        Ir para 3. Avaliação e Triagem &rarr;
+      </a>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    let currentProcessId = null;
+    let formResponseData = null;
+    let currentProcessData = null;
+    let formValuesState = {};
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      await setupSharedHeader("2. Preenchimento da Proposta");
+      currentProcessId = getSelectedProcessId();
+
+      if (currentProcessId) {
+        document.getElementById("btnBackModelagem").href = `modelagem.html?process_id=${currentProcessId}`;
+        document.getElementById("btnGoToTriage").href = `triagem.html?process_id=${currentProcessId}`;
+        await loadProcessAndFormData();
+      } else {
+        document.getElementById("statusAlertBox").innerHTML = `
+          <div class="alert alert-warning">
+            Nenhum processo selecionado. Crie ou selecione um processo no menu superior para preencher o formulário.
+          </div>`;
+        document.getElementById("formFieldsContainer").innerHTML = "";
+      }
+    });
+
+    async function loadProcessAndFormData() {
+      // 1. Carrega dados do processo real: GET /processes/{id}
+      const resProc = await apiRequest("GET", `/processes/${currentProcessId}`);
+      if (resProc.ok) {
+        currentProcessData = resProc.data;
+      }
+
+      // 2. Carrega formulário real: GET /processes/{id}/activities/proposal_submission/form
+      const resForm = await apiRequest("GET", `/processes/${currentProcessId}/activities/proposal_submission/form`);
+      if (!resForm.ok) {
+        document.getElementById("statusAlertBox").innerHTML = `
+          <div class="alert alert-danger">
+            Erro ao carregar formulário da API: ${escapeHtml(resForm.error)}
+          </div>`;
+        document.getElementById("formFieldsContainer").innerHTML = `
+          <div style="padding: 20px; text-align: center; color: var(--color-danger);">
+            Falha na consulta HTTP: ${escapeHtml(resForm.error)}
+          </div>`;
+        return;
+      }
+
+      formResponseData = resForm.data;
+      formValuesState = { ...(formResponseData.values || {}) };
+      renderFormFields();
+    }
+
+    function renderFormFields() {
+      const container = document.getElementById("formFieldsContainer");
+      const alertBox = document.getElementById("statusAlertBox");
+      const fields = formResponseData.fields || [];
+      const reviews = formResponseData.reviews || {};
+      const isSubmitted = formResponseData.is_submitted;
+      const procStatus = currentProcessData ? currentProcessData.status : "SUBMISSION";
+
+      // Verifica se o processo está em modo de leitura
+      const isReadOnly = isSubmitted || procStatus === "CLOSED" || procStatus === "PLANNING" || procStatus === "TRIAGE";
+
+      // Alertas no topo
+      if (procStatus === "TRIAGE") {
+        alertBox.innerHTML = `
+          <div class="alert alert-info" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <strong>Proposta Submetida!</strong> O processo está atualmente na etapa <code>TRIAGE</code>.
+              O formulário está em modo somente-leitura enquanto o Triador avalia os dados.
+            </div>
+            <a href="triagem.html?process_id=${currentProcessId}" class="btn btn-sm btn-primary">Abrir Triagem &rarr;</a>
+          </div>`;
+      } else if (procStatus === "CLOSED") {
+        alertBox.innerHTML = `
+          <div class="alert alert-danger">
+            <strong>Processo Encerrado (CLOSED):</strong> Esta proposta foi finalizada ou rejeitada. Edições bloqueadas (HTTP 409).
+          </div>`;
+      } else if (procStatus === "PLANNING") {
+        alertBox.innerHTML = `
+          <div class="alert alert-success">
+            <strong>Fase 1 Concluída com Sucesso!</strong> A proposta foi aprovada na triagem e avançou para a fase de Planejamento (PLANNING).
+          </div>`;
+      } else {
+        // Verifica se há apontamentos de diligência
+        const hasDiligence = Object.values(reviews).some(r => r.status === "NAO_CONFORME");
+        if (hasDiligence) {
+          alertBox.innerHTML = `
+            <div class="alert alert-warning">
+              <strong>Diligência Solicitada pelo Triador:</strong> Corrija os apontamentos destacados nos campos abaixo e reenvie a proposta.
+            </div>`;
+        } else {
+          alertBox.innerHTML = `
+            <div class="alert alert-info">
+              <strong>Modo Edição (Rascunho):</strong> Preencha os campos e salve rascunhos (<code>PUT</code>) ou submeta (<code>POST</code>).
+            </div>`;
+        }
+      }
+
+      // Controle dos botões de ação
+      const btnSubmit = document.getElementById("btnSubmitProposal");
+      const btnDraft = document.getElementById("btnSaveDraft");
+      if (isReadOnly) {
+        btnSubmit.disabled = true;
+        btnSubmit.textContent = "Proposta Bloqueada para Edição";
+        btnDraft.disabled = true;
+      } else {
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = "Submeter Proposta (POST) &rarr;";
+        btnDraft.disabled = false;
+      }
+
+      if (fields.length === 0) {
+        container.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--color-text-muted);">Nenhum campo associado a esta atividade.</div>`;
+        return;
+      }
+
+      container.innerHTML = fields.map(f => {
+        const val = formValuesState[f.field_key] !== undefined ? formValuesState[f.field_key] : "";
+        const review = reviews[f.field_key];
+        const isFlagged = review && review.status === "NAO_CONFORME";
+        const disabledAttr = isReadOnly ? "disabled" : "";
+
+        let inputHtml = "";
+        switch (f.field_type) {
+          case "textarea":
+            inputHtml = `<textarea id="input_${f.field_key}" class="form-control" rows="3" ${disabledAttr} onchange="updateFormValue('${f.field_key}', this.value)">${escapeHtml(val)}</textarea>`;
+            break;
+          case "select":
+            let opts = [];
+            if (f.options) {
+              if (Array.isArray(f.options)) {
+                opts = f.options;
+              } else if (typeof f.options === "object") {
+                opts = Object.entries(f.options).map(([k, v]) => ({ value: k, label: v }));
+              }
+            }
+            inputHtml = `
+              <select id="input_${f.field_key}" class="form-control" ${disabledAttr} onchange="updateFormValue('${f.field_key}', this.value)">
+                <option value="">-- Selecione uma opção --</option>
+                ${opts.map(o => `<option value="${escapeHtml(o.value)}" ${String(val) === String(o.value) ? "selected" : ""}>${escapeHtml(o.label || o.value)}</option>`).join("")}
+              </select>`;
+            break;
+          case "integer":
+          case "float":
+            const step = f.field_type === "float" ? "0.01" : "1";
+            inputHtml = `<input type="number" id="input_${f.field_key}" class="form-control" step="${step}" value="${escapeHtml(String(val))}" ${disabledAttr} onchange="updateFormValue('${f.field_key}', this.value)" />`;
+            break;
+          case "boolean":
+            inputHtml = `
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+                <input type="checkbox" id="input_${f.field_key}" ${val ? "checked" : ""} ${disabledAttr} onchange="updateFormValue('${f.field_key}', this.checked)" />
+                <label for="input_${f.field_key}" style="font-size: 13px; cursor: pointer;">Sim / Confirmado</label>
+              </div>`;
+            break;
+          case "date":
+            inputHtml = `<input type="date" id="input_${f.field_key}" class="form-control" value="${escapeHtml(val)}" ${disabledAttr} onchange="updateFormValue('${f.field_key}', this.value)" />`;
+            break;
+          case "file_upload":
+            inputHtml = `
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <input type="text" id="input_${f.field_key}" class="form-control" placeholder="Identificador ou nome do arquivo PDF..." value="${escapeHtml(val)}" ${disabledAttr} onchange="updateFormValue('${f.field_key}', this.value)" />
+                <span class="badge" style="background-color: #f1f5f9; color: #475569;">PDF</span>
+              </div>`;
+            break;
+          default:
+            inputHtml = `<input type="text" id="input_${f.field_key}" class="form-control" value="${escapeHtml(val)}" ${disabledAttr} onchange="updateFormValue('${f.field_key}', this.value)" />`;
+        }
+
+        return `
+          <div class="form-group" style="${isFlagged ? 'padding: 10px; background-color: var(--color-warning-bg); border: 1px solid var(--color-warning-border); border-radius: 4px;' : ''}">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label class="form-label" for="input_${f.field_key}">
+                ${escapeHtml(f.label)} ${f.is_required ? '<span class="req">*</span>' : ''}
+              </label>
+              <code style="font-size: 10px; color: var(--color-text-light);">${escapeHtml(f.field_key)}</code>
+            </div>
+            ${f.help_text ? `<p class="form-help">${escapeHtml(f.help_text)}</p>` : ''}
+            
+            ${isFlagged ? `
+              <div style="font-size: 12px; color: var(--color-warning); font-weight: 600; margin: 4px 0 6px 0;">
+                &#9888; Apontamento do Triador (NAO_CONFORME): ${escapeHtml(review.comments || "Revisar este campo.")}
+              </div>` : ''}
+
+            ${inputHtml}
+          </div>
+        `;
+      }).join("");
+    }
+
+    function updateFormValue(key, val) {
+      formValuesState[key] = val;
+    }
+
+    async function saveDraftValues() {
+      // Chama API Real: PUT /processes/{id}/activities/proposal_submission/form
+      const res = await apiRequest(
+        "PUT",
+        `/processes/${currentProcessId}/activities/proposal_submission/form`,
+        { values: formValuesState }
+      );
+
+      if (res.ok) {
+        showToast("Rascunho salvo no banco via PUT!", "success");
+        await loadProcessAndFormData();
+      } else {
+        showToast(`Erro ao salvar rascunho: ${res.error}`, "error");
+      }
+    }
+
+    async function submitProposalValues() {
+      // Chama API Real: POST /processes/{id}/activities/proposal_submission/form
+      const res = await apiRequest(
+        "POST",
+        `/processes/${currentProcessId}/activities/proposal_submission/form`,
+        { values: formValuesState }
+      );
+
+      if (res.ok) {
+        showToast("Proposta submetida com sucesso via POST! Avançado para TRIAGE.", "success");
+        await loadProcessAndFormData();
+      } else {
+        showToast(`Erro na submissão: ${res.error}`, "error");
+      }
+    }
+  </script>
+</body>
+</html>
