@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PIVMA - Hub de Demonstrações</title>
+  <style>
+    :root {
+      --font-main: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --primary: #1d4ed8;
+      --primary-hover: #1e40af;
+      --border: #e2e8f0;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-main);
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 32px 24px;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    header {
+      margin-bottom: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 24px;
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 800;
+      color: #1e293b;
+    }
+    .subtitle {
+      font-size: 18px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 999px;
+      font-size: 16px;
+      font-weight: 600;
+      background: #e2e8f0;
+      color: var(--text);
+    }
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #94a3b8;
+    }
+    .status-dot.online { background: #22c55e; }
+    .status-dot.offline { background: #ef4444; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+      transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: var(--primary);
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+    }
+    .card-number {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--primary);
+      margin-bottom: 8px;
+    }
+    .card-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #0f172a;
+    }
+    .card-desc {
+      font-size: 16px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+      flex-grow: 1;
+    }
+    .btn {
+      display: inline-block;
+      text-align: center;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 700;
+      text-decoration: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      transition: background 0.15s;
+    }
+    .btn:hover {
+      background: var(--primary-hover);
+    }
+
+    .info-section {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin-bottom: 32px;
+    }
+    .info-section h2 {
+      font-size: 22px;
+      margin-bottom: 16px;
+      font-weight: 700;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 16px;
+    }
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      background: #f1f5f9;
+      font-weight: 700;
+      color: #334155;
+    }
+    code {
+      font-family: monospace;
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 15px;
+      color: #0f172a;
+    }
+    .footer-links {
+      display: flex;
+      gap: 16px;
+      font-size: 16px;
+      margin-top: 20px;
+    }
+    .footer-links a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .footer-links a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>PIVMA - Hub de Demonstrações</h1>
+        <p class="subtitle">Catálogo unificado para validação operacional dos módulos da API</p>
+      </div>
+      <div id="api-status-box" class="status-badge">
+        <span id="api-status-dot" class="status-dot"></span>
+        <span id="api-status-text">Conectando à API...</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- Módulo 1 -->
+      <div class="card">
+        <div>
+          <div class="card-number">Módulo 1</div>
+          <h2 class="card-title">Gestão de Usuários e RBAC</h2>
+          <p class="card-desc">Cadastro de usuários, busca textual, filtro ativo/inativo, alteração cadastral de nome e controle de perfis de acesso.</p>
+        </div>
+        <a href="/demos/users/" class="btn">Abrir Demonstração &rarr;</a>
+      </div>
+
+      <!-- Módulo 2: Em Construção Centralizado -->
+      <div class="card" style="border-style: dashed; background: #fafafa;">
+        <div style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
+          <div>
+            <div class="card-number" style="color: #64748b;">Módulo 2</div>
+            <h2 class="card-title" style="color: #475569;">Formulários Dinâmicos</h2>
+          </div>
+          
+          <div style="text-align: center; padding: 24px 0;">
+            <div style="font-size: 40px; margin-bottom: 8px;">🚧</div>
+            <span style="display: inline-block; font-size: 16px; font-weight: 800; background: #fef08a; color: #854d0e; padding: 6px 18px; border-radius: 999px;">
+              Em Construção
+            </span>
+            <p style="font-size: 14px; color: var(--text-muted); margin-top: 10px;">
+              Módulo de customização de formulários e processos em desenvolvimento.
+            </p>
+          </div>
+
+          <a href="/demos/forms/" class="btn" style="background: #94a3b8;">Ver Aviso &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Módulo 3 -->
+      <div class="card">
+        <div>
+          <div class="card-number">Módulo 3</div>
+          <h2 class="card-title">Submissão de Proposta</h2>
+          <p class="card-desc">Visão do Proponente: instanciação de novo processo de validação, preenchimento técnico e envio da proposta para triagem.</p>
+        </div>
+        <a href="/demos/submission/" class="btn">Abrir Demonstração &rarr;</a>
+      </div>
+
+      <!-- Módulo 4 -->
+      <div class="card">
+        <div>
+          <div class="card-number">Módulo 4</div>
+          <h2 class="card-title">Triagem Técnica & Decisão</h2>
+          <p class="card-desc">Visão do Avaliador: inspeção de propostas, parecer campo a campo, decisão final (Aprovar / Diligência / Rejeitar) e timeline auditável.</p>
+        </div>
+        <a href="/demos/triage/" class="btn">Abrir Demonstração &rarr;</a>
+      </div>
+
+      <!-- Módulos Adicionais de Observabilidade -->
+      <div class="card">
+        <div>
+          <div class="card-number">Módulo 5</div>
+          <h2 class="card-title">Índice Operacional (Logs SSE)</h2>
+          <p class="card-desc">Visualização cronológica em tempo real dos eventos operacionais da plataforma com stream SSE e chaves de correlação.</p>
+        </div>
+        <a href="/demos/operational-index/" class="btn">Acessar Índice Operacional &rarr;</a>
+      </div>
+
+      <div class="card">
+        <div>
+          <div class="card-number">Módulo 6</div>
+          <h2 class="card-title">Observabilidade de IA</h2>
+          <p class="card-desc">Painel interativo com pipelines de avaliação simulada de IA com linha do tempo sequencial e custos simulados.</p>
+        </div>
+        <a href="/demos/ai-pipeline/" class="btn">Acessar Observabilidade de IA &rarr;</a>
+      </div>
+    </div>
+
+    <div class="info-section">
+      <h2>Contas de Teste Pré-Configuradas (Seeds)</h2>
+      <p style="color: var(--text-muted); font-size: 16px; margin-bottom: 12px;">
+        Para carregar ou renovar a massa de dados de teste, execute no terminal: <code>poetry run python scripts/seeds/seed_all.py</code>
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Usuário</th>
+            <th>Senha</th>
+            <th>Perfil / Função</th>
+            <th>Módulo Indicado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>admin</code></td>
+            <td><code>Admin@123456</code></td>
+            <td>Administrador do Sistema</td>
+            <td>Gestão de Usuários & RBAC</td>
+          </tr>
+          <tr>
+            <td><code>proponent_user</code></td>
+            <td><code>Proponent@123456</code></td>
+            <td>Proponente</td>
+            <td>Submissão de Propostas</td>
+          </tr>
+          <tr>
+            <td><code>triage_evaluator</code></td>
+            <td><code>Triage@123456</code></td>
+            <td>Avaliador de Triagem</td>
+            <td>Triagem Técnica & Decisão</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="margin-top: 20px; padding: 14px 18px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
+        <strong style="color: #166534; font-size: 16px;">Processo Único de Demonstração:</strong>
+        <p style="font-size: 15px; color: #1e293b; margin-top: 4px;">
+          O seed mantém apenas um processo ativo: <code>[DEMO] Processo de Teste</code> (preparado em status <strong>TRIAGE</strong>).
+        </p>
+      </div>
+
+      <div class="footer-links">
+        <a href="/demos/DESIGN.md" target="_blank">&rarr; Ver Diretrizes Visuais (DESIGN.md)</a>
+        <a href="/docs" target="_blank">&rarr; Documentação Interativa Swagger (/docs)</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function checkApiStatus() {
+      const dot = document.getElementById('api-status-dot');
+      const text = document.getElementById('api-status-text');
+      try {
+        const res = await fetch('/', { credentials: 'include' });
+        if (res.ok) {
+          dot.className = 'status-dot online';
+          text.textContent = 'API Conectada (Online)';
+        } else {
+          dot.className = 'status-dot offline';
+          text.textContent = 'API com erro (' + res.status + ')';
+        }
+      } catch (err) {
+        dot.className = 'status-dot offline';
+        text.textContent = 'API Inacessível';
+      }
+    }
+    checkApiStatus();
+  </script>
+</body>
+</html>

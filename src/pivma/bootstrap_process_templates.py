@@ -45,6 +45,9 @@ async def _sync_form_fields(
                 order_index=fld.get('order_index', 0),
                 options=fld.get('options'),
                 validation_rules=fld.get('validation_rules'),
+                ai_evaluation_enabled=fld.get('ai_evaluation_enabled', False),
+                ai_context_instructions=fld.get('ai_context_instructions'),
+                ai_validation_rules=fld.get('ai_validation_rules'),
             )
             session.add(field)
         else:
@@ -55,6 +58,9 @@ async def _sync_form_fields(
             field.order_index = fld.get('order_index', 0)
             field.options = fld.get('options')
             field.validation_rules = fld.get('validation_rules')
+            field.ai_evaluation_enabled = fld.get('ai_evaluation_enabled', False)
+            field.ai_context_instructions = fld.get('ai_context_instructions')
+            field.ai_validation_rules = fld.get('ai_validation_rules')
 
 
 async def _sync_forms(

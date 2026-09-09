@@ -401,6 +401,9 @@ class FormFieldDefinition(BaseModel):
     order_index: int
     options: Any | None = None
     validation_rules: dict | None = None
+    ai_evaluation_enabled: bool = False
+    ai_context_instructions: str | None = None
+    ai_validation_rules: dict | None = None
     model_config = ConfigDict(from_attributes=True)
 
 

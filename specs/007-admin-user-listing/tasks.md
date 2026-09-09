@@ -329,7 +329,7 @@ cadastros e preservando contas antigas que ainda não o possuem.
 
 - [X] T087 Adicionar `User.full_name` como coluna `String(255)` anulável com valor padrão `None` em `src/pivma/core/database/models.py` e declarar o campo obrigatório aparado em `UserSchema` e anulável em `UserPublic` em `src/pivma/schemas.py`
 - [X] T088 Propagar `full_name` no cadastro e na projeção de `GET /users` em `src/pivma/routers/users.py`, mantendo `GET /auth/me` coberto pelo schema compartilhado
-- [X] T089 Preencher `full_name` das contas de demonstração a partir dos dados existentes em `src/pivma/seed_demo.py`
+- [X] T089 Preencher `full_name` das contas de demonstração com os nomes canônicos definidos para as personas
 - [X] T090 Criar a migração incremental sucessora de `7a3e1c9b4d82` para adicionar e remover `users.full_name` em `migrations/versions/7b4f5d6e8a90_user_full_name.py`
 - [X] T091 Alinhar os contratos OpenAPI, o modelo de dados, o quickstart e o README ao campo obrigatório em novos cadastros e anulável no legado em `specs/002-user-authentication/contracts/auth.openapi.yaml`, `specs/007-admin-user-listing/contracts/users.openapi.yaml`, `specs/007-admin-user-listing/data-model.md`, `specs/007-admin-user-listing/quickstart.md` e `README.md`
 

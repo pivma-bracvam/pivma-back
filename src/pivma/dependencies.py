@@ -30,10 +30,18 @@ def not_authenticated() -> HTTPException:
 
 
 async def get_current_user(
+    request: Request,
     session: Session,
     settings: SettingsDependency,
     access_token: Annotated[str | None, Security(access_token_cookie)],
 ) -> User:
+    if access_token is None:
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            access_token = auth_header[7:].strip()
+        elif 'token' in request.query_params:
+            access_token = request.query_params['token']
+
     if access_token is None:
         raise not_authenticated()
     try:
@@ -82,3 +90,29 @@ def require_permission(code: str):
         return user
 
     return dependency
+
+
+async def require_admin(
+    request: Request,
+    session: Session,
+    user: CurrentUser,
+) -> User:
+    from pivma.core.authorization import (
+        ADMINISTRATOR_SYSTEM_KEY,
+        RBAC_READ,
+        active_profiles_for_user,
+        has_permission,
+    )
+
+    profiles = await active_profiles_for_user(session, user.id)
+    if any(p.system_key == ADMINISTRATOR_SYSTEM_KEY for p in profiles):
+        return user
+    if await has_permission(session, user.id, RBAC_READ):
+        return user
+    raise HTTPException(
+        status_code=HTTPStatus.FORBIDDEN,
+        detail='Acesso restrito a administradores.',
+    )
+
+
+AdminUser = Annotated[User, Depends(require_admin)]

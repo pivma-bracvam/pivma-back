@@ -15,7 +15,8 @@ dependencies = [
     "alembic (>=1.19.1,<2.0.0)",
     "argon2-cffi (>=25.1,<26)",
     "PyJWT (>=2.13,<3.0)",
-    "pyyaml (>=6.0.3,<7.0.0)"
+    "pyyaml (>=6.0.3,<7.0.0)",
+    "structlog (>=25.1.0,<26.0.0)"
 ]
 
 [tool.poetry]

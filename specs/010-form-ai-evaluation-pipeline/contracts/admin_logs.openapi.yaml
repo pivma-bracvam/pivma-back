@@ -1,0 +1,344 @@
+openapi: 3.1.0
+info:
+  title: PIVMA Admin Logs & Form AI Evaluation API
+  version: 0.1.0
+  description: Endpoints administrativos de observabilidade em tempo real e avaliação simulada de formulários por IA.
+paths:
+  /forms/instances/{instance_id}/evaluate-ai:
+    post:
+      summary: Disparar pipeline de avaliação simulada de IA para campos elegíveis
+      description: Identifica campos com ai_evaluation_enabled=true, executa as 3 etapas simuladas e retorna os vereditos canônicos.
+      tags:
+        - Form AI Evaluation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Avaliação concluída com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  form_instance_id:
+                    type: string
+                    format: uuid
+                  correlation_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    example: "COMPLETED"
+                  evaluations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AIEvaluationVerdict'
+        '404':
+          description: Instância de formulário não encontrada
+
+  /admin/logs/operational/stream:
+    get:
+      summary: Stream em tempo real do Índice Operacional (SSE)
+      description: Transmite eventos operacionais da plataforma em tempo real via Server-Sent Events. Exige perfil de Administrador.
+      tags:
+        - Admin Observability
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Fluxo Server-Sent Events
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '403':
+          description: Acesso restrito a administradores
+
+  /admin/logs/operational:
+    get:
+      summary: Consultar histórico do Índice Operacional
+      description: Retorna eventos recentes gravados em logs/application/ com paginação e filtros. Exige perfil de Administrador.
+      tags:
+        - Admin Observability
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: operation_type
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de eventos do índice operacional
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OperationalEventIndex'
+        '403':
+          description: Acesso restrito a administradores
+
+  /admin/logs/ai/stream:
+    get:
+      summary: Stream em tempo real de eventos de IA agrupados por pipeline (SSE)
+      description: Transmite eventos granulares de etapas de IA em tempo real agrupados por pipeline (correlation_id). Exige perfil de Administrador.
+      tags:
+        - Admin Observability
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Fluxo Server-Sent Events agrupado por pipeline
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '403':
+          description: Acesso restrito a administradores
+
+  /admin/logs/ai:
+    get:
+      summary: Consultar histórico de etapas de IA agrupadas por pipeline
+      description: Retorna eventos recentes gravados em logs/ai/ consolidados por pipeline. Exige perfil de Administrador.
+      tags:
+        - Admin Observability
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: correlation_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Lista de pipelines de IA executados
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PipelineExecutionGroup'
+        '403':
+          description: Acesso restrito a administradores
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    AIEvaluationVerdict:
+      type: object
+      required:
+        - field_key
+        - status
+        - confidence_score
+        - issues
+        - recommendations
+        - evaluated_at
+      properties:
+        field_key:
+          type: string
+          example: "scientific_justification"
+        status:
+          type: string
+          enum: [REPROVED, NEEDS_ADJUSTMENT, APPROVED]
+          example: "REPROVED"
+        confidence_score:
+          type: number
+          format: float
+          example: 0.85
+        issues:
+          type: array
+          items:
+            type: string
+          example: ["Justificativa sem metodologia de controle detalhada."]
+        recommendations:
+          type: array
+          items:
+            type: string
+          example: ["Adicionar referências aos controles metodológicos adotados."]
+        evaluated_at:
+          type: string
+          format: date-time
+
+    OperationalEventIndex:
+      type: object
+      required:
+        - event_id
+        - timestamp
+        - operation_type
+        - correlation_id
+        - status
+        - total_duration_ms
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        operation_type:
+          type: string
+          example: "FORM_AI_EVALUATION"
+        correlation_id:
+          type: string
+          format: uuid
+        actor_user_id:
+          type: string
+          format: uuid
+          nullable: true
+        resource_id:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [SUCCESS, FAILED, INTERRUPTED]
+          example: "SUCCESS"
+        total_duration_ms:
+          type: number
+          format: float
+          example: 142.5
+        specialized_log_ref:
+          type: string
+          nullable: true
+        error_summary:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+
+    AIStepExecutionLog:
+      type: object
+      required:
+        - event_id
+        - timestamp
+        - correlation_id
+        - pipeline_name
+        - field_key
+        - step_order
+        - step_name
+        - status
+        - step_duration_ms
+        - simulated_cost
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        correlation_id:
+          type: string
+          format: uuid
+        pipeline_name:
+          type: string
+          example: "form_ai_field_evaluation"
+        field_key:
+          type: string
+          example: "scientific_justification"
+        step_order:
+          type: integer
+          example: 1
+        step_name:
+          type: string
+          example: "context_extraction"
+        status:
+          type: string
+          enum: [SUCCESS, FAILED]
+          example: "SUCCESS"
+        step_duration_ms:
+          type: number
+          format: float
+          example: 12.3
+        simulated_cost:
+          type: number
+          format: float
+          example: 0.0005
+        input_payload:
+          type: object
+          additionalProperties: true
+        output_payload:
+          type: object
+          additionalProperties: true
+        error_details:
+          type: object
+          nullable: true
+
+    PipelineExecutionGroup:
+      type: object
+      required:
+        - correlation_id
+        - pipeline_name
+        - status
+        - steps
+      properties:
+        correlation_id:
+          type: string
+          format: uuid
+        pipeline_name:
+          type: string
+          example: "form_ai_field_evaluation"
+        form_instance_id:
+          type: string
+          format: uuid
+          nullable: true
+        field_key:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [IN_PROGRESS, COMPLETED, FAILED]
+          example: "COMPLETED"
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        total_duration_ms:
+          type: number
+          format: float
+          example: 142.5
+        total_cost:
+          type: number
+          format: float
+          example: 0.0035
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/AIStepExecutionLog'
+        verdict:
+          $ref: '#/components/schemas/AIEvaluationVerdict'
+          nullable: true

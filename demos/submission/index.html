@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PIVMA - Submissão de Métodos Alternativos</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --primary: #1d4ed8;
+      --primary-hover: #1e40af;
+      --success: #15803d;
+      --danger: #b91c1c;
+      --border: #cbd5e1;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px;
+    }
+    .container { max-width: 1000px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid var(--border);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .back-link {
+      font-size: 16px;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 700;
+    }
+    h1 { font-size: 28px; font-weight: 800; }
+    .session-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--card-bg);
+      padding: 8px 16px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      font-size: 16px;
+    }
+    .session-badge { font-weight: 700; color: var(--primary); }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    }
+    h2 { font-size: 20px; font-weight: 700; margin-bottom: 16px; color: #1e293b; }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    label { font-size: 16px; font-weight: 600; color: #334155; }
+    input, select, textarea {
+      font-size: 16px;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      outline: none;
+      font-family: inherit;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.2);
+    }
+    .btn {
+      font-size: 16px;
+      font-weight: 700;
+      padding: 12px 20px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-secondary { background: #64748b; color: #fff; }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-sm { font-size: 14px; padding: 6px 12px; }
+    .btn:hover { opacity: 0.9; }
+
+    .status-pill {
+      display: inline-block;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      color: #1e293b;
+    }
+    .status-SUBMISSION { background: #fef08a; color: #854d0e; }
+    .status-TRIAGE { background: #bae6fd; color: #0369a1; }
+    .inspector {
+      background: #0f172a;
+      color: #38bdf8;
+      padding: 16px;
+      border-radius: var(--radius);
+      font-family: monospace;
+      font-size: 15px;
+      overflow-x: auto;
+      max-height: 250px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <a href="/demos/" class="back-link">&larr; Voltar ao Catálogo de Demonstrações</a>
+        <h1 style="margin-top: 4px;">Submissão de Métodos Alternativos (Proponente)</h1>
+      </div>
+      <div class="session-bar">
+        <span>Sessão:</span>
+        <span id="user-display" class="session-badge">Não autenticado</span>
+        <button id="btn-quick-login" class="btn btn-sm btn-primary" onclick="quickLoginProponent()">Entrar como Proponente</button>
+      </div>
+    </header>
+
+    <!-- Passo 1: Instanciar Processo -->
+    <div class="card">
+      <h2>Passo 1: Criar Novo Processo de Validação (POST /processes)</h2>
+      <div style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
+        <div class="form-group" style="flex: 2; min-width: 280px; margin-bottom: 0;">
+          <label>Título do Novo Método Alternativo</label>
+          <input type="text" id="process-title" placeholder="Ex: Método HET-CAM para Irritação Ocular">
+        </div>
+        <button class="btn btn-primary" onclick="createProcess()">Criar Processo</button>
+      </div>
+    </div>
+
+    <!-- Passo 2: Processo Ativo & Formulário de Submissão -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+        <h2>Passo 2: Preencher e Submeter Proposta</h2>
+        <div>
+          <span>Processo: <strong id="current-process-code">Nenhum</strong></span>
+          <span id="current-process-status" class="status-pill" style="margin-left: 8px;">Aguardando criação</span>
+        </div>
+      </div>
+
+      <div id="submission-form-container">
+        <p style="color: var(--text-muted); font-size: 16px;">Crie um processo no Passo 1 ou selecione um processo abaixo para submeter a proposta.</p>
+      </div>
+
+      <div style="margin-top: 16px; display: flex; gap: 12px; align-items: center;">
+        <label style="margin-bottom: 0;">Ou carregar processo existente:</label>
+        <select id="select-existing-process" onchange="loadExistingProcess()" style="max-width: 320px;"></select>
+      </div>
+
+      <div id="submission-actions" style="display: none; margin-top: 24px; gap: 12px;">
+        <button class="btn btn-secondary btn-sm" onclick="fillValidSampleData()">Preencher com Dados Válidos</button>
+        <button class="btn btn-success" onclick="submitProposalForm()">Submeter Proposta para Triagem (POST)</button>
+      </div>
+    </div>
+
+    <!-- Alerta de Conclusão / Transição -->
+    <div id="transition-card" class="card" style="display: none; background: #ecfdf5; border-color: #a7f3d0;">
+      <h2 style="color: var(--success); margin-bottom: 8px;">&check; Proposta Submetida com Sucesso!</h2>
+      <p style="font-size: 16px; margin-bottom: 16px;">
+        O processo avançou para o status <strong>TRIAGE</strong> e a atividade de Triagem Inicial foi desbloqueada.
+      </p>
+      <a href="/demos/triage/" class="btn btn-primary">&rarr; Ir para a Página de Triagem & Decisão</a>
+    </div>
+
+    <!-- Inspetor da API -->
+    <div class="card">
+      <h2>Inspetor de Resposta da API</h2>
+      <div id="inspector-info" style="font-weight: 700; margin-bottom: 8px;">Nenhuma requisição realizada.</div>
+      <pre id="api-inspector" class="inspector">{}</pre>
+    </div>
+  </div>
+
+  <script>
+    let activeProcessId = null;
+
+    function inspect(method, url, status, data) {
+      document.getElementById('inspector-info').textContent = `${method} ${url} -> HTTP ${status}`;
+      document.getElementById('api-inspector').textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function checkSession() {
+      try {
+        const res = await fetch('/auth/me', { credentials: 'include' });
+        if (res.ok) {
+          const user = await res.json();
+          document.getElementById('user-display').textContent = `${user.full_name || user.username} (${user.username})`;
+          document.getElementById('btn-quick-login').style.display = 'none';
+        } else {
+          document.getElementById('user-display').textContent = 'Não autenticado';
+          document.getElementById('btn-quick-login').style.display = 'inline-block';
+        }
+      } catch (err) {}
+    }
+
+    async function quickLoginProponent() {
+      const res = await fetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ identifier: 'proponent_user', password: 'Proponent@123456' })
+      });
+      if (res.ok) {
+        await checkSession();
+        await loadProcesses();
+      } else {
+        alert('Erro ao autenticar. Certifique-se de executar os seeds.');
+      }
+    }
+
+    async function loadProcesses() {
+      const res = await fetch('/processes?size=50', { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const select = document.getElementById('select-existing-process');
+      select.innerHTML = '<option value="">-- Selecione um Processo --</option>';
+      (data.items || []).forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.code} - ${p.title} (${p.status})`;
+        select.appendChild(opt);
+      });
+    }
+
+    async function createProcess() {
+      const title = document.getElementById('process-title').value.trim() || 'Novo Método Alternativo OECD';
+      const res = await fetch('/processes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ template_key: 'full_validation', title })
+      });
+      const data = await res.json().catch(() => null);
+      inspect('POST', '/processes', res.status, data);
+
+      if (res.ok) {
+        activeProcessId = data.id;
+        document.getElementById('current-process-code').textContent = data.code;
+        updateStatusBadge(data.status);
+        await loadSubmissionForm(data.id);
+        await loadProcesses();
+      } else {
+        alert('Erro ao criar processo: ' + (data?.detail || res.statusText));
+      }
+    }
+
+    function updateStatusBadge(status) {
+      const badge = document.getElementById('current-process-status');
+      badge.textContent = status;
+      badge.className = `status-pill status-${status}`;
+    }
+
+    async function loadExistingProcess() {
+      const pId = document.getElementById('select-existing-process').value;
+      if (!pId) return;
+      activeProcessId = pId;
+
+      const res = await fetch(`/processes/${pId}`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        document.getElementById('current-process-code').textContent = data.code;
+        updateStatusBadge(data.status);
+        await loadSubmissionForm(pId);
+      }
+    }
+
+    async function loadSubmissionForm(processId) {
+      const url = `/processes/${processId}/activities/proposal_submission/form`;
+      const res = await fetch(url, { credentials: 'include' });
+      const data = await res.json().catch(() => null);
+      inspect('GET', url, res.status, data);
+
+      const container = document.getElementById('submission-form-container');
+      if (!res.ok) {
+        container.innerHTML = `<div style="color: var(--danger); font-weight: 700;">Erro ao carregar formulário (${res.status}): ${data?.detail || 'Indisponível'}</div>`;
+        document.getElementById('submission-actions').style.display = 'none';
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="form-group">
+          <label>Título do Método Proposto *</label>
+          <input type="text" id="field-method_title" value="${data.values?.method_title || ''}" placeholder="Ex: Método In Vitro 3R">
+        </div>
+        <div class="form-group">
+          <label>Desfecho / Toxicidade Avaliada *</label>
+          <select id="field-endpoint_target">
+            <option value="ocular_irritation">Irritação / Corrosão Ocular</option>
+            <option value="skin_sensitization">Sensibilização Cutânea</option>
+            <option value="phototoxicity">Fototoxicidade</option>
+            <option value="acute_toxicity">Toxicidade Aguda</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Justificativa Científica e Mecanística *</label>
+          <textarea id="field-scientific_justification" rows="3" placeholder="Descreva os fundamentos mecanísticos do ensaio...">${data.values?.scientific_justification || ''}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Estimativa de Laboratórios Participantes</label>
+          <input type="number" id="field-expected_laboratories_count" min="1" max="50" value="${data.values?.expected_laboratories_count || 3}">
+        </div>
+        <div class="form-group">
+          <label>Protocolo Detalhado do Estudo (Arquivo PDF) *</label>
+          <input type="text" id="field-study_protocol_file" value="${data.values?.study_protocol_file || 'protocolo_metodo_validacao.pdf'}">
+        </div>
+      `;
+
+      if (data.values?.endpoint_target) {
+        document.getElementById('field-endpoint_target').value = data.values.endpoint_target;
+      }
+
+      document.getElementById('submission-actions').style.display = 'flex';
+    }
+
+    function fillValidSampleData() {
+      document.getElementById('field-method_title').value = 'Validação In Vitro de Citotoxicidade por Fotossensibilização 3T3';
+      document.getElementById('field-endpoint_target').value = 'phototoxicity';
+      document.getElementById('field-scientific_justification').value = 'Ensaio robusto baseado em células 3T3 substituindo testes em coelhos conforme Guia OCDE TG 432.';
+      document.getElementById('field-expected_laboratories_count').value = 4;
+      document.getElementById('field-study_protocol_file').value = 'protocolo_ensaio_3t3_v1.pdf';
+    }
+
+    async function submitProposalForm() {
+      if (!activeProcessId) return;
+      const values = {
+        method_title: document.getElementById('field-method_title').value.trim(),
+        endpoint_target: document.getElementById('field-endpoint_target').value,
+        scientific_justification: document.getElementById('field-scientific_justification').value.trim(),
+        expected_laboratories_count: parseInt(document.getElementById('field-expected_laboratories_count').value, 10) || null,
+        study_protocol_file: document.getElementById('field-study_protocol_file').value.trim()
+      };
+
+      const url = `/processes/${activeProcessId}/activities/proposal_submission/form`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ values })
+      });
+      const data = await res.json().catch(() => null);
+      inspect('POST', url, res.status, data);
+
+      if (res.ok) {
+        updateStatusBadge('TRIAGE');
+        document.getElementById('submission-actions').style.display = 'none';
+        document.getElementById('transition-card').style.display = 'block';
+      } else {
+        alert('Falha na submissão: ' + (data?.detail || res.statusText));
+      }
+    }
+
+    // Inicialização
+    (async () => {
+      await checkSession();
+      await loadProcesses();
+    })();
+  </script>
+</body>
+</html>

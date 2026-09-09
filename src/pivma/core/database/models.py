@@ -492,6 +492,13 @@ class FormField(AuditMixin):
     validation_rules: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB, nullable=True, default=None
     )
+    ai_evaluation_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    ai_context_instructions: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+    ai_validation_rules: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True, default=None
+    )
 
     form_template: Mapped[FormTemplate] = relationship(
         back_populates="fields", init=False

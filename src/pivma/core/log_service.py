@@ -1,0 +1,192 @@
+import json
+from pathlib import Path
+from uuid import UUID
+
+from pivma.ai.contracts import (
+    AIEvaluationVerdict,
+    AIStepExecutionLog,
+    OperationalEventIndex,
+    PipelineExecutionGroup,
+)
+from pivma.core.logging import AI_LOGS_DIR, APP_LOGS_DIR
+
+
+def _parse_operational_record(
+    line: str,
+    status: str | None,
+    operation_type: str | None,
+) -> OperationalEventIndex | None:
+    stripped = line.strip()
+    if not stripped:
+        return None
+    try:
+        data = json.loads(stripped)
+    except Exception:
+        return None
+
+    if "event_id" not in data and "correlation_id" not in data:
+        return None
+    if status and data.get("status") != status:
+        return None
+    if operation_type and data.get("operation_type") != operation_type:
+        return None
+
+    try:
+        return OperationalEventIndex.model_validate(data)
+    except Exception:
+        return None
+
+
+def _parse_ai_step_record(
+    line: str,
+    correlation_id: str | None,
+) -> tuple[str, AIStepExecutionLog] | None:
+    stripped = line.strip()
+    if not stripped:
+        return None
+    try:
+        data = json.loads(stripped)
+    except Exception:
+        return None
+
+    if "correlation_id" not in data or "step_name" not in data:
+        return None
+
+    cid = str(data["correlation_id"])
+    if correlation_id and cid != str(correlation_id):
+        return None
+
+    try:
+        step_log = AIStepExecutionLog.model_validate(data)
+        return cid, step_log
+    except Exception:
+        return None
+
+
+def _build_pipeline_group(
+    cid: str,
+    steps: list[AIStepExecutionLog],
+) -> PipelineExecutionGroup:
+    steps_sorted = sorted(steps, key=lambda s: s.step_order)
+    total_duration = sum(s.step_duration_ms for s in steps_sorted)
+    total_cost = sum(s.simulated_cost for s in steps_sorted)
+
+    verdict = None
+    for s in reversed(steps_sorted):
+        has_verdict = (
+            s.step_name == "verdict_synthesis" and "verdict" in s.output_payload
+        )
+        if has_verdict:
+            try:
+                verdict = AIEvaluationVerdict.model_validate(
+                    s.output_payload["verdict"]
+                )
+                break
+            except Exception:
+                pass
+
+    field_key = steps_sorted[0].field_key if steps_sorted else None
+    started_at = steps_sorted[0].timestamp if steps_sorted else None
+    completed_at = steps_sorted[-1].timestamp if steps_sorted else None
+
+    return PipelineExecutionGroup(
+        correlation_id=UUID(cid),
+        pipeline_name="form_ai_field_evaluation",
+        field_key=field_key,
+        status="COMPLETED",
+        started_at=started_at,
+        completed_at=completed_at,
+        total_duration_ms=round(total_duration, 2),
+        total_cost=round(total_cost, 6),
+        steps=steps_sorted,
+        verdict=verdict,
+    )
+
+
+class LogQueryService:
+    """Serviço de leitura e agregação dos logs estruturados JSONL."""
+
+    def get_operational_events(
+        self,
+        limit: int = 100,
+        status: str | None = None,
+        operation_type: str | None = None,
+    ) -> list[OperationalEventIndex]:
+        events: list[OperationalEventIndex] = []
+        if not APP_LOGS_DIR.exists():
+            return events
+
+        for log_file in sorted(APP_LOGS_DIR.glob("*.jsonl"), reverse=True):
+            events.extend(
+                self._read_operational_file(
+                    log_file, limit - len(events), status, operation_type
+                )
+            )
+            if len(events) >= limit:
+                break
+
+        return events
+
+    def _read_operational_file(
+        self,
+        log_file: Path,
+        remaining_limit: int,
+        status: str | None,
+        operation_type: str | None,
+    ) -> list[OperationalEventIndex]:
+        records: list[OperationalEventIndex] = []
+        try:
+            with open(log_file, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+            for raw_line in reversed(lines):
+                rec = _parse_operational_record(
+                    raw_line, status, operation_type
+                )
+                if rec is not None:
+                    records.append(rec)
+                    if len(records) >= remaining_limit:
+                        break
+        except Exception:
+            pass
+        return records
+
+    def get_ai_pipeline_groups(
+        self,
+        correlation_id: str | None = None,
+        limit: int = 50,
+    ) -> list[PipelineExecutionGroup]:
+        if not AI_LOGS_DIR.exists():
+            return []
+
+        grouped_steps: dict[str, list[AIStepExecutionLog]] = {}
+        for log_file in sorted(AI_LOGS_DIR.glob("*.jsonl"), reverse=True):
+            self._collect_ai_steps(log_file, grouped_steps, correlation_id)
+
+        groups: list[PipelineExecutionGroup] = []
+        for cid, steps in grouped_steps.items():
+            groups.append(_build_pipeline_group(cid, steps))
+            if len(groups) >= limit:
+                break
+
+        return groups
+
+    def _collect_ai_steps(
+        self,
+        log_file: Path,
+        grouped_steps: dict[str, list[AIStepExecutionLog]],
+        correlation_id: str | None,
+    ) -> None:
+        try:
+            with open(log_file, "r", encoding="utf-8") as f:
+                for raw_line in f:
+                    parsed = _parse_ai_step_record(raw_line, correlation_id)
+                    if parsed is not None:
+                        cid, step_log = parsed
+                        if cid not in grouped_steps:
+                            grouped_steps[cid] = []
+                        grouped_steps[cid].append(step_log)
+        except Exception:
+            pass
+
+
+log_query_service = LogQueryService()

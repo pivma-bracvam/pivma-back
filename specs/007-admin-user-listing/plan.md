@@ -77,7 +77,6 @@ src/pivma/
 ├── routers/users.py                 # GET /users e consulta SQLAlchemy
 ├── routers/auth.py                  # identidade atual com full_name
 ├── core/database/models.py          # coluna User.full_name
-├── seed_demo.py                     # dados de nome completo das contas de demonstração
 └── schemas.py                       # UserSchema, UserPublic, item administrativo e página
 
 tests/

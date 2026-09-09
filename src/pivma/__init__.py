@@ -7,8 +7,10 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 
+from pivma.core.logging import setup_logging
 from pivma.core.settings import Settings
 from pivma.routers import (
+    admin_logs,
     auth,
     forms,
     institutional,
@@ -19,6 +21,8 @@ from pivma.routers import (
     triage,
     users,
 )
+
+setup_logging()
 
 app = FastAPI(
     swagger_ui_parameters={'withCredentials': True},
@@ -50,18 +54,21 @@ app.include_router(institutional.router)
 app.include_router(processes.router)
 app.include_router(process_participants.router)
 app.include_router(forms.router)
+app.include_router(forms.direct_forms_router)
+app.include_router(admin_logs.router)
 app.include_router(triage.router)
 app.include_router(tasks.router)
-
-demos_path = Path(__file__).parent / 'static' / 'demos'
-if demos_path.exists():
-    app.mount(
-        '/demos',
-        StaticFiles(directory=str(demos_path), html=True),
-        name='demos',
-    )
 
 
 @app.get('/')
 def read_root():
     return {'message': 'Hello World!'}
+
+
+demos_dir = Path(__file__).resolve().parents[2] / 'demos'
+demos_dir.mkdir(parents=True, exist_ok=True)
+app.mount(
+    '/demos',
+    StaticFiles(directory=str(demos_dir), html=True),
+    name='demos',
+)
