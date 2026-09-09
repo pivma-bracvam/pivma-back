@@ -32,14 +32,14 @@ class EventBroadcaster:
         q: asyncio.Queue = asyncio.Queue(maxsize=100)
         self._operational_subscribers.add(q)
         try:
-            yield ": connected\n\n"
+            yield ': connected\n\n'
             while True:
                 try:
                     event = await asyncio.wait_for(q.get(), timeout=15.0)
                     payload = json.dumps(event, default=str)
-                    yield f"data: {payload}\n\n"
+                    yield f'data: {payload}\n\n'
                 except asyncio.TimeoutError:
-                    yield ": keepalive\n\n"
+                    yield ': keepalive\n\n'
         finally:
             self._operational_subscribers.discard(q)
 
@@ -48,14 +48,14 @@ class EventBroadcaster:
         q: asyncio.Queue = asyncio.Queue(maxsize=100)
         self._ai_subscribers.add(q)
         try:
-            yield ": connected\n\n"
+            yield ': connected\n\n'
             while True:
                 try:
                     step = await asyncio.wait_for(q.get(), timeout=15.0)
                     payload = json.dumps(step, default=str)
-                    yield f"data: {payload}\n\n"
+                    yield f'data: {payload}\n\n'
                 except asyncio.TimeoutError:
-                    yield ": keepalive\n\n"
+                    yield ': keepalive\n\n'
         finally:
             self._ai_subscribers.discard(q)
 

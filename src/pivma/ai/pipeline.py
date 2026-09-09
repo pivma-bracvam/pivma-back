@@ -46,7 +46,7 @@ class FormAIPipelineEngine:
                 event_id=uuid4(),
                 timestamp=datetime.now(timezone.utc),
                 correlation_id=correlation_id,
-                pipeline_name="form_ai_field_evaluation",
+                pipeline_name='form_ai_field_evaluation',
                 field_key=context.field_key,
                 step_order=res.step_order,
                 step_name=res.step_name,
@@ -55,16 +55,16 @@ class FormAIPipelineEngine:
                 simulated_cost=res.simulated_cost,
                 input_payload=res.input_payload,
                 output_payload=res.output_payload,
-                error_details={"error": res.error} if res.error else None,
+                error_details={'error': res.error} if res.error else None,
             )
             steps_logs.append(step_log)
 
             # Gravar no log especializado de IA (logs/ai/ai_steps.jsonl)
             ai_logger.info(
-                "ai_step_executed",
-                **step_log.model_dump(mode="json"),
+                'ai_step_executed',
+                **step_log.model_dump(mode='json'),
             )
-            broadcaster.broadcast_ai_step(step_log.model_dump(mode="json"))
+            broadcaster.broadcast_ai_step(step_log.model_dump(mode='json'))
 
         total_duration_ms = round(
             (time.perf_counter() - pipeline_start) * 1000, 2
@@ -75,34 +75,34 @@ class FormAIPipelineEngine:
         op_event = OperationalEventIndex(
             event_id=uuid4(),
             timestamp=completed_at,
-            operation_type="FORM_AI_FIELD_EVALUATION",
+            operation_type='FORM_AI_FIELD_EVALUATION',
             correlation_id=correlation_id,
             resource_id=str(context.form_instance_id),
-            status="SUCCESS",
+            status='SUCCESS',
             total_duration_ms=total_duration_ms,
-            specialized_log_ref=f"logs/ai/ai_steps.jsonl#{correlation_id}",
+            specialized_log_ref=f'logs/ai/ai_steps.jsonl#{correlation_id}',
             metadata={
-                "field_key": context.field_key,
-                "total_simulated_cost": total_cost,
-                "steps_count": len(steps_logs),
+                'field_key': context.field_key,
+                'total_simulated_cost': total_cost,
+                'steps_count': len(steps_logs),
             },
         )
         app_logger.info(
-            "operational_event",
-            **op_event.model_dump(mode="json"),
+            'operational_event',
+            **op_event.model_dump(mode='json'),
         )
-        broadcaster.broadcast_operational(op_event.model_dump(mode="json"))
+        broadcaster.broadcast_operational(op_event.model_dump(mode='json'))
 
         return PipelineExecutionGroup(
             correlation_id=correlation_id,
-            pipeline_name="form_ai_field_evaluation",
+            pipeline_name='form_ai_field_evaluation',
             form_instance_id=context.form_instance_id,
             field_key=context.field_key,
-            status="COMPLETED",
+            status='COMPLETED',
             started_at=started_at,
             completed_at=completed_at,
             total_duration_ms=total_duration_ms,
             total_cost=round(total_cost, 6),
             steps=steps_logs,
-            verdict=context.data.get("verdict"),
+            verdict=context.data.get('verdict'),
         )

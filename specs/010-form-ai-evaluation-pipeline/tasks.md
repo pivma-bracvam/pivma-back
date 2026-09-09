@@ -8,9 +8,9 @@
 
 **Purpose**: Inicialização das dependências e estrutura de diretórios do projeto
 
-- [ ] T001 Adicionar dependência `structlog` no pyproject.toml e atualizar o ambiente virtual
-- [ ] T002 [P] Criar diretórios de armazenamento de logs locais em logs/application/ e logs/ai/ com arquivo .gitignore
-- [ ] T003 [P] Criar estrutura básica das pastas de demonstração em demos/operational-index/ e demos/ai-pipeline/
+- [x] T001 Adicionar dependência `structlog` no pyproject.toml e atualizar o ambiente virtual
+- [x] T002 [P] Criar diretórios de armazenamento de logs locais em logs/application/ e logs/ai/ com arquivo .gitignore
+- [x] T003 [P] Criar estrutura básica das pastas de demonstração em demos/operational-index/ e demos/ai-pipeline/
 
 ---
 
@@ -20,10 +20,10 @@
 
 **⚠️ CRITICAL**: Nenhuma user story de IA pode ser implementada antes da conclusão desta fase
 
-- [ ] T004 Implementar configuração central de logging estruturado com structlog e TimedRotatingFileHandler (retenção 7 dias) em src/pivma/core/logging.py
-- [ ] T005 [P] Estender modelo FormField com `ai_evaluation_enabled` (bool, default False), `ai_context_instructions` e `ai_validation_rules` em src/pivma/core/database/models.py e src/pivma/schemas.py
-- [ ] T006 Gerar e aplicar migração Alembic para adicionar os campos de IA na tabela form_fields em migrations/versions/
-- [ ] T007 [P] Implementar schemas e dataclasses de telemetria e veredito canônico (OperationalEventIndex, AIStepExecutionLog, AIEvaluationVerdict, PipelineExecutionGroup) em src/pivma/ai/contracts.py
+- [x] T004 Implementar configuração central de logging estruturado com structlog e TimedRotatingFileHandler (retenção 7 dias) em src/pivma/core/logging.py
+- [x] T005 [P] Estender modelo FormField com `ai_evaluation_enabled` (bool, default False), `ai_context_instructions` e `ai_validation_rules` em src/pivma/core/database/models.py e src/pivma/schemas.py
+- [x] T006 Gerar e aplicar migração Alembic para adicionar os campos de IA na tabela form_fields em migrations/versions/
+- [x] T007 [P] Implementar schemas e dataclasses de telemetria e veredito canônico (OperationalEventIndex, AIStepExecutionLog, AIEvaluationVerdict, PipelineExecutionGroup) em src/pivma/ai/contracts.py
 
 **Checkpoint**: Base de dados e logging estruturado prontos — implementação das User Stories liberada.
 
@@ -37,16 +37,16 @@
 
 ### Tests for User Story 1 ⚠️
 
-- [ ] T008 [P] [US1] Criar testes unitários para o orquestrador e as 3 etapas simuladas do pipeline em tests/unit/test_ai_pipeline.py
-- [ ] T009 [P] [US1] Criar teste de integração para o endpoint de avaliação de formulários em tests/integration/test_form_ai_evaluation_api.py
+- [x] T008 [P] [US1] Criar testes unitários para o orquestrador e as 3 etapas simuladas do pipeline em tests/unit/test_ai_pipeline.py
+- [x] T009 [P] [US1] Criar teste de integração para o endpoint de avaliação de formulários em tests/integration/test_form_ai_evaluation_api.py
 
 ### Implementation for User Story 1
 
-- [ ] T010 [P] [US1] Implementar Etapa 1 (ContextExtractionStep) para extrair e higienizar valores de campos com ai_evaluation_enabled=True em src/pivma/ai/steps/context_extraction.py
-- [ ] T011 [P] [US1] Implementar Etapa 2 (MockEvaluationStep) simulando verificação de conformidade, gerando latência e custo simulado em src/pivma/ai/steps/mock_evaluation.py
-- [ ] T012 [P] [US1] Implementar Etapa 3 (VerdictSynthesisStep) consolidando retorno canônico com veredito negativo padrão, issues e recomendações em src/pivma/ai/steps/verdict_synthesis.py
-- [ ] T013 [US1] Implementar orquestrador FormAIPipelineEngine com propagação de correlation_id e registro em logs/ai/ e logs/application/ em src/pivma/ai/pipeline.py
-- [ ] T014 [US1] Implementar endpoint de disparo de avaliação `POST /forms/instances/{instance_id}/evaluate-ai` em src/pivma/routers/forms.py
+- [x] T010 [P] [US1] Implementar Etapa 1 (ContextExtractionStep) para extrair e higienizar valores de campos com ai_evaluation_enabled=True em src/pivma/ai/steps/context_extraction.py
+- [x] T011 [P] [US1] Implementar Etapa 2 (MockEvaluationStep) simulando verificação de conformidade, gerando latência e custo simulado em src/pivma/ai/steps/mock_evaluation.py
+- [x] T012 [P] [US1] Implementar Etapa 3 (VerdictSynthesisStep) consolidando retorno canônico com veredito negativo padrão, issues e recomendações em src/pivma/ai/steps/verdict_synthesis.py
+- [x] T013 [US1] Implementar orquestrador FormAIPipelineEngine com propagação de correlation_id e registro em logs/ai/ e logs/application/ em src/pivma/ai/pipeline.py
+- [x] T014 [US1] Implementar endpoint de disparo de avaliação `POST /forms/instances/{instance_id}/evaluate-ai` em src/pivma/routers/forms.py
 
 **Checkpoint**: User Story 1 (MVP) totalmente funcional e testável de forma independente.
 
@@ -60,14 +60,14 @@
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T015 [P] [US2] Criar testes de integração para as rotas administrativas e streaming SSE em tests/integration/test_admin_logs_sse.py
+- [x] T015 [P] [US2] Criar testes de integração para as rotas administrativas e streaming SSE em tests/integration/test_admin_logs_sse.py
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Implementar serviço de leitura e agregação de logs JSONL por correlation_id em src/pivma/core/log_service.py
-- [ ] T017 [US2] Implementar gerenciador de transmissão SSE em tempo real (EventBroadcaster) em src/pivma/core/sse_broadcaster.py
-- [ ] T018 [US2] Implementar roteador de logs administrativos (/admin/logs/operational, /admin/logs/operational/stream, /admin/logs/ai, /admin/logs/ai/stream) com verificação de Role.ADMIN em src/pivma/routers/admin_logs.py
-- [ ] T019 [US2] Registrar roteador admin_logs em src/pivma/__init__.py
+- [x] T016 [US2] Implementar serviço de leitura e agregação de logs JSONL por correlation_id em src/pivma/core/log_service.py
+- [x] T017 [US2] Implementar gerenciador de transmissão SSE em tempo real (EventBroadcaster) em src/pivma/core/sse_broadcaster.py
+- [x] T018 [US2] Implementar roteador de logs administrativos (/admin/logs/operational, /admin/logs/operational/stream, /admin/logs/ai, /admin/logs/ai/stream) com verificação de Role.ADMIN em src/pivma/routers/admin_logs.py
+- [x] T019 [US2] Registrar roteador admin_logs em src/pivma/__init__.py
 
 **Checkpoint**: Endpoints administrativos e streaming SSE funcionais e testados.
 
@@ -81,8 +81,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T020 [P] [US3] Implementar página e scripts da interface de Visualização Geral com consumo de SSE e filtros em demos/operational-index/index.html e demos/operational-index/app.js
-- [ ] T021 [US3] Criar catálogo central unificado de demonstrações em demos/index.html listando os módulos da plataforma conforme AGENTS.md
+- [x] T020 [P] [US3] Implementar página e scripts da interface de Visualização Geral com consumo de SSE e filtros em demos/operational-index/index.html e demos/operational-index/app.js
+- [x] T021 [US3] Criar catálogo central unificado de demonstrações em demos/index.html listando os módulos da plataforma conforme AGENTS.md
 
 **Checkpoint**: Módulo 1 de demonstração operacional acessível e validado com a API real.
 
@@ -96,9 +96,9 @@
 
 ### Implementation for User Story 4
 
-- [ ] T022 [P] [US4] Implementar interface interativa de Visualização de IA com cards agrupados por pipeline, timeline das 3 etapas e visualizador de payloads em demos/ai-pipeline/index.html e demos/ai-pipeline/app.js
-- [ ] T023 [US4] Registrar Módulo de IA no catálogo central em demos/index.html
-- [ ] T024 [US4] Implementar script de carga de seed em scripts/seeds/seed_form_ai_demo.py provisionando template com campos de IA e usuário admin
+- [x] T022 [P] [US4] Implementar interface interativa de Visualização de IA com cards agrupados por pipeline, timeline das 3 etapas e visualizador de payloads em demos/ai-pipeline/index.html e demos/ai-pipeline/app.js
+- [x] T023 [US4] Registrar Módulo de IA no catálogo central em demos/index.html
+- [x] T024 [US4] Implementar script de carga de seed em scripts/seeds/seed_form_ai_demo.py provisionando template com campos de IA e usuário admin
 
 **Checkpoint**: Módulo 2 de demonstração de IA operacional e validado de ponta a ponta.
 
@@ -108,10 +108,10 @@
 
 **Purpose**: Ajustes finais, testes de rotação, linting e validação do quickstart
 
-- [ ] T025 [P] Criar testes unitários para a rotação e retenção de 7 dias de logs em tests/unit/test_structured_logging.py
-- [ ] T026 Atualizar template declarativo com flag de IA no campo de justificativa em src/pivma/templates_data/full_validation_v1.yaml
-- [ ] T027 Executar formatação e verificação de lint com ruff check e ruff format no projeto
-- [ ] T028 Executar validação ponta a ponta dos cenários de teste descritos em specs/010-form-ai-evaluation-pipeline/quickstart.md
+- [x] T025 [P] Criar testes unitários para a rotação e retenção de 7 dias de logs em tests/unit/test_structured_logging.py
+- [x] T026 Atualizar template declarativo com flag de IA no campo de justificativa em src/pivma/templates_data/full_validation_v1.yaml
+- [x] T027 Executar formatação e verificação de lint com ruff check e ruff format no projeto
+- [x] T028 Executar validação ponta a ponta dos cenários de teste descritos em specs/010-form-ai-evaluation-pipeline/quickstart.md
 
 ---
 

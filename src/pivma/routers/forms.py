@@ -140,7 +140,7 @@ async def save_form_draft(
     except ValidationError as e:
         raise HTTPException(
             status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
-            detail={"code": "invalid_form_values", "errors": e.errors},
+            detail={'code': 'invalid_form_values', 'errors': e.errors},
         ) from e
 
     return {
@@ -234,13 +234,12 @@ async def evaluate_form_instance_ai(
     for fv in form_inst.values:
         if fv.deleted_at is None and fv.form_field_id in field_map:
             fld = field_map[fv.form_field_id]
-            values_map[fld.id] = _extract_form_field_value(
-                fv, fld.field_type
-            )
+            values_map[fld.id] = _extract_form_field_value(fv, fld.field_type)
 
     # Filtrar apenas campos elegíveis para IA
     ai_fields = [
-        f for f in form_inst.form_template.fields
+        f
+        for f in form_inst.form_template.fields
         if f.deleted_at is None and f.ai_evaluation_enabled
     ]
 

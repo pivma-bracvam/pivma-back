@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class AIEvaluationVerdict(BaseModel):
     field_key: str
-    status: str = Field(default="REPROVED")
+    status: str = Field(default='REPROVED')
     confidence_score: float = Field(default=0.85)
     issues: list[str] = Field(default_factory=list)
     recommendations: list[str] = Field(default_factory=list)
@@ -28,7 +28,7 @@ class OperationalEventIndex(BaseModel):
     correlation_id: UUID
     actor_user_id: UUID | None = None
     resource_id: str | None = None
-    status: str = Field(default="SUCCESS")
+    status: str = Field(default='SUCCESS')
     total_duration_ms: float
     specialized_log_ref: str | None = None
     error_summary: str | None = None
@@ -43,11 +43,11 @@ class AIStepExecutionLog(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc)
     )
     correlation_id: UUID
-    pipeline_name: str = "form_ai_field_evaluation"
+    pipeline_name: str = 'form_ai_field_evaluation'
     field_key: str
     step_order: int
     step_name: str
-    status: str = Field(default="SUCCESS")
+    status: str = Field(default='SUCCESS')
     step_duration_ms: float
     simulated_cost: float
     input_payload: dict[str, Any] = Field(default_factory=dict)
@@ -59,10 +59,10 @@ class AIStepExecutionLog(BaseModel):
 
 class PipelineExecutionGroup(BaseModel):
     correlation_id: UUID
-    pipeline_name: str = "form_ai_field_evaluation"
+    pipeline_name: str = 'form_ai_field_evaluation'
     form_instance_id: UUID | None = None
     field_key: str | None = None
-    status: str = Field(default="COMPLETED")
+    status: str = Field(default='COMPLETED')
     started_at: datetime | None = None
     completed_at: datetime | None = None
     total_duration_ms: float = 0.0

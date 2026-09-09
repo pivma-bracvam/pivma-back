@@ -4,9 +4,9 @@ from pathlib import Path
 
 import structlog
 
-LOGS_DIR = Path(__file__).resolve().parents[3] / "logs"
-APP_LOGS_DIR = LOGS_DIR / "application"
-AI_LOGS_DIR = LOGS_DIR / "ai"
+LOGS_DIR = Path(__file__).resolve().parents[3] / 'logs'
+APP_LOGS_DIR = LOGS_DIR / 'application'
+AI_LOGS_DIR = LOGS_DIR / 'ai'
 
 
 def _ensure_dirs() -> None:
@@ -22,7 +22,7 @@ def setup_logging() -> None:
     shared_processors = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso", utc=True),
+        structlog.processors.TimeStamper(fmt='iso', utc=True),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.processors.JSONRenderer(),
@@ -35,39 +35,39 @@ def setup_logging() -> None:
         cache_logger_on_first_use=True,
     )
 
-    formatter = logging.Formatter("%(message)s")
+    formatter = logging.Formatter('%(message)s')
 
     # Handler do Índice Operacional (logs/application/)
-    app_log_file = APP_LOGS_DIR / "events.jsonl"
+    app_log_file = APP_LOGS_DIR / 'events.jsonl'
     app_handler = TimedRotatingFileHandler(
         filename=str(app_log_file),
-        when="midnight",
+        when='midnight',
         interval=1,
         backupCount=7,
-        encoding="utf-8",
+        encoding='utf-8',
     )
     app_handler.setFormatter(formatter)
     app_handler.setLevel(logging.INFO)
 
-    app_logger = logging.getLogger("pivma.operational")
+    app_logger = logging.getLogger('pivma.operational')
     app_logger.setLevel(logging.INFO)
     if not app_logger.handlers:
         app_logger.addHandler(app_handler)
     app_logger.propagate = False
 
     # Handler do Log Granular de IA (logs/ai/)
-    ai_log_file = AI_LOGS_DIR / "ai_steps.jsonl"
+    ai_log_file = AI_LOGS_DIR / 'ai_steps.jsonl'
     ai_handler = TimedRotatingFileHandler(
         filename=str(ai_log_file),
-        when="midnight",
+        when='midnight',
         interval=1,
         backupCount=7,
-        encoding="utf-8",
+        encoding='utf-8',
     )
     ai_handler.setFormatter(formatter)
     ai_handler.setLevel(logging.INFO)
 
-    ai_logger = logging.getLogger("pivma.ai")
+    ai_logger = logging.getLogger('pivma.ai')
     ai_logger.setLevel(logging.INFO)
     if not ai_logger.handlers:
         ai_logger.addHandler(ai_handler)
@@ -75,8 +75,8 @@ def setup_logging() -> None:
 
 
 def get_operational_logger() -> structlog.stdlib.BoundLogger:
-    return structlog.wrap_logger(logging.getLogger("pivma.operational"))
+    return structlog.wrap_logger(logging.getLogger('pivma.operational'))
 
 
 def get_ai_logger() -> structlog.stdlib.BoundLogger:
-    return structlog.wrap_logger(logging.getLogger("pivma.ai"))
+    return structlog.wrap_logger(logging.getLogger('pivma.ai'))

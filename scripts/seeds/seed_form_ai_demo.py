@@ -128,19 +128,21 @@ async def seed():
             f.ai_evaluation_enabled = True
             f.ai_context_instructions = 'Verificar justificativa científica e ausência de modelo animal correspondente.'
 
-        print("[*] 5. Provisionando instância de formulário para demonstração...")
+        print(
+            '[*] 5. Provisionando instância de formulário para demonstração...'
+        )
         ptv_stmt = (
             select(ProcessTemplateVersion)
             .join(ProcessTemplate)
             .where(
-                ProcessTemplate.key == "full_validation",
+                ProcessTemplate.key == 'full_validation',
                 ProcessTemplateVersion.deleted_at.is_(None),
             )
             .order_by(ProcessTemplateVersion.version_number.desc())
         )
         ptv = (await session.execute(ptv_stmt)).scalars().first()
 
-        proc_title = "Proposta Piloto - Validação de Irritação Cutânea"
+        proc_title = 'Proposta Piloto - Validação de Irritação Cutânea'
         proc_stmt = select(ProcessInstance).where(
             ProcessInstance.title == proc_title
         )
@@ -174,8 +176,8 @@ async def seed():
                     form_instance_id=form_inst.id,
                     form_field_id=field_res[0].id,
                     text_value=(
-                        "O presente estudo propõe a validação de modelo baseado em epiderme humana reconstruída "
-                        "(RhE) como alternativa ao ensaio de Draize em coelhos para avaliação de corrosão e irritação cutânea."
+                        'O presente estudo propõe a validação de modelo baseado em epiderme humana reconstruída '
+                        '(RhE) como alternativa ao ensaio de Draize em coelhos para avaliação de corrosão e irritação cutânea.'
                     ),
                 )
                 session.add(val)
