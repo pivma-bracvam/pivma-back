@@ -135,7 +135,7 @@ async def seed():
             select(ProcessTemplateVersion)
             .join(ProcessTemplate)
             .where(
-                ProcessTemplate.key == 'full_validation',
+                ProcessTemplate.key == 'pre_validated_method',
                 ProcessTemplateVersion.deleted_at.is_(None),
             )
             .order_by(ProcessTemplateVersion.version_number.desc())

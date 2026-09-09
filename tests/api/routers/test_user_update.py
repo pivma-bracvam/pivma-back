@@ -36,14 +36,12 @@ async def grant_permission(session, user, code):
     permission = Permission(code=code, description=f'Permission {code}')
     session.add(permission)
     await session.flush()
-    session.add_all(
-        [
-            AccessProfilePermission(
-                profile_id=profile.id, permission_id=permission.id
-            ),
-            UserAccessProfile(user_id=user.id, profile_id=profile.id),
-        ]
-    )
+    session.add_all([
+        AccessProfilePermission(
+            profile_id=profile.id, permission_id=permission.id
+        ),
+        UserAccessProfile(user_id=user.id, profile_id=profile.id),
+    ])
     await session.commit()
 
 
@@ -185,9 +183,7 @@ def test_update_user_returns_not_found_for_unknown_uuid(client, user_manager):
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-@pytest.mark.parametrize(
-    'full_name', ['', '   ', 'a' * 256, None]
-)
+@pytest.mark.parametrize('full_name', ['', '   ', 'a' * 256, None])
 def test_update_user_rejects_invalid_full_name(
     client, user_manager, other_user, full_name
 ):
@@ -203,9 +199,7 @@ def test_update_user_rejects_invalid_full_name(
 
 def test_update_user_requires_full_name(client, user_manager, other_user):
     authenticate(client, user_manager)
-    response = client.patch(
-        f'/users/{other_user.id}', headers=ORIGIN, json={}
-    )
+    response = client.patch(f'/users/{other_user.id}', headers=ORIGIN, json={})
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
@@ -224,16 +218,16 @@ def test_update_user_rejects_extra_fields(client, user_manager, other_user):
 def test_update_user_openapi_matches_contract(client):
     generated = client.get('/openapi.json').json()
     contract = yaml.safe_load(
-        Path('specs/008-admin-user-update/contracts/users.openapi.yaml').read_text(
-            encoding='utf-8'
-        )
+        Path(
+            'specs/008-admin-user-update/contracts/users.openapi.yaml'
+        ).read_text(encoding='utf-8')
     )
     generated_operation = generated['paths']['/users/{user_id}']['patch']
     contract_operation = contract['paths']['/users/{user_id}']['patch']
 
-    assert generated_operation['operationId'] == contract_operation[
-        'operationId'
-    ]
+    assert (
+        generated_operation['operationId'] == contract_operation['operationId']
+    )
     assert (
         generated_operation['x-required-permission']
         == contract_operation['x-required-permission']
@@ -246,7 +240,11 @@ def test_update_user_openapi_matches_contract(client):
         'full_name'
     ]
     assert set(generated_operation['responses']) == {
-        '200', '401', '403', '404', '422'
+        '200',
+        '401',
+        '403',
+        '404',
+        '422',
     }
 
 

@@ -66,7 +66,7 @@ async def setup_process_with_participants(session, client):
     created = client.post(
         '/processes',
         json={
-            'template_key': 'full_validation',
+            'template_key': 'pre_validated_method',
             'title': 'Processo de timeline',
         },
     )

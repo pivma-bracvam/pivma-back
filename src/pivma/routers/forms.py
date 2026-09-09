@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from pivma.ai.contracts import PipelineContext
 from pivma.ai.pipeline import FormAIPipelineEngine
-from pivma.core.database.models import FormInstance, FormTemplate
+from pivma.core.database.models import Artifact, FormInstance, FormTemplate
 from pivma.core.process_engine import (
     ConflictError,
     NotFoundError,
@@ -85,6 +85,28 @@ async def get_activity_form(
                 reviewed_at=fr.reviewed_at,
             )
 
+    ai_eval = None
+    art_stmt = (
+        select(Artifact)
+        .where(
+            Artifact.process_instance_id == id,
+            Artifact.key.in_([
+                'ai_evaluation_report',
+                'proposal_form_submission',
+            ]),
+            Artifact.deleted_at.is_(None),
+        )
+        .order_by(Artifact.created_at.desc())
+    )
+    artifacts = (await session.execute(art_stmt)).scalars().all()
+    for art in artifacts:
+        if art.metadata_payload and 'ai_evaluation' in art.metadata_payload:
+            ai_eval = art.metadata_payload['ai_evaluation']
+            break
+        if art.key == 'ai_evaluation_report' and art.metadata_payload:
+            ai_eval = art.metadata_payload
+            break
+
     return FormInstanceResponse(
         form_instance_id=form_inst.id,
         template_key=template.key,
@@ -97,6 +119,11 @@ async def get_activity_form(
                 field_type=f.field_type,
                 is_required=f.is_required,
                 order_index=f.order_index,
+                section=(
+                    f.validation_rules.get('section')
+                    if f.validation_rules
+                    else 'Geral'
+                ),
                 options=f.options,
                 validation_rules=f.validation_rules,
                 ai_evaluation_enabled=f.ai_evaluation_enabled,
@@ -107,6 +134,7 @@ async def get_activity_form(
         ],
         values=values_dict,
         reviews=reviews_dict,
+        ai_evaluation=ai_eval,
     )
 
 
@@ -182,11 +210,16 @@ async def submit_form(
             status_code=HTTPStatus.CONFLICT, detail=str(e)
         ) from e
 
+    ai_eval = None
+    if artifact and artifact.metadata_payload:
+        ai_eval = artifact.metadata_payload.get('ai_evaluation')
+
     return ActivityCompletionResponse(
         activity_key=act.key,
         run_number=run.run_number,
         status=run.status,
         artifact_id=artifact.id if artifact else None,
+        ai_evaluation=ai_eval,
     )
 
 

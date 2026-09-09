@@ -1,0 +1,105 @@
+process_template:
+  key: "me_too_validation"
+  name: "Validação Me-Too"
+  description: "Método já validado sendo proposto um novo sistema teste ou método mecanisticamente e funcionalmente semelhante (Transferência / Adaptação de Sistema-Teste)."
+  version: 1
+  is_active: true
+
+phases:
+  - key: "phase_1_submission_triage"
+    name: "Fase 1: Submissão e Triagem"
+    order_index: 1
+    activities:
+      - key: "proposal_submission"
+        name: "Submissão da Proposta"
+        order_index: 1
+        assigned_role: "PROPONENT"
+        form_template_key: "submission_me_too_v1"
+        dependencies: []
+
+      - key: "triage_evaluation"
+        name: "Triagem e Decisão BraCVAM"
+        order_index: 2
+        assigned_role: "TRIAGE_LEAD"
+        form_template_key: "triage_review_v1"
+        dependencies:
+          - required_activity_key: "proposal_submission"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+forms:
+  - key: "submission_me_too_v1"
+    name: "Formulário de Submissão - Validação Me-Too"
+    version: 1
+    description: "Avaliação de método mecanisticamente e funcionalmente semelhante a método já validado."
+    fields:
+      - field_key: "method_title"
+        label: "Título do Método Me-Too"
+        field_type: "text"
+        is_required: true
+        order_index: 1
+
+      - field_key: "reference_validated_method"
+        label: "Método Validado de Referência"
+        field_type: "text"
+        is_required: true
+        order_index: 2
+
+      - field_key: "target_test_system"
+        label: "Novo Sistema-Teste Proposto (ex.: tecido reconstruído nacional, nova linhagem)"
+        field_type: "text"
+        is_required: true
+        order_index: 3
+
+      - field_key: "mechanistic_similarity_rationale"
+        label: "Fundamentação da Semelhança Mecanística e Biológica"
+        field_type: "textarea"
+        is_required: true
+        order_index: 4
+        ai_evaluation_enabled: true
+        ai_context_instructions: "Avaliar se o novo sistema teste reproduz com fidelidade os mesmos marcadores e vias biológicas do método de referência validado."
+        ai_validation_rules:
+          min_length: 50
+
+      - field_key: "functional_equivalence_evidence"
+        label: "Dados Preliminares de Equivalência Funcional e Desempenho"
+        field_type: "textarea"
+        is_required: true
+        order_index: 5
+        ai_evaluation_enabled: true
+        ai_context_instructions: "Verificar se a concordância diagnóstica e a sensibilidade/especificidade atendem aos padrões mínimos de métodos me-too da OCDE."
+        ai_validation_rules:
+          min_length: 50
+
+      - field_key: "comparative_protocol_file"
+        label: "Protocolo Comparativo Detalhado (PDF)"
+        field_type: "file_upload"
+        is_required: true
+        order_index: 6
+        validation_rules:
+          allowed_extensions: ["pdf"]
+          max_size_mb: 25
+
+  - key: "triage_review_v1"
+    name: "Formulário de Parecer de Triagem"
+    version: 1
+    description: "Avaliação técnica preliminar dos requisitos de elegibilidade da proposta."
+    fields:
+      - field_key: "regulatory_adherence_score"
+        label: "Nível de Aderência Regulatória"
+        field_type: "select"
+        is_required: true
+        order_index: 1
+        options:
+          - value: "high"
+            label: "Alto - Atende a todas as diretrizes da OCDE"
+          - value: "medium"
+            label: "Médio - Pendências documentais sanáveis"
+          - value: "low"
+            label: "Baixo - Não atende critérios mínimos"
+
+      - field_key: "triage_summary_notes"
+        label: "Notas de Síntese da Triagem"
+        field_type: "textarea"
+        is_required: true
+        order_index: 2

@@ -1,8 +1,9 @@
 process_template:
-  key: "full_validation"
-  name: "Validação Completa"
-  description: "Pipeline padrão para validação completa de novos métodos alternativos ao uso de animais."
+  key: "proof_of_concept"
+  name: "Prova de Conceito (PoC)"
+  description: "Ideia de método ainda a ser desenvolvido ou em estágio inicial de desenvolvimento e otimização (Método Conceitual / Early-Stage Pipeline)."
   version: 1
+  is_active: true
 
 phases:
   - key: "phase_1_submission_triage"
@@ -13,11 +14,11 @@ phases:
         name: "Submissão da Proposta"
         order_index: 1
         assigned_role: "PROPONENT"
-        form_template_key: "submission_full_validation_v1"
+        form_template_key: "submission_proof_of_concept_v1"
         dependencies: []
 
       - key: "triage_evaluation"
-        name: "Triagem e Decisão Inicial"
+        name: "Triagem e Decisão BraCVAM"
         order_index: 2
         assigned_role: "TRIAGE_LEAD"
         form_template_key: "triage_review_v1"
@@ -26,33 +27,20 @@ phases:
             required_status: "COMPLETED"
             condition_type: "ACTIVITY_COMPLETED"
 
-  - key: "phase_2_planning_governance"
-    name: "Fase 2: Planejamento e Governança"
-    order_index: 2
-    activities:
-      - key: "sample_selection"
-        name: "Seleção de Amostras"
-        order_index: 1
-        assigned_role: "SAMPLE_COMMITTEE"
-        dependencies:
-          - required_activity_key: "triage_evaluation"
-            required_status: "COMPLETED"
-            condition_type: "DECISION_APPROVED"
-
 forms:
-  - key: "submission_full_validation_v1"
-    name: "Formulário de Submissão de Método Alternativo"
+  - key: "submission_proof_of_concept_v1"
+    name: "Formulário de Submissão - Prova de Conceito (PoC)"
     version: 1
-    description: "Preencha as informações técnicas e regulatórias do método proposto."
+    description: "Submissão de ideia conceitual ou método em estágio preliminar de P&D para orientação estratégica do BraCVAM."
     fields:
       - field_key: "method_title"
-        label: "Título do Método"
+        label: "Título da Prova de Conceito"
         field_type: "text"
         is_required: true
         order_index: 1
 
-      - field_key: "endpoint_target"
-        label: "Desfecho / Toxicidade Avaliada"
+      - field_key: "targeted_endpoint"
+        label: "Desfecho / Toxicidade Alvo"
         field_type: "select"
         is_required: true
         order_index: 2
@@ -65,31 +53,43 @@ forms:
             label: "Fototoxicidade"
           - value: "acute_toxicity"
             label: "Toxicidade Aguda"
+          - value: "systemic_toxicity"
+            label: "Toxicidade Sistêmica"
 
-      - field_key: "scientific_justification"
-        label: "Justificativa Científica e Mecanística"
+      - field_key: "biological_rationale_and_3rs"
+        label: "Hipótese Biológica e Potencial de Substituição 3R"
         field_type: "textarea"
         is_required: true
         order_index: 3
         ai_evaluation_enabled: true
-        ai_context_instructions: "Avaliar se a justificativa descreve claramente o mecanismo biológico, relevância científica e alinhamento com métodos alternativos 3R."
+        ai_context_instructions: "Avaliar o mérito inovador, plausibilidade biológica do conceito e impacto potencial na redução/substituição de animais."
         ai_validation_rules:
           min_length: 50
 
-      - field_key: "expected_laboratories_count"
-        label: "Estimativa de Laboratórios Participantes"
+      - field_key: "development_roadmap"
+        label: "Plano de Desenvolvimento e Etapas de Otimização Previstas"
+        field_type: "textarea"
+        is_required: true
+        order_index: 4
+        ai_evaluation_enabled: true
+        ai_context_instructions: "Verificar a viabilidade metodológica do cronograma e marcos de desenvolvimento propostos."
+        ai_validation_rules:
+          min_length: 50
+
+      - field_key: "estimated_timeline_months"
+        label: "Estimativa de Duração da Prova de Conceito (Meses)"
         field_type: "integer"
         is_required: false
-        order_index: 4
+        order_index: 5
         validation_rules:
           min: 1
-          max: 50
+          max: 60
 
-      - field_key: "study_protocol_file"
-        label: "Protocolo Detalhado do Estudo (PDF)"
+      - field_key: "concept_note_file"
+        label: "Nota Conceitual ou Documento de Projeto Preliminar (PDF)"
         field_type: "file_upload"
-        is_required: true
-        order_index: 5
+        is_required: false
+        order_index: 6
         validation_rules:
           allowed_extensions: ["pdf"]
           max_size_mb: 25

@@ -25,7 +25,7 @@ async def test_form_ai_evaluation_endpoint(client, session):
         '/processes',
         headers=TRUSTED_ORIGIN,
         json={
-            'template_key': 'full_validation',
+            'template_key': 'pre_validated_method',
             'title': 'Estudo de Teste IA',
         },
     )
@@ -65,10 +65,13 @@ async def test_form_ai_evaluation_endpoint(client, session):
     assert data['form_instance_id'] == str(form_instance_id)
     assert data['status'] == 'COMPLETED'
     assert 'correlation_id' in data
-    assert len(data['evaluations']) == 1
+    assert len(data['evaluations']) >= 1
 
-    ev = data['evaluations'][0]
-    assert ev['field_key'] == 'scientific_justification'
+    ev = next(
+        e
+        for e in data['evaluations']
+        if e['field_key'] == 'scientific_justification'
+    )
     assert ev['status'] in {'REPROVED', 'NEEDS_ADJUSTMENT'}
     assert len(ev['issues']) > 0
     assert len(ev['recommendations']) > 0

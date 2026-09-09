@@ -1,0 +1,163 @@
+openapi: 3.1.0
+info:
+  title: PIVMA Form Template Editor API (Versão 1.1)
+  description: Endpoints para edição e customização de templates de formulários associados a processos de validação.
+  version: 1.1.0
+paths:
+  /processes/templates/{key}/forms/{form_key}:
+    get:
+      summary: Obter definição estruturada de um template de formulário
+      operationId: getFormTemplateDefinition
+      tags:
+        - Process Templates
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Chave do template de processo (ex. pre_validated_method)
+        - name: form_key
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Chave do formulário (ex. submission_pre_validated_v1)
+      responses:
+        '200':
+          description: Definição do formulário com todos os seus campos e seções
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormTemplateDetailResponse'
+        '404':
+          description: Template de processo ou formulário não encontrado
+
+    put:
+      summary: Atualizar e persistir campos e seções do template de formulário
+      operationId: updateFormTemplateDefinition
+      tags:
+        - Process Templates
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: form_key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFormTemplateRequest'
+      responses:
+        '200':
+          description: Template de formulário atualizado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormTemplateDetailResponse'
+        '401':
+          description: Não autenticado
+        '403':
+          description: Acesso restrito à equipe BraCVAM
+        '422':
+          description: Dados inválidos ou chaves de campo duplicadas
+
+components:
+  schemas:
+    FormFieldUpdateDefinition:
+      type: object
+      required:
+        - field_key
+        - label
+        - field_type
+      properties:
+        field_key:
+          type: string
+          example: "glp_compliance_certificate"
+        label:
+          type: string
+          example: "Certificado BPL"
+        help_text:
+          type: string
+          nullable: true
+          example: "Anexar comprovação oficial de conformidade GLP"
+        field_type:
+          type: string
+          enum: [text, textarea, select, integer, float, boolean, date, file_upload]
+          example: "file_upload"
+        is_required:
+          type: boolean
+          default: false
+        order_index:
+          type: integer
+          default: 0
+        section:
+          type: string
+          nullable: true
+          example: "Garantia da Qualidade"
+        options:
+          type: array
+          nullable: true
+          items: {}
+        validation_rules:
+          type: object
+          nullable: true
+        ai_evaluation_enabled:
+          type: boolean
+          default: false
+        ai_context_instructions:
+          type: string
+          nullable: true
+          example: "Verificar se o certificado foi emitido por órgão acreditador"
+        ai_validation_rules:
+          type: object
+          nullable: true
+
+    UpdateFormTemplateRequest:
+      type: object
+      required:
+        - fields
+      properties:
+        name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormFieldUpdateDefinition'
+
+    FormTemplateDetailResponse:
+      type: object
+      required:
+        - id
+        - key
+        - name
+        - version
+        - fields
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+        name:
+          type: string
+        version:
+          type: integer
+        description:
+          type: string
+          nullable: true
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormFieldUpdateDefinition'

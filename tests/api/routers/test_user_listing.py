@@ -282,9 +282,7 @@ def test_list_users_items_have_only_administrative_fields(
 
 
 @pytest.mark.asyncio
-async def test_list_users_includes_full_name(
-    client, listing_reader, session
-):
+async def test_list_users_includes_full_name(client, listing_reader, session):
     await persist_user(
         session,
         username='FullNameTarget',
@@ -344,9 +342,10 @@ def test_list_users_openapi_matches_versioned_contract(client):
     generated_item = generated['components']['schemas']['AdminUser']
     contract_item = contract['components']['schemas']['AdminUser']
     assert generated_item['required'] == contract_item['required']
-    assert generated_item['properties']['full_name'] == contract_item[
-        'properties'
-    ]['full_name']
+    assert (
+        generated_item['properties']['full_name']
+        == contract_item['properties']['full_name']
+    )
     assert generated_page['required'] == contract_page['required']
     assert (
         generated_page['properties']['offset']['type']

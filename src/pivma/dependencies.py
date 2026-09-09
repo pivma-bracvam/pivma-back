@@ -97,7 +97,7 @@ async def require_admin(
     session: Session,
     user: CurrentUser,
 ) -> User:
-    from pivma.core.authorization import (
+    from pivma.core.authorization import (  # noqa: PLC0415
         ADMINISTRATOR_SYSTEM_KEY,
         RBAC_READ,
         active_profiles_for_user,

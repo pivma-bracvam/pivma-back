@@ -87,7 +87,7 @@ async def submit_to_triage(client, session):
     created = client.post(
         '/processes',
         json={
-            'template_key': 'full_validation',
+            'template_key': 'pre_validated_method',
             'title': 'Processo bloqueio de conflito',
         },
     )
@@ -103,6 +103,9 @@ async def submit_to_triage(client, session):
                 'method_title': 'Método',
                 'endpoint_target': 'phototoxicity',
                 'scientific_justification': 'Justificativa suficiente.',
+                'pre_validation_evidence': (
+                    'Evidências prévias de repetibilidade.'
+                ),
                 'study_protocol_file': 'protocolo.pdf',
             }
         },

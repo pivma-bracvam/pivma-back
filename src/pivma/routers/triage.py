@@ -2,6 +2,7 @@ from http import HTTPStatus
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
+
 from pivma.core.process_engine import (
     AuthorizationError,
     ConflictError,
@@ -17,11 +18,11 @@ from pivma.schemas import (
     TriageDecisionResponse,
 )
 
-router = APIRouter(prefix="/processes", tags=["Triage"])
+router = APIRouter(prefix='/processes', tags=['Triage'])
 
 
 @router.post(
-    "/{id}/triage/reviews",
+    '/{id}/triage/reviews',
     status_code=HTTPStatus.OK,
 )
 async def submit_field_reviews(
@@ -39,15 +40,19 @@ async def submit_field_reviews(
             user_id=current_user.id,
         )
     except NotFoundError as e:
-        raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail=str(e)) from e
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail=str(e)
+        ) from e
     except AuthorizationError as e:
-        raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail=str(e)) from e
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN, detail=str(e)
+        ) from e
 
-    return {"message": "Avaliações de campo registradas com sucesso."}
+    return {'message': 'Avaliações de campo registradas com sucesso.'}
 
 
 @router.post(
-    "/{id}/triage/decision",
+    '/{id}/triage/decision',
     response_model=TriageDecisionResponse,
     status_code=HTTPStatus.OK,
 )
@@ -66,11 +71,17 @@ async def submit_triage_decision(
             user_id=current_user.id,
         )
     except NotFoundError as e:
-        raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail=str(e)) from e
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail=str(e)
+        ) from e
     except AuthorizationError as e:
-        raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail=str(e)) from e
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN, detail=str(e)
+        ) from e
     except ConflictError as e:
-        raise HTTPException(status_code=HTTPStatus.CONFLICT, detail=str(e)) from e
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT, detail=str(e)
+        ) from e
     except ValidationError as e:
         raise HTTPException(
             status_code=HTTPStatus.UNPROCESSABLE_ENTITY, detail=str(e)

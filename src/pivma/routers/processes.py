@@ -8,34 +8,42 @@ from sqlalchemy.orm import selectinload
 from pivma.core.authorization import (
     active_proponent_process_scope,
     can_manage_participants,
+    can_manage_process_templates,
 )
 from pivma.core.database.models import (
     AuditEvent,
+    FormTemplate,
     ProcessInstance,
     ProcessTemplate,
     ProcessTemplateVersion,
 )
 from pivma.core.database.models import User as UserModel
 from pivma.core.process_engine import (
+    NotFoundError,
+    ValidationError,
     instantiate_process,
+    update_form_template_definition,
 )
 from pivma.dependencies import CurrentUser, Session
 from pivma.schemas import (
     CreateProcessRequest,
+    FormFieldUpdateDefinition,
+    FormTemplateDetailResponse,
     ProcessInstanceDetail,
     ProcessInstanceListResponse,
     ProcessTemplateDetail,
     ProcessTemplateSummary,
     ProcessTimelineResponse,
     TimelineEvent,
+    UpdateFormTemplateRequest,
 )
 
-router = APIRouter(prefix="/processes", tags=["Processes"])
+router = APIRouter(prefix='/processes', tags=['Processes'])
 
 PARTICIPANT_EVENT_TYPES = frozenset({
-    "PARTICIPANT_ASSIGNED",
-    "PARTICIPANT_REVOKED",
-    "CONFLICT_DECLARED",
+    'PARTICIPANT_ASSIGNED',
+    'PARTICIPANT_REVOKED',
+    'CONFLICT_DECLARED',
 })
 
 
@@ -55,14 +63,14 @@ async def _visible_events(
     for event in events:
         if event.event_type in PARTICIPANT_EVENT_TYPES:
             context = event.context_data or {}
-            if context.get("participant_user_id") != str(current_user.id):
+            if context.get('participant_user_id') != str(current_user.id):
                 continue
         visible.append(event)
     return visible
 
 
 @router.get(
-    "/templates",
+    '/templates',
     response_model=list[ProcessTemplateSummary],
     status_code=HTTPStatus.OK,
 )
@@ -76,14 +84,16 @@ async def list_templates(session: Session, _: CurrentUser):
 
 
 @router.get(
-    "/templates/{key}",
+    '/templates/{key}',
     response_model=ProcessTemplateDetail,
     status_code=HTTPStatus.OK,
 )
 async def get_template_detail(key: str, session: Session, _: CurrentUser):
     stmt = (
         select(ProcessTemplate)
-        .where(ProcessTemplate.key == key, ProcessTemplate.deleted_at.is_(None))
+        .where(
+            ProcessTemplate.key == key, ProcessTemplate.deleted_at.is_(None)
+        )
         .options(selectinload(ProcessTemplate.versions))
     )
     res = await session.execute(stmt)
@@ -95,14 +105,20 @@ async def get_template_detail(key: str, session: Session, _: CurrentUser):
         )
 
     published_versions = sorted(
-        [v for v in template.versions if v.deleted_at is None and v.is_published],
+        [
+            v
+            for v in template.versions
+            if v.deleted_at is None and v.is_published
+        ],
         key=lambda x: x.version_number,
         reverse=True,
     )
     if not published_versions:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail=(f"Nenhuma versão publicada encontrada para o template '{key}'."),
+            detail=(
+                f"Nenhuma versão publicada encontrada para o template '{key}'."
+            ),
         )
 
     latest = published_versions[0]
@@ -115,8 +131,153 @@ async def get_template_detail(key: str, session: Session, _: CurrentUser):
     )
 
 
+@router.get(
+    '/templates/{key}/forms/{form_key}',
+    response_model=FormTemplateDetailResponse,
+    status_code=HTTPStatus.OK,
+)
+async def get_form_template_detail(
+    key: str,
+    form_key: str,
+    session: Session,
+    _: CurrentUser,
+):
+    # Validar se o processo existe
+    p_stmt = select(ProcessTemplate).where(
+        ProcessTemplate.key == key, ProcessTemplate.deleted_at.is_(None)
+    )
+    if not (await session.execute(p_stmt)).scalar_one_or_none():
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail=f"Template de processo '{key}' não encontrado.",
+        )
+
+    stmt = (
+        select(FormTemplate)
+        .where(
+            FormTemplate.key == form_key,
+            FormTemplate.deleted_at.is_(None),
+        )
+        .options(selectinload(FormTemplate.fields))
+    )
+    form_template = (await session.execute(stmt)).scalar_one_or_none()
+    if not form_template:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail=f"Template de formulário '{form_key}' não encontrado.",
+        )
+
+    active_fields = sorted(
+        [f for f in form_template.fields if f.deleted_at is None],
+        key=lambda x: x.order_index,
+    )
+
+    return FormTemplateDetailResponse(
+        id=form_template.id,
+        key=form_template.key,
+        name=form_template.name,
+        version=form_template.version,
+        description=form_template.description,
+        fields=[
+            FormFieldUpdateDefinition(
+                field_key=f.field_key,
+                label=f.label,
+                help_text=f.help_text,
+                field_type=f.field_type,
+                is_required=f.is_required,
+                order_index=f.order_index,
+                section=(
+                    f.validation_rules.get('section')
+                    if f.validation_rules
+                    else 'Geral'
+                ),
+                options=f.options,
+                validation_rules=f.validation_rules,
+                ai_evaluation_enabled=f.ai_evaluation_enabled,
+                ai_context_instructions=f.ai_context_instructions,
+                ai_validation_rules=f.ai_validation_rules,
+            )
+            for f in active_fields
+        ],
+    )
+
+
+@router.put(
+    '/templates/{key}/forms/{form_key}',
+    response_model=FormTemplateDetailResponse,
+    status_code=HTTPStatus.OK,
+)
+async def update_form_template_definition_endpoint(
+    key: str,
+    form_key: str,
+    body: UpdateFormTemplateRequest,
+    session: Session,
+    current_user: CurrentUser,
+):
+    if not await can_manage_process_templates(session, current_user.id):
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN,
+            detail='Acesso restrito à equipe de gestão BraCVAM.',
+        )
+
+    fields_data = [f.model_dump() for f in body.fields]
+    try:
+        template, fields = await update_form_template_definition(
+            session=session,
+            process_template_key=key,
+            form_template_key=form_key,
+            fields_data=fields_data,
+            user_id=current_user.id,
+            name=body.name,
+            description=body.description,
+        )
+    except NotFoundError as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail=str(exc)
+        ) from exc
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+
+    active_fields = sorted(
+        [f for f in fields if f.deleted_at is None],
+        key=lambda x: x.order_index,
+    )
+
+    return FormTemplateDetailResponse(
+        id=template.id,
+        key=template.key,
+        name=template.name,
+        version=template.version,
+        description=template.description,
+        fields=[
+            FormFieldUpdateDefinition(
+                field_key=f.field_key,
+                label=f.label,
+                help_text=f.help_text,
+                field_type=f.field_type,
+                is_required=f.is_required,
+                order_index=f.order_index,
+                section=(
+                    f.validation_rules.get('section')
+                    if f.validation_rules
+                    else 'Geral'
+                ),
+                options=f.options,
+                validation_rules=f.validation_rules,
+                ai_evaluation_enabled=f.ai_evaluation_enabled,
+                ai_context_instructions=f.ai_context_instructions,
+                ai_validation_rules=f.ai_validation_rules,
+            )
+            for f in active_fields
+        ],
+    )
+
+
+
 @router.post(
-    "",
+    '',
     response_model=ProcessInstanceDetail,
     status_code=HTTPStatus.CREATED,
 )
@@ -142,7 +303,9 @@ async def create_process(
     if not latest_version:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail=(f"Template '{body.template_key}' não encontrado ou inativo."),
+            detail=(
+                f"Template '{body.template_key}' não encontrado ou inativo."
+            ),
         )
 
     try:
@@ -155,7 +318,7 @@ async def create_process(
     except Exception as e:
         raise HTTPException(
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao instanciar processo: {e!s}",
+            detail=f'Erro ao instanciar processo: {e!s}',
         )
 
     return ProcessInstanceDetail(
@@ -172,7 +335,7 @@ async def create_process(
 
 
 @router.get(
-    "",
+    '',
     response_model=ProcessInstanceListResponse,
     status_code=HTTPStatus.OK,
 )
@@ -188,7 +351,7 @@ async def list_processes(
         .where(
             ProcessInstance.deleted_at.is_(None),
             or_(
-                ProcessInstance.status != "SUBMISSION",
+                ProcessInstance.status != 'SUBMISSION',
                 ProcessInstance.id.in_(
                     active_proponent_process_scope(current_user.id)
                 ),
@@ -238,7 +401,7 @@ async def list_processes(
 
 
 @router.get(
-    "/{id}",
+    '/{id}',
     response_model=ProcessInstanceDetail,
     status_code=HTTPStatus.OK,
 )
@@ -249,7 +412,7 @@ async def get_process(id: UUID, session: Session, current_user: CurrentUser):
             ProcessInstance.id == id,
             ProcessInstance.deleted_at.is_(None),
             or_(
-                ProcessInstance.status != "SUBMISSION",
+                ProcessInstance.status != 'SUBMISSION',
                 ProcessInstance.id.in_(
                     active_proponent_process_scope(current_user.id)
                 ),
@@ -264,7 +427,7 @@ async def get_process(id: UUID, session: Session, current_user: CurrentUser):
     p = (await session.execute(stmt)).scalar_one_or_none()
     if not p:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail="Processo não encontrado."
+            status_code=HTTPStatus.NOT_FOUND, detail='Processo não encontrado.'
         )
 
     return ProcessInstanceDetail(
@@ -281,16 +444,18 @@ async def get_process(id: UUID, session: Session, current_user: CurrentUser):
 
 
 @router.get(
-    "/{id}/timeline",
+    '/{id}/timeline',
     response_model=ProcessTimelineResponse,
     status_code=HTTPStatus.OK,
 )
-async def get_process_timeline(id: UUID, session: Session, current_user: CurrentUser):
+async def get_process_timeline(
+    id: UUID, session: Session, current_user: CurrentUser
+):
     p_stmt = select(ProcessInstance).where(
         ProcessInstance.id == id,
         ProcessInstance.deleted_at.is_(None),
         or_(
-            ProcessInstance.status != "SUBMISSION",
+            ProcessInstance.status != 'SUBMISSION',
             ProcessInstance.id.in_(
                 active_proponent_process_scope(current_user.id)
             ),
@@ -299,7 +464,7 @@ async def get_process_timeline(id: UUID, session: Session, current_user: Current
     p = (await session.execute(p_stmt)).scalar_one_or_none()
     if not p:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail="Processo não encontrado."
+            status_code=HTTPStatus.NOT_FOUND, detail='Processo não encontrado.'
         )
 
     events_stmt = (

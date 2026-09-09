@@ -202,26 +202,14 @@
         <a href="/demos/users/" class="btn">Abrir Demonstração &rarr;</a>
       </div>
 
-      <!-- Módulo 2: Em Construção Centralizado -->
-      <div class="card" style="border-style: dashed; background: #fafafa;">
-        <div style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
-          <div>
-            <div class="card-number" style="color: #64748b;">Módulo 2</div>
-            <h2 class="card-title" style="color: #475569;">Formulários Dinâmicos</h2>
-          </div>
-          
-          <div style="text-align: center; padding: 24px 0;">
-            <div style="font-size: 40px; margin-bottom: 8px;">🚧</div>
-            <span style="display: inline-block; font-size: 16px; font-weight: 800; background: #fef08a; color: #854d0e; padding: 6px 18px; border-radius: 999px;">
-              Em Construção
-            </span>
-            <p style="font-size: 14px; color: var(--text-muted); margin-top: 10px;">
-              Módulo de customização de formulários e processos em desenvolvimento.
-            </p>
-          </div>
-
-          <a href="/demos/forms/" class="btn" style="background: #94a3b8;">Ver Aviso &rarr;</a>
+      <!-- Módulo 2 -->
+      <div class="card">
+        <div>
+          <div class="card-number">Módulo 2</div>
+          <h2 class="card-title">Editor de Templates de Formulários</h2>
+          <p class="card-desc">Customização de formulários de processos padrão por administradores BraCVAM (seções, campos, tipos, obrigatoriedade e IA).</p>
         </div>
+        <a href="/demos/forms/" class="btn">Abrir Demonstração &rarr;</a>
       </div>
 
       <!-- Módulo 3 -->
@@ -300,11 +288,53 @@
         </tbody>
       </table>
 
-      <div style="margin-top: 20px; padding: 14px 18px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
-        <strong style="color: #166534; font-size: 16px;">Processo Único de Demonstração:</strong>
-        <p style="font-size: 15px; color: #1e293b; margin-top: 4px;">
-          O seed mantém apenas um processo ativo: <code>[DEMO] Processo de Teste</code> (preparado em status <strong>TRIAGE</strong>).
+      <div style="margin-top: 24px; padding: 18px 20px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
+        <strong style="color: #166534; font-size: 18px;">5 Processos Padrão do Sistema (BraCVAM Oficial - Fase 1):</strong>
+        <p style="font-size: 15px; color: #334155; margin-top: 6px; margin-bottom: 12px;">
+          O sistema carrega de forma declarativa os 5 processos canônicos oficiais para métodos alternativos, restritos à <strong>Fase 1: Submissão, Avaliação por IA e Deliberação BraCVAM</strong>:
         </p>
+        <table style="margin-top: 8px; background: #ffffff; border-radius: 6px; overflow: hidden;">
+          <thead>
+            <tr>
+              <th>Chave Semântica</th>
+              <th>Nome Oficial</th>
+              <th>Finalidade Regulatória</th>
+              <th>Status Inicial Seed</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>pre_validated_method</code></td>
+              <td><strong>Método Pré-Validado</strong></td>
+              <td>Candidato à Validação Interlaboratorial</td>
+              <td><span style="font-weight: 700; color: #0369a1; background: #bae6fd; padding: 2px 8px; border-radius: 999px; font-size: 13px;">TRIAGE (com IA)</span></td>
+            </tr>
+            <tr>
+              <td><code>scope_extension</code></td>
+              <td><strong>Extensão de Escopo de Aplicação</strong></td>
+              <td>Validação para Nova Finalidade de Uso</td>
+              <td><span style="font-weight: 700; color: #854d0e; background: #fef08a; padding: 2px 8px; border-radius: 999px; font-size: 13px;">SUBMISSION</span></td>
+            </tr>
+            <tr>
+              <td><code>me_too_validation</code></td>
+              <td><strong>Validação Me-Too</strong></td>
+              <td>Transferência de Sistema-Teste (Semelhante)</td>
+              <td><span style="font-weight: 700; color: #854d0e; background: #fef08a; padding: 2px 8px; border-radius: 999px; font-size: 13px;">SUBMISSION</span></td>
+            </tr>
+            <tr>
+              <td><code>validated_method_dossier</code></td>
+              <td><strong>Método Validado – Dossiê Submetido</strong></td>
+              <td>Revisão por Pares Concluída / Dossiê Pronto</td>
+              <td><span style="font-weight: 700; color: #854d0e; background: #fef08a; padding: 2px 8px; border-radius: 999px; font-size: 13px;">SUBMISSION</span></td>
+            </tr>
+            <tr>
+              <td><code>proof_of_concept</code></td>
+              <td><strong>Prova de Conceito (PoC)</strong></td>
+              <td>Método em Desenvolvimento e Otimização</td>
+              <td><span style="font-weight: 700; color: #854d0e; background: #fef08a; padding: 2px 8px; border-radius: 999px; font-size: 13px;">SUBMISSION</span></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <div class="footer-links">

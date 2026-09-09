@@ -15,8 +15,9 @@ from pivma.core.process_engine import (
     submit_proposal_form,
 )
 from scripts.seeds.common import get_session
+from scripts.seeds.seed_forms import OFFICIAL_DEMO_PROCESSES
 
-DEMO_PROCESS_TITLE = '[DEMO] Processo de Teste'
+TRIAGE_DEMO_TITLE = '[DEMO 1] Método Pré-Validado - Ensaio BCOP'
 
 
 async def run_seed_triage() -> None:
@@ -41,7 +42,7 @@ async def run_seed_triage() -> None:
                     select(ProcessTemplateVersion)
                     .join(ProcessTemplate)
                     .where(
-                        ProcessTemplate.key == 'full_validation',
+                        ProcessTemplate.key == 'pre_validated_method',
                         ProcessTemplate.deleted_at.is_(None),
                         ProcessTemplateVersion.is_published.is_(True),
                     )
@@ -56,21 +57,23 @@ async def run_seed_triage() -> None:
             print('! Template não encontrado. Execute seed_forms.py primeiro.')
             return
 
-        # 1. Inativar processos antigos para manter processo único
+        valid_titles = [item['title'] for item in OFFICIAL_DEMO_PROCESSES]
+
+        # 1. Inativar processos que não pertencem aos demos oficiais
         await session.execute(
             update(ProcessInstance)
             .where(
-                ProcessInstance.title != DEMO_PROCESS_TITLE,
+                ProcessInstance.title.not_in(valid_titles),
                 ProcessInstance.deleted_at.is_(None),
             )
             .values(deleted_at=func.now())
         )
 
-        # 2. Localizar ou criar o processo único
+        # 2. Localizar ou criar o processo de demonstração de triagem
         proc = (
             await session.execute(
                 select(ProcessInstance).where(
-                    ProcessInstance.title == DEMO_PROCESS_TITLE,
+                    ProcessInstance.title == TRIAGE_DEMO_TITLE,
                     ProcessInstance.deleted_at.is_(None),
                 )
             )
@@ -80,11 +83,11 @@ async def run_seed_triage() -> None:
             proc = await instantiate_process(
                 session=session,
                 template_version=tv,
-                title=DEMO_PROCESS_TITLE,
+                title=TRIAGE_DEMO_TITLE,
                 creator_user_id=proponent.id,
             )
             await session.commit()
-            print(f'✓ Processo único instanciado: {DEMO_PROCESS_TITLE}')
+            print(f'✓ Processo instanciado: {TRIAGE_DEMO_TITLE}')
 
         # 3. Se estiver em SUBMISSION, avançar para TRIAGE
         if proc.status == 'SUBMISSION':
@@ -97,6 +100,10 @@ async def run_seed_triage() -> None:
                     'Método alternativo validado segundo OECD TG 437 para'
                     ' substituição do teste de Draize in vivo.'
                 ),
+                'pre_validation_evidence': (
+                    'Estudos pré-validação com dados de repetibilidade e'
+                    ' transferibilidade preliminares.'
+                ),
                 'expected_laboratories_count': 3,
                 'study_protocol_file': 'protocolo_validacao_bcop.pdf',
             }
@@ -108,13 +115,11 @@ async def run_seed_triage() -> None:
                 user_id=proponent.id,
             )
             print(
-                f'✓ Proposta submetida para {DEMO_PROCESS_TITLE} (Status:'
+                f'✓ Proposta submetida para {TRIAGE_DEMO_TITLE} (Status:'
                 ' TRIAGE).'
             )
         else:
-            print(
-                f'✓ Processo único já preparado (Status atual: {proc.status}).'
-            )
+            print(f'✓ Processo já preparado (Status atual: {proc.status}).')
 
         await session.commit()
         print('✓ Seed de Triagem concluído com sucesso.')

@@ -17,30 +17,32 @@ from pivma.core.database.models import (
     UserInstitutionalAffiliation,
 )
 
-RBAC_READ = "rbac.read"
-RBAC_PROFILES_MANAGE = "rbac.profiles.manage"
-RBAC_ASSIGNMENTS_MANAGE = "rbac.assignments.manage"
-USERS_READ = "users.read"
-USERS_MANAGE = "users.manage"
-INSTITUTIONAL_READ = "institutional.read"
-INSTITUTIONAL_CATALOGS_MANAGE = "institutional.catalogs.manage"
-INSTITUTIONAL_AFFILIATIONS_MANAGE = "institutional.affiliations.manage"
-PROCESS_PARTICIPANTS_MANAGE = "process.participants.manage"
+RBAC_READ = 'rbac.read'
+RBAC_PROFILES_MANAGE = 'rbac.profiles.manage'
+RBAC_ASSIGNMENTS_MANAGE = 'rbac.assignments.manage'
+USERS_READ = 'users.read'
+USERS_MANAGE = 'users.manage'
+INSTITUTIONAL_READ = 'institutional.read'
+INSTITUTIONAL_CATALOGS_MANAGE = 'institutional.catalogs.manage'
+INSTITUTIONAL_AFFILIATIONS_MANAGE = 'institutional.affiliations.manage'
+PROCESS_PARTICIPANTS_MANAGE = 'process.participants.manage'
 ADMINISTRATIVE_PERMISSIONS = frozenset({
     RBAC_READ,
     RBAC_PROFILES_MANAGE,
     RBAC_ASSIGNMENTS_MANAGE,
 })
-ADMINISTRATOR_SYSTEM_KEY = "administrator"
+ADMINISTRATOR_SYSTEM_KEY = 'administrator'
 LABORATORY_ROLE_KEYS = frozenset({
-    "lead_laboratory",
-    "participating_laboratory",
+    'lead_laboratory',
+    'participating_laboratory',
 })
-GROUP_MANAGER_ROLE_KEY = "group_manager"
-PROPONENT_ROLE_KEY = "proponent"
+GROUP_MANAGER_ROLE_KEY = 'group_manager'
+PROPONENT_ROLE_KEY = 'proponent'
 
 
-async def effective_permission_codes(session: AsyncSession, user_id: UUID) -> list[str]:
+async def effective_permission_codes(
+    session: AsyncSession, user_id: UUID
+) -> list[str]:
     result = await session.scalars(
         select(Permission.code)
         .join(
@@ -51,7 +53,9 @@ async def effective_permission_codes(session: AsyncSession, user_id: UUID) -> li
             AccessProfile,
             AccessProfile.id == AccessProfilePermission.profile_id,
         )
-        .join(UserAccessProfile, UserAccessProfile.profile_id == AccessProfile.id)
+        .join(
+            UserAccessProfile, UserAccessProfile.profile_id == AccessProfile.id
+        )
         .join(User, User.id == UserAccessProfile.user_id)
         .where(
             User.id == user_id,
@@ -67,7 +71,9 @@ async def effective_permission_codes(session: AsyncSession, user_id: UUID) -> li
     return list(result)
 
 
-async def has_permission(session: AsyncSession, user_id: UUID, code: str) -> bool:
+async def has_permission(
+    session: AsyncSession, user_id: UUID, code: str
+) -> bool:
     return code in await effective_permission_codes(session, user_id)
 
 
@@ -174,7 +180,7 @@ async def replace_profile_permissions(
         )
     )
     if len(permissions) != len(requested):
-        raise ValueError("Permission not found")
+        raise ValueError('Permission not found')
     current = list(
         await session.scalars(
             select(AccessProfilePermission).where(
@@ -213,7 +219,9 @@ async def ensure_administrator_remains(session: AsyncSession) -> None:
             AccessProfilePermission,
             AccessProfilePermission.profile_id == AccessProfile.id,
         )
-        .join(Permission, Permission.id == AccessProfilePermission.permission_id)
+        .join(
+            Permission, Permission.id == AccessProfilePermission.permission_id
+        )
         .where(
             User.deleted_at.is_(None),
             UserAccessProfile.deleted_at.is_(None),
@@ -230,7 +238,7 @@ async def ensure_administrator_remains(session: AsyncSession) -> None:
         .limit(1)
     )
     if result.first() is None:
-        raise ValueError("At least one administrator must remain")
+        raise ValueError('At least one administrator must remain')
 
 
 # ==========================================
@@ -316,7 +324,7 @@ async def participant_read_scope(
     session: AsyncSession, user_id: UUID, process_id: UUID
 ) -> str | None:
     if await can_manage_participants(session, user_id, process_id):
-        return "manager"
+        return 'manager'
     result = await session.scalar(
         select(Assignment.id)
         .where(
@@ -325,7 +333,7 @@ async def participant_read_scope(
         )
         .limit(1)
     )
-    return "self" if result is not None else None
+    return 'self' if result is not None else None
 
 
 async def compute_effectiveness_map(
@@ -343,7 +351,9 @@ async def compute_effectiveness_map(
 
     active_user_ids = set(
         await session.scalars(
-            select(User.id).where(User.id.in_(user_ids), User.deleted_at.is_(None))
+            select(User.id).where(
+                User.id.in_(user_ids), User.deleted_at.is_(None)
+            )
         )
     )
 
@@ -377,7 +387,10 @@ async def compute_effectiveness_map(
 
     effectiveness: dict[UUID, bool] = {}
     for assignment in assignments:
-        if assignment.revoked_at is not None or assignment.deleted_at is not None:
+        if (
+            assignment.revoked_at is not None
+            or assignment.deleted_at is not None
+        ):
             effectiveness[assignment.id] = False
             continue
         if assignment.user_id not in active_user_ids:
@@ -463,6 +476,21 @@ async def has_current_conflict(
         .subquery()
     )
     count = await session.scalar(
-        select(func.count()).select_from(latest).where(latest.c.has_conflict.is_(True))
+        select(func.count())
+        .select_from(latest)
+        .where(latest.c.has_conflict.is_(True))
     )
     return (count or 0) > 0
+
+
+async def can_manage_process_templates(
+    session: AsyncSession, user_id: UUID
+) -> bool:
+    """Verifica se o usuário possui autorização para gerenciar e editar templates de processos e formulários."""
+    profiles = await active_profiles_for_user(session, user_id)
+    if any(p.system_key == ADMINISTRATOR_SYSTEM_KEY for p in profiles):
+        return True
+    if await has_permission(session, user_id, RBAC_READ):
+        return True
+    return any(p.name in {'Administrador', 'Grupo Gestor'} for p in profiles)
+

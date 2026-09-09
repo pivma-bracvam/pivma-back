@@ -22,7 +22,7 @@ async def test_triage_field_review_flow(client, session):
     resp = client.post(
         '/processes',
         json={
-            'template_key': 'full_validation',
+            'template_key': 'pre_validated_method',
             'title': 'Estudo de Triagem e Revisão',
         },
     )
@@ -33,6 +33,7 @@ async def test_triage_field_review_flow(client, session):
             'method_title': 'Método para Triagem',
             'endpoint_target': 'phototoxicity',
             'scientific_justification': 'Justificativa para análise.',
+            'pre_validation_evidence': 'Evidências prévias de repetibilidade.',
             'study_protocol_file': 'protocolo.pdf',
         }
     }

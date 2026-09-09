@@ -106,7 +106,7 @@ async def test_failed_instantiation_rolls_back_all_process_records(
         await session.execute(
             select(ProcessTemplateVersion)
             .join(ProcessTemplate)
-            .where(ProcessTemplate.key == 'full_validation')
+            .where(ProcessTemplate.key == 'pre_validated_method')
         )
     ).scalar_one()
 

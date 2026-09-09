@@ -56,13 +56,16 @@ def test_operational_logger_emits_valid_jsonl():
         lines = f.readlines()
 
     assert len(lines) >= 1
-    last_line = json.loads(lines[-1])
-    assert last_line['event'] == 'test_event'
-    assert last_line['correlation_id'] == 'corr-123'
-    assert last_line['status'] == 'SUCCESS'
-    assert last_line['duration_ms'] == expected_duration
-    assert 'timestamp' in last_line
-    assert last_line['level'] == 'info'
+    events = [json.loads(line) for line in lines]
+    matching = [e for e in events if e.get('correlation_id') == 'corr-123']
+    assert len(matching) >= 1
+    target = matching[-1]
+    assert target['event'] == 'test_event'
+    assert target['correlation_id'] == 'corr-123'
+    assert target['status'] == 'SUCCESS'
+    assert target['duration_ms'] == expected_duration
+    assert 'timestamp' in target
+    assert target['level'] == 'info'
 
 
 def test_ai_logger_emits_valid_jsonl():
@@ -86,13 +89,16 @@ def test_ai_logger_emits_valid_jsonl():
         lines = f.readlines()
 
     assert len(lines) >= 1
-    last_line = json.loads(lines[-1])
-    assert last_line['event'] == 'ai_step_completed'
-    assert last_line['correlation_id'] == 'corr-ai-456'
-    assert last_line['step'] == 'context_extraction'
-    assert last_line['step_duration_ms'] == expected_duration
-    assert last_line['tokens_used'] == expected_tokens
-    assert 'timestamp' in last_line
+    events = [json.loads(line) for line in lines]
+    matching = [e for e in events if e.get('correlation_id') == 'corr-ai-456']
+    assert len(matching) >= 1
+    target = matching[-1]
+    assert target['event'] == 'ai_step_completed'
+    assert target['correlation_id'] == 'corr-ai-456'
+    assert target['step'] == 'context_extraction'
+    assert target['step_duration_ms'] == expected_duration
+    assert target['tokens_used'] == expected_tokens
+    assert 'timestamp' in target
 
 
 def test_handler_rollover_retention_limit(tmp_path: Path):

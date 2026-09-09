@@ -14,7 +14,28 @@ from pivma.core.database.models import (
 from pivma.core.process_engine import instantiate_process
 from scripts.seeds.common import get_session
 
-DEMO_PROCESS_TITLE = '[DEMO] Processo de Teste'
+OFFICIAL_DEMO_PROCESSES = [
+    {
+        'key': 'pre_validated_method',
+        'title': '[DEMO 1] Método Pré-Validado - Ensaio BCOP',
+    },
+    {
+        'key': 'scope_extension',
+        'title': '[DEMO 2] Extensão de Escopo - Ensaio 3T3 NRU',
+    },
+    {
+        'key': 'me_too_validation',
+        'title': '[DEMO 3] Validação Me-Too - Epiderme Humana Reconstituída',
+    },
+    {
+        'key': 'validated_method_dossier',
+        'title': '[DEMO 4] Dossiê Submetido - Micronúcleos In Vitro',
+    },
+    {
+        'key': 'proof_of_concept',
+        'title': '[DEMO 5] Prova de Conceito - Modelo Órgão-em-Chip',
+    },
+]
 
 
 async def run_seed_forms() -> None:
@@ -34,58 +55,63 @@ async def run_seed_forms() -> None:
             )
             return
 
-        # 3. Obter template_version mais recente para full_validation
-        tv_stmt = (
-            select(ProcessTemplateVersion)
-            .join(ProcessTemplate)
-            .where(
-                ProcessTemplate.key == 'full_validation',
-                ProcessTemplate.deleted_at.is_(None),
-                ProcessTemplate.is_active.is_(True),
-                ProcessTemplateVersion.deleted_at.is_(None),
-                ProcessTemplateVersion.is_published.is_(True),
-            )
-            .order_by(ProcessTemplateVersion.version_number.desc())
-        )
-        tv = (await session.execute(tv_stmt)).scalars().first()
-        if tv is None:
-            print('! Template de validação não encontrado.')
-            return
+        valid_titles = [item['title'] for item in OFFICIAL_DEMO_PROCESSES]
 
-        # 4. Inativar processos antigos para manter apenas um processo
+        # 3. Inativar processos antigos não pertencentes à lista oficial
         await session.execute(
             update(ProcessInstance)
             .where(
-                ProcessInstance.title != DEMO_PROCESS_TITLE,
+                ProcessInstance.title.not_in(valid_titles),
                 ProcessInstance.deleted_at.is_(None),
             )
             .values(deleted_at=func.now())
         )
 
-        # 5. Garantir a existência do processo único de demonstração
-        existing_p = (
-            await session.execute(
-                select(ProcessInstance).where(
-                    ProcessInstance.title == DEMO_PROCESS_TITLE,
-                    ProcessInstance.deleted_at.is_(None),
-                )
-            )
-        ).scalar_one_or_none()
+        # 4. Instanciar cada um dos 5 processos oficiais caso não existam
+        for item in OFFICIAL_DEMO_PROCESSES:
+            key = item['key']
+            title = item['title']
 
-        if existing_p is None:
-            await instantiate_process(
-                session=session,
-                template_version=tv,
-                title=DEMO_PROCESS_TITLE,
-                creator_user_id=proponent.id,
+            tv_stmt = (
+                select(ProcessTemplateVersion)
+                .join(ProcessTemplate)
+                .where(
+                    ProcessTemplate.key == key,
+                    ProcessTemplate.deleted_at.is_(None),
+                    ProcessTemplate.is_active.is_(True),
+                    ProcessTemplateVersion.deleted_at.is_(None),
+                    ProcessTemplateVersion.is_published.is_(True),
+                )
+                .order_by(ProcessTemplateVersion.version_number.desc())
             )
-            await session.commit()
-            print(f'✓ Processo único instanciado: {DEMO_PROCESS_TITLE}')
-        else:
-            print(f'✓ Processo único já existente: {DEMO_PROCESS_TITLE}')
+            tv = (await session.execute(tv_stmt)).scalars().first()
+            if tv is None:
+                print(f"! Template '{key}' não encontrado.")
+                continue
+
+            existing_p = (
+                await session.execute(
+                    select(ProcessInstance).where(
+                        ProcessInstance.title == title,
+                        ProcessInstance.deleted_at.is_(None),
+                    )
+                )
+            ).scalar_one_or_none()
+
+            if existing_p is None:
+                await instantiate_process(
+                    session=session,
+                    template_version=tv,
+                    title=title,
+                    creator_user_id=proponent.id,
+                )
+                await session.commit()
+                print(f'✓ Processo oficial instanciado: {title} ({key})')
+            else:
+                print(f'✓ Processo oficial já existente: {title} ({key})')
 
         await session.commit()
-        print('✓ Seed de Templates e Formulários concluído com sucesso.')
+        print('✓ Seed dos 5 Processos e Formulários concluído com sucesso.')
 
 
 def main() -> None:

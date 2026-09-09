@@ -73,24 +73,61 @@ async def test_sync_template_from_dict(session):
 
 
 @pytest.mark.asyncio
-async def test_bootstrap_all_templates_loads_full_validation(session):
+async def test_bootstrap_all_templates_loads_official_processes(session):
     await bootstrap_all_templates(session)
 
-    stmt = select(ProcessTemplate).where(
-        ProcessTemplate.key == 'full_validation'
-    )
-    pt = (await session.execute(stmt)).scalar_one_or_none()
-    assert pt is not None
-    assert pt.name == 'Validação Completa'
+    expected_keys = [
+        (
+            'pre_validated_method',
+            'Método Pré-Validado',
+            'submission_pre_validated_v1',
+        ),
+        (
+            'scope_extension',
+            'Extensão de Escopo de Aplicação',
+            'submission_scope_extension_v1',
+        ),
+        ('me_too_validation', 'Validação Me-Too', 'submission_me_too_v1'),
+        (
+            'validated_method_dossier',
+            'Método Validado – Dossiê Submetido',
+            'submission_validated_dossier_v1',
+        ),
+        (
+            'proof_of_concept',
+            'Prova de Conceito (PoC)',
+            'submission_proof_of_concept_v1',
+        ),
+    ]
 
-    v_stmt = select(ProcessTemplateVersion).where(
-        ProcessTemplateVersion.template_id == pt.id
-    )
-    versions = (await session.execute(v_stmt)).scalars().all()
-    assert len(versions) >= 1
+    for p_key, p_name, f_key in expected_keys:
+        stmt = select(ProcessTemplate).where(
+            ProcessTemplate.key == p_key,
+            ProcessTemplate.deleted_at.is_(None),
+            ProcessTemplate.is_active.is_(True),
+        )
+        pt = (await session.execute(stmt)).scalar_one_or_none()
+        assert pt is not None, f'Template {p_key} não encontrado no banco.'
+        assert pt.name == p_name
 
-    f_stmt = select(FormTemplate).where(
-        FormTemplate.key == 'submission_full_validation_v1'
+        v_stmt = select(ProcessTemplateVersion).where(
+            ProcessTemplateVersion.template_id == pt.id
+        )
+        versions = (await session.execute(v_stmt)).scalars().all()
+        assert len(versions) >= 1
+
+        f_stmt = select(FormTemplate).where(
+            FormTemplate.key == f_key,
+            FormTemplate.deleted_at.is_(None),
+        )
+        form = (await session.execute(f_stmt)).scalar_one_or_none()
+        assert form is not None, f'Formulário {f_key} não encontrado no banco.'
+
+    # Garantir que full_validation não está ativo
+    old_stmt = select(ProcessTemplate).where(
+        ProcessTemplate.key == 'full_validation',
+        ProcessTemplate.deleted_at.is_(None),
+        ProcessTemplate.is_active.is_(True),
     )
-    form = (await session.execute(f_stmt)).scalar_one_or_none()
-    assert form is not None
+    old_pt = (await session.execute(old_stmt)).scalar_one_or_none()
+    assert old_pt is None

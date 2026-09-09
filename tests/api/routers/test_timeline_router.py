@@ -22,7 +22,7 @@ async def test_process_timeline_events_recorded_and_ordered(client, session):
     resp = client.post(
         '/processes',
         json={
-            'template_key': 'full_validation',
+            'template_key': 'pre_validated_method',
             'title': 'Processo para Teste de Linha do Tempo',
         },
     )
@@ -42,6 +42,9 @@ async def test_process_timeline_events_recorded_and_ordered(client, session):
                 'method_title': 'Método Timeline',
                 'endpoint_target': 'phototoxicity',
                 'scientific_justification': 'Justificativa para timeline.',
+                'pre_validation_evidence': (
+                    'Evidências prévias de repetibilidade.'
+                ),
                 'study_protocol_file': 'protocolo.pdf',
             }
         },

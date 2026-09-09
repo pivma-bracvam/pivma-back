@@ -138,8 +138,18 @@
     <div class="card">
       <h2>Passo 1: Criar Novo Processo de Validação (POST /processes)</h2>
       <div style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
+        <div class="form-group" style="flex: 1; min-width: 280px; margin-bottom: 0;">
+          <label>Modelo Oficial do Processo *</label>
+          <select id="process-template">
+            <option value="pre_validated_method">Método Pré-Validado (Candidato à Validação Interlaboratorial)</option>
+            <option value="scope_extension">Extensão de Escopo de Aplicação (Validação para Nova Finalidade)</option>
+            <option value="me_too_validation">Validação Me-Too (Transferência de Sistema-Teste Semelhante)</option>
+            <option value="validated_method_dossier">Método Validado – Dossiê Submetido (Revisão Concluída)</option>
+            <option value="proof_of_concept">Prova de Conceito (PoC) (Desenvolvimento e Otimização)</option>
+          </select>
+        </div>
         <div class="form-group" style="flex: 2; min-width: 280px; margin-bottom: 0;">
-          <label>Título do Novo Método Alternativo</label>
+          <label>Título do Novo Método Alternativo *</label>
           <input type="text" id="process-title" placeholder="Ex: Método HET-CAM para Irritação Ocular">
         </div>
         <button class="btn btn-primary" onclick="createProcess()">Criar Processo</button>
@@ -239,13 +249,32 @@
       });
     }
 
+    let currentFields = [];
+
+    async function loadTemplates() {
+      try {
+        const res = await fetch('/processes/templates', { credentials: 'include' });
+        if (!res.ok) return;
+        const templates = await res.json();
+        const select = document.getElementById('process-template');
+        select.innerHTML = '';
+        templates.forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t.key;
+          opt.textContent = `${t.name} (${t.key})`;
+          select.appendChild(opt);
+        });
+      } catch (err) {}
+    }
+
     async function createProcess() {
+      const template_key = document.getElementById('process-template').value;
       const title = document.getElementById('process-title').value.trim() || 'Novo Método Alternativo OECD';
       const res = await fetch('/processes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ template_key: 'full_validation', title })
+        body: JSON.stringify({ template_key, title })
       });
       const data = await res.json().catch(() => null);
       inspect('POST', '/processes', res.status, data);
@@ -294,58 +323,151 @@
         return;
       }
 
-      container.innerHTML = `
-        <div class="form-group">
-          <label>Título do Método Proposto *</label>
-          <input type="text" id="field-method_title" value="${data.values?.method_title || ''}" placeholder="Ex: Método In Vitro 3R">
-        </div>
-        <div class="form-group">
-          <label>Desfecho / Toxicidade Avaliada *</label>
-          <select id="field-endpoint_target">
-            <option value="ocular_irritation">Irritação / Corrosão Ocular</option>
-            <option value="skin_sensitization">Sensibilização Cutânea</option>
-            <option value="phototoxicity">Fototoxicidade</option>
-            <option value="acute_toxicity">Toxicidade Aguda</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Justificativa Científica e Mecanística *</label>
-          <textarea id="field-scientific_justification" rows="3" placeholder="Descreva os fundamentos mecanísticos do ensaio...">${data.values?.scientific_justification || ''}</textarea>
-        </div>
-        <div class="form-group">
-          <label>Estimativa de Laboratórios Participantes</label>
-          <input type="number" id="field-expected_laboratories_count" min="1" max="50" value="${data.values?.expected_laboratories_count || 3}">
-        </div>
-        <div class="form-group">
-          <label>Protocolo Detalhado do Estudo (Arquivo PDF) *</label>
-          <input type="text" id="field-study_protocol_file" value="${data.values?.study_protocol_file || 'protocolo_metodo_validacao.pdf'}">
-        </div>
-      `;
+      currentFields = data.fields || [];
+      const values = data.values || {};
 
-      if (data.values?.endpoint_target) {
-        document.getElementById('field-endpoint_target').value = data.values.endpoint_target;
+      let html = `<p style="margin-bottom: 16px; color: var(--text-muted); font-size: 15px;">Formulário Oficial: <code>${data.template_key}</code> &bull; Status de Envio: <strong>${data.is_submitted ? 'Submetido' : 'Rascunho Aberto'}</strong></p>`;
+
+      const sectionsMap = new Map();
+      currentFields.forEach(f => {
+        const sec = f.section || (f.validation_rules && f.validation_rules.section) || 'Geral';
+        if (!sectionsMap.has(sec)) sectionsMap.set(sec, []);
+        sectionsMap.get(sec).push(f);
+      });
+
+      sectionsMap.forEach((secFields, secName) => {
+        html += `<div style="font-weight: 700; font-size: 14px; color: #1e293b; background: #f1f5f9; padding: 6px 10px; border-left: 3px solid var(--primary); margin: 16px 0 10px 0;">Seção: ${secName}</div>`;
+        secFields.forEach(f => {
+          const val = values[f.field_key] !== undefined && values[f.field_key] !== null ? values[f.field_key] : '';
+          const reqBadge = f.is_required ? '<span style="color: var(--danger);">*</span>' : '<span style="color: var(--text-muted); font-size: 13px;">(opcional)</span>';
+          const aiBadge = f.ai_evaluation_enabled ? '<span style="font-size: 11px; font-weight: 600; color: #4338ca; background: #e0e7ff; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">Avaliado por IA</span>' : '';
+          const help = f.help_text ? `<small style="color: var(--text-muted); font-size: 13px;">${f.help_text}</small>` : '';
+
+          html += `<div class="form-group">`;
+          html += `<label for="field-${f.field_key}">${f.label} ${reqBadge} ${aiBadge}</label>`;
+          if (help) html += help;
+
+          if (f.field_type === 'textarea') {
+            html += `<textarea id="field-${f.field_key}" rows="3" placeholder="${f.help_text || ''}">${val}</textarea>`;
+          } else if (f.options && Array.isArray(f.options) && f.options.length > 0) {
+            html += `<select id="field-${f.field_key}">`;
+            f.options.forEach(opt => {
+              const optVal = typeof opt === 'object' ? opt.value : opt;
+              const optLabel = typeof opt === 'object' ? opt.label : opt;
+              const selected = String(val) === String(optVal) ? 'selected' : '';
+              html += `<option value="${optVal}" ${selected}>${optLabel}</option>`;
+            });
+            html += `</select>`;
+          } else if (f.field_type === 'integer' || f.field_type === 'float') {
+            html += `<input type="number" id="field-${f.field_key}" value="${val}" placeholder="${f.help_text || ''}">`;
+          } else {
+            html += `<input type="text" id="field-${f.field_key}" value="${val}" placeholder="${f.help_text || ''}">`;
+          }
+          html += `</div>`;
+        });
+      });
+
+      if (data.ai_evaluation) {
+        html += renderAiReportBox(data.ai_evaluation);
       }
 
-      document.getElementById('submission-actions').style.display = 'flex';
+      container.innerHTML = html;
+
+      if (!data.is_submitted) {
+        document.getElementById('submission-actions').style.display = 'flex';
+        document.getElementById('transition-card').style.display = 'none';
+      } else {
+        document.getElementById('submission-actions').style.display = 'none';
+        document.getElementById('transition-card').style.display = 'block';
+      }
+    }
+
+    function renderAiReportBox(aiReport) {
+      if (!aiReport || !aiReport.evaluations) return '';
+      let out = `<div style="margin-top: 24px; padding: 16px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px;">`;
+      out += `<h3 style="font-size: 16px; color: #1e293b; margin-bottom: 8px;">Parecer Técnico Automatizado por IA:</h3>`;
+      out += `<p style="font-size: 14px; color: var(--text-muted); margin-bottom: 12px;">ID de Correlação: <code>${aiReport.correlation_id || '-'}</code></p>`;
+      
+      aiReport.evaluations.forEach(ev => {
+        const vColor = ev.verdict === 'APPROVED' ? '#15803d' : (ev.verdict === 'NEEDS_ADJUSTMENT' ? '#b45309' : '#b91c1c');
+        out += `<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 10px;">`;
+        out += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">`;
+        out += `<strong>Campo: <code>${ev.field_id || '-'}</code></strong>`;
+        out += `<span style="font-weight: 700; color: ${vColor}; background: #fef2f2; padding: 2px 8px; border-radius: 4px; font-size: 13px;">Veredito: ${ev.verdict} (Confiança: ${(ev.confidence_score * 100).toFixed(0)}%)</span>`;
+        out += `</div>`;
+        out += `<p style="font-size: 14px; color: #334155;"><strong>Resumo:</strong> ${ev.summary || '-'}</p>`;
+        if (ev.inconsistencies && ev.inconsistencies.length > 0) {
+          out += `<p style="font-size: 13px; color: #b91c1c; margin-top: 4px;"><strong>Inconsistências:</strong> ${ev.inconsistencies.join('; ')}</p>`;
+        }
+        if (ev.recommendations && ev.recommendations.length > 0) {
+          out += `<p style="font-size: 13px; color: #0369a1; margin-top: 4px;"><strong>Recomendações:</strong> ${ev.recommendations.join('; ')}</p>`;
+        }
+        out += `</div>`;
+      });
+      out += `</div>`;
+      return out;
     }
 
     function fillValidSampleData() {
-      document.getElementById('field-method_title').value = 'Validação In Vitro de Citotoxicidade por Fotossensibilização 3T3';
-      document.getElementById('field-endpoint_target').value = 'phototoxicity';
-      document.getElementById('field-scientific_justification').value = 'Ensaio robusto baseado em células 3T3 substituindo testes em coelhos conforme Guia OCDE TG 432.';
-      document.getElementById('field-expected_laboratories_count').value = 4;
-      document.getElementById('field-study_protocol_file').value = 'protocolo_ensaio_3t3_v1.pdf';
+      currentFields.forEach(f => {
+        const el = document.getElementById(`field-${f.field_key}`);
+        if (!el) return;
+        const k = f.field_key;
+
+        if (k === 'method_title') {
+          el.value = 'Ensaio BCOP de Opacidade e Permeabilidade Corneana In Vitro';
+        } else if (k === 'endpoint_target') {
+          if (el.options && el.options.length > 0) el.selectedIndex = 0;
+        } else if (k === 'scientific_justification') {
+          el.value = 'Ensaio robusto baseado em tecidos corneanos substituindo o teste de Draize in vivo conforme OECD TG 437.';
+        } else if (k === 'pre_validation_evidence') {
+          el.value = 'Estudos prévios com repetibilidade intra e interlaboratorial demonstrada em 3 centros analíticos.';
+        } else if (k === 'original_method_reference') {
+          el.value = 'Guia OCDE 432 / Validação Internacional ECVAM 2018';
+        } else if (k === 'new_application_scope') {
+          el.value = 'Extensão de aplicabilidade para formulações oftálmicas viscosas e fitocosméticos.';
+        } else if (k === 'reference_validated_method') {
+          el.value = 'OECD TG 439 - Reconstructed Human Epidermis (RhE) Test Method';
+        } else if (k === 'me_too_structural_similarity') {
+          el.value = 'Similaridade histológica de 96% na camada córnea e viabilidade tecidual concordante.';
+        } else if (k === 'completed_validation_reports') {
+          el.value = 'Relatório Conclusivo de Validação Interlaboratorial BraCVAM 2024 (PDF)';
+        } else if (k === 'peer_review_dossier') {
+          el.value = 'Dossiê submetido com aprovação de comitê de pares OECD (Doc ENV/JM/MONO(2023)12)';
+        } else if (k === 'poc_hypothesis') {
+          el.value = 'Hipótese de correlação funcional entre barreira microfluídica e permeabilidade intestinal.';
+        } else if (k === 'preliminary_data_summary') {
+          el.value = 'Dados preliminares com 15 substâncias de referência evidenciando correlação R² = 0.91.';
+        } else if (k === 'next_development_steps') {
+          el.value = 'Padronização do protocolo operacional padrão (POP) e transferência para 2 laboratórios associados.';
+        } else if (k.includes('laboratories_count')) {
+          el.value = 3;
+        } else if (k.includes('file') || k.includes('protocol')) {
+          el.value = 'protocolo_validacao_oficial.pdf';
+        } else if (f.field_type === 'integer') {
+          el.value = 3;
+        } else if (f.field_type === 'textarea') {
+          el.value = 'Fundamentação técnica e científica em conformidade com as diretrizes regulatórias vigentes do BraCVAM.';
+        } else {
+          el.value = 'Dado de teste regulatório padrão';
+        }
+      });
     }
 
     async function submitProposalForm() {
       if (!activeProcessId) return;
-      const values = {
-        method_title: document.getElementById('field-method_title').value.trim(),
-        endpoint_target: document.getElementById('field-endpoint_target').value,
-        scientific_justification: document.getElementById('field-scientific_justification').value.trim(),
-        expected_laboratories_count: parseInt(document.getElementById('field-expected_laboratories_count').value, 10) || null,
-        study_protocol_file: document.getElementById('field-study_protocol_file').value.trim()
-      };
+      const values = {};
+      currentFields.forEach(f => {
+        const el = document.getElementById(`field-${f.field_key}`);
+        if (!el) return;
+        if (f.field_type === 'integer') {
+          values[f.field_key] = el.value !== '' ? parseInt(el.value, 10) : null;
+        } else if (f.field_type === 'float') {
+          values[f.field_key] = el.value !== '' ? parseFloat(el.value) : null;
+        } else {
+          values[f.field_key] = el.value.trim();
+        }
+      });
 
       const url = `/processes/${activeProcessId}/activities/proposal_submission/form`;
       const res = await fetch(url, {
@@ -360,7 +482,19 @@
       if (res.ok) {
         updateStatusBadge('TRIAGE');
         document.getElementById('submission-actions').style.display = 'none';
-        document.getElementById('transition-card').style.display = 'block';
+        
+        let transHtml = `<h2 style="color: var(--success); margin-bottom: 8px;">&check; Proposta Submetida com Sucesso!</h2>`;
+        transHtml += `<p style="font-size: 16px; margin-bottom: 12px;">O processo avançou para o status <strong>TRIAGE</strong> e a atividade de Triagem Inicial foi desbloqueada.</p>`;
+        
+        if (data.ai_evaluation) {
+          transHtml += renderAiReportBox(data.ai_evaluation);
+        }
+        
+        transHtml += `<div style="margin-top: 16px;"><a href="/demos/triage/" class="btn btn-primary">&rarr; Ir para a Página de Triagem & Decisão</a></div>`;
+        
+        const transCard = document.getElementById('transition-card');
+        transCard.innerHTML = transHtml;
+        transCard.style.display = 'block';
       } else {
         alert('Falha na submissão: ' + (data?.detail || res.statusText));
       }
@@ -369,6 +503,7 @@
     // Inicialização
     (async () => {
       await checkSession();
+      await loadTemplates();
       await loadProcesses();
     })();
   </script>

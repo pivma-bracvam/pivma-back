@@ -36,7 +36,7 @@ async def test_full_process_engine_flow_approved(session):
     pt_stmt = (
         select(ProcessTemplateVersion)
         .join(ProcessTemplate)
-        .where(ProcessTemplate.key == 'full_validation')
+        .where(ProcessTemplate.key == 'pre_validated_method')
     )
     ptv = (await session.execute(pt_stmt)).scalar_one()
 
@@ -78,6 +78,7 @@ async def test_full_process_engine_flow_approved(session):
         'method_title': 'Método 3T3 NRU Completo',
         'endpoint_target': 'ocular_irritation',
         'scientific_justification': 'Justificativa baseada em ensaio celular.',
+        'pre_validation_evidence': 'Evidências prévias de repetibilidade.',
         'study_protocol_file': 'protocolo.pdf',
     }
     sub_act, sub_run, artifact = await submit_proposal_form(
@@ -87,6 +88,7 @@ async def test_full_process_engine_flow_approved(session):
     assert sub_act.status == 'COMPLETED'
     assert sub_run.status == 'COMPLETED'
     assert artifact.key == 'proposal_dossier'
+    assert artifact.metadata_payload.get('ai_evaluation') is not None
 
     # Verify process moved to TRIAGE and triage unblocked
     p_refreshed = (
@@ -144,7 +146,7 @@ async def test_process_engine_flow_diligence_reexecution(session):
         await session.execute(
             select(ProcessTemplateVersion)
             .join(ProcessTemplate)
-            .where(ProcessTemplate.key == 'full_validation')
+            .where(ProcessTemplate.key == 'pre_validated_method')
         )
     ).scalar_one()
 
@@ -157,6 +159,7 @@ async def test_process_engine_flow_diligence_reexecution(session):
         'method_title': 'Título Inicial',
         'endpoint_target': 'skin_sensitization',
         'scientific_justification': 'Justificativa preliminar',
+        'pre_validation_evidence': 'Evidências prévias de repetibilidade.',
         'study_protocol_file': 'protocolo.pdf',
     }
     await submit_proposal_form(
@@ -204,7 +207,7 @@ async def test_process_engine_flow_rejected(session):
         await session.execute(
             select(ProcessTemplateVersion)
             .join(ProcessTemplate)
-            .where(ProcessTemplate.key == 'full_validation')
+            .where(ProcessTemplate.key == 'pre_validated_method')
         )
     ).scalar_one()
 
@@ -216,6 +219,7 @@ async def test_process_engine_flow_rejected(session):
         'method_title': 'Método Inviável',
         'endpoint_target': 'phototoxicity',
         'scientific_justification': 'Sem fundamentação científica.',
+        'pre_validation_evidence': 'Evidências prévias de repetibilidade.',
         'study_protocol_file': 'protocolo.pdf',
     }
     await submit_proposal_form(

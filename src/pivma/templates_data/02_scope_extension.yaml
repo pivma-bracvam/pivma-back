@@ -1,0 +1,114 @@
+process_template:
+  key: "scope_extension"
+  name: "Extensão de Escopo de Aplicação"
+  description: "Método já validado sendo proposta uma nova aplicação regulatória ou nova finalidade de uso (Fitness-for-Purpose Validation)."
+  version: 1
+  is_active: true
+
+phases:
+  - key: "phase_1_submission_triage"
+    name: "Fase 1: Submissão e Triagem"
+    order_index: 1
+    activities:
+      - key: "proposal_submission"
+        name: "Submissão da Proposta"
+        order_index: 1
+        assigned_role: "PROPONENT"
+        form_template_key: "submission_scope_extension_v1"
+        dependencies: []
+
+      - key: "triage_evaluation"
+        name: "Triagem e Decisão BraCVAM"
+        order_index: 2
+        assigned_role: "TRIAGE_LEAD"
+        form_template_key: "triage_review_v1"
+        dependencies:
+          - required_activity_key: "proposal_submission"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+forms:
+  - key: "submission_scope_extension_v1"
+    name: "Formulário de Submissão - Extensão de Escopo"
+    version: 1
+    description: "Proposta de nova finalidade de uso ou matriz biológica para método previamente validado."
+    fields:
+      - field_key: "method_title"
+        label: "Título da Proposta de Extensão"
+        field_type: "text"
+        is_required: true
+        order_index: 1
+
+      - field_key: "base_validated_method"
+        label: "Método Validado de Referência (ID ou Guia OCDE)"
+        field_type: "text"
+        is_required: true
+        order_index: 2
+
+      - field_key: "new_application_endpoint"
+        label: "Novo Desfecho ou Nova Finalidade Proposta"
+        field_type: "select"
+        is_required: true
+        order_index: 3
+        options:
+          - value: "medical_devices"
+            label: "Dispositivos Médicos"
+          - value: "agrochemicals"
+            label: "Agroquímicos e Defensivos"
+          - value: "nanomaterials"
+            label: "Nanomateriais"
+          - value: "cosmetics_ingredients"
+            label: "Novos Ingredientes Cosméticos"
+
+      - field_key: "scope_extension_justification"
+        label: "Justificativa da Extensão de Escopo"
+        field_type: "textarea"
+        is_required: true
+        order_index: 4
+        ai_evaluation_enabled: true
+        ai_context_instructions: "Avaliar se a justificativa técnica comprova que o método é biologicamente plausível para a nova classe de substâncias ou novo uso pretendido."
+        ai_validation_rules:
+          min_length: 50
+
+      - field_key: "applicability_domain_data"
+        label: "Evidências de Adequação do Domínio de Aplicabilidade"
+        field_type: "textarea"
+        is_required: true
+        order_index: 5
+        ai_evaluation_enabled: true
+        ai_context_instructions: "Analisar as limitações físico-químicas e compatibilidade da nova matriz/produtos químicos de teste."
+        ai_validation_rules:
+          min_length: 50
+
+      - field_key: "adapted_protocol_file"
+        label: "Protocolo Adaptado para o Novo Escopo (PDF)"
+        field_type: "file_upload"
+        is_required: true
+        order_index: 6
+        validation_rules:
+          allowed_extensions: ["pdf"]
+          max_size_mb: 25
+
+  - key: "triage_review_v1"
+    name: "Formulário de Parecer de Triagem"
+    version: 1
+    description: "Avaliação técnica preliminar dos requisitos de elegibilidade da proposta."
+    fields:
+      - field_key: "regulatory_adherence_score"
+        label: "Nível de Aderência Regulatória"
+        field_type: "select"
+        is_required: true
+        order_index: 1
+        options:
+          - value: "high"
+            label: "Alto - Atende a todas as diretrizes da OCDE"
+          - value: "medium"
+            label: "Médio - Pendências documentais sanáveis"
+          - value: "low"
+            label: "Baixo - Não atende critérios mínimos"
+
+      - field_key: "triage_summary_notes"
+        label: "Notas de Síntese da Triagem"
+        field_type: "textarea"
+        is_required: true
+        order_index: 2

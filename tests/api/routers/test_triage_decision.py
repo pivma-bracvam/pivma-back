@@ -24,7 +24,7 @@ async def test_triage_decision_needs_revision_and_resubmission(
     resp = client.post(
         '/processes',
         json={
-            'template_key': 'full_validation',
+            'template_key': 'pre_validated_method',
             'title': 'Estudo com Diligência',
         },
     )
@@ -37,6 +37,9 @@ async def test_triage_decision_needs_revision_and_resubmission(
                 'method_title': 'Título V1',
                 'endpoint_target': 'corrosivity',
                 'scientific_justification': 'Justificativa inicial.',
+                'pre_validation_evidence': (
+                    'Evidências prévias de repetibilidade.'
+                ),
                 'study_protocol_file': 'protocolo_v1.pdf',
             }
         },
@@ -73,6 +76,7 @@ async def test_triage_decision_needs_revision_and_resubmission(
                 'method_title': 'Título V2 Corrigido',
                 'endpoint_target': 'corrosivity',
                 'scientific_justification': 'Justificativa atualizada.',
+                'pre_validation_evidence': 'Evidências prévias atualizadas.',
                 'study_protocol_file': 'protocolo_v2.pdf',
             }
         },

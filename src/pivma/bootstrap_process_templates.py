@@ -1,4 +1,5 @@
 import asyncio
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -58,7 +59,9 @@ async def _sync_form_fields(
             field.order_index = fld.get('order_index', 0)
             field.options = fld.get('options')
             field.validation_rules = fld.get('validation_rules')
-            field.ai_evaluation_enabled = fld.get('ai_evaluation_enabled', False)
+            field.ai_evaluation_enabled = fld.get(
+                'ai_evaluation_enabled', False
+            )
             field.ai_context_instructions = fld.get('ai_context_instructions')
             field.ai_validation_rules = fld.get('ai_validation_rules')
 
@@ -159,9 +162,23 @@ async def bootstrap_all_templates(session: AsyncSession) -> None:
     if not templates_dir.exists():
         return
 
-    for yaml_file in templates_dir.glob('*.yaml'):
+    loaded_keys = set()
+    for yaml_file in sorted(templates_dir.glob('*.yaml')):
         data = load_yaml_template(yaml_file)
+        if 'process_template' in data and 'key' in data['process_template']:
+            loaded_keys.add(data['process_template']['key'])
         await sync_template_from_dict(session, data)
+
+    # Desativar e soft-delete em templates descontinuados (ex: full_validation)
+    all_stmt = select(ProcessTemplate).where(
+        ProcessTemplate.deleted_at.is_(None)
+    )
+    res = await session.execute(all_stmt)
+    for pt in res.scalars().all():
+        if pt.key not in loaded_keys:
+            pt.is_active = False
+            pt.deleted_at = datetime.now(UTC)
+    await session.commit()
 
 
 async def main() -> None:

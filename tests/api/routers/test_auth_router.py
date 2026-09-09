@@ -305,7 +305,10 @@ def test_openapi_declares_access_token_as_cookie_security_scheme(client):
     current_user_access = schema['components']['schemas']['CurrentUserAccess']
     user_identity = schema['components']['schemas']['UserIdentity']
     assert user_identity['required'] == [
-        'id', 'username', 'email', 'full_name'
+        'id',
+        'username',
+        'email',
+        'full_name',
     ]
     assert user_identity['properties']['full_name'] == {
         'anyOf': [{'type': 'string'}, {'type': 'null'}],

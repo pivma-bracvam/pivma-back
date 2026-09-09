@@ -33,7 +33,7 @@ async def test_form_draft_and_submission_flow(client, session):
     resp = client.post(
         '/processes',
         json={
-            'template_key': 'full_validation',
+            'template_key': 'pre_validated_method',
             'title': 'Estudo de Irritação Cutânea',
         },
     )
@@ -46,7 +46,7 @@ async def test_form_draft_and_submission_flow(client, session):
     )
     assert form_resp.status_code == HTTPStatus.OK
     form_data = form_resp.json()
-    assert form_data['template_key'] == 'submission_full_validation_v1'
+    assert form_data['template_key'] == 'submission_pre_validated_v1'
     assert len(form_data['fields']) >= 4
     assert not form_data['is_submitted']
 
@@ -69,19 +69,20 @@ async def test_form_draft_and_submission_flow(client, session):
     )
     assert form_resp_2.json()['values']['method_title'] == 'Título em Rascunho'
 
-    # 5. Fail formal submit when required fields are missing
-    invalid_submit_resp = client.post(
+    # 5. Try submitting incomplete form (should fail)
+    incomplete_resp = client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
-        json=draft_payload,
+        json={'values': {'method_title': 'Incompleto'}},
     )
-    assert invalid_submit_resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert incomplete_resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
-    # 6. Formal submit with all required fields
+    # 6. Submit complete form
     full_payload = {
         'values': {
             'method_title': 'Método de Ensaio Concluído',
             'endpoint_target': 'skin_sensitization',
             'scientific_justification': 'Fundamentação completa do método.',
+            'pre_validation_evidence': 'Evidências prévias de repetibilidade.',
             'study_protocol_file': 'protocolo.pdf',
         }
     }
@@ -116,7 +117,7 @@ async def _create_submission(client, session, user):
     response = client.post(
         '/processes',
         json={
-            'template_key': 'full_validation',
+            'template_key': 'pre_validated_method',
             'title': 'Submissão de teste',
         },
     )
@@ -132,8 +133,7 @@ async def test_draft_rejects_unknown_field_atomically(client, session):
 
     assert (
         client.put(
-            endpoint, json={'values': {'method_title': 'Anterior'}
-        }
+            endpoint, json={'values': {'method_title': 'Anterior'}}
         ).status_code
         == HTTPStatus.OK
     )
@@ -182,7 +182,7 @@ async def test_draft_persists_false_and_zero_from_dynamic_fields(
     form_template = (
         await session.execute(
             select(FormTemplate).where(
-                FormTemplate.key == 'submission_full_validation_v1'
+                FormTemplate.key == 'submission_pre_validated_v1'
             )
         )
     ).scalar_one()
@@ -296,10 +296,12 @@ async def test_draft_replaces_existing_value_and_records_author(
 
     values = client.get(endpoint).json()['values']
     event = await session.scalar(
-        select(AuditEvent).where(
+        select(AuditEvent)
+        .where(
             AuditEvent.process_instance_id == process_id,
             AuditEvent.event_type == 'FORM_DRAFT_SAVED',
-        ).order_by(AuditEvent.occurred_at.desc())
+        )
+        .order_by(AuditEvent.occurred_at.desc())
     )
     assert values['method_title'] == 'Versão 2'
     assert event.user_id == owner.id
@@ -363,3 +365,134 @@ async def test_active_participant_with_other_role_cannot_save_draft(
 
     response = client.put(endpoint, json={'values': {}})
     assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ('template_key', 'expected_form_key', 'valid_values'),
+    [
+        (
+            'pre_validated_method',
+            'submission_pre_validated_v1',
+            {
+                'method_title': 'Método Pré-Validado Teste',
+                'endpoint_target': 'ocular_irritation',
+                'scientific_justification': (
+                    'Justificativa científica detalhada com mais de'
+                    ' cinquenta caracteres.'
+                ),
+                'pre_validation_evidence': (
+                    'Evidências prévias de repetibilidade com mais de'
+                    ' cinquenta caracteres.'
+                ),
+                'study_protocol_file': 'protocolo.pdf',
+            },
+        ),
+        (
+            'scope_extension',
+            'submission_scope_extension_v1',
+            {
+                'method_title': 'Extensão de Escopo Teste',
+                'base_validated_method': 'OECD TG 492',
+                'new_application_endpoint': 'medical_devices',
+                'scope_extension_justification': (
+                    'Justificativa de extensão com mais de cinquenta'
+                    ' caracteres biológicos.'
+                ),
+                'applicability_domain_data': (
+                    'Dados de domínio de aplicabilidade com mais de cinquenta'
+                    ' caracteres.'
+                ),
+                'adapted_protocol_file': 'protocolo_adaptado.pdf',
+            },
+        ),
+        (
+            'me_too_validation',
+            'submission_me_too_v1',
+            {
+                'method_title': 'Validação Me-Too Teste',
+                'reference_validated_method': 'EpiOcular',
+                'target_test_system': 'Tecido Reconstruído Nacional',
+                'mechanistic_similarity_rationale': (
+                    'Fundamentação da semelhança mecanística com mais de'
+                    ' cinquenta caracteres.'
+                ),
+                'functional_equivalence_evidence': (
+                    'Evidências de equivalência funcional com mais de'
+                    ' cinquenta caracteres.'
+                ),
+                'comparative_protocol_file': 'comparativo.pdf',
+            },
+        ),
+        (
+            'validated_method_dossier',
+            'submission_validated_dossier_v1',
+            {
+                'method_title': 'Dossiê Completo Teste',
+                'validated_endpoint': 'skin_sensitization',
+                'executive_validation_summary': (
+                    'Resumo executivo consolidado com mais de cinquenta'
+                    ' caracteres descritivos.'
+                ),
+                'international_guidelines_adherence': (
+                    'Aderência às diretrizes da OCDE com mais de cinquenta'
+                    ' caracteres.'
+                ),
+                'complete_dossier_file': 'dossie_completo.pdf',
+            },
+        ),
+        (
+            'proof_of_concept',
+            'submission_proof_of_concept_v1',
+            {
+                'method_title': 'PoC Conceitual Teste',
+                'targeted_endpoint': 'acute_toxicity',
+                'biological_rationale_and_3rs': (
+                    'Hipótese biológica e 3Rs com mais de cinquenta'
+                    ' caracteres explicativos.'
+                ),
+                'development_roadmap': (
+                    'Plano de desenvolvimento com mais de cinquenta caracteres'
+                    ' definidos.'
+                ),
+            },
+        ),
+    ],
+)
+async def test_all_five_process_forms_definitions_and_submissions(
+    client, session, template_key, expected_form_key, valid_values
+):
+    await bootstrap_all_templates(session)
+    user = UserFactory()
+    session.add(user)
+    await session.commit()
+    authenticate(client, user)
+
+    # 1. Create process
+    resp = client.post(
+        '/processes',
+        json={
+            'template_key': template_key,
+            'title': f'Processo {template_key}',
+        },
+    )
+    assert resp.status_code == HTTPStatus.CREATED
+    process_id = resp.json()['id']
+
+    # 2. Get form
+    endpoint = f'/processes/{process_id}/activities/proposal_submission/form'
+    form_resp = client.get(endpoint)
+    assert form_resp.status_code == HTTPStatus.OK
+    form_data = form_resp.json()
+    assert form_data['template_key'] == expected_form_key
+
+    # 3. Submit form
+    submit_resp = client.post(endpoint, json={'values': valid_values})
+    assert submit_resp.status_code == HTTPStatus.OK
+    submit_data = submit_resp.json()
+    assert submit_data['status'] == 'COMPLETED'
+    assert submit_data['artifact_id'] is not None
+    # 4. Check AI evaluation triggered automatically
+    assert submit_data.get('ai_evaluation') is not None
+    assert 'evaluations' in submit_data['ai_evaluation']
+    assert len(submit_data['ai_evaluation']['evaluations']) >= 1
