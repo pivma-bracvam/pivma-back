@@ -4,67 +4,364 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PIVMA - Observabilidade de Pipelines de IA (Tempo Real)</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --font-main: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --primary: #4338ca;
+      --primary-hover: #3730a3;
+      --success: #15803d;
+      --warning: #b45309;
+      --danger: #b91c1c;
+      --border: #cbd5e1;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-main);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid var(--border);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .back-link {
+      font-size: 16px;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 700;
+    }
+    .back-link:hover { text-decoration: underline; }
+    h1 { font-size: 28px; font-weight: 800; color: #1e293b; }
+    .subtitle { font-size: 16px; color: var(--text-muted); margin-top: 4px; }
+    
+    .session-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--card-bg);
+      padding: 8px 16px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      font-size: 15px;
+    }
+    .session-badge { font-weight: 700; color: var(--primary); }
+    
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    }
+    h2 { font-size: 20px; font-weight: 700; margin-bottom: 16px; color: #1e293b; }
+    
+    .dev-banner {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 20px;
+    }
+    .dev-banner h3 {
+      font-size: 17px;
+      font-weight: 700;
+      color: #1e40af;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dev-banner p {
+      font-size: 14px;
+      color: #334155;
+      margin-bottom: 12px;
+    }
+    .creds-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+    .cred-tag {
+      background: #ffffff;
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid #93c5fd;
+      font-family: monospace;
+      font-weight: 600;
+      color: #1e3a8a;
+    }
+    
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    label { font-size: 15px; font-weight: 600; color: #334155; }
+    input, select {
+      font-size: 15px;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      outline: none;
+      font-family: inherit;
+      background: #fff;
+    }
+    input:focus, select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(67, 56, 202, 0.2);
+    }
+    
+    .btn {
+      font-size: 15px;
+      font-weight: 700;
+      padding: 10px 18px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.15s, background-color 0.15s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary { background: #64748b; color: #fff; }
+    .btn-secondary:hover { background: #475569; }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-sm { font-size: 13px; padding: 6px 12px; }
+    .btn:hover { opacity: 0.95; }
+    
+    .stream-status-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 700;
+      border: 1px solid var(--border);
+      background: #f1f5f9;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #94a3b8;
+    }
+    .status-dot.connected {
+      background: #16a34a;
+      box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.25);
+      animation: pulse 1.8s infinite;
+    }
+    .status-dot.connecting {
+      background: #eab308;
+      box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.25);
+    }
+    .status-dot.disconnected { background: #94a3b8; }
+    .status-dot.error { background: #dc2626; }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.15); opacity: 0.8; }
+    }
+    
+    .pipeline-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 20px;
+      overflow: hidden;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+    }
+    .pipeline-header {
+      background: #f8fafc;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .step-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .step-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+    .badge-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .badge-progress { background: #fef9c3; color: #854d0e; border: 1px solid #fef08a; }
+    .badge-failed { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    
+    .verdict-box {
+      background: #fff1f2;
+      border: 1px solid #fecdd3;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 16px;
+    }
+    
+    .inspector {
+      background: #0f172a;
+      color: #38bdf8;
+      padding: 16px;
+      border-radius: var(--radius);
+      font-family: monospace;
+      font-size: 14px;
+      overflow-x: auto;
+      max-height: 280px;
+    }
+    .payload-pre {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 10px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 12px;
+      overflow-x: auto;
+      max-height: 180px;
+      margin-top: 4px;
+    }
+  </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
-  <header class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center">
-    <div class="flex items-center space-x-3">
-      <a href="../index.html" class="text-slate-400 hover:text-white transition">&larr; Catálogo</a>
-      <h1 class="text-xl font-bold text-indigo-400">PIVMA :: Observabilidade de Pipelines de IA</h1>
-      <span class="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">Agrupado por Pipeline</span>
-    </div>
-    <div class="flex items-center space-x-3">
-      <div id="connectionStatus" class="flex items-center space-x-2 text-sm text-yellow-400">
-        <span class="w-3 h-3 rounded-full bg-yellow-400"></span>
-        <span>Desconectado</span>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <a href="/demos/" class="back-link">&larr; Voltar ao Catálogo de Demonstrações</a>
+        <h1 style="margin-top: 4px;">Observabilidade de Pipelines de IA</h1>
+        <p class="subtitle">Monitoramento cronológico em tempo real de execuções de IA, custos simulados e síntese de vereditos</p>
+      </div>
+      <div class="session-bar">
+        <span>Sessão:</span>
+        <span id="user-display" class="session-badge">Verificando...</span>
+        <button id="btn-quick-login" class="btn btn-sm btn-primary" onclick="quickLoginAdmin()">Entrar como Admin</button>
+        <button id="btn-logout" class="btn btn-sm btn-secondary" onclick="logout()" style="display: none;">Sair</button>
+      </div>
+    </header>
+
+    <!-- Card 1: Sugestão de Credenciais para Desenvolvimento -->
+    <div class="dev-banner">
+      <h3>🔑 Credenciais Sugeridas para Desenvolvimento (Acesso de Administrador)</h3>
+      <p>
+        Os endpoints administrativos de observabilidade de IA (<code>/admin/logs/ai*</code>) exigem perfil com a chave <code>administrator</code> ou permissão <code>rbac:read</code>.
+        Utilize a conta de Administrador abaixo para liberar o monitoramento de pipelines em tempo real:
+      </p>
+      <div class="creds-tags">
+        <span class="cred-tag">Usuário: <strong>admin</strong></span>
+        <span class="cred-tag">Senha: <strong>Admin@123456</strong></span>
+        <span class="cred-tag">Perfil: <strong>Administrador do Sistema</strong></span>
+      </div>
+      <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <button class="btn btn-sm btn-primary" onclick="quickLoginAdmin()">⚡ Preencher e Entrar como Admin (1 Clique)</button>
+        <button class="btn btn-sm btn-secondary" onclick="testForbiddenUser()">Testar Acesso com Proponente (Validação de 403)</button>
       </div>
     </div>
-  </header>
 
-  <main class="flex-1 p-6 max-w-7xl mx-auto w-full flex flex-col space-y-6">
-    <!-- Painel de Controle e Disparo -->
-    <div class="bg-slate-800 p-5 rounded-lg border border-slate-700 space-y-4">
-      <div class="flex flex-wrap gap-4 items-center justify-between">
-        <div class="flex items-center space-x-2 flex-1 min-w-[300px]">
-          <label for="adminToken" class="text-sm font-medium text-slate-300">Token Admin:</label>
-          <input type="password" id="adminToken" placeholder="Cole o JWT de Administrador..." 
-                 class="bg-slate-950 border border-slate-700 rounded px-3 py-1.5 text-sm text-white flex-1 focus:outline-none focus:border-indigo-400">
-          <button id="btnConnect" class="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold px-4 py-1.5 rounded text-sm transition">
-            Conectar Stream
+    <!-- Card 2: Painel de Controle e Disparo de Simulação -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+        <h2>1. Conexão do Stream SSE & Simulação de Avaliação</h2>
+        <div id="stream-status" class="stream-status-box">
+          <span id="stream-status-dot" class="status-dot disconnected"></span>
+          <span id="stream-status-text">Stream Desconectado</span>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 18px;">
+        <button id="btn-toggle-stream" class="btn btn-primary" onclick="toggleStream()">
+          <span>▶ Conectar Stream SSE de IA</span>
+        </button>
+        <button class="btn btn-secondary" onclick="loadInitialHistory()">
+          <span>🔄 Consultar Histórico (GET /admin/logs/ai)</span>
+        </button>
+        <button class="btn btn-secondary" onclick="clearPipelines()">
+          <span>🧹 Limpar Visualização</span>
+        </button>
+      </div>
+
+      <!-- Área de Disparo Interativo -->
+      <div style="padding-top: 16px; border-top: 1px solid var(--border);">
+        <label style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 8px; display: block;">
+          Disparar Avaliação Interativa de Formulário (POST /forms/instances/{id}/evaluate-ai)
+        </label>
+        <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+          <div class="form-group" style="flex: 1; min-width: 300px;">
+            <label>Form Instance ID (UUID)</label>
+            <input type="text" id="form-instance-id" placeholder="Cole ou selecione o Form Instance ID...">
+          </div>
+          <button class="btn btn-secondary" onclick="autoFillFormInstance()" title="Localiza automaticamente o formulário semeado no banco de dados">
+            <span>🔍 Buscar Formulário do Seed</span>
+          </button>
+          <button id="btn-trigger" class="btn btn-success" onclick="triggerEvaluation()">
+            <span>⚡ Disparar Avaliação por IA</span>
           </button>
         </div>
-
-        <button id="btnClear" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded text-slate-200 text-sm transition">
-          Limpar Visualização
-        </button>
-      </div>
-
-      <!-- Disparador de Avaliação Interativa -->
-      <div class="pt-3 border-t border-slate-700 flex flex-wrap gap-3 items-center">
-        <span class="text-xs uppercase font-bold text-slate-400">Simulação:</span>
-        <input type="text" id="formInstanceId" placeholder="Form Instance ID (UUID)..." 
-               class="bg-slate-950 border border-slate-700 rounded px-3 py-1.5 text-sm text-white flex-1 min-w-[280px] focus:outline-none focus:border-indigo-400">
-        <button id="btnTriggerEval" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-4 py-1.5 rounded text-sm transition flex items-center space-x-1">
-          <span>▶ Disparar Avaliação por IA</span>
-        </button>
-        <span id="triggerFeedback" class="text-xs text-slate-400 ml-2"></span>
+        <div id="trigger-feedback" style="margin-top: 8px; font-size: 14px; font-weight: 600;"></div>
       </div>
     </div>
 
-    <!-- Lista de Pipelines Agrupados -->
-    <div class="flex-1 flex flex-col space-y-4">
-      <div class="flex justify-between items-center text-sm text-slate-400">
-        <span>Pipelines Monitorados: <strong id="pipelineCount" class="text-white">0</strong></span>
-        <span>Log em Disco: <code class="text-indigo-300">logs/ai/ai_steps.jsonl</code></span>
+    <!-- Card 3: Pipelines Agrupados -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+        <h2>2. Execuções de Pipelines Monitorados</h2>
+        <div style="font-size: 14px; color: var(--text-muted);">
+          <span>Pipelines monitorados: <strong id="pipeline-count" style="color: var(--text);">0</strong></span> | 
+          <span>Destino em disco: <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">logs/ai/ai_steps.jsonl</code></span>
+        </div>
       </div>
 
-      <div id="pipelinesContainer" class="space-y-6">
-        <div id="emptyMessage" class="bg-slate-800 p-8 rounded-lg border border-slate-700 text-center text-slate-400">
-          Nenhum pipeline recebido ainda. Conecte ao stream e dispare uma avaliação usando o Form Instance ID fornecido pelo script de seed.
+      <div id="pipelines-container">
+        <div id="empty-message" style="text-align: center; color: var(--text-muted); padding: 32px; border: 1px dashed var(--border); border-radius: 8px;">
+          Nenhum pipeline recebido ainda. Conecte ao stream SSE e dispare uma avaliação interativa acima.
         </div>
       </div>
     </div>
-  </main>
+
+    <!-- Card 4: Inspetor da API -->
+    <div class="card">
+      <h2>3. Inspetor de Resposta da API</h2>
+      <div id="inspector-info" style="font-size: 15px; margin-bottom: 8px; font-weight: 600; color: #334155;">
+        Nenhuma requisição realizada ainda.
+      </div>
+      <pre id="api-inspector" class="inspector">{}</pre>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

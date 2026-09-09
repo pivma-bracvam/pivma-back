@@ -1,5 +1,5 @@
+
 import pytest
-from uuid import uuid4
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.core.process_engine import (
@@ -7,8 +7,6 @@ from pivma.core.process_engine import (
     ValidationError,
     update_form_template_definition,
 )
-
-
 from tests.factories.user_factory import UserFactory
 
 
@@ -50,10 +48,12 @@ async def test_update_form_template_sync_and_validation(session):
     )
 
     assert template.name == 'Formulário Atualizado Teste'
-    assert len(fields) == 2
+    expected_count = 2
+    assert len(fields) == expected_count
     f_map = {f.field_key: f for f in fields}
     assert 'new_protocol_field' in f_map
-    assert f_map['new_protocol_field'].validation_rules.get('section') == 'Dados Básicos'
+    proto_field = f_map['new_protocol_field']
+    assert proto_field.validation_rules.get('section') == 'Dados Básicos'
 
     # 2. Erro de chaves duplicadas
     with pytest.raises(ValidationError, match='duplicadas'):

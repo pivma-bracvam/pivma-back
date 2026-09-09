@@ -97,13 +97,13 @@ async def seed():
             admin_user = User(
                 username='admin',
                 email=admin_email,
-                password_hash=hash_password('Admin123!'),
+                password_hash=hash_password('Admin@123456'),
                 full_name='Administrador do Sistema',
             )
             session.add(admin_user)
             await session.flush()
         else:
-            admin_user.password_hash = hash_password('Admin123!')
+            admin_user.password_hash = hash_password('Admin@123456')
             await session.flush()
 
         # Vincular perfil ao admin
@@ -195,7 +195,7 @@ async def seed():
             '====================================================================='
         )
         print(f'  Usuário Admin:      {admin_email}')
-        print(f'  Senha Admin:        Admin123!')
+        print(f'  Senha Admin:        Admin@123456')
         print(f'  Form Instance ID:   {form_inst.id}')
         print(f'  Token JWT Admin:    {token}')
         print(

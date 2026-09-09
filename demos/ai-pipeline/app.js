@@ -1,61 +1,304 @@
 let eventSource = null;
 const pipelines = new Map(); // correlation_id -> group data
 
-const tokenInput = document.getElementById('adminToken');
-const formInstanceInput = document.getElementById('formInstanceId');
-const btnConnect = document.getElementById('btnConnect');
-const btnClear = document.getElementById('btnClear');
-const btnTriggerEval = document.getElementById('btnTriggerEval');
-const triggerFeedback = document.getElementById('triggerFeedback');
-const statusBadge = document.getElementById('connectionStatus');
-const container = document.getElementById('pipelinesContainer');
-const pipelineCount = document.getElementById('pipelineCount');
-const emptyMessage = document.getElementById('emptyMessage');
-
-// Carregar valores salvos do localStorage
-if (localStorage.getItem('pivma_admin_token')) {
-  tokenInput.value = localStorage.getItem('pivma_admin_token');
-}
-if (localStorage.getItem('pivma_demo_form_instance_id')) {
-  formInstanceInput.value = localStorage.getItem('pivma_demo_form_instance_id');
-}
-
-function updateConnectionStatus(connected, message) {
-  if (connected) {
-    statusBadge.className = 'flex items-center space-x-2 text-sm text-emerald-400';
-    statusBadge.innerHTML = `<span class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></span><span>Conectado</span>`;
-    btnConnect.textContent = 'Desconectar';
-    btnConnect.className = 'bg-rose-500 hover:bg-rose-600 text-white font-semibold px-4 py-1.5 rounded text-sm transition';
-  } else {
-    statusBadge.className = 'flex items-center space-x-2 text-sm text-yellow-400';
-    statusBadge.innerHTML = `<span class="w-3 h-3 rounded-full bg-yellow-400"></span><span>${message || 'Desconectado'}</span>`;
-    btnConnect.textContent = 'Conectar Stream';
-    btnConnect.className = 'bg-indigo-500 hover:bg-indigo-600 text-white font-semibold px-4 py-1.5 rounded text-sm transition';
+function inspect(method, url, status, data) {
+  const infoEl = document.getElementById('inspector-info');
+  const inspEl = document.getElementById('api-inspector');
+  if (infoEl) {
+    infoEl.textContent = `${method} ${url} -> HTTP ${status}`;
+  }
+  if (inspEl) {
+    inspEl.textContent = JSON.stringify(data, null, 2);
   }
 }
 
-async function loadInitialHistory(token) {
+async function checkSession() {
+  const displayEl = document.getElementById('user-display');
+  const btnLogin = document.getElementById('btn-quick-login');
+  const btnLogout = document.getElementById('btn-logout');
+
+  try {
+    const res = await fetch('/auth/me', { credentials: 'include' });
+    if (res.ok) {
+      const user = await res.json();
+      const profiles =
+        (user.profiles || []).map((p) => p.name).join(', ') || 'Sem perfil';
+      const isAdmin = (user.profiles || []).some(
+        (p) =>
+          p.name.toLowerCase().includes('admin') || p.id === 'administrator'
+      );
+
+      if (displayEl) {
+        displayEl.textContent = `${user.full_name || user.username} (${profiles})`;
+        displayEl.style.color = isAdmin ? 'var(--success)' : 'var(--warning)';
+      }
+      if (btnLogin) btnLogin.style.display = 'none';
+      if (btnLogout) btnLogout.style.display = 'inline-flex';
+      return user;
+    } else {
+      if (displayEl) {
+        displayEl.textContent = 'Não autenticado';
+        displayEl.style.color = 'var(--danger)';
+      }
+      if (btnLogin) btnLogin.style.display = 'inline-flex';
+      if (btnLogout) btnLogout.style.display = 'none';
+      return null;
+    }
+  } catch (err) {
+    if (displayEl) {
+      displayEl.textContent = 'API Inacessível';
+      displayEl.style.color = 'var(--danger)';
+    }
+    return null;
+  }
+}
+
+async function quickLoginAdmin() {
+  const res = await fetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ identifier: 'admin', password: 'Admin@123456' }),
+  });
+  const data = res.ok
+    ? { message: 'Autenticado com sucesso como Administrador!' }
+    : await res.json().catch(() => ({ detail: 'Falha no login' }));
+  inspect('POST', '/auth/login', res.status, data);
+
+  if (res.ok) {
+    await checkSession();
+    await loadInitialHistory();
+    await autoFillFormInstance();
+  } else {
+    alert(
+      'Falha ao autenticar como admin. Verifique se o seed foi executado (poetry run python scripts/seeds/seed_all.py).'
+    );
+  }
+}
+
+async function testForbiddenUser() {
+  const res = await fetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      identifier: 'proponent_user',
+      password: 'Proponent@123456',
+    }),
+  });
+  const data = res.ok
+    ? { message: 'Autenticado como proponente (usuário comum sem privilégio admin)' }
+    : await res.json().catch(() => ({ detail: 'Falha no login' }));
+  inspect('POST', '/auth/login', res.status, data);
+
+  if (res.ok) {
+    await checkSession();
+    await loadInitialHistory();
+  }
+}
+
+async function logout() {
+  if (eventSource) {
+    disconnectStream();
+  }
+  const res = await fetch('/auth/logout', {
+    method: 'POST',
+    credentials: 'include',
+  });
+  inspect('POST', '/auth/logout', res.status, {
+    message: 'Sessão encerrada com sucesso.',
+  });
+  await checkSession();
+}
+
+function updateStreamBadge(state, text) {
+  const dot = document.getElementById('stream-status-dot');
+  const label = document.getElementById('stream-status-text');
+  const btn = document.getElementById('btn-toggle-stream');
+
+  if (dot) dot.className = 'status-dot ' + state;
+  if (label) label.textContent = text;
+
+  if (btn) {
+    if (state === 'connected') {
+      btn.className = 'btn btn-danger';
+      btn.innerHTML = '<span>⏹ Desconectar Stream</span>';
+    } else {
+      btn.className = 'btn btn-primary';
+      btn.innerHTML = '<span>▶ Conectar Stream SSE de IA</span>';
+    }
+  }
+}
+
+function toggleStream() {
+  if (eventSource) {
+    disconnectStream();
+  } else {
+    connectStream();
+  }
+}
+
+function connectStream() {
+  updateStreamBadge('connecting', 'Conectando ao Stream SSE de IA...');
+
+  eventSource = new EventSource('/admin/logs/ai/stream', {
+    withCredentials: true,
+  });
+
+  eventSource.onopen = () => {
+    updateStreamBadge('connected', 'Stream Conectado (Observabilidade de IA Ativa)');
+    inspect('GET', '/admin/logs/ai/stream', 200, {
+      message: 'Conexão SSE de IA aberta com sucesso.',
+    });
+  };
+
+  eventSource.onmessage = (e) => {
+    if (!e.data || e.data.startsWith(':')) return;
+    try {
+      const step = JSON.parse(e.data);
+      handleIncomingStep(step);
+    } catch (err) {
+      console.error('Erro ao interpretar etapa SSE de IA:', err);
+    }
+  };
+
+  eventSource.onerror = (err) => {
+    console.warn('Erro na conexão SSE de IA:', err);
+    updateStreamBadge('error', 'Stream com Erro (Verifique se está logado como Admin)');
+    disconnectStream(true);
+  };
+}
+
+function disconnectStream(isError = false) {
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+  if (!isError) {
+    updateStreamBadge('disconnected', 'Stream Desconectado');
+  }
+}
+
+async function loadInitialHistory() {
   try {
     const res = await fetch('/admin/logs/ai?limit=20', {
-      headers: { 'Authorization': `Bearer ${token}` }
+      credentials: 'include',
     });
-    if (res.ok) {
-      const groups = await res.json();
-      groups.forEach(g => {
+    const groups = await res.json().catch(() => null);
+    inspect('GET', '/admin/logs/ai?limit=20', res.status, groups);
+
+    if (res.ok && Array.isArray(groups)) {
+      groups.forEach((g) => {
         pipelines.set(g.correlation_id, g);
       });
       renderAllPipelines();
+    } else if (res.status === 403) {
+      alert(
+        'Acesso negado (403): O usuário conectado não possui perfil de Administrador.'
+      );
+    } else if (res.status === 401) {
+      alert(
+        'Não autenticado (401): Faça login como Administrador para consultar os logs de IA.'
+      );
     }
   } catch (err) {
-    console.warn('Erro ao carregar histórico inicial:', err);
+    console.warn('Erro ao carregar histórico inicial de IA:', err);
+  }
+}
+
+async function autoFillFormInstance() {
+  const inputEl = document.getElementById('form-instance-id');
+  const feedbackEl = document.getElementById('trigger-feedback');
+  if (!inputEl) return;
+
+  feedbackEl.textContent = 'Buscando formulários no banco...';
+  feedbackEl.style.color = 'var(--text-muted)';
+
+  try {
+    const res = await fetch('/processes?size=10', { credentials: 'include' });
+    if (!res.ok) {
+      feedbackEl.textContent = 'Não foi possível listar processos (faça login antes).';
+      feedbackEl.style.color = 'var(--danger)';
+      return;
+    }
+
+    const data = await res.json();
+    const items = data.items || [];
+    if (items.length === 0) {
+      feedbackEl.textContent = 'Nenhum processo cadastrado. Execute os seeds.';
+      feedbackEl.style.color = 'var(--warning)';
+      return;
+    }
+
+    // Procurar processo em TRIAGE ou o primeiro com proposal_form
+    for (const p of items) {
+      const formRes = await fetch(`/processes/${p.id}/forms/proposal_form`, {
+        credentials: 'include',
+      });
+      if (formRes.ok) {
+        const formData = await formRes.json();
+        if (formData && formData.instance_id) {
+          inputEl.value = formData.instance_id;
+          localStorage.setItem('pivma_demo_form_instance_id', formData.instance_id);
+          feedbackEl.textContent = `Formulário localizado: Processo "${p.title}" (${p.code})`;
+          feedbackEl.style.color = 'var(--success)';
+          return;
+        }
+      }
+    }
+
+    feedbackEl.textContent = 'Nenhum Form Instance ID encontrado automaticamente.';
+    feedbackEl.style.color = 'var(--warning)';
+  } catch (err) {
+    feedbackEl.textContent = `Erro ao buscar: ${err.message}`;
+    feedbackEl.style.color = 'var(--danger)';
+  }
+}
+
+async function triggerEvaluation() {
+  const formInstId = document.getElementById('form-instance-id')?.value.trim();
+  const feedbackEl = document.getElementById('trigger-feedback');
+  const btnTrigger = document.getElementById('btn-trigger');
+
+  if (!formInstId) {
+    alert('Por favor, informe o Form Instance ID.');
+    return;
+  }
+
+  localStorage.setItem('pivma_demo_form_instance_id', formInstId);
+  feedbackEl.textContent = 'Disparando pipeline de IA...';
+  feedbackEl.style.color = 'var(--warning)';
+  if (btnTrigger) btnTrigger.disabled = true;
+
+  const url = `/forms/instances/${formInstId}/evaluate-ai`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+
+    const data = await res.json().catch(() => null);
+    inspect('POST', url, res.status, data);
+
+    if (res.ok) {
+      const count = data.evaluations ? data.evaluations.length : 0;
+      feedbackEl.textContent = `Avaliação concluída com sucesso! ${count} campo(s) avaliados pela IA.`;
+      feedbackEl.style.color = 'var(--success)';
+    } else {
+      feedbackEl.textContent = `Erro (${res.status}): ${data?.detail || res.statusText}`;
+      feedbackEl.style.color = 'var(--danger)';
+    }
+  } catch (err) {
+    feedbackEl.textContent = `Falha na requisição: ${err.message}`;
+    feedbackEl.style.color = 'var(--danger)';
+    inspect('POST', url, 0, { error: err.message });
+  } finally {
+    if (btnTrigger) btnTrigger.disabled = false;
   }
 }
 
 function handleIncomingStep(step) {
-  if (emptyMessage && emptyMessage.parentNode) {
-    emptyMessage.remove();
-  }
-
   const cid = step.correlation_id;
   if (!pipelines.has(cid)) {
     pipelines.set(cid, {
@@ -66,13 +309,14 @@ function handleIncomingStep(step) {
       total_duration_ms: 0,
       total_cost: 0,
       steps: [],
-      verdict: null
+      verdict: null,
     });
   }
 
   const group = pipelines.get(cid);
-  // Evitar duplicatas da mesma etapa
-  const existingIndex = group.steps.findIndex(s => s.step_order === step.step_order);
+  const existingIndex = group.steps.findIndex(
+    (s) => s.step_order === step.step_order
+  );
   if (existingIndex >= 0) {
     group.steps[existingIndex] = step;
   } else {
@@ -80,11 +324,20 @@ function handleIncomingStep(step) {
   }
 
   group.steps.sort((a, b) => a.step_order - b.step_order);
-  group.total_duration_ms = group.steps.reduce((acc, s) => acc + (s.step_duration_ms || 0), 0);
-  group.total_cost = group.steps.reduce((acc, s) => acc + (s.simulated_cost || 0), 0);
+  group.total_duration_ms = group.steps.reduce(
+    (acc, s) => acc + (s.step_duration_ms || 0),
+    0
+  );
+  group.total_cost = group.steps.reduce(
+    (acc, s) => acc + (s.simulated_cost || 0),
+    0
+  );
 
-  // Se a etapa 3 tiver o veredito, extrair
-  if (step.step_name === 'verdict_synthesis' && step.output_payload && step.output_payload.verdict) {
+  if (
+    step.step_name === 'verdict_synthesis' &&
+    step.output_payload &&
+    step.output_payload.verdict
+  ) {
     group.verdict = step.output_payload.verdict;
     group.status = 'COMPLETED';
   }
@@ -93,18 +346,25 @@ function handleIncomingStep(step) {
 }
 
 function renderAllPipelines() {
-  pipelineCount.textContent = pipelines.size;
-  container.innerHTML = '';
+  const container = document.getElementById('pipelines-container');
+  const countEl = document.getElementById('pipeline-count');
+  if (!container) return;
+
+  if (countEl) countEl.textContent = pipelines.size;
 
   if (pipelines.size === 0) {
-    container.appendChild(emptyMessage);
+    container.innerHTML = `
+      <div id="empty-message" style="text-align: center; color: var(--text-muted); padding: 32px; border: 1px dashed var(--border); border-radius: 8px;">
+        Nenhum pipeline recebido ainda. Conecte ao stream SSE e dispare uma avaliação interativa acima.
+      </div>
+    `;
     return;
   }
 
-  // Converter para array e ordenar pelos mais recentes
+  container.innerHTML = '';
   const sorted = Array.from(pipelines.values()).reverse();
 
-  sorted.forEach(group => {
+  sorted.forEach((group) => {
     const card = createPipelineCard(group);
     container.appendChild(card);
   });
@@ -112,107 +372,109 @@ function renderAllPipelines() {
 
 function createPipelineCard(group) {
   const card = document.createElement('div');
-  card.className = 'bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-lg transition';
+  card.className = 'pipeline-card';
 
   const isCompleted = group.status === 'COMPLETED';
-  const statusColor = isCompleted ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40';
+  const statusBadge = isCompleted
+    ? '<span class="badge badge-success">COMPLETED</span>'
+    : '<span class="badge badge-progress">IN_PROGRESS</span>';
 
-  // Cabeçalho do Card
   card.innerHTML = `
-    <div class="bg-slate-850 p-4 border-b border-slate-700 flex flex-wrap justify-between items-center gap-3">
-      <div class="flex items-center space-x-3">
-        <span class="w-3 h-3 rounded-full ${isCompleted ? 'bg-emerald-400' : 'bg-yellow-400 animate-pulse'}"></span>
-        <h3 class="font-bold text-white font-mono text-sm">Pipeline :: ${group.field_key || 'campo'}</h3>
-        <span class="text-xs px-2.5 py-0.5 rounded border ${statusColor} font-medium">${group.status}</span>
+    <div class="pipeline-header">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-weight: 700; font-size: 16px; color: #1e293b;">
+          Pipeline :: <code style="background: #e2e8f0; padding: 2px 8px; border-radius: 4px;">${group.field_key || 'campo'}</code>
+        </span>
+        ${statusBadge}
       </div>
-      <div class="flex items-center space-x-4 text-xs font-mono text-slate-300">
-        <span>Duração: <strong class="text-teal-300">${group.total_duration_ms.toFixed(1)} ms</strong></span>
-        <span>Custo: <strong class="text-amber-300">$${group.total_cost.toFixed(6)}</strong></span>
-        <span class="text-slate-500">ID: ${group.correlation_id.substring(0, 8)}...</span>
+      <div style="display: flex; align-items: center; gap: 16px; font-size: 14px; font-family: monospace;">
+        <span>Duração: <strong>${group.total_duration_ms.toFixed(1)} ms</strong></span>
+        <span>Custo: <strong style="color: var(--warning);">$${group.total_cost.toFixed(6)}</strong></span>
+        <span style="color: var(--text-muted);" title="${group.correlation_id}">ID: ${group.correlation_id.substring(0, 8)}...</span>
       </div>
     </div>
   `;
 
-  // Corpo das 3 Etapas Sequenciais
   const stepsBody = document.createElement('div');
-  stepsBody.className = 'p-5 space-y-4';
+  stepsBody.style.padding = '18px 20px';
 
-  const stepNames = [
+  const stepDefs = [
     { order: 1, name: 'context_extraction', label: '1. Extração de Contexto' },
     { order: 2, name: 'mock_evaluation', label: '2. Avaliação de Conformidade (Mock)' },
-    { order: 3, name: 'verdict_synthesis', label: '3. Síntese do Veredito' }
+    { order: 3, name: 'verdict_synthesis', label: '3. Síntese do Veredito' },
   ];
 
-  stepNames.forEach(def => {
-    const executedStep = group.steps.find(s => s.step_order === def.order);
-    const stepCard = document.createElement('div');
-    stepCard.className = 'bg-slate-900/90 rounded-lg p-3.5 border border-slate-700/80';
+  stepDefs.forEach((def) => {
+    const executedStep = group.steps.find((s) => s.step_order === def.order);
+    const stepBox = document.createElement('div');
+    stepBox.className = 'step-box';
 
     if (executedStep) {
       const stepId = `step-${group.correlation_id}-${def.order}`;
-      stepCard.innerHTML = `
-        <div class="flex justify-between items-center">
-          <div class="flex items-center space-x-2">
-            <span class="w-2 h-2 rounded-full bg-teal-400"></span>
-            <span class="font-semibold text-xs text-slate-200">${def.label}</span>
+      stepBox.innerHTML = `
+        <div class="step-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="color: var(--success); font-weight: 700;">✔</span>
+            <strong style="font-size: 14px; color: #1e293b;">${def.label}</strong>
           </div>
-          <div class="flex items-center space-x-3 text-xs font-mono">
-            <span class="text-slate-400">${executedStep.step_duration_ms.toFixed(1)} ms</span>
-            <span class="text-amber-400/90">$${executedStep.simulated_cost.toFixed(6)}</span>
-            <button onclick="document.getElementById('${stepId}').classList.toggle('hidden')" 
-                    class="text-xs text-indigo-400 hover:text-indigo-300 underline">
-              Payloads
+          <div style="display: flex; align-items: center; gap: 12px; font-size: 13px; font-family: monospace;">
+            <span>${executedStep.step_duration_ms.toFixed(1)} ms</span>
+            <span style="color: var(--warning);">$${executedStep.simulated_cost.toFixed(6)}</span>
+            <button class="btn btn-sm btn-secondary" onclick="document.getElementById('${stepId}').style.display = document.getElementById('${stepId}').style.display === 'none' ? 'grid' : 'none'">
+              Ver Payloads
             </button>
           </div>
         </div>
-        <div id="${stepId}" class="hidden mt-3 pt-3 border-t border-slate-800 text-xs font-mono grid md:grid-cols-2 gap-3">
+        <div id="${stepId}" style="display: none; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);">
           <div>
-            <span class="text-slate-400 font-bold block mb-1">Entrada (Input):</span>
-            <pre class="bg-slate-950 p-2 rounded text-slate-300 overflow-x-auto max-h-40 border border-slate-800">${JSON.stringify(executedStep.input_payload, null, 2)}</pre>
+            <span style="font-size: 12px; font-weight: 700; color: #475569;">Entrada (Input):</span>
+            <pre class="payload-pre">${JSON.stringify(executedStep.input_payload, null, 2)}</pre>
           </div>
           <div>
-            <span class="text-slate-400 font-bold block mb-1">Saída (Output):</span>
-            <pre class="bg-slate-950 p-2 rounded text-teal-300 overflow-x-auto max-h-40 border border-slate-800">${JSON.stringify(executedStep.output_payload, null, 2)}</pre>
+            <span style="font-size: 12px; font-weight: 700; color: #475569;">Saída (Output):</span>
+            <pre class="payload-pre">${JSON.stringify(executedStep.output_payload, null, 2)}</pre>
           </div>
         </div>
       `;
     } else {
-      stepCard.innerHTML = `
-        <div class="flex justify-between items-center text-slate-500">
-          <div class="flex items-center space-x-2">
-            <span class="w-2 h-2 rounded-full bg-slate-600"></span>
-            <span class="text-xs">${def.label}</span>
+      stepBox.innerHTML = `
+        <div class="step-header" style="color: var(--text-muted);">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span>⏳</span>
+            <span style="font-size: 14px;">${def.label}</span>
           </div>
-          <span class="text-xs italic">Aguardando execução...</span>
+          <span style="font-size: 13px; font-style: italic;">Aguardando execução...</span>
         </div>
       `;
     }
-    stepsBody.appendChild(stepCard);
+    stepsBody.appendChild(stepBox);
   });
 
-  // Veredito Canônico Final (se houver)
   if (group.verdict) {
     const v = group.verdict;
+    const isOk = v.status === 'CONFORME';
     const verdictDiv = document.createElement('div');
-    verdictDiv.className = 'mt-4 p-4 rounded-lg bg-rose-950/30 border border-rose-800/40 text-sm space-y-2';
+    verdictDiv.className = 'verdict-box';
+    verdictDiv.style.background = isOk ? '#f0fdf4' : '#fff1f2';
+    verdictDiv.style.borderColor = isOk ? '#bbf7d0' : '#fecdd3';
+
     verdictDiv.innerHTML = `
-      <div class="flex justify-between items-center">
-        <span class="font-bold text-rose-300 flex items-center space-x-1.5">
-          <span>❌ Veredito Canônico:</span>
-          <span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs">${v.status}</span>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span style="font-weight: 700; color: ${isOk ? 'var(--success)' : 'var(--danger)'};">
+          ${isOk ? '✅' : '❌'} Veredito Canônico: <span class="badge ${isOk ? 'badge-success' : 'badge-failed'}">${v.status}</span>
         </span>
-        <span class="text-xs font-mono text-slate-400">Score de Confiança: ${(v.confidence_score * 100).toFixed(0)}%</span>
+        <span style="font-size: 13px; font-family: monospace;">Confiança: ${(v.confidence_score * 100).toFixed(0)}%</span>
       </div>
-      <div>
-        <span class="text-xs font-semibold text-rose-300 block">Inconformidades Simuladas:</span>
-        <ul class="list-disc list-inside text-xs text-slate-300 space-y-0.5 pl-1">
-          ${v.issues.map(iss => `<li>${iss}</li>`).join('')}
+      <div style="margin-bottom: 6px;">
+        <strong style="font-size: 13px; color: #334155;">Apontamentos / Issues:</strong>
+        <ul style="font-size: 13px; color: #475569; padding-left: 18px; margin-top: 4px;">
+          ${(v.issues || []).map((iss) => `<li>${iss}</li>`).join('') || '<li>Nenhuma inconsistência.</li>'}
         </ul>
       </div>
-      <div class="pt-2 border-t border-rose-900/40">
-        <span class="text-xs font-semibold text-emerald-300 block">Recomendações:</span>
-        <ul class="list-disc list-inside text-xs text-slate-300 space-y-0.5 pl-1">
-          ${v.recommendations.map(rec => `<li>${rec}</li>`).join('')}
+      <div>
+        <strong style="font-size: 13px; color: #334155;">Recomendações:</strong>
+        <ul style="font-size: 13px; color: #475569; padding-left: 18px; margin-top: 4px;">
+          ${(v.recommendations || []).map((rec) => `<li>${rec}</li>`).join('') || '<li>Sem recomendações adicionais.</li>'}
         </ul>
       </div>
     `;
@@ -223,94 +485,25 @@ function createPipelineCard(group) {
   return card;
 }
 
-function connectStream() {
-  const token = tokenInput.value.trim();
-  if (!token) {
-    alert('Por favor, informe o Token de Administrador.');
-    return;
-  }
-
-  localStorage.setItem('pivma_admin_token', token);
-
-  if (eventSource) {
-    eventSource.close();
-    eventSource = null;
-    updateConnectionStatus(false, 'Desconectado');
-    return;
-  }
-
-  loadInitialHistory(token);
-
-  const sseUrl = `/admin/logs/ai/stream?token=${encodeURIComponent(token)}`;
-  eventSource = new EventSource(sseUrl);
-
-  eventSource.onopen = () => {
-    updateConnectionStatus(true);
-  };
-
-  eventSource.onmessage = (e) => {
-    if (!e.data || e.data.startsWith(':')) return;
-    try {
-      const step = JSON.parse(e.data);
-      handleIncomingStep(step);
-    } catch (err) {
-      console.error('Erro ao processar etapa SSE:', err);
-    }
-  };
-
-  eventSource.onerror = () => {
-    updateConnectionStatus(false, 'Erro de Conexão');
-    if (eventSource) {
-      eventSource.close();
-      eventSource = null;
-    }
-  };
-}
-
-async function triggerEvaluation() {
-  const token = tokenInput.value.trim();
-  const formInstId = formInstanceInput.value.trim();
-
-  if (!token) {
-    alert('Por favor, informe o Token de Administrador.');
-    return;
-  }
-  if (!formInstId) {
-    alert('Por favor, informe o Form Instance ID.');
-    return;
-  }
-
-  localStorage.setItem('pivma_demo_form_instance_id', formInstId);
-  triggerFeedback.textContent = 'Disparando avaliação...';
-  triggerFeedback.className = 'text-xs text-yellow-400 ml-2';
-
-  try {
-    const res = await fetch(`/forms/instances/${formInstId}/evaluate-ai`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      triggerFeedback.textContent = `Avaliação concluída! ${data.evaluations.length} campo(s) avaliados.`;
-      triggerFeedback.className = 'text-xs text-emerald-400 ml-2';
-    } else {
-      const err = await res.json();
-      triggerFeedback.textContent = `Erro: ${err.detail || res.statusText}`;
-      triggerFeedback.className = 'text-xs text-rose-400 ml-2';
-    }
-  } catch (err) {
-    triggerFeedback.textContent = `Falha na requisição: ${err.message}`;
-    triggerFeedback.className = 'text-xs text-rose-400 ml-2';
-  }
-}
-
-btnConnect.addEventListener('click', connectStream);
-btnTriggerEval.addEventListener('click', triggerEvaluation);
-btnClear.addEventListener('click', () => {
+function clearPipelines() {
   pipelines.clear();
   renderAllPipelines();
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+  if (localStorage.getItem('pivma_demo_form_instance_id')) {
+    const inputEl = document.getElementById('form-instance-id');
+    if (inputEl) {
+      inputEl.value = localStorage.getItem('pivma_demo_form_instance_id');
+    }
+  }
+
+  const user = await checkSession();
+  if (user) {
+    await loadInitialHistory();
+    if (!document.getElementById('form-instance-id')?.value) {
+      await autoFillFormInstance();
+    }
+  }
 });
+

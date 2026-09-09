@@ -486,11 +486,13 @@ async def has_current_conflict(
 async def can_manage_process_templates(
     session: AsyncSession, user_id: UUID
 ) -> bool:
-    """Verifica se o usuário possui autorização para gerenciar e editar templates de processos e formulários."""
+    """Verifica se o usuário possui autorização para gerenciar
+
+    e editar templates de processos e formulários.
+    """
     profiles = await active_profiles_for_user(session, user_id)
     if any(p.system_key == ADMINISTRATOR_SYSTEM_KEY for p in profiles):
         return True
     if await has_permission(session, user_id, RBAC_READ):
         return True
     return any(p.name in {'Administrador', 'Grupo Gestor'} for p in profiles)
-

@@ -1047,7 +1047,7 @@ async def execute_triage_decision(
     return decision, process.status, next_run_number
 
 
-async def update_form_template_definition(
+async def update_form_template_definition(  # noqa: PLR0912, PLR0913, PLR0914, PLR0915, PLR0917
     session: AsyncSession,
     process_template_key: str,
     form_template_key: str,
@@ -1056,11 +1056,12 @@ async def update_form_template_definition(
     name: str | None = None,
     description: str | None = None,
 ) -> tuple[FormTemplate, list[FormField]]:
-    """Atualiza a definição de um template de formulário e seus campos de forma atômica."""
+    """Atualiza a definição de um template de formulário e campos."""
     # 1. Validar chaves duplicadas
     keys = [f['field_key'] for f in fields_data if 'field_key' in f]
     if len(keys) != len(set(keys)):
-        raise ValidationError('Chaves de campos (field_key) duplicadas no formulário.')
+        msg = 'Chaves de campos (field_key) duplicadas no formulário.'
+        raise ValidationError(msg)
 
     # 2. Buscar ProcessTemplate
     p_stmt = select(ProcessTemplate).where(
@@ -1127,8 +1128,12 @@ async def update_form_template_definition(
             field.order_index = f_data.get('order_index', 0)
             field.options = f_data.get('options')
             field.validation_rules = v_rules
-            field.ai_evaluation_enabled = f_data.get('ai_evaluation_enabled', False)
-            field.ai_context_instructions = f_data.get('ai_context_instructions')
+            field.ai_evaluation_enabled = f_data.get(
+                'ai_evaluation_enabled', False
+            )
+            field.ai_context_instructions = f_data.get(
+                'ai_context_instructions'
+            )
             field.ai_validation_rules = f_data.get('ai_validation_rules')
             field.set_update_audit(user_id)
             result_fields.append(field)
@@ -1143,7 +1148,9 @@ async def update_form_template_definition(
                 order_index=f_data.get('order_index', 0),
                 options=f_data.get('options'),
                 validation_rules=v_rules,
-                ai_evaluation_enabled=f_data.get('ai_evaluation_enabled', False),
+                ai_evaluation_enabled=f_data.get(
+                    'ai_evaluation_enabled', False
+                ),
                 ai_context_instructions=f_data.get('ai_context_instructions'),
                 ai_validation_rules=f_data.get('ai_validation_rules'),
             )
@@ -1202,4 +1209,3 @@ async def update_form_template_definition(
 
     await session.commit()
     return form_template, result_fields
-

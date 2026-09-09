@@ -275,7 +275,6 @@ async def update_form_template_definition_endpoint(
     )
 
 
-
 @router.post(
     '',
     response_model=ProcessInstanceDetail,

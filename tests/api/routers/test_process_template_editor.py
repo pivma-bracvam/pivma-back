@@ -1,6 +1,6 @@
 from http import HTTPStatus
+
 import pytest
-from sqlalchemy import select
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.core.database.models import AccessProfile, UserAccessProfile
@@ -9,7 +9,9 @@ from tests.factories.user_factory import UserFactory
 
 
 @pytest.mark.asyncio
-async def test_get_and_update_form_template_definition(client, session):
+async def test_get_and_update_form_template_definition(  # noqa: PLR0914, PLR0915
+    client, session
+):
     await bootstrap_all_templates(session)
 
     # 1. Usuário Administrador BraCVAM
@@ -82,7 +84,9 @@ async def test_get_and_update_form_template_definition(client, session):
                 'order_index': 2,
                 'section': 'Conformidade Regulatória',
                 'ai_evaluation_enabled': True,
-                'ai_context_instructions': 'Verificar carimbo de auditor BPL credenciado.',
+                'ai_context_instructions': (
+                    'Verificar carimbo de auditor BPL credenciado.'
+                ),
             },
         ],
     }
@@ -93,7 +97,8 @@ async def test_get_and_update_form_template_definition(client, session):
     assert res_put.status_code == HTTPStatus.OK
     saved = res_put.json()
     assert saved['name'] == 'Formulário de Submissão Customizado v2'
-    assert len(saved['fields']) == 2
+    expected_fields_count = 2
+    assert len(saved['fields']) == expected_fields_count
     f_keys = [f['field_key'] for f in saved['fields']]
     assert 'method_title' in f_keys
     assert 'glp_audit_dossier' in f_keys
@@ -104,13 +109,21 @@ async def test_get_and_update_form_template_definition(client, session):
     )
     assert res_get_updated.status_code == HTTPStatus.OK
     updated_data = res_get_updated.json()
-    assert len(updated_data['fields']) == 2
+    assert len(updated_data['fields']) == expected_fields_count
 
     # 7. Validar erro 422 para chaves duplicadas
     dup_payload = {
         'fields': [
-            {'field_key': 'duplicate_key', 'label': 'Campo 1', 'field_type': 'text'},
-            {'field_key': 'duplicate_key', 'label': 'Campo 2', 'field_type': 'text'},
+            {
+                'field_key': 'duplicate_key',
+                'label': 'Campo 1',
+                'field_type': 'text',
+            },
+            {
+                'field_key': 'duplicate_key',
+                'label': 'Campo 2',
+                'field_type': 'text',
+            },
         ]
     }
     res_dup = client.put(
@@ -120,5 +133,7 @@ async def test_get_and_update_form_template_definition(client, session):
     assert res_dup.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
     # 8. Validar 404 para template inexistente
-    res_404 = client.get('/processes/templates/inexistente/forms/submission_pre_validated_v1')
+    res_404 = client.get(
+        '/processes/templates/inexistente/forms/submission_pre_validated_v1'
+    )
     assert res_404.status_code == HTTPStatus.NOT_FOUND

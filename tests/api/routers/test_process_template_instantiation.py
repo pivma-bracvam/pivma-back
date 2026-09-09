@@ -1,4 +1,5 @@
 from http import HTTPStatus
+
 import pytest
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
@@ -8,7 +9,7 @@ from tests.factories.user_factory import UserFactory
 
 
 @pytest.mark.asyncio
-async def test_process_instantiation_reflects_updated_form_template(
+async def test_process_instantiation_reflects_updated_form_template(  # noqa: PLR0914, PLR0915
     client, session
 ):
     await bootstrap_all_templates(session)
@@ -74,7 +75,9 @@ async def test_process_instantiation_reflects_updated_form_template(
                 'order_index': 2,
                 'section': 'Conformidade Regulatória',
                 'ai_evaluation_enabled': True,
-                'ai_context_instructions': 'Verificar credenciamento OECD GLP.',
+                'ai_context_instructions': (
+                    'Verificar credenciamento OECD GLP.'
+                ),
             },
         ],
     }
@@ -112,12 +115,13 @@ async def test_process_instantiation_reflects_updated_form_template(
     assert custom_field['ai_evaluation_enabled'] is True
 
     # 7. Salvar rascunho com o novo campo na nova instância
+    bpl_text = 'Dossiê aprovado conforme princípios BPL.'
     res_draft = client.put(
         f'/processes/{p2_id}/activities/proposal_submission/form',
         json={
             'values': {
                 'method_title': 'Novo Ensaio Validado 2026',
-                'regulatory_bpl_dossier': 'Dossiê aprovado conforme princípios BPL.',
+                'regulatory_bpl_dossier': bpl_text,
             }
         },
     )

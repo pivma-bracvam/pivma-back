@@ -1,168 +1,309 @@
 let eventSource = null;
-let events = [];
+let eventsList = [];
 
-const tokenInput = document.getElementById('adminToken');
-const btnConnect = document.getElementById('btnConnect');
-const btnClear = document.getElementById('btnClear');
-const filterStatus = document.getElementById('filterStatus');
-const statusBadge = document.getElementById('connectionStatus');
-const tableBody = document.getElementById('eventsTableBody');
-const eventCount = document.getElementById('eventCount');
-const emptyRow = document.getElementById('emptyRow');
-
-// Recuperar token prévio se salvo
-if (localStorage.getItem('pivma_admin_token')) {
-  tokenInput.value = localStorage.getItem('pivma_admin_token');
-}
-
-function updateConnectionStatus(connected, message) {
-  if (connected) {
-    statusBadge.className = 'flex items-center space-x-2 text-sm text-emerald-400';
-    statusBadge.innerHTML = `<span class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></span><span>Conectado</span>`;
-    btnConnect.textContent = 'Desconectar';
-    btnConnect.className = 'bg-rose-500 hover:bg-rose-600 text-white font-semibold px-4 py-1.5 rounded text-sm transition';
-  } else {
-    statusBadge.className = 'flex items-center space-x-2 text-sm text-yellow-400';
-    statusBadge.innerHTML = `<span class="w-3 h-3 rounded-full bg-yellow-400"></span><span>${message || 'Desconectado'}</span>`;
-    btnConnect.textContent = 'Conectar Stream';
-    btnConnect.className = 'bg-teal-500 hover:bg-teal-600 text-slate-950 font-semibold px-4 py-1.5 rounded text-sm transition';
+function inspect(method, url, status, data) {
+  const infoEl = document.getElementById('inspector-info');
+  const inspEl = document.getElementById('api-inspector');
+  if (infoEl) {
+    infoEl.textContent = `${method} ${url} -> HTTP ${status}`;
+  }
+  if (inspEl) {
+    inspEl.textContent = JSON.stringify(data, null, 2);
   }
 }
 
-async function loadInitialHistory(token) {
+async function checkSession() {
+  const displayEl = document.getElementById('user-display');
+  const btnLogin = document.getElementById('btn-quick-login');
+  const btnLogout = document.getElementById('btn-logout');
+
   try {
-    const res = await fetch('/admin/logs/operational?limit=50', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
+    const res = await fetch('/auth/me', { credentials: 'include' });
     if (res.ok) {
-      const data = await res.json();
-      data.reverse().forEach(ev => appendEvent(ev));
+      const user = await res.json();
+      const profiles = (user.profiles || []).map(p => p.name).join(', ') || 'Sem perfil';
+      const isAdmin = (user.profiles || []).some(
+        p => p.name.toLowerCase().includes('admin') || p.id === 'administrator'
+      );
+
+      if (displayEl) {
+        displayEl.textContent = `${user.full_name || user.username} (${profiles})`;
+        displayEl.style.color = isAdmin ? 'var(--success)' : 'var(--warning)';
+      }
+      if (btnLogin) btnLogin.style.display = 'none';
+      if (btnLogout) btnLogout.style.display = 'inline-flex';
+      return user;
+    } else {
+      if (displayEl) {
+        displayEl.textContent = 'Não autenticado';
+        displayEl.style.color = 'var(--danger)';
+      }
+      if (btnLogin) btnLogin.style.display = 'inline-flex';
+      if (btnLogout) btnLogout.style.display = 'none';
+      return null;
     }
   } catch (err) {
-    console.warn('Não foi possível carregar histórico inicial:', err);
+    if (displayEl) {
+      displayEl.textContent = 'API Inacessível';
+      displayEl.style.color = 'var(--danger)';
+    }
+    return null;
   }
 }
 
-function appendEvent(ev) {
-  if (emptyRow && emptyRow.parentNode) {
-    emptyRow.remove();
-  }
-
-  events.unshift(ev);
-  eventCount.textContent = events.length;
-
-  renderRows();
-}
-
-function renderRows() {
-  const currentFilter = filterStatus.value;
-  const filtered = events.filter(e => !currentFilter || e.status === currentFilter);
-
-  tableBody.innerHTML = '';
-  if (filtered.length === 0) {
-    tableBody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500">Nenhum evento correspondente ao filtro.</td></tr>`;
-    return;
-  }
-
-  filtered.forEach((ev, idx) => {
-    const tr = document.createElement('tr');
-    tr.className = 'hover:bg-slate-750 transition border-b border-slate-700/50';
-
-    const isSuccess = ev.status === 'SUCCESS';
-    const statusBg = isSuccess ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-rose-500/20 text-rose-400 border-rose-500/40';
-
-    const formattedTime = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString('pt-BR') : '-';
-    const duration = ev.total_duration_ms ? `${ev.total_duration_ms.toFixed(1)} ms` : '-';
-
-    tr.innerHTML = `
-      <td class="p-3 text-slate-300 font-mono text-xs">${formattedTime}</td>
-      <td class="p-3 font-semibold text-teal-300">${ev.operation_type || 'N/A'}</td>
-      <td class="p-3">
-        <span class="px-2 py-0.5 rounded text-xs font-medium border ${statusBg}">
-          ${ev.status}
-        </span>
-      </td>
-      <td class="p-3 text-slate-300 font-mono text-xs">${duration}</td>
-      <td class="p-3 font-mono text-xs text-slate-400" title="${ev.correlation_id}">
-        ${ev.correlation_id ? ev.correlation_id.substring(0, 8) + '...' : '-'}
-      </td>
-      <td class="p-3">
-        <button onclick="toggleDetails(${idx})" class="text-xs text-teal-400 hover:underline">Ver JSON</button>
-      </td>
-    `;
-
-    const detailTr = document.createElement('tr');
-    detailTr.id = `detail-${idx}`;
-    detailTr.className = 'hidden bg-slate-950/80';
-    detailTr.innerHTML = `
-      <td colspan="6" class="p-4 font-mono text-xs text-slate-300">
-        <pre class="bg-slate-900 p-3 rounded border border-slate-700 overflow-x-auto">${JSON.stringify(ev, null, 2)}</pre>
-      </td>
-    `;
-
-    tableBody.appendChild(tr);
-    tableBody.appendChild(detailTr);
+async function quickLoginAdmin() {
+  const res = await fetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ identifier: 'admin', password: 'Admin@123456' }),
   });
+  const data = res.ok
+    ? { message: 'Autenticado com sucesso como Administrador!' }
+    : await res.json().catch(() => ({ detail: 'Falha no login' }));
+  inspect('POST', '/auth/login', res.status, data);
+
+  if (res.ok) {
+    await checkSession();
+    await loadInitialHistory();
+  } else {
+    alert(
+      'Falha ao autenticar como admin. Verifique se o seed foi executado (poetry run python scripts/seeds/seed_all.py).'
+    );
+  }
 }
 
-window.toggleDetails = function(idx) {
-  const el = document.getElementById(`detail-${idx}`);
-  if (el) {
-    el.classList.toggle('hidden');
+async function testForbiddenUser() {
+  const res = await fetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      identifier: 'proponent_user',
+      password: 'Proponent@123456',
+    }),
+  });
+  const data = res.ok
+    ? { message: 'Autenticado como proponente (usuário comum sem privilégio admin)' }
+    : await res.json().catch(() => ({ detail: 'Falha no login' }));
+  inspect('POST', '/auth/login', res.status, data);
+
+  if (res.ok) {
+    await checkSession();
+    await loadInitialHistory();
   }
-};
+}
+
+async function logout() {
+  if (eventSource) {
+    disconnectStream();
+  }
+  const res = await fetch('/auth/logout', {
+    method: 'POST',
+    credentials: 'include',
+  });
+  inspect('POST', '/auth/logout', res.status, {
+    message: 'Sessão encerrada com sucesso.',
+  });
+  await checkSession();
+}
+
+function updateStreamBadge(state, text) {
+  const dot = document.getElementById('stream-status-dot');
+  const label = document.getElementById('stream-status-text');
+  const btn = document.getElementById('btn-toggle-stream');
+
+  if (dot) dot.className = 'status-dot ' + state;
+  if (label) label.textContent = text;
+
+  if (btn) {
+    if (state === 'connected') {
+      btn.className = 'btn btn-danger';
+      btn.innerHTML = '<span>⏹ Desconectar Stream</span>';
+    } else {
+      btn.className = 'btn btn-primary';
+      btn.innerHTML = '<span>▶ Conectar Stream SSE</span>';
+    }
+  }
+}
+
+function toggleStream() {
+  if (eventSource) {
+    disconnectStream();
+  } else {
+    connectStream();
+  }
+}
 
 function connectStream() {
-  const token = tokenInput.value.trim();
-  if (!token) {
-    alert('Por favor, informe o Token de Administrador.');
-    return;
-  }
+  updateStreamBadge('connecting', 'Conectando ao Stream SSE...');
 
-  localStorage.setItem('pivma_admin_token', token);
-
-  if (eventSource) {
-    eventSource.close();
-    eventSource = null;
-    updateConnectionStatus(false, 'Desconectado');
-    return;
-  }
-
-  loadInitialHistory(token);
-
-  // Conectar SSE via endpoint administrativo passando token como query param
-  const sseUrl = `/admin/logs/operational/stream?token=${encodeURIComponent(token)}`;
-  eventSource = new EventSource(sseUrl);
+  eventSource = new EventSource('/admin/logs/operational/stream', {
+    withCredentials: true,
+  });
 
   eventSource.onopen = () => {
-    updateConnectionStatus(true);
+    updateStreamBadge('connected', 'Stream Conectado (Tempo Real Ativo)');
+    inspect('GET', '/admin/logs/operational/stream', 200, {
+      message: 'Conexão SSE aberta com sucesso.',
+    });
   };
 
   eventSource.onmessage = (e) => {
     if (!e.data || e.data.startsWith(':')) return;
     try {
-      const data = JSON.parse(e.data);
-      appendEvent(data);
+      const eventData = JSON.parse(e.data);
+      appendEvent(eventData);
     } catch (err) {
-      console.error('Erro ao processar mensagem SSE:', err);
+      console.error('Erro ao interpretar evento SSE:', err);
     }
   };
 
-  eventSource.onerror = () => {
-    updateConnectionStatus(false, 'Erro de Conexão');
-    if (eventSource) {
-      eventSource.close();
-      eventSource = null;
-    }
+  eventSource.onerror = (err) => {
+    console.warn('Erro na conexão SSE:', err);
+    updateStreamBadge('error', 'Stream com Erro (Verifique se está logado como Admin)');
+    disconnectStream(true);
   };
 }
 
-btnConnect.addEventListener('click', connectStream);
-btnClear.addEventListener('click', () => {
-  events = [];
-  eventCount.textContent = '0';
-  renderRows();
+function disconnectStream(isError = false) {
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+  if (!isError) {
+    updateStreamBadge('disconnected', 'Stream Desconectado');
+  }
+}
+
+async function loadInitialHistory() {
+  const limit = document.getElementById('query-limit')?.value || 50;
+  const status = document.getElementById('filter-status')?.value;
+  const op = document.getElementById('filter-op')?.value.trim();
+
+  let url = `/admin/logs/operational?limit=${limit}`;
+  if (status) url += `&status=${encodeURIComponent(status)}`;
+  if (op) url += `&operation_type=${encodeURIComponent(op)}`;
+
+  try {
+    const res = await fetch(url, { credentials: 'include' });
+    const data = await res.json().catch(() => null);
+    inspect('GET', url, res.status, data);
+
+    if (res.ok && Array.isArray(data)) {
+      eventsList = data;
+      renderEventsTable();
+    } else if (res.status === 403) {
+      alert(
+        'Acesso negado (403): O usuário conectado não possui perfil de Administrador.'
+      );
+    } else if (res.status === 401) {
+      alert(
+        'Não autenticado (401): Faça login como Administrador para consultar os logs.'
+      );
+    }
+  } catch (err) {
+    inspect('GET', url, 0, { error: err.message });
+  }
+}
+
+function appendEvent(ev) {
+  eventsList.unshift(ev);
+  renderEventsTable();
+}
+
+function clearEvents() {
+  eventsList = [];
+  renderEventsTable();
+}
+
+function renderEventsTable() {
+  const tbody = document.getElementById('events-table-body');
+  const counter = document.getElementById('event-count');
+  if (!tbody) return;
+
+  const statusFilter = document.getElementById('filter-status')?.value || '';
+  const opFilter = (
+    document.getElementById('filter-op')?.value.trim() || ''
+  ).toLowerCase();
+
+  const filtered = eventsList.filter((ev) => {
+    if (statusFilter && ev.status !== statusFilter) return false;
+    if (opFilter && !(ev.operation_type || '').toLowerCase().includes(opFilter))
+      return false;
+    return true;
+  });
+
+  if (counter) counter.textContent = filtered.length;
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">
+          Nenhum evento correspondente aos filtros atuais.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = '';
+  filtered.forEach((ev, idx) => {
+    const tr = document.createElement('tr');
+    const isSuccess = ev.status === 'SUCCESS';
+    const statusBadge = isSuccess
+      ? '<span class="badge badge-success">SUCCESS</span>'
+      : '<span class="badge badge-failed">FAILED</span>';
+
+    const timeStr = ev.timestamp
+      ? new Date(ev.timestamp).toLocaleTimeString('pt-BR')
+      : '-';
+    const durationStr =
+      ev.total_duration_ms !== null && ev.total_duration_ms !== undefined
+        ? `${ev.total_duration_ms.toFixed(1)} ms`
+        : '-';
+
+    const correlationShort = ev.correlation_id
+      ? ev.correlation_id.substring(0, 8) + '...'
+      : '-';
+
+    tr.innerHTML = `
+      <td style="font-family: monospace; font-size: 13px;">${timeStr}</td>
+      <td><span class="badge badge-op">${ev.operation_type || 'N/A'}</span></td>
+      <td>${statusBadge}</td>
+      <td style="font-family: monospace; font-size: 13px;">${durationStr}</td>
+      <td style="font-family: monospace; font-size: 13px;" title="${ev.correlation_id || ''}">${correlationShort}</td>
+      <td>
+        <button class="btn btn-sm btn-secondary" onclick="toggleDetails(${idx})">Ver JSON</button>
+      </td>
+    `;
+
+    const detailTr = document.createElement('tr');
+    detailTr.id = `detail-row-${idx}`;
+    detailTr.style.display = 'none';
+    detailTr.innerHTML = `
+      <td colspan="6" style="background: #f8fafc; padding: 12px 16px;">
+        <strong style="font-size: 13px; color: #334155;">Payload Completo do Evento:</strong>
+        <pre class="payload-detail">${JSON.stringify(ev, null, 2)}</pre>
+      </td>
+    `;
+
+    tbody.appendChild(tr);
+    tbody.appendChild(detailTr);
+  });
+}
+
+function toggleDetails(idx) {
+  const row = document.getElementById(`detail-row-${idx}`);
+  if (row) {
+    row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+  }
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+  const user = await checkSession();
+  if (user) {
+    await loadInitialHistory();
+  }
 });
-filterStatus.addEventListener('change', renderRows);
+
