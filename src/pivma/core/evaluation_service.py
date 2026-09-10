@@ -32,13 +32,15 @@ from pivma.core.database.models import (
     ReviewerFeedback,
 )
 from pivma.core.process_engine import (
+    FIELD_TARGET_TYPES as _FIELD_TARGET_TYPES,
+)
+from pivma.core.process_engine import (
     ConflictError,
     NotFoundError,
     ValidationError,
 )
 
 _SLUG_MAX = 80
-_FIELD_TARGET_TYPES = frozenset({'field', 'field_set', 'document'})
 
 
 def _slugify(name: str) -> str:

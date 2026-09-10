@@ -212,9 +212,9 @@ Como Avaliador técnico ou Administrador, quero **dois módulos** de demonstraç
 - **FR-006**: O sistema MUST oferecer um **modo simples** (três perguntas: o que verificar, o que significa estar correto, o que fazer quando houver problema) e um **modo avançado** (fontes/referências, exigência de evidência, critérios de indeterminação, comportamento em ausência de informação, recomendação sugerida ao triador em caso de não conformidade).
 - **FR-007**: O sistema MUST permitir associar **referências normativas** a uma avaliação, selecionando-as de um cadastro em vez de copiar o texto da norma.
 - **FR-008**: O sistema MUST tratar `ai_evaluation_enabled` de um campo apenas como "disponível para avaliações automatizadas"; a configuração real da avaliação MUST ser independente desse atributo.
-- **FR-009**: O sistema MUST permitir que uma avaliação tenha como **alvo** um campo, um conjunto de campos, um documento, o formulário inteiro ou dados do processo, e que um alvo tenha zero, uma ou várias avaliações associadas.
+- **FR-009**: O sistema MUST permitir que uma avaliação tenha como **alvo** um campo, um conjunto de campos, um documento, o formulário inteiro ou dados do processo, e que um alvo tenha zero, uma ou várias avaliações associadas. Nota de implementação: `target_type=process` é recortado como "todos os valores do formulário submetido"; metadados do processo (código, status, datas) ficam fora do escopo desta versão.
 - **FR-010**: O sistema MUST manter uma **biblioteca de avaliações reutilizáveis**, associáveis a alvos em múltiplos formulários sem duplicação da definição.
-- **FR-011**: O sistema MUST restringir a criação, edição, publicação e remoção de avaliações a perfis BraCVAM (Administrador / Grupo Gestor), consistente com a Spec 012.
+- **FR-011**: O sistema MUST restringir a criação, edição, publicação e remoção de avaliações aos perfis que detêm a permissão `ai_evaluations.manage` — concedida ao **Administrador** na migração desta feature e atribuível a outros perfis BraCVAM pela gestão de RBAC (decisão de implementação D9). A confusão histórica entre "BraCVAM" e "Grupo Gestor" — entidades distintas — será tratada na Spec 014.
 
 #### Versionamento e governança da configuração
 
@@ -234,9 +234,9 @@ Como Avaliador técnico ou Administrador, quero **dois módulos** de demonstraç
 #### Execução da pré-avaliação
 
 - **FR-021**: O sistema MUST disparar automaticamente a pré-avaliação por IA a cada envio de um formulário que tenha avaliações associadas.
-- **FR-021a**: A pré-avaliação MUST ser **assíncrona**: o envio do formulário confirma imediatamente e a submissão fica com status "pré-avaliação em andamento"; o processamento ocorre em segundo plano.
-- **FR-021b**: O sistema MUST permitir que o proponente **acompanhe o status** da pré-avaliação (em andamento / concluída / falha) e MUST informá-lo quando o resultado ficar disponível.
-- **FR-021c**: O roteamento fixo (positivo → triagem; negativo → proponente) MUST ser aplicado ao **final** do processamento em background, não no momento do envio.
+- **FR-021a**: A pré-avaliação MUST ser **assíncrona**: o envio do formulário confirma imediatamente e a submissão fica com status "pré-avaliação em andamento" (implementado como `process.status = AI_PRE_EVALUATION`); o processamento ocorre em segundo plano.
+- **FR-021b**: O sistema MUST permitir que o proponente **acompanhe o status** da pré-avaliação (em andamento / concluída / falha) e MUST informá-lo quando o resultado ficar disponível. Nesta versão, "informar" = polling de `GET /processes/{id}/pre-evaluation` + criação de uma `Task` para o proponente no retorno negativo; não há notificação ativa (push/e-mail).
+- **FR-021c**: O roteamento fixo é o de FR-030a; esta cláusula fixa apenas o **timing**: aplicado ao **final** do processamento em background, não no momento do envio. (FR-030 define a regra de consolidação; FR-030a, o roteamento.)
 - **FR-021d**: Enquanto uma pré-avaliação estiver em andamento para uma submissão, o sistema MUST NOT aceitar novo envio da mesma execução nem gerar tarefa de triagem para ela.
 - **FR-022**: O sistema MUST executar internamente as etapas de preparação de dados, extração de evidências, avaliação dos critérios, síntese e geração do relatório, mantendo essa orquestração escondida atrás de um motor de pipeline único.
 - **FR-023**: O sistema MUST produzir, para cada critério avaliado, uma **conclusão** compatível com o tipo de verificação, incluindo sempre um estado equivalente a **"não foi possível determinar"**.
@@ -255,7 +255,7 @@ Como Avaliador técnico ou Administrador, quero **dois módulos** de demonstraç
 #### Roteamento e decisão
 
 - **FR-030**: O sistema MUST consolidar os resultados de critério em um **resultado da pré-avaliação** por regra fixa e embutida: **negativo** quando houver **pelo menos uma não conformidade de severidade alta ou crítica**; **positivo** caso contrário. Não conformidades de severidade baixa/média, resultados parciais e indeterminados NÃO tornam o resultado negativo — são registrados como **alertas** exibidos na triagem. Não há editor de regras nesta versão.
-- **FR-030a**: Após a pré-avaliação assíncrona, o sistema MUST aplicar o roteamento fixo: resultado **positivo** encaminha a submissão para a triagem do BraCVAM; resultado **negativo** retorna a submissão ao proponente com o relatório.
+- **FR-030a** (roteamento fixo, canônico): resultado **positivo** encaminha a submissão para a triagem do BraCVAM; resultado **negativo** retorna a submissão ao proponente com o relatório. FR-021c fixa o timing (ao final do processamento em background); FR-034–038 detalham as opções do proponente no retorno negativo.
 - **FR-031**: O sistema MUST NOT permitir que a IA registre por si uma aprovação, rejeição, diligência ou qualquer consequência regulatória; a IA apenas produz os resultados de critério que alimentam a regra de consolidação.
 - **FR-032**: O sistema MUST atribuir toda decisão de triagem a um **usuário humano** e registrá-la como final, com a transição de processo conforme a Spec 004.
 - **FR-033**: O sistema MUST manter o ramo "resultado positivo → triagem" implementado e testável desde esta versão, exercitado sempre que nenhuma não conformidade alta/crítica for encontrada.
@@ -263,14 +263,14 @@ Como Avaliador técnico ou Administrador, quero **dois módulos** de demonstraç
 #### Fluxo do proponente
 
 - **FR-034**: O sistema MUST apresentar ao proponente uma **síntese compreensível** da pré-avaliação: contagem por conclusão e lista expansível de pontos de atenção com critério, conclusão, evidência, justificativa, severidade e recomendação.
-- **FR-035**: Diante de um resultado negativo, o sistema MUST oferecer ao proponente exatamente duas opções distintas e rastreáveis: **corrigir e reenviar** (nova pré-avaliação) e **ignorar os conselhos da IA e solicitar a intervenção direta do BraCVAM**.
-- **FR-036**: O sistema MUST permitir que o proponente **solicite a intervenção direta do BraCVAM** após uma pré-avaliação negativa, registrando justificativa opcional, encaminhando a submissão para a triagem sem novo preenchimento do formulário.
+- **FR-035**: Diante de um resultado negativo, o sistema MUST oferecer ao proponente exatamente duas opções distintas e rastreáveis: (a) **corrigir e reenviar** (nova pré-avaliação); (b) **ignorar os conselhos da IA e solicitar a intervenção direta do BraCVAM**.
+- **FR-036**: (detalha FR-035(b)) A intervenção direta MUST registrar justificativa opcional e encaminhar a submissão para a triagem **sem novo preenchimento do formulário**, preservando o relatório original da IA intacto.
 - **FR-037**: O sistema MUST preservar o **relatório original da IA** imutável ao registrar a solicitação de intervenção direta, anexando-a como registro separado com autor e data.
 - **FR-038**: O sistema MUST impedir solicitação de intervenção direta duplicada para a mesma execução de pré-avaliação.
 
 #### Triagem e feedback humano
 
-- **FR-039**: O sistema MUST apresentar ao triador do BraCVAM, na tarefa de triagem: conteúdo avaliado, critérios utilizados, conclusão e evidência de cada critério, severidade, referência normativa, **versão da avaliação utilizada**, data/hora da execução e **identificador da execução**.
+- **FR-039**: O sistema MUST apresentar ao triador do BraCVAM, na tarefa de triagem: conteúdo avaliado, critérios utilizados, conclusão e evidência de cada critério, severidade, referência normativa, **versão da avaliação utilizada**, data/hora da execução e **identificador da execução**. O "conteúdo avaliado" é devolvido em `GET /processes/{id}/pre-evaluation` como `evaluated_content` (lista de campos cobertos pelas associações ativas, com rótulo e valor submetido), reconstruído da `FormInstance` imutável da execução. Um snapshot dedicado por execução (fidelidade total mesmo após mudança de associação) é escopo da Spec 014.
 - **FR-040**: O sistema MUST permitir que o triador registre, por critério, **concordo / discordo / inconclusivo**, com motivo opcional, vinculado ao critério, ao triador e à execução, sem alterar o resultado original da IA.
 - **FR-041**: O sistema MUST disponibilizar métricas de **concordância humana** com a IA (taxa de concordância, critérios mais problemáticos), para fins de auditoria da qualidade.
 - **FR-042**: O sistema MUST NOT usar o feedback humano automaticamente para treinar modelos; o uso é restrito a auditoria e métricas.

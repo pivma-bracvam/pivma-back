@@ -899,6 +899,12 @@ class PreEvaluationVersionUsed(BaseModel):
     references: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class EvaluatedContentField(BaseModel):
+    field_key: str
+    label: str
+    value: Any = None
+
+
 class PreEvaluationResponse(BaseModel):
     run_id: UUID
     correlation_id: UUID
@@ -915,6 +921,9 @@ class PreEvaluationResponse(BaseModel):
         default_factory=list
     )
     evaluations: list[PreEvaluationVersionUsed] = Field(default_factory=list)
+    evaluated_content: list[EvaluatedContentField] = Field(
+        default_factory=list
+    )
     direct_review_request: dict[str, Any] | None = None
 
 

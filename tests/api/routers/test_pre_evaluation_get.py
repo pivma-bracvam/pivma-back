@@ -113,6 +113,26 @@ async def test_failed_run_returns_to_proponent(
 
 
 @pytest.mark.asyncio
+async def test_payload_carries_evaluated_content(
+    client, ai_eval_admin, session, fake_provider
+):
+    del fake_provider
+    proponent, process_id, run_id = await _scenario(
+        client, session, ai_eval_admin, severity='critical'
+    )
+    await svc._execute(session, run_id)
+
+    authenticate(client, proponent)
+    body = client.get(f'/processes/{process_id}/pre-evaluation').json()
+
+    content = {c['field_key']: c['value'] for c in body['evaluated_content']}
+    assert 'scientific_justification' in content
+    assert content['scientific_justification'] == (
+        FULL_VALUES['scientific_justification']
+    )
+
+
+@pytest.mark.asyncio
 async def test_outsider_cannot_read_pre_evaluation(
     client, ai_eval_admin, session, fake_provider
 ):

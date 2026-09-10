@@ -73,6 +73,9 @@ STATUS_SUBMISSION = 'SUBMISSION'
 STATUS_AI_PRE_EVALUATION = 'AI_PRE_EVALUATION'
 PROPONENT_SCOPED_STATUSES = (STATUS_SUBMISSION, STATUS_AI_PRE_EVALUATION)
 
+# Alvos de avaliação por IA que se prendem a `field_keys` do formulário.
+FIELD_TARGET_TYPES = frozenset({'field', 'field_set', 'document'})
+
 
 async def _guard_against_current_conflict(
     session: AsyncSession, process_id: UUID, user_id: UUID
@@ -1155,6 +1158,33 @@ async def execute_triage_decision(
     return decision, process.status, next_run_number
 
 
+async def _prune_evaluation_assignments(
+    session: AsyncSession,
+    form_template_id: UUID,
+    removed_field_keys: set[str],
+    user_id: UUID,
+) -> None:
+    """Remove chaves de campos apagados das associações de avaliação por IA.
+
+    Uma associação que fique sem nenhum ``field_key`` é desativada (soft
+    delete). Assim, remover/renomear um campo no editor não deixa associações
+    órfãs que fariam ``replace_assignments`` rejeitar todo o lote depois.
+    """
+    stmt = select(EvaluationAssignment).where(
+        EvaluationAssignment.form_template_id == form_template_id,
+        EvaluationAssignment.deleted_at.is_(None),
+    )
+    for assignment in (await session.execute(stmt)).scalars():
+        current = assignment.field_keys or []
+        kept = [k for k in current if k not in removed_field_keys]
+        if kept == current:
+            continue
+        assignment.field_keys = kept
+        assignment.set_update_audit(user_id)
+        if not kept and assignment.target_type in FIELD_TARGET_TYPES:
+            assignment.set_deletion_audit(user_id)
+
+
 async def update_form_template_definition(  # noqa: PLR0912, PLR0913, PLR0914, PLR0915, PLR0917
     session: AsyncSession,
     process_template_key: str,
@@ -1266,10 +1296,20 @@ async def update_form_template_definition(  # noqa: PLR0912, PLR0913, PLR0914, P
             session.add(field)
             result_fields.append(field)
 
-    # Soft-delete nos campos removidos
-    for f_key, field in existing_fields.items():
-        if f_key not in processed_keys:
-            field.set_deletion_audit(user_id)
+    # Soft-delete nos campos removidos + limpeza em cascata das avaliações por
+    # IA associadas a eles (senão a associação órfã trava o PUT de
+    # evaluation-assignments, que valida a lista inteira).
+    removed_keys = {
+        f_key
+        for f_key in existing_fields
+        if f_key not in processed_keys
+    }
+    for f_key in removed_keys:
+        existing_fields[f_key].set_deletion_audit(user_id)
+    if removed_keys:
+        await _prune_evaluation_assignments(
+            session, form_template.id, removed_keys, user_id
+        )
 
     # 5. Sincronizar ProcessTemplateVersion (definition_payload)
     v_stmt = (

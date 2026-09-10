@@ -129,3 +129,41 @@ async def test_non_proponent_cannot_request_direct_review(
         headers={'Origin': 'https://testserver'},
     )
     assert resp.status_code == HTTPStatus.FORBIDDEN
+
+
+@pytest.mark.asyncio
+async def test_direct_review_after_failed_run_moves_to_triage(
+    client, ai_eval_admin, session, fake_provider
+):
+    """SC-012: uma falha da IA nunca impede a triagem humana."""
+    del fake_provider
+    await bootstrap_all_templates(session)
+    authenticate(client, ai_eval_admin)
+    publish_evaluation_and_assign(
+        client, severity='critical', statement=NON_COMPLIANT_STATEMENT
+    )
+    proponent = UserFactory()
+    session.add(proponent)
+    await session.commit()
+    authenticate(client, proponent)
+    result = create_and_submit_process(client)
+    run_id = UUID(result['body']['pre_evaluation']['run_id'])
+
+    process_id = result['process_id']
+    await svc._mark_failed(session, run_id)
+
+    view = client.get(f'/processes/{process_id}/pre-evaluation').json()
+    assert view['status'] == 'failed'
+
+    resp = client.post(
+        f'/processes/{process_id}/submission/direct-review',
+        json={'justification': 'A IA falhou; solicito triagem humana.'},
+        headers={'Origin': 'https://testserver'},
+    )
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json()['process_status'] == 'TRIAGE'
+
+    process = await session.scalar(
+        select(ProcessInstance).where(ProcessInstance.id == process_id)
+    )
+    assert process.status == 'TRIAGE'

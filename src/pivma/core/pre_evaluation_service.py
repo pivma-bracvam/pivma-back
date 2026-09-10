@@ -409,6 +409,7 @@ async def get_pre_evaluation(
     )
     versions_used = await _versions_used(session, run_items)
     refs_by_version = {v['version_id']: v['references'] for v in versions_used}
+    evaluated_content = await _evaluated_content(session, run)
     return {
         'run_id': run.id,
         'correlation_id': run.correlation_id,
@@ -437,6 +438,7 @@ async def get_pre_evaluation(
             }
             for v in versions_used
         ],
+        'evaluated_content': evaluated_content,
         'direct_review_request': (
             {
                 'id': direct_review.id,
@@ -480,6 +482,43 @@ async def _load_submission(
     if dossier and dossier.metadata_payload:
         values = dossier.metadata_payload.get('values', {})
     return template, fields_by_key, values
+
+
+async def _evaluated_content(
+    session: AsyncSession, run: EvaluationRun
+) -> list[dict[str, Any]]:
+    """Conteúdo do formulário que alimentou a IA (FR-039).
+
+    Reconstruído da `FormInstance` da execução (imutável após o envio). Lista
+    os campos cobertos pelas associações ativas; um alvo `form`/`process`
+    cobre todos os campos.
+    """
+    template, fields_by_key, values = await _load_submission(session, run)
+    assignments = await _active_assignments(session, template.id)
+    if not assignments:
+        return []
+    covers_all = any(
+        a.target_type in {'form', 'process'} or not (a.field_keys or [])
+        for a in assignments
+    )
+    if covers_all:
+        keys = list(values.keys())
+    else:
+        keys = []
+        for a in assignments:
+            for k in a.field_keys or []:
+                if k not in keys:
+                    keys.append(k)
+    return [
+        {
+            'field_key': k,
+            'label': (
+                fields_by_key[k].label if k in fields_by_key else k
+            ),
+            'value': values.get(k),
+        }
+        for k in keys
+    ]
 
 
 async def _active_assignments(

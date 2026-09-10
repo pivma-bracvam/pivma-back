@@ -192,22 +192,48 @@ na URL, lê os campos reais do template e, ao associar, **descarta as associaç�
 órfãs** antes de reenviar o `PUT` (avisa quantas removeu). Também bloqueia o
 botão quando o campo da URL não existe no template salvo.
 
-Para o backend, vale avaliar: (a) `replace_assignments` ignorar/expirar entradas
-órfãs em vez de rejeitar o lote inteiro; ou (b) o `PUT` do template de formulário
-expirar em cascata as associações de um campo removido.
+**Implementado (Q2, opção B):** `update_form_template_definition` agora expira em
+cascata as associações de campos removidos — retira a `field_key` de cada
+associação e, se sobrar vazia, desativa a associação. Teste
+`test_removing_field_prunes_its_assignments`. A demo mantém o descarte defensivo
+para associações já órfãs no banco.
 
-## 6. Ainda em aberto
+## 6. Decisões do usuário em 2026-09-10 e estado
 
-- Decisão de RBAC da seção 3.
-- Limpeza em cascata de associações órfãs no backend (seção 5.1).
-- Opcional: `process.status` dedicado durante a espera pela IA (seção 2.3.1) —
-  hoje o travamento existe via `is_submitted`, sem status próprio.
-- Achados MEDIUM do segundo `/speckit-analyze` (M1–M6) não foram tratados — foram
-  adiados quando o foco passou para as demos.
-- Limpeza residual da Spec 010 (`_run_legacy_field_ai_mock`, endpoint
-  `/forms/instances/{id}/evaluate-ai`) segue como item futuro.
-- O provedor de IA ativo no servidor é o real (OpenAI); os testes/`test` das demos
-  gastam tokens. O seed usa `AI_PROVIDER=fake` só na sua própria execução.
+| # | Decisão | Estado |
+| --- | --- | --- |
+| Q1 | "BraCVAM" ≠ "Grupo Gestor" — entidades distintas | **Spec 014** (modelo RBAC + migração) |
+| Q2 | Limpeza em cascata de associações órfãs — corrigir na origem | **Feito** (seção 5.1) |
+| Q3 | Triagem = IA + BraCVAM + Administração (devs); não Grupo Gestor | **Spec 014** (autorização de triagem) |
+| Q4 | Incluir o conteúdo avaliado no payload da triagem | **Feito** — `evaluated_content` em `GET .../pre-evaluation` + painel da demo; snapshot dedicado por execução → Spec 014 |
+| Q5 | Remover o que foi desenvolvido na Spec 010 | **Spec 014** (remoção do pipeline legado) |
+| M1 | Testes dos endpoints de referências normativas | **Feito** (`test_evaluation_references.py`) |
+| M3 | Cadeia `falha da IA → intervenção direta → TRIAGE` | **Feito** (`test_direct_review.py`) |
+| M4 | Observabilidade do novo fluxo de log | **Spec 014** (junto da remoção da Spec 010) |
+| M5, A1, A2, L3, L4 | Ajustes de redação da spec 013 | **Feito** |
+| M6 / T067–T073 | Demos validadas em navegador | **Feito** (marcado cumprido) |
+
+### Escopo da Spec 014 (a planejar via `/speckit-specify`)
+
+1. **Semântica BraCVAM.** Novo perfil de acesso para o BraCVAM (distinto de
+   "Grupo Gestor"), com permissão de triagem. Migração.
+2. **Autorização da triagem.** `save_field_reviews` e `execute_triage_decision`
+   hoje **não têm RBAC** (só barram conflito de interesse); passam a exigir a
+   permissão BraCVAM. `_ensure_can_read` / `record_feedback` da pré-avaliação
+   trocam `is_effective_group_manager` pela permissão BraCVAM. Seed:
+   `triage_evaluator` recebe o perfil BraCVAM e o contorno `group_manager` sai.
+3. **Remoção da Spec 010.** `ai/pipeline.py`, `ai/steps/*`, `FormAIPipelineEngine`,
+   `_run_legacy_field_ai_mock`, `POST /forms/instances/{id}/evaluate-ai`, testes
+   e o ramo `ai_evaluation` de `submit_form`. Formulário sem associações passa a
+   ir direto à triagem com relatório vazio (FR-027), sem esteira mock.
+4. **Snapshot do conteúdo avaliado** por execução de pré-avaliação (coluna
+   dedicada), para fidelidade total mesmo após mudança de associação.
+5. **M4** — teste de regressão da observabilidade do fluxo novo.
+
+## 7. Ainda em aberto (fora da Spec 014)
+
+- O provedor de IA ativo no servidor é o real (OpenAI); os testes/`test` das
+  demos gastam tokens. O seed usa `AI_PROVIDER=fake` só na sua própria execução.
 
 ---
 Nota de processo: a skill `stop-slop` (revisão de prosa exigida pelo AGENTS.md)

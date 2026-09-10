@@ -174,3 +174,60 @@ async def test_evaluable_fields_lists_ai_fields(
     fields = {f['field_key']: f for f in resp.json()['fields']}
     assert AI_FIELD in fields
     assert len(fields[AI_FIELD]['assignments']) == 1
+
+
+@pytest.mark.asyncio
+async def test_removing_field_prunes_its_assignments(
+    client, ai_eval_admin, session
+):
+    await bootstrap_all_templates(session)
+    authenticate(client, ai_eval_admin)
+    definition_id = await _published_definition(client)
+    client.put(
+        f'/form-templates/{TEMPLATE_KEY}/evaluation-assignments',
+        json={
+            'assignments': [
+                {
+                    'definition_id': definition_id,
+                    'target_type': 'field',
+                    'field_keys': [AI_FIELD],
+                }
+            ]
+        },
+        headers=TRUSTED_ORIGIN,
+    )
+
+    detail = client.get(
+        f'/processes/templates/pre_validated_method/forms/{TEMPLATE_KEY}'
+    ).json()
+    kept_fields = [
+        f for f in detail['fields'] if f['field_key'] != AI_FIELD
+    ]
+    edit = client.put(
+        f'/processes/templates/pre_validated_method/forms/{TEMPLATE_KEY}',
+        json={'fields': kept_fields},
+    )
+    assert edit.status_code == HTTPStatus.OK
+
+    remaining = client.get(
+        f'/form-templates/{TEMPLATE_KEY}/evaluation-assignments'
+    ).json()
+    assert remaining['assignments'] == []
+
+    # E o template volta a aceitar novas associações (sem órfã travando o PUT).
+    other_field = kept_fields[0]['field_key']
+    redo = client.put(
+        f'/form-templates/{TEMPLATE_KEY}/evaluation-assignments',
+        json={
+            'assignments': [
+                {
+                    'definition_id': definition_id,
+                    'target_type': 'field',
+                    'field_keys': [other_field],
+                }
+            ]
+        },
+        headers=TRUSTED_ORIGIN,
+    )
+    assert redo.status_code == HTTPStatus.OK
+    assert redo.json()['assignments'][0]['field_keys'] == [other_field]

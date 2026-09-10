@@ -428,6 +428,17 @@
         html += `<p style="font-size:13px; color:#b45309;">O proponente contestou a IA e solicitou intervenção direta: "${d.direct_review_request.justification || ''}"</p>`;
       }
 
+      if ((d.evaluated_content || []).length) {
+        html += `<details style="margin-top:6px;"><summary style="cursor:pointer; font-size:13px; font-weight:600;">Conteúdo avaliado pela IA (${d.evaluated_content.length} campo(s))</summary>`;
+        d.evaluated_content.forEach(c => {
+          html += `<div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:8px 10px; margin-top:6px;">
+            <strong style="font-size:13px;">${c.label}</strong> <code style="font-size:11px;">${c.field_key}</code>
+            <div style="font-size:13px; color:#334155; white-space:pre-wrap; margin-top:2px;">${c.value == null ? '<em>(vazio)</em>' : String(c.value)}</div>
+          </div>`;
+        });
+        html += `</details>`;
+      }
+
       (d.attention_points || []).forEach(p => {
         const rid = p.item_id;
         html += `<div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px; margin-top:10px;">
