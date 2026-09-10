@@ -280,3 +280,5 @@ forms:
    ```
    *(Ou execute através do container ou suite de migrações correspondente).*
 3. Os formulários atualizados estarão imediatamente disponíveis nas APIs de processo e no endpoint `GET /processes/{id}/activities/{activity_key}/form`.
+
+> **Exemplo real completo:** `05_proof_of_concept.yaml` reproduz o Formulário Preliminar (FP) do BraCVAM — 9 seções via `validation_rules.section`, campos `boolean` + `textarea` para os itens "SIM/NÃO + especifique", e `file_upload` restrito a PDF. Ver `specs/015-first-deploy-baseline/data-model.md` para o mapeamento campo a campo e as aproximações assumidas (limites por nº de palavras, grupos de checkbox, tabelas repetíveis não são suportados nativamente).

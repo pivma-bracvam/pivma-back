@@ -47,16 +47,11 @@ async def test_form_draft_and_submission_flow(client, session):
     assert form_resp.status_code == HTTPStatus.OK
     form_data = form_resp.json()
     assert form_data['template_key'] == 'submission_pre_validated_v1'
-    assert len(form_data['fields']) >= 4
+    assert len(form_data['fields']) == 1
     assert not form_data['is_submitted']
 
     # 3. Save draft
-    draft_payload = {
-        'values': {
-            'method_title': 'Título em Rascunho',
-            'endpoint_target': 'skin_sensitization',
-        }
-    }
+    draft_payload = {'values': {'method_title': 'Título em Rascunho'}}
     draft_resp = client.put(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json=draft_payload,
@@ -72,20 +67,12 @@ async def test_form_draft_and_submission_flow(client, session):
     # 5. Try submitting incomplete form (should fail)
     incomplete_resp = client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
-        json={'values': {'method_title': 'Incompleto'}},
+        json={'values': {}},
     )
     assert incomplete_resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
     # 6. Submit complete form
-    full_payload = {
-        'values': {
-            'method_title': 'Método de Ensaio Concluído',
-            'endpoint_target': 'skin_sensitization',
-            'scientific_justification': 'Fundamentação completa do método.',
-            'pre_validation_evidence': 'Evidências prévias de repetibilidade.',
-            'study_protocol_file': 'protocolo.pdf',
-        }
-    }
+    full_payload = {'values': {'method_title': 'Método de Ensaio Concluído'}}
     submit_resp = client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json=full_payload,
@@ -150,14 +137,49 @@ async def test_draft_rejects_unknown_field_atomically(client, session):
     assert values['method_title'] == 'Anterior'
 
 
+async def _add_typed_fields(session):
+    """Adiciona campos tipados ao formulário simples para exercitar as regras
+    de validação de rascunho (o formulário de demo tem apenas `method_title`).
+    """
+    form_template = (
+        await session.execute(
+            select(FormTemplate).where(
+                FormTemplate.key == 'submission_pre_validated_v1'
+            )
+        )
+    ).scalar_one()
+    session.add_all([
+        FormField(
+            form_template_id=form_template.id,
+            field_key='demo_count',
+            label='Contagem demo',
+            field_type='integer',
+            order_index=10,
+            validation_rules={'min': 1, 'max': 50},
+        ),
+        FormField(
+            form_template_id=form_template.id,
+            field_key='demo_choice',
+            label='Escolha demo',
+            field_type='select',
+            order_index=11,
+            options=[
+                {'value': 'a', 'label': 'A'},
+                {'value': 'b', 'label': 'B'},
+            ],
+        ),
+    ])
+    await session.commit()
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ('field_key', 'value', 'error_code'),
     [
-        ('expected_laboratories_count', 'many', 'invalid_type'),
-        ('endpoint_target', 'unknown', 'invalid_option'),
-        ('expected_laboratories_count', 0, 'min_value'),
-        ('expected_laboratories_count', 51, 'max_value'),
+        ('demo_count', 'many', 'invalid_type'),
+        ('demo_choice', 'unknown', 'invalid_option'),
+        ('demo_count', 0, 'min_value'),
+        ('demo_count', 51, 'max_value'),
     ],
 )
 async def test_draft_rejects_incompatible_values(
@@ -165,6 +187,7 @@ async def test_draft_rejects_incompatible_values(
 ):
     user = UserFactory()
     process_id = await _create_submission(client, session, user)
+    await _add_typed_fields(session)
     endpoint = f'/processes/{process_id}/activities/proposal_submission/form'
 
     response = client.put(endpoint, json={'values': {field_key: value}})
@@ -222,11 +245,28 @@ async def test_draft_rejects_file_upload_without_persisting_artifact(
 ):
     user = UserFactory()
     process_id = await _create_submission(client, session, user)
+    form_template = (
+        await session.execute(
+            select(FormTemplate).where(
+                FormTemplate.key == 'submission_pre_validated_v1'
+            )
+        )
+    ).scalar_one()
+    session.add(
+        FormField(
+            form_template_id=form_template.id,
+            field_key='protocol_file',
+            label='Protocolo (PDF)',
+            field_type='file_upload',
+            order_index=12,
+        )
+    )
+    await session.commit()
     endpoint = f'/processes/{process_id}/activities/proposal_submission/form'
 
     response = client.put(
         endpoint,
-        json={'values': {'study_protocol_file': 'protocol.pdf'}},
+        json={'values': {'protocol_file': 'protocol.pdf'}},
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
@@ -429,32 +469,21 @@ async def test_active_participant_with_other_role_cannot_save_draft(
             'submission_validated_dossier_v1',
             {
                 'method_title': 'Dossiê Completo Teste',
-                'validated_endpoint': 'skin_sensitization',
-                'executive_validation_summary': (
-                    'Resumo executivo consolidado com mais de cinquenta'
-                    ' caracteres descritivos.'
+                'terminology_notes': (
+                    'Conceito descrito com nomenclatura atual da OCDE e mais'
+                    ' de trinta caracteres.'
                 ),
-                'international_guidelines_adherence': (
-                    'Aderência às diretrizes da OCDE com mais de cinquenta'
-                    ' caracteres.'
-                ),
-                'complete_dossier_file': 'dossie_completo.pdf',
             },
         ),
         (
             'proof_of_concept',
             'submission_proof_of_concept_v1',
             {
-                'method_title': 'PoC Conceitual Teste',
-                'targeted_endpoint': 'acute_toxicity',
-                'biological_rationale_and_3rs': (
-                    'Hipótese biológica e 3Rs com mais de cinquenta'
-                    ' caracteres explicativos.'
-                ),
-                'development_roadmap': (
-                    'Plano de desenvolvimento com mais de cinquenta caracteres'
-                    ' definidos.'
-                ),
+                'proponent_organization': 'Instituto de Testes Alternativos',
+                'contact_first_name': 'Ana',
+                'contact_last_name': 'Souza',
+                'contact_email': 'ana.souza@exemplo.org',
+                'method_name': 'Modelo conceitual órgão-em-chip',
             },
         ),
     ],

@@ -31,65 +31,25 @@ forms:
   - key: "submission_validated_dossier_v1"
     name: "Formulário de Submissão - Método Validado (Dossiê Pronto)"
     version: 1
-    description: "Submissão de estudo com validação interlaboratorial completa concluída para avaliação regulatória e revisão por pares."
+    description: "Exemplo enxuto do uso da avaliação por IA: descreva o conceito-chave do método e a IA verifica se a terminologia está atualizada."
     fields:
       - field_key: "method_title"
-        label: "Título do Método Validado"
+        label: "Título do método validado"
         field_type: "text"
         is_required: true
         order_index: 1
+        help_text: "Nome do método com validação concluída."
 
-      - field_key: "validated_endpoint"
-        label: "Desfecho Validado"
-        field_type: "select"
+      - field_key: "terminology_notes"
+        label: "Conceito-chave do método e terminologia usada"
+        field_type: "textarea"
         is_required: true
         order_index: 2
-        options:
-          - value: "ocular_irritation"
-            label: "Irritação / Corrosão Ocular"
-          - value: "skin_sensitization"
-            label: "Sensibilização Cutânea"
-          - value: "phototoxicity"
-            label: "Fototoxicidade"
-          - value: "acute_toxicity"
-            label: "Toxicidade Aguda"
-          - value: "endocrine_disruption"
-            label: "Desregulação Endócrina"
-
-      - field_key: "executive_validation_summary"
-        label: "Resumo Executivo do Estudo de Validação e Estatística Interlaboratorial"
-        field_type: "textarea"
-        is_required: true
-        order_index: 3
+        help_text: "Descreva o conceito central em 1–2 parágrafos."
         ai_evaluation_enabled: true
-        ai_context_instructions: "Analisar se o resumo consolida acurácia, reprodutibilidade intra e interlaboratorial, limites de detecção e concordância com o padrão de referência."
+        ai_context_instructions: "Verificar se os termos usados para descrever o conceito estão alinhados à nomenclatura científica e regulatória atual (OCDE, IATA, NAM). Apontar termos desatualizados e sugerir equivalentes modernos."
         ai_validation_rules:
-          min_length: 50
-
-      - field_key: "international_guidelines_adherence"
-        label: "Demonstração de Aderência às Diretrizes da OCDE (GD 34 e correlatas)"
-        field_type: "textarea"
-        is_required: true
-        order_index: 4
-        ai_evaluation_enabled: true
-        ai_context_instructions: "Verificar a conformidade do estudo com os critérios de validação e aceitação regulatória internacional da OCDE."
-        ai_validation_rules:
-          min_length: 50
-
-      - field_key: "complete_dossier_file"
-        label: "Dossiê Completo de Validação Consolidado (PDF)"
-        field_type: "file_upload"
-        is_required: true
-        order_index: 5
-        validation_rules:
-          allowed_extensions: ["pdf"]
-          max_size_mb: 50
-
-      - field_key: "peer_reviewed_publications"
-        label: "Publicações Científicas e Referências de Suporte"
-        field_type: "textarea"
-        is_required: false
-        order_index: 6
+          min_length: 30
 
   - key: "triage_review_v1"
     name: "Formulário de Parecer de Triagem"

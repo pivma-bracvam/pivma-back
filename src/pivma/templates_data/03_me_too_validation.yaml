@@ -34,51 +34,11 @@ forms:
     description: "Avaliação de método mecanisticamente e funcionalmente semelhante a método já validado."
     fields:
       - field_key: "method_title"
-        label: "Título do Método Me-Too"
+        label: "Título do método"
         field_type: "text"
         is_required: true
         order_index: 1
-
-      - field_key: "reference_validated_method"
-        label: "Método Validado de Referência"
-        field_type: "text"
-        is_required: true
-        order_index: 2
-
-      - field_key: "target_test_system"
-        label: "Novo Sistema-Teste Proposto (ex.: tecido reconstruído nacional, nova linhagem)"
-        field_type: "text"
-        is_required: true
-        order_index: 3
-
-      - field_key: "mechanistic_similarity_rationale"
-        label: "Fundamentação da Semelhança Mecanística e Biológica"
-        field_type: "textarea"
-        is_required: true
-        order_index: 4
-        ai_evaluation_enabled: true
-        ai_context_instructions: "Avaliar se o novo sistema teste reproduz com fidelidade os mesmos marcadores e vias biológicas do método de referência validado."
-        ai_validation_rules:
-          min_length: 50
-
-      - field_key: "functional_equivalence_evidence"
-        label: "Dados Preliminares de Equivalência Funcional e Desempenho"
-        field_type: "textarea"
-        is_required: true
-        order_index: 5
-        ai_evaluation_enabled: true
-        ai_context_instructions: "Verificar se a concordância diagnóstica e a sensibilidade/especificidade atendem aos padrões mínimos de métodos me-too da OCDE."
-        ai_validation_rules:
-          min_length: 50
-
-      - field_key: "comparative_protocol_file"
-        label: "Protocolo Comparativo Detalhado (PDF)"
-        field_type: "file_upload"
-        is_required: true
-        order_index: 6
-        validation_rules:
-          allowed_extensions: ["pdf"]
-          max_size_mb: 25
+        help_text: "Nome do método alternativo proposto."
 
   - key: "triage_review_v1"
     name: "Formulário de Parecer de Triagem"

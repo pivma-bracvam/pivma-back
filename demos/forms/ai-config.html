@@ -4,15 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PIVMA - Configurar Avaliação por IA do Campo</title>
+  <link rel="stylesheet" href="/demos/assets/base.css">
   <style>
-    :root {
-      --bg:#f8fafc; --card-bg:#fff; --text:#0f172a; --text-muted:#64748b;
-      --primary:#1d4ed8; --primary-hover:#1e40af; --success:#15803d;
-      --danger:#b91c1c; --border:#cbd5e1; --radius:8px;
-    }
-    * { box-sizing:border-box; margin:0; padding:0; }
-    body { font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-      background:var(--bg); color:var(--text); line-height:1.5; padding:24px; }
     .container { max-width:1000px; margin:0 auto; }
     .back-link { font-size:14px; color:var(--primary); text-decoration:none; font-weight:600; }
     h1 { font-size:22px; margin:6px 0 2px; }
@@ -175,7 +168,7 @@ async function checkSession() {
 async function loginAdmin() {
   const r = await api('/auth/login', { method: 'POST', body: JSON.stringify({ identifier: 'admin', password: 'Admin@123456' }) });
   if (r.ok) { await checkSession(); await loadLibrary(); await checkField(); }
-  else alert('Falha na autenticação. Rode os seeds (scripts/seeds/seed_all.py).');
+  else alert('Falha na autenticação. Execute a carga: uv run python -m scripts.seeds.seed_all');
 }
 
 // Descobre os campos que realmente existem no template salvo, para avisar

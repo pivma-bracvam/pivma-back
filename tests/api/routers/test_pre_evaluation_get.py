@@ -11,6 +11,7 @@ from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.core import pre_evaluation_service as svc
 from pivma.core.database.models import ProcessInstance
 from tests.ai_eval_helpers import (
+    AI_FIELD,
     COMPLIANT_STATEMENT,
     FULL_VALUES,
     NON_COMPLIANT_STATEMENT,
@@ -126,11 +127,8 @@ async def test_payload_carries_evaluated_content(
     body = client.get(f'/processes/{process_id}/pre-evaluation').json()
 
     content = {c['field_key']: c['value'] for c in body['evaluated_content']}
-    assert 'scientific_justification' in content
-    assert (
-        content['scientific_justification']
-        == (FULL_VALUES['scientific_justification'])
-    )
+    assert AI_FIELD in content
+    assert content[AI_FIELD] == FULL_VALUES[AI_FIELD]
 
 
 @pytest.mark.asyncio

@@ -68,7 +68,7 @@ async function quickLoginAdmin() {
     await loadInitialHistory();
   } else {
     alert(
-      'Falha ao autenticar como admin. Verifique se o seed foi executado (poetry run python scripts/seeds/seed_all.py).'
+      'Falha ao autenticar como admin. Execute a carga: uv run python -m scripts.seeds.seed_all'
     );
   }
 }

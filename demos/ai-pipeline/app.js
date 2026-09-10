@@ -70,7 +70,7 @@ async function quickLoginAdmin() {
     await loadInitialHistory();
   } else {
     alert(
-      'Falha ao autenticar como admin. Execute os seeds (uv run python -m scripts.seeds.seed_all).'
+      'Falha ao autenticar como admin. Execute a carga: uv run python -m scripts.seeds.seed_all'
     );
   }
 }

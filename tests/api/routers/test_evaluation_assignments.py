@@ -8,8 +8,8 @@ from pivma.bootstrap_process_templates import bootstrap_all_templates
 from tests.ai_eval_helpers import TRUSTED_ORIGIN
 from tests.api.routers.test_rbac_router import authenticate
 
-TEMPLATE_KEY = 'submission_pre_validated_v1'
-AI_FIELD = 'scientific_justification'
+TEMPLATE_KEY = 'submission_validated_dossier_v1'
+AI_FIELD = 'terminology_notes'
 
 
 async def _published_definition(client) -> str:

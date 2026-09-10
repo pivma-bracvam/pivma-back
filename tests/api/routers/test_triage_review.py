@@ -22,7 +22,7 @@ async def test_triage_field_review_flow(client, session, bracvam_user):
     resp = client.post(
         '/processes',
         json={
-            'template_key': 'pre_validated_method',
+            'template_key': 'validated_method_dossier',
             'title': 'Estudo de Triagem e Revisão',
         },
     )
@@ -31,10 +31,9 @@ async def test_triage_field_review_flow(client, session, bracvam_user):
     full_payload = {
         'values': {
             'method_title': 'Método para Triagem',
-            'endpoint_target': 'phototoxicity',
-            'scientific_justification': 'Justificativa para análise.',
-            'pre_validation_evidence': 'Evidências prévias de repetibilidade.',
-            'study_protocol_file': 'protocolo.pdf',
+            'terminology_notes': (
+                'Conceito descrito com nomenclatura atual e detalhamento.'
+            ),
         }
     }
     client.post(
@@ -52,7 +51,7 @@ async def test_triage_field_review_flow(client, session, bracvam_user):
                 'comments': 'Título claro e objetivo.',
             },
             {
-                'field_key': 'scientific_justification',
+                'field_key': 'terminology_notes',
                 'status': 'OBSERVACAO',
                 'comments': 'Necessário complementar referências.',
             },
@@ -72,4 +71,4 @@ async def test_triage_field_review_flow(client, session, bracvam_user):
     assert form_resp.status_code == HTTPStatus.OK
     reviews = form_resp.json()['reviews']
     assert reviews['method_title']['status'] == 'CONFORME'
-    assert reviews['scientific_justification']['status'] == 'OBSERVACAO'
+    assert reviews['terminology_notes']['status'] == 'OBSERVACAO'

@@ -58,10 +58,7 @@ async def test_full_process_engine_flow_approved(session):
     assert act_map['triage_evaluation'].status == 'BLOCKED'
 
     # 3. Save Draft
-    draft_vals = {
-        'method_title': 'Método 3T3 NRU',
-        'endpoint_target': 'ocular_irritation',
-    }
+    draft_vals = {'method_title': 'Método 3T3 NRU'}
     form_inst = await save_form_values_draft(
         session, process.id, 'proposal_submission', draft_vals, user.id
     )
@@ -70,17 +67,11 @@ async def test_full_process_engine_flow_approved(session):
     # 4. Fail Submit without required fields
     with pytest.raises(ValidationError):
         await submit_proposal_form(
-            session, process.id, 'proposal_submission', draft_vals, user.id
+            session, process.id, 'proposal_submission', {}, user.id
         )
 
     # 5. Submit valid form
-    full_vals = {
-        'method_title': 'Método 3T3 NRU Completo',
-        'endpoint_target': 'ocular_irritation',
-        'scientific_justification': 'Justificativa baseada em ensaio celular.',
-        'pre_validation_evidence': 'Evidências prévias de repetibilidade.',
-        'study_protocol_file': 'protocolo.pdf',
-    }
+    full_vals = {'method_title': 'Método 3T3 NRU Completo'}
     sub_act, sub_run, artifact, pre_eval_run = await submit_proposal_form(
         session, process.id, 'proposal_submission', full_vals, user.id
     )

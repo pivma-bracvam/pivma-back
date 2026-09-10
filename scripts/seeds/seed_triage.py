@@ -17,7 +17,7 @@ from pivma.core.process_engine import (
 from scripts.seeds.common import get_session
 from scripts.seeds.seed_forms import OFFICIAL_DEMO_PROCESSES
 
-TRIAGE_DEMO_TITLE = '[DEMO 1] Método Pré-Validado - Ensaio BCOP'
+TRIAGE_DEMO_TITLE = '[DEMO 1] Método Pré-Validado'
 
 
 async def run_seed_triage() -> None:
@@ -93,19 +93,8 @@ async def run_seed_triage() -> None:
         if proc.status == 'SUBMISSION':
             values = {
                 'method_title': (
-                    'Ensaio BCOP de Opacidade e Permeabilidade Corneana'
+                    'Ensaio BCOP de opacidade e permeabilidade corneana'
                 ),
-                'endpoint_target': 'ocular_irritation',
-                'scientific_justification': (
-                    'Método alternativo validado segundo OECD TG 437 para'
-                    ' substituição do teste de Draize in vivo.'
-                ),
-                'pre_validation_evidence': (
-                    'Estudos pré-validação com dados de repetibilidade e'
-                    ' transferibilidade preliminares.'
-                ),
-                'expected_laboratories_count': 3,
-                'study_protocol_file': 'protocolo_validacao_bcop.pdf',
             }
             await submit_proposal_form(
                 session=session,

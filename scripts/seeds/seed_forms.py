@@ -17,23 +17,23 @@ from scripts.seeds.common import get_session
 OFFICIAL_DEMO_PROCESSES = [
     {
         'key': 'pre_validated_method',
-        'title': '[DEMO 1] Método Pré-Validado - Ensaio BCOP',
+        'title': '[DEMO 1] Método Pré-Validado',
     },
     {
         'key': 'scope_extension',
-        'title': '[DEMO 2] Extensão de Escopo - Ensaio 3T3 NRU',
+        'title': '[DEMO 2] Extensão de Escopo',
     },
     {
         'key': 'me_too_validation',
-        'title': '[DEMO 3] Validação Me-Too - Epiderme Humana Reconstituída',
+        'title': '[DEMO 3] Validação Me-Too',
     },
     {
         'key': 'validated_method_dossier',
-        'title': '[DEMO 4] Dossiê Submetido - Micronúcleos In Vitro',
+        'title': '[DEMO 4] Dossiê Validado — Exemplo de IA',
     },
     {
         'key': 'proof_of_concept',
-        'title': '[DEMO 5] Prova de Conceito - Modelo Órgão-em-Chip',
+        'title': '[DEMO 5] Prova de Conceito — Formulário Preliminar (FP)',
     },
 ]
 

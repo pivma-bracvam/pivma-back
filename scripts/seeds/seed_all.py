@@ -26,41 +26,51 @@ async def run_all_seeds() -> None:
     await run_seed_triage()
     print()
 
-    print('[4/4] Semeando Avaliação Configurável por IA (Spec 013)...')
+    print('[4/4] Semeando Avaliação por IA e processo em triagem...')
     await run_seed_ai_evaluations()
     print()
 
     print('=====================================================')
-    print('Carga concluída com sucesso! Informações para Testes:')
+    print('Carga concluída com sucesso!')
     print('=====================================================')
-    print('Hub de Demonstrações: http://localhost:8000/demos/')
-    print('Ciclo básico (4 módulos):')
-    print('  1. Editor de Formulário + IA: http://localhost:8000/demos/forms/')
+    print('Comando de carga: uv run python -m scripts.seeds.seed_all')
+    print('Hub de demonstrações: http://localhost:8000/demos/')
+    print('Ciclo principal:')
+    print('  1. Editor de formulário + IA: http://localhost:8000/demos/forms/')
     print(
-        '  2. Submissão + Pré-avaliação: http://localhost:8000/demos/submission/'
+        '  2. Submissão + pré-avaliação:  http://localhost:8000/demos/submission/'
     )
     print(
-        '  3. Triagem + Feedback de IA:  http://localhost:8000/demos/triage/'
+        '  3. Triagem + feedback de IA:   http://localhost:8000/demos/triage/'
     )
     print(
-        '  4. Observabilidade de IA:     http://localhost:8000/demos/ai-pipeline/'
+        '  4. Observabilidade de IA:      http://localhost:8000/demos/ai-pipeline/'
     )
-    print('Apoio: /demos/users/  |  /demos/operational-index/')
-    print('\nContas Pré-Configuradas (login: /auth/login):')
+    print('Apoio:')
     print(
-        '  - admin / Admin@123456            (BraCVAM: edita formulário,'
-        ' configura avaliações por IA)'
+        '  5. Usuários e RBAC:            http://localhost:8000/demos/users/'
     )
     print(
-        '  - proponent_user / Proponent@123456 (Proponente: submete e'
-        ' acompanha a pré-avaliação)'
+        '  6. Índice operacional:        '
+        'http://localhost:8000/demos/operational-index/'
+    )
+    print('\nContas pré-configuradas (login: /auth/login):')
+    print(
+        '  - admin / Admin@123456              '
+        '(BraCVAM: edita formulário, configura IA)'
     )
     print(
-        '  - triage_evaluator / Triage@123456 (Avaliador: triagem e feedback'
-        ' por critério)'
+        '  - proponent_user / Proponent@123456 '
+        '(Proponente: submete e acompanha a pré-avaliação)'
     )
-    print('\nSpec 013: DEMO 2 "[DEMO IA] Extensão de Escopo" já está em')
-    print('triagem com pré-avaliação executada + intervenção direta.')
+    print(
+        '  - triage_evaluator / Triage@123456  '
+        '(Avaliador: triagem e feedback por critério)'
+    )
+    print(
+        '\n"[DEMO 4] Dossiê Validado — Exemplo de IA" já está em triagem com'
+    )
+    print('pré-avaliação executada, pronto para as demos 3 e 4.')
     print('=====================================================\n')
 
 

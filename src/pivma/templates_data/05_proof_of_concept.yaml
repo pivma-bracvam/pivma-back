@@ -29,70 +29,629 @@ phases:
 
 forms:
   - key: "submission_proof_of_concept_v1"
-    name: "Formulário de Submissão - Prova de Conceito (PoC)"
+    name: "Formulário Preliminar (FP) - BraCVAM"
     version: 1
-    description: "Submissão de ideia conceitual ou método em estágio preliminar de P&D para orientação estratégica do BraCVAM."
+    description: "Formulário Preliminar do BraCVAM para avaliação preliminar do estado de desenvolvimento/validação de um método de teste."
     fields:
-      - field_key: "method_title"
-        label: "Título da Prova de Conceito"
+      # ─── Seção 1. Informações Gerais ───
+      - field_key: "proponent_organization"
+        label: "Organização/Empresa (proponente)"
         field_type: "text"
         is_required: true
         order_index: 1
-
-      - field_key: "targeted_endpoint"
-        label: "Desfecho / Toxicidade Alvo"
-        field_type: "select"
-        is_required: true
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "proponent_unit"
+        label: "Departamento/Faculdade/Instituto/Outro"
+        field_type: "text"
+        is_required: false
         order_index: 2
-        options:
-          - value: "ocular_irritation"
-            label: "Irritação / Corrosão Ocular"
-          - value: "skin_sensitization"
-            label: "Sensibilização Cutânea"
-          - value: "phototoxicity"
-            label: "Fototoxicidade"
-          - value: "acute_toxicity"
-            label: "Toxicidade Aguda"
-          - value: "systemic_toxicity"
-            label: "Toxicidade Sistêmica"
-
-      - field_key: "biological_rationale_and_3rs"
-        label: "Hipótese Biológica e Potencial de Substituição 3R"
-        field_type: "textarea"
-        is_required: true
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "proponent_address"
+        label: "Endereço"
+        field_type: "text"
+        is_required: false
         order_index: 3
-        ai_evaluation_enabled: true
-        ai_context_instructions: "Avaliar o mérito inovador, plausibilidade biológica do conceito e impacto potencial na redução/substituição de animais."
-        ai_validation_rules:
-          min_length: 50
-
-      - field_key: "development_roadmap"
-        label: "Plano de Desenvolvimento e Etapas de Otimização Previstas"
-        field_type: "textarea"
-        is_required: true
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "proponent_postal_code"
+        label: "CEP"
+        field_type: "text"
+        is_required: false
         order_index: 4
-        ai_evaluation_enabled: true
-        ai_context_instructions: "Verificar a viabilidade metodológica do cronograma e marcos de desenvolvimento propostos."
-        ai_validation_rules:
-          min_length: 50
-
-      - field_key: "estimated_timeline_months"
-        label: "Estimativa de Duração da Prova de Conceito (Meses)"
-        field_type: "integer"
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "proponent_city"
+        label: "Cidade"
+        field_type: "text"
         is_required: false
         order_index: 5
         validation_rules:
-          min: 1
-          max: 60
-
-      - field_key: "concept_note_file"
-        label: "Nota Conceitual ou Documento de Projeto Preliminar (PDF)"
-        field_type: "file_upload"
+          section: "1. Informações Gerais"
+      - field_key: "proponent_country"
+        label: "País"
+        field_type: "text"
         is_required: false
         order_index: 6
         validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "contact_title"
+        label: "Titulação do contato responsável"
+        field_type: "select"
+        is_required: false
+        order_index: 7
+        options:
+          - value: "mr"
+            label: "Mr."
+          - value: "ms"
+            label: "Ms."
+          - value: "dr"
+            label: "Dr."
+          - value: "prof"
+            label: "Prof."
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "contact_first_name"
+        label: "Primeiro nome"
+        field_type: "text"
+        is_required: true
+        order_index: 8
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "contact_last_name"
+        label: "Último nome"
+        field_type: "text"
+        is_required: true
+        order_index: 9
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "contact_role"
+        label: "Função"
+        field_type: "text"
+        is_required: false
+        order_index: 10
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "contact_phone"
+        label: "Telefone"
+        field_type: "text"
+        is_required: false
+        order_index: 11
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "contact_mobile"
+        label: "Celular"
+        field_type: "text"
+        is_required: false
+        order_index: 12
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "contact_email"
+        label: "E-mail"
+        field_type: "text"
+        is_required: true
+        order_index: 13
+        help_text: "Formato de e-mail não é validado pelo sistema."
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "additional_contact_title"
+        label: "Titulação (contato adicional)"
+        field_type: "select"
+        is_required: false
+        order_index: 14
+        options:
+          - value: "mr"
+            label: "Mr."
+          - value: "ms"
+            label: "Ms."
+          - value: "dr"
+            label: "Dr."
+          - value: "prof"
+            label: "Prof."
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "additional_contact_first_name"
+        label: "Primeiro nome (contato adicional)"
+        field_type: "text"
+        is_required: false
+        order_index: 15
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "additional_contact_last_name"
+        label: "Último nome (contato adicional)"
+        field_type: "text"
+        is_required: false
+        order_index: 16
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "additional_contact_role"
+        label: "Função (contato adicional)"
+        field_type: "text"
+        is_required: false
+        order_index: 17
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "additional_contact_phone"
+        label: "Telefone (contato adicional)"
+        field_type: "text"
+        is_required: false
+        order_index: 18
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "additional_contact_mobile"
+        label: "Celular (contato adicional)"
+        field_type: "text"
+        is_required: false
+        order_index: 19
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "additional_contact_email"
+        label: "E-mail (contato adicional)"
+        field_type: "text"
+        is_required: false
+        order_index: 20
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "alt_organization"
+        label: "Organização/Empresa (se diferente do proponente)"
+        field_type: "text"
+        is_required: false
+        order_index: 21
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "alt_unit"
+        label: "Departamento/Faculdade/Instituto/Outro (alternativo)"
+        field_type: "text"
+        is_required: false
+        order_index: 22
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "alt_address"
+        label: "Endereço (alternativo)"
+        field_type: "text"
+        is_required: false
+        order_index: 23
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "alt_postal_code"
+        label: "CEP (alternativo)"
+        field_type: "text"
+        is_required: false
+        order_index: 24
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "alt_city"
+        label: "Cidade (alternativa)"
+        field_type: "text"
+        is_required: false
+        order_index: 25
+        validation_rules:
+          section: "1. Informações Gerais"
+      - field_key: "alt_country"
+        label: "País (alternativo)"
+        field_type: "text"
+        is_required: false
+        order_index: 26
+        validation_rules:
+          section: "1. Informações Gerais"
+
+      # ─── Seção 2. Informações do Método de Teste ───
+      - field_key: "method_name"
+        label: "Nome do método de teste"
+        field_type: "text"
+        is_required: true
+        order_index: 27
+        validation_rules:
+          section: "2. Informações do Método de Teste"
+      - field_key: "method_abbreviations"
+        label: "Abreviaturas usadas"
+        field_type: "text"
+        is_required: false
+        order_index: 28
+        validation_rules:
+          section: "2. Informações do Método de Teste"
+
+      # ─── Seção 3. Resumo do Método de Teste ───
+      - field_key: "addresses_human_health"
+        label: "Aborda efeitos na saúde humana?"
+        field_type: "boolean"
+        is_required: false
+        order_index: 29
+        validation_rules:
+          section: "3. Resumo do Método de Teste"
+      - field_key: "addresses_human_health_detail"
+        label: "Especifique (saúde humana)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 30
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "3. Resumo do Método de Teste"
+      - field_key: "addresses_environmental"
+        label: "Aborda efeitos ambientais?"
+        field_type: "boolean"
+        is_required: false
+        order_index: 31
+        validation_rules:
+          section: "3. Resumo do Método de Teste"
+      - field_key: "addresses_environmental_detail"
+        label: "Especifique (efeitos ambientais)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 32
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "3. Resumo do Método de Teste"
+      - field_key: "addresses_other"
+        label: "Aborda outros efeitos?"
+        field_type: "boolean"
+        is_required: false
+        order_index: 33
+        validation_rules:
+          section: "3. Resumo do Método de Teste"
+      - field_key: "addresses_other_detail"
+        label: "Especifique (outros)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 34
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "3. Resumo do Método de Teste"
+      - field_key: "mechanistic_relevance"
+        label: "Relevância mecanicista (3.2)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 35
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "3. Resumo do Método de Teste"
+      - field_key: "test_system_description"
+        label: "Sistema de teste usado e relevância biológica (3.3)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 36
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "3. Resumo do Método de Teste"
+      - field_key: "measured_variables_outcomes"
+        label: "Variáveis e desfechos medidos (3.4)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 37
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "3. Resumo do Método de Teste"
+      - field_key: "intended_purpose"
+        label: "Finalidade pretendida (3.5)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 38
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "3. Resumo do Método de Teste"
+      - field_key: "three_rs_impact"
+        label: "Impacto nos 3Rs (3.6)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 39
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "3. Resumo do Método de Teste"
+      - field_key: "animal_derived_reagents"
+        label: "Uso de soro/anticorpos de origem animal (3.7)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 40
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "3. Resumo do Método de Teste"
+      - field_key: "improvement_over_existing"
+        label: "Melhoria frente a método existente (3.8)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 41
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "3. Resumo do Método de Teste"
+      - field_key: "method_limitations"
+        label: "Limitações do método (3.9)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 42
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "3. Resumo do Método de Teste"
+      - field_key: "ip_status"
+        label: "Propriedade intelectual / confidencialidade de componentes (3.10)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 43
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "3. Resumo do Método de Teste"
+
+      # ─── Seção 4. Avaliação Preliminar do Nível de Otimização do Protocolo ───
+      - field_key: "protocol_stepwise_described"
+        label: "Procedimento descrito passo a passo, com reagentes e instrumentos? (4.1)"
+        field_type: "boolean"
+        is_required: false
+        order_index: 44
+        validation_rules:
+          section: "4. Avaliação Preliminar do Nível de Otimização do Protocolo"
+      - field_key: "protocol_sop_status"
+        label: "Status atual do(s) POP(s)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 45
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "4. Avaliação Preliminar do Nível de Otimização do Protocolo"
+      - field_key: "sop_files"
+        label: "Procedimentos Operacionais Padrão (PDF)"
+        field_type: "file_upload"
+        is_required: false
+        order_index: 46
+        validation_rules:
+          section: "4. Avaliação Preliminar do Nível de Otimização do Protocolo"
           allowed_extensions: ["pdf"]
           max_size_mb: 25
+      - field_key: "control_positive"
+        label: "Usa controle positivo? (4.2)"
+        field_type: "boolean"
+        is_required: false
+        order_index: 47
+        validation_rules:
+          section: "4. Avaliação Preliminar do Nível de Otimização do Protocolo"
+      - field_key: "control_positive_detail"
+        label: "Especifique o controle positivo"
+        field_type: "textarea"
+        is_required: false
+        order_index: 48
+        validation_rules:
+          section: "4. Avaliação Preliminar do Nível de Otimização do Protocolo"
+      - field_key: "control_negative"
+        label: "Usa controle negativo?"
+        field_type: "boolean"
+        is_required: false
+        order_index: 49
+        validation_rules:
+          section: "4. Avaliação Preliminar do Nível de Otimização do Protocolo"
+      - field_key: "control_negative_detail"
+        label: "Especifique o controle negativo"
+        field_type: "textarea"
+        is_required: false
+        order_index: 50
+        validation_rules:
+          section: "4. Avaliação Preliminar do Nível de Otimização do Protocolo"
+      - field_key: "control_reference"
+        label: "Usa controle de referência?"
+        field_type: "boolean"
+        is_required: false
+        order_index: 51
+        validation_rules:
+          section: "4. Avaliação Preliminar do Nível de Otimização do Protocolo"
+      - field_key: "control_reference_detail"
+        label: "Especifique o controle de referência"
+        field_type: "textarea"
+        is_required: false
+        order_index: 52
+        validation_rules:
+          section: "4. Avaliação Preliminar do Nível de Otimização do Protocolo"
+      - field_key: "quality_criteria_defined"
+        label: "Critérios de qualidade do sistema de teste especificados? (4.3)"
+        field_type: "boolean"
+        is_required: false
+        order_index: 53
+        validation_rules:
+          section: "4. Avaliação Preliminar do Nível de Otimização do Protocolo"
+      - field_key: "quality_criteria_detail"
+        label: "Descreva os critérios de qualidade"
+        field_type: "textarea"
+        is_required: false
+        order_index: 54
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "4. Avaliação Preliminar do Nível de Otimização do Protocolo"
+      - field_key: "acceptance_criteria_defined"
+        label: "Critérios de aceitação para dados de teste e controles? (4.4)"
+        field_type: "boolean"
+        is_required: false
+        order_index: 55
+        validation_rules:
+          section: "4. Avaliação Preliminar do Nível de Otimização do Protocolo"
+      - field_key: "acceptance_criteria_detail"
+        label: "Descreva os critérios de aceitação"
+        field_type: "textarea"
+        is_required: false
+        order_index: 56
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "4. Avaliação Preliminar do Nível de Otimização do Protocolo"
+      - field_key: "data_processing_required"
+        label: "Requer procedimento sobre os dados brutos para os desfechos? (4.5)"
+        field_type: "boolean"
+        is_required: false
+        order_index: 57
+        validation_rules:
+          section: "4. Avaliação Preliminar do Nível de Otimização do Protocolo"
+      - field_key: "data_processing_detail"
+        label: "Descreva como os dados são resumidos/expressos"
+        field_type: "textarea"
+        is_required: false
+        order_index: 58
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "4. Avaliação Preliminar do Nível de Otimização do Protocolo"
+      - field_key: "prediction_model_available"
+        label: "Modelo de previsão / interpretação de dados disponível? (4.6)"
+        field_type: "boolean"
+        is_required: false
+        order_index: 59
+        validation_rules:
+          section: "4. Avaliação Preliminar do Nível de Otimização do Protocolo"
+      - field_key: "prediction_model_detail"
+        label: "Descreva o modelo de previsão"
+        field_type: "textarea"
+        is_required: false
+        order_index: 60
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "4. Avaliação Preliminar do Nível de Otimização do Protocolo"
+
+      # ─── Seção 5. Avaliação Preliminar da Confiabilidade ───
+      - field_key: "within_lab_reproducibility"
+        label: "Reprodutibilidade intra-laboratorial avaliada? (5.1)"
+        field_type: "boolean"
+        is_required: false
+        order_index: 61
+        validation_rules:
+          section: "5. Avaliação Preliminar da Confiabilidade"
+      - field_key: "within_lab_reproducibility_detail"
+        label: "Como foi feito e resultados (5.1)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 62
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "5. Avaliação Preliminar da Confiabilidade"
+      - field_key: "transferability_assessed"
+        label: "Transferibilidade para outros laboratórios avaliada? (5.2)"
+        field_type: "boolean"
+        is_required: false
+        order_index: 63
+        validation_rules:
+          section: "5. Avaliação Preliminar da Confiabilidade"
+      - field_key: "transferability_detail"
+        label: "Como foi feito e resultados (5.2)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 64
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "5. Avaliação Preliminar da Confiabilidade"
+      - field_key: "between_lab_reproducibility"
+        label: "Reprodutibilidade inter-laboratorial avaliada? (5.3)"
+        field_type: "boolean"
+        is_required: false
+        order_index: 65
+        validation_rules:
+          section: "5. Avaliação Preliminar da Confiabilidade"
+      - field_key: "between_lab_reproducibility_detail"
+        label: "Como foi feito e resultados (5.3)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 66
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "5. Avaliação Preliminar da Confiabilidade"
+
+      # ─── Seção 6. Avaliação Preliminar da Capacidade Preditiva ───
+      - field_key: "predictions_possible"
+        label: "Permite previsões sobre saúde humana / ambiente / outros efeitos? (6.1)"
+        field_type: "boolean"
+        is_required: false
+        order_index: 67
+        validation_rules:
+          section: "6. Avaliação Preliminar da Capacidade Preditiva"
+      - field_key: "predictions_detail"
+        label: "Tipo de previsões obtidas (6.1)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 68
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "6. Avaliação Preliminar da Capacidade Preditiva"
+      - field_key: "additional_information"
+        label: "Fornece informações adicionais (modo de ação/mecanismo)? (6.2)"
+        field_type: "boolean"
+        is_required: false
+        order_index: 69
+        validation_rules:
+          section: "6. Avaliação Preliminar da Capacidade Preditiva"
+      - field_key: "additional_information_detail"
+        label: "Especifique (6.2)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 70
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "6. Avaliação Preliminar da Capacidade Preditiva"
+      - field_key: "items_tested_count"
+        label: "Nº de itens testados e classes químicas abrangidas (6.3)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 71
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "6. Avaliação Preliminar da Capacidade Preditiva"
+      - field_key: "reference_data_used"
+        label: "Dados de referência usados (in vivo/in vitro/humanos) (6.4)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 72
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "6. Avaliação Preliminar da Capacidade Preditiva"
+      - field_key: "predictive_capacity_summary"
+        label: "Resumo da capacidade preditiva (especificidade/sensibilidade/acurácia) (6.5)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 73
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "6. Avaliação Preliminar da Capacidade Preditiva"
+      - field_key: "raw_data_available_independent"
+        label: "Dados brutos disponíveis para avaliação independente? (6.6)"
+        field_type: "boolean"
+        is_required: false
+        order_index: 74
+        validation_rules:
+          section: "6. Avaliação Preliminar da Capacidade Preditiva"
+
+      # ─── Seção 7. Referências ───
+      - field_key: "bibliographic_references"
+        label: "Referências bibliográficas relevantes (máx. 10, uma por linha)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 75
+        help_text: "Liste até 10 referências, uma por linha. Lista estruturada não é suportada."
+        validation_rules:
+          section: "7. Referências"
+
+      # ─── Seção 8. Declaração sobre Informação Confidencial ───
+      - field_key: "contains_confidential"
+        label: "O FP contém informações consideradas confidenciais?"
+        field_type: "boolean"
+        is_required: false
+        order_index: 76
+        validation_rules:
+          section: "8. Declaração sobre Informação Confidencial"
+      - field_key: "confidential_items"
+        label: "Itens confidenciais e justificativa (um por linha: nº do item — explicação)"
+        field_type: "textarea"
+        is_required: false
+        order_index: 77
+        help_text: "Máx. 100 palavras por parágrafo (orientação; não validada). Tabela repetível não é suportada."
+        validation_rules:
+          section: "8. Declaração sobre Informação Confidencial"
+
+      # ─── Seção 9. Solicitação do Método de Teste para BraCVAM ───
+      - field_key: "bracvam_validation_request"
+        label: "Submete o método para consideração de prontidão ao processo de validação do BraCVAM?"
+        field_type: "boolean"
+        is_required: false
+        order_index: 78
+        validation_rules:
+          section: "9. Solicitação do Método de Teste para BraCVAM"
+      - field_key: "bracvam_validation_request_detail"
+        label: "Especifique o pedido exato ao BraCVAM"
+        field_type: "textarea"
+        is_required: false
+        order_index: 79
+        help_text: "Máx. 150 palavras (orientação; não validada)."
+        validation_rules:
+          section: "9. Solicitação do Método de Teste para BraCVAM"
 
   - key: "triage_review_v1"
     name: "Formulário de Parecer de Triagem"

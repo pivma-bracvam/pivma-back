@@ -3,17 +3,15 @@
 TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
 AI_EVAL_CODES = ('ai_evaluations.read', 'ai_evaluations.manage')
 
-SUBMISSION_TEMPLATE = 'submission_pre_validated_v1'
-AI_FIELD = 'scientific_justification'
+SUBMISSION_TEMPLATE = 'submission_validated_dossier_v1'
+AI_FIELD = 'terminology_notes'
 FULL_VALUES = {
     'method_title': 'Método 3T3 NRU',
-    'endpoint_target': 'ocular_irritation',
-    'scientific_justification': (
-        'Justificativa com metodologia detalhada, controles e referencias.'
+    'terminology_notes': (
+        'O conceito central usa metodologia detalhada de captação de '
+        'vermelho neutro (NRU) como marcador de viabilidade celular, com '
+        'terminologia alinhada às diretrizes da OCDE.'
     ),
-    'pre_validation_evidence': 'Evidencias previas de repetibilidade.',
-    'study_protocol_file': 'protocolo.pdf',
-    'expected_laboratories_count': 3,
 }
 
 
@@ -76,7 +74,7 @@ def create_and_submit_process(client, *, values: dict | None = None) -> dict:
     process_id = client.post(
         '/processes',
         json={
-            'template_key': 'pre_validated_method',
+            'template_key': 'validated_method_dossier',
             'title': 'Estudo de Pré-avaliação',
         },
     ).json()['id']
