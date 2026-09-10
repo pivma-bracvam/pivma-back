@@ -362,10 +362,6 @@
         });
       });
 
-      if (data.ai_evaluation) {
-        html += renderAiReportBox(data.ai_evaluation);
-      }
-
       container.innerHTML = html;
 
       if (!data.is_submitted) {
@@ -381,31 +377,6 @@
       await renderTransition(processId, { justSubmitted: false });
     }
 
-    function renderAiReportBox(aiReport) {
-      if (!aiReport || !aiReport.evaluations) return '';
-      let out = `<div style="margin-top: 24px; padding: 16px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px;">`;
-      out += `<h3 style="font-size: 16px; color: #1e293b; margin-bottom: 8px;">Parecer Técnico Automatizado por IA:</h3>`;
-      out += `<p style="font-size: 14px; color: var(--text-muted); margin-bottom: 12px;">ID de Correlação: <code>${aiReport.correlation_id || '-'}</code></p>`;
-      
-      aiReport.evaluations.forEach(ev => {
-        const vColor = ev.verdict === 'APPROVED' ? '#15803d' : (ev.verdict === 'NEEDS_ADJUSTMENT' ? '#b45309' : '#b91c1c');
-        out += `<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 10px;">`;
-        out += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">`;
-        out += `<strong>Campo: <code>${ev.field_id || '-'}</code></strong>`;
-        out += `<span style="font-weight: 700; color: ${vColor}; background: #fef2f2; padding: 2px 8px; border-radius: 4px; font-size: 13px;">Veredito: ${ev.verdict} (Confiança: ${(ev.confidence_score * 100).toFixed(0)}%)</span>`;
-        out += `</div>`;
-        out += `<p style="font-size: 14px; color: #334155;"><strong>Resumo:</strong> ${ev.summary || '-'}</p>`;
-        if (ev.inconsistencies && ev.inconsistencies.length > 0) {
-          out += `<p style="font-size: 13px; color: #b91c1c; margin-top: 4px;"><strong>Inconsistências:</strong> ${ev.inconsistencies.join('; ')}</p>`;
-        }
-        if (ev.recommendations && ev.recommendations.length > 0) {
-          out += `<p style="font-size: 13px; color: #0369a1; margin-top: 4px;"><strong>Recomendações:</strong> ${ev.recommendations.join('; ')}</p>`;
-        }
-        out += `</div>`;
-      });
-      out += `</div>`;
-      return out;
-    }
 
     function fillValidSampleData() {
       currentFields.forEach(f => {

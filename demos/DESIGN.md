@@ -92,9 +92,9 @@ O hub (`demos/index.html`) expõe **4 módulos** que juntos cobrem o ciclo Fase 
 
 | Conta | Senha | Papel na demo |
 |---|---|---|
-| `admin` | `Admin@123456` | BraCVAM: edita formulário e configura avaliações por IA |
+| `admin` | `Admin@123456` | Administração (perfil Administrador): tudo, inclusive triagem |
 | `proponent_user` | `Proponent@123456` | Proponente: submete e acompanha a pré-avaliação |
-| `triage_evaluator` | `Triage@123456` | Avaliador: triagem, decisão e feedback por critério da IA |
+| `triage_evaluator` | `Triage@123456` | BraCVAM (perfil `bracvam`): configura avaliações por IA e conduz a triagem |
 
 | # | Página | Endpoints principais |
 |---|---|---|
@@ -114,9 +114,9 @@ publicar (`.../publish`) → associar ao campo. A associação faz
 via `PUT /form-templates/{k}/evaluation-assignments` (o `PUT` substitui a lista
 inteira).
 
-**Restrição de acesso conhecida:** `GET .../pre-evaluation` e
-`POST .../feedback` exigem proponente do processo, gestor do processo
-(`group_manager`) **ou** perfil Administrador (permissão `ai_evaluations.read`).
-O perfil *Revisor* não basta. O seed de Spec 013 designa `triage_evaluator`
-como `group_manager` do processo `[DEMO IA] Extensão de Escopo` para a demo de
-Triagem funcionar de ponta a ponta.
+**Autorização da triagem (Spec 014):** parecer de campo, decisão de triagem,
+`GET .../pre-evaluation` e `POST .../feedback` exigem a permissão `triage.review`
+— detida pelos perfis **`bracvam`** e **Administrador**. O proponente lê apenas a
+pré-avaliação do próprio processo. Conflito de interesse vigente bloqueia
+feedback e decisão mesmo com a permissão. O seed dá o perfil `bracvam` a
+`triage_evaluator` (sem contornos de `group_manager`).

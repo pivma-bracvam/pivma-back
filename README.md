@@ -132,7 +132,7 @@ Com uma conta de Administrador autenticada:
    ```http
    GET /rbac/profiles
    ```
-   *Perfis pré-semeados na migração:* `Administrador`, `Grupo Gestor`, `Gerente do Estudo`, `Laboratório Participante`, `Avaliador Ad Hoc`, `Revisor`, `Especialista`, `Analista Estatístico`.
+   *Perfis pré-semeados na migração:* `Administrador`, `BraCVAM`, `Grupo Gestor`, `Gerente do Estudo`, `Laboratório Participante`, `Avaliador Ad Hoc`, `Revisor`, `Especialista`, `Analista Estatístico`.
 
 2. **Atribuir perfil a um usuário:**
    ```http
@@ -388,8 +388,8 @@ O módulo de processos gerencia instâncias de validação analítica, formulár
 | Obter formulário | `GET /processes/{id}/forms/{form_key}` | Retorna esquema e valores do formulário dinâmico |
 | Preencher rascunho | `PUT /processes/{id}/forms/{form_key}` | Salva valores preliminares sem avançar o fluxo |
 | Submeter formulário | `POST /processes/{id}/forms/{form_key}/submit` | Valida campos obrigatórios, bloqueia edição e avança etapa |
-| Avaliar campos na triagem | `POST /processes/{id}/triage/reviews` | Registra pareceres técnicos por campo da proposta |
-| Decisão de triagem | `POST /processes/{id}/triage/decision` | Registra aprovação, rejeição ou pedido de ajuste |
+| Avaliar campos na triagem | `POST /processes/{id}/triage/reviews` | Registra pareceres técnicos por campo (permissão `triage.review`) |
+| Decisão de triagem | `POST /processes/{id}/triage/decision` | Registra aprovação, rejeição ou pedido de ajuste (permissão `triage.review`) |
 | Listar tarefas | `GET /tasks` | Lista e filtra tarefas pendentes por processo, papel ou executor |
 
 ---
@@ -409,6 +409,11 @@ BraCVAM. A IA nunca registra a decisão regulatória; a triagem permanece humana
 Leitura de documento, OCR e análise de imagem permanecem **mockadas**
 (resultado "não foi possível determinar").
 
+Perfis: `ai_evaluations.read`/`manage` e `triage.review` são detidos pelo perfil
+**`bracvam`** e pelo **Administrador** (Spec 014). A triagem — parecer de campo,
+decisão, consulta e feedback da pré-avaliação — exige `triage.review`; o
+proponente só lê a pré-avaliação do próprio processo.
+
 | Operação | Rota | Permissão |
 | :--- | :--- | :--- |
 | Biblioteca / versões / publicação | `GET/POST /ai-evaluations`, `.../versions/**` | `ai_evaluations.manage` (leitura: `ai_evaluations.read`) |
@@ -417,9 +422,9 @@ Leitura de documento, OCR e análise de imagem permanecem **mockadas**
 | Referências normativas | `GET/POST /ai-evaluations/references` | `ai_evaluations.manage` |
 | Associação a um formulário | `GET/PUT /form-templates/{key}/evaluation-assignments` | `ai_evaluations.manage` |
 | Métricas de concordância | `GET /ai-evaluations/agreement-metrics` | `ai_evaluations.read` |
-| Consultar pré-avaliação | `GET /processes/{id}/pre-evaluation` | proponente / gestor do processo / `ai_evaluations.read` |
+| Consultar pré-avaliação | `GET /processes/{id}/pre-evaluation` | proponente do processo **ou** `triage.review` |
 | Solicitar intervenção direta | `POST /processes/{id}/submission/direct-review` | proponente do processo |
-| Feedback do triador por critério | `POST /processes/{id}/pre-evaluation/{run_id}/feedback` | gestor do processo (bloqueado por conflito de interesse) |
+| Feedback do triador por critério | `POST /processes/{id}/pre-evaluation/{run_id}/feedback` | `triage.review` (bloqueado por conflito de interesse) |
 | Reprocessar execução (admin) | `POST /admin/pre-evaluations/{run_id}/retry` | Administrador |
 
 Config: `AI_PROVIDER`, `OPENAI_API_KEY`, `AI_MODEL_{EXTRACTION,FAST,REASONING}`
