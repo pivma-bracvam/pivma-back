@@ -8,6 +8,8 @@ from fastapi.security import APIKeyCookie
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pivma.ai.provider import ModelProvider
+from pivma.ai.provider import get_model_provider as _build_model_provider
 from pivma.core.authorization import has_permission
 from pivma.core.database import get_session
 from pivma.core.database.models import User
@@ -17,6 +19,13 @@ from pivma.core.settings import Settings, get_settings
 logger = logging.getLogger(__name__)
 Session = Annotated[AsyncSession, Depends(get_session)]
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
+
+
+def get_model_provider(settings: SettingsDependency) -> ModelProvider:
+    return _build_model_provider(settings)
+
+
+ModelProviderDep = Annotated[ModelProvider, Depends(get_model_provider)]
 access_token_cookie = APIKeyCookie(
     name='access_token',
     auto_error=False,

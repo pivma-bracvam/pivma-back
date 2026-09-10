@@ -18,6 +18,7 @@ os.environ.setdefault(
     'test-jwt-secret-key-with-at-least-32-bytes',
 )
 os.environ.setdefault('AUTH_ALLOWED_ORIGINS', '["https://testserver"]')
+os.environ.setdefault('AI_PROVIDER', 'fake')
 
 from pivma import app
 from pivma.core.database import get_session
@@ -103,6 +104,68 @@ def _mock_db_time(*, model, time=datetime(2024, 1, 1)):
 @pytest.fixture
 def mock_db_time():
     return _mock_db_time
+
+
+@pytest.fixture(autouse=True)
+def _stub_pre_evaluation_background(monkeypatch):
+    """A pré-avaliação assíncrona abre a própria sessão (fora do container
+    de teste); nos testes ela é chamada explicitamente via ``_execute``."""
+
+    async def _noop(_run_id):
+        return None
+
+    for target in (
+        'pivma.routers.forms.run_pre_evaluation',
+        'pivma.core.pre_evaluation_service.run_pre_evaluation',
+    ):
+        monkeypatch.setattr(target, _noop, raising=False)
+
+
+@pytest_asyncio.fixture
+async def ai_eval_admin(session):
+    """Usuário BraCVAM com as permissões de avaliação por IA (Spec 013)."""
+    from pivma.core.database.models import (  # noqa: PLC0415
+        AccessProfile,
+        AccessProfilePermission,
+        Permission,
+        UserAccessProfile,
+    )
+    from tests.ai_eval_helpers import AI_EVAL_CODES  # noqa: PLC0415
+
+    admin = UserFactory()
+    permissions = [
+        Permission(code=code, description=f'Permission {code}')
+        for code in AI_EVAL_CODES
+    ]
+    profile = AccessProfile(
+        system_key='administrator',
+        name='Administrador',
+        description='BraCVAM admin',
+    )
+    session.add_all([admin, profile, *permissions])
+    await session.flush()
+    session.add_all([
+        AccessProfilePermission(
+            profile_id=profile.id, permission_id=permission.id
+        )
+        for permission in permissions
+    ])
+    session.add(UserAccessProfile(user_id=admin.id, profile_id=profile.id))
+    await session.commit()
+    return admin
+
+
+@pytest.fixture
+def fake_provider():
+    """Injeta o provedor fake determinístico no app (Spec 013)."""
+    from pivma import app  # noqa: PLC0415
+    from pivma.ai.provider import FakeModelProvider  # noqa: PLC0415
+    from pivma.dependencies import get_model_provider  # noqa: PLC0415
+
+    provider = FakeModelProvider()
+    app.dependency_overrides[get_model_provider] = lambda: provider
+    yield provider
+    app.dependency_overrides.pop(get_model_provider, None)
 
 
 @pytest_asyncio.fixture

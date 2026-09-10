@@ -2,13 +2,14 @@ from http import HTTPStatus
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from pivma.ai.contracts import PipelineContext
 from pivma.ai.pipeline import FormAIPipelineEngine
 from pivma.core.database.models import Artifact, FormInstance, FormTemplate
+from pivma.core.pre_evaluation_service import run_pre_evaluation
 from pivma.core.process_engine import (
     ConflictError,
     NotFoundError,
@@ -182,15 +183,16 @@ async def save_form_draft(
     response_model=ActivityCompletionResponse,
     status_code=HTTPStatus.OK,
 )
-async def submit_form(
+async def submit_form(  # noqa: PLR0913, PLR0917
     id: UUID,
     activity_key: str,
     body: SubmitFormRequest,
     session: Session,
     current_user: CurrentUser,
+    background_tasks: BackgroundTasks,
 ):
     try:
-        act, run, artifact = await submit_proposal_form(
+        act, run, artifact, pre_eval_run = await submit_proposal_form(
             session=session,
             process_id=id,
             activity_key=activity_key,
@@ -210,6 +212,14 @@ async def submit_form(
             status_code=HTTPStatus.CONFLICT, detail=str(e)
         ) from e
 
+    pre_evaluation = None
+    if pre_eval_run is not None:
+        background_tasks.add_task(run_pre_evaluation, pre_eval_run.id)
+        pre_evaluation = {
+            'run_id': str(pre_eval_run.id),
+            'status': pre_eval_run.status,
+        }
+
     ai_eval = None
     if artifact and artifact.metadata_payload:
         ai_eval = artifact.metadata_payload.get('ai_evaluation')
@@ -220,6 +230,7 @@ async def submit_form(
         status=run.status,
         artifact_id=artifact.id if artifact else None,
         ai_evaluation=ai_eval,
+        pre_evaluation=pre_evaluation,
     )
 
 

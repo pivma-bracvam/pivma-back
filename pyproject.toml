@@ -16,7 +16,9 @@ dependencies = [
     "argon2-cffi (>=25.1,<26)",
     "PyJWT (>=2.13,<3.0)",
     "pyyaml (>=6.0.3,<7.0.0)",
-    "structlog (>=25.1.0,<26.0.0)"
+    "structlog (>=25.1.0,<26.0.0)",
+    "langchain-core (>=0.3.29,<1.0.0)",
+    "langchain-openai (>=0.3.0,<1.0.0)"
 ]
 
 [tool.poetry]

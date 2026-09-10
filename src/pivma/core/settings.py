@@ -15,6 +15,15 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = Field(init=False)
     AUTH_ALLOWED_ORIGINS: list[str] = Field(init=False, min_length=1)
 
+    # Avaliação por IA (Spec 013). Defaults seguros: sem chave e sem
+    # provedor real, o sistema usa o provedor fake e conclui de forma
+    # indeterminada — nunca uma conclusão positiva simulada.
+    OPENAI_API_KEY: str | None = Field(default=None)
+    AI_PROVIDER: str = Field(default='openai')
+    AI_MODEL_EXTRACTION: str = Field(default='gpt-5.4-nano')
+    AI_MODEL_FAST: str = Field(default='gpt-5.4-nano')
+    AI_MODEL_REASONING: str = Field(default='gpt-5.4-mini')
+
     @field_validator('JWT_SECRET_KEY')
     @classmethod
     def validate_jwt_secret_key(cls, value):

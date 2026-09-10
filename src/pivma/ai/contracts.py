@@ -43,13 +43,15 @@ class AIStepExecutionLog(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc)
     )
     correlation_id: UUID
-    pipeline_name: str = 'form_ai_field_evaluation'
+    pipeline_name: str = 'form_ai_pre_evaluation'
     field_key: str
     step_order: int
     step_name: str
     status: str = Field(default='SUCCESS')
     step_duration_ms: float
-    simulated_cost: float
+    simulated_cost: float = 0.0
+    real_cost: float = 0.0
+    model_name: str | None = None
     input_payload: dict[str, Any] = Field(default_factory=dict)
     output_payload: dict[str, Any] = Field(default_factory=dict)
     error_details: dict[str, Any] | None = None

@@ -81,14 +81,16 @@ async def test_full_process_engine_flow_approved(session):
         'pre_validation_evidence': 'Evidências prévias de repetibilidade.',
         'study_protocol_file': 'protocolo.pdf',
     }
-    sub_act, sub_run, artifact = await submit_proposal_form(
+    sub_act, sub_run, artifact, pre_eval_run = await submit_proposal_form(
         session, process.id, 'proposal_submission', full_vals, user.id
     )
 
     assert sub_act.status == 'COMPLETED'
     assert sub_run.status == 'COMPLETED'
     assert artifact.key == 'proposal_dossier'
+    # Sem avaliações configuradas, a esteira mock legada da Spec 010 roda.
     assert artifact.metadata_payload.get('ai_evaluation') is not None
+    assert pre_eval_run is None
 
     # Verify process moved to TRIAGE and triage unblocked
     p_refreshed = (

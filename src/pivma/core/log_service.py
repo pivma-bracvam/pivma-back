@@ -71,7 +71,7 @@ def _build_pipeline_group(
 ) -> PipelineExecutionGroup:
     steps_sorted = sorted(steps, key=lambda s: s.step_order)
     total_duration = sum(s.step_duration_ms for s in steps_sorted)
-    total_cost = sum(s.simulated_cost for s in steps_sorted)
+    total_cost = sum(s.simulated_cost or s.real_cost for s in steps_sorted)
 
     verdict = None
     for s in reversed(steps_sorted):
@@ -89,9 +89,14 @@ def _build_pipeline_group(
     started_at = steps_sorted[0].timestamp if steps_sorted else None
     completed_at = steps_sorted[-1].timestamp if steps_sorted else None
 
+    pipeline_name = (
+        steps_sorted[0].pipeline_name
+        if steps_sorted
+        else 'form_ai_pre_evaluation'
+    )
     return PipelineExecutionGroup(
         correlation_id=UUID(cid),
-        pipeline_name='form_ai_field_evaluation',
+        pipeline_name=pipeline_name,
         field_key=field_key,
         status='COMPLETED',
         started_at=started_at,
