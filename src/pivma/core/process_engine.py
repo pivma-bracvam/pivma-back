@@ -2,14 +2,12 @@ import secrets
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from pivma.ai.contracts import PipelineContext
-from pivma.ai.pipeline import FormAIPipelineEngine
 from pivma.core.authorization import (
     has_current_conflict,
     is_active_effective_proponent,
@@ -783,16 +781,8 @@ async def submit_proposal_form(  # noqa: PLR0914, PLR0915
             )
         )
     else:
-        _run_legacy_field_ai_mock(
-            session,
-            process_id,
-            current_run,
-            form_inst,
-            fields,
-            values_dict,
-            artifact,
-            user_id,
-        )
+        # Sem avaliações por IA associadas: segue direto para a triagem com
+        # relatório de pré-avaliação vazio (Spec 013 FR-027).
         await _unblock_triage_activity(session, process_id, user_id)
         process.status = 'TRIAGE'
         process.set_update_audit(user_id)
@@ -808,64 +798,6 @@ async def submit_proposal_form(  # noqa: PLR0914, PLR0915
     )
     await session.commit()
     return act, current_run, artifact, pending_run
-
-
-def _run_legacy_field_ai_mock(  # noqa: PLR0913, PLR0917
-    session: AsyncSession,
-    process_id: UUID,
-    current_run: ActivityRun,
-    form_inst: FormInstance,
-    fields: list[FormField],
-    values_dict: dict[str, Any],
-    artifact: Artifact,
-    user_id: UUID,
-) -> None:
-    """Esteira mock por campo da Spec 010 (sem avaliações configuradas).
-
-    Mantida para compatibilidade até a remoção completa da Spec 010; só
-    roda quando o template não possui associações de avaliação por IA.
-    """
-    ai_fields = [
-        f for f in fields if f.ai_evaluation_enabled and f.deleted_at is None
-    ]
-    if not ai_fields:
-        return
-
-    ai_engine = FormAIPipelineEngine()
-    correlation_id = uuid4()
-    evaluations = []
-    for fld in ai_fields:
-        ctx = PipelineContext(
-            form_instance_id=form_inst.id,
-            field_key=fld.field_key,
-            field_label=fld.label,
-            submitted_value=values_dict.get(fld.field_key),
-            instructions=fld.ai_context_instructions,
-            validation_rules=fld.ai_validation_rules,
-            correlation_id=correlation_id,
-        )
-        group = ai_engine.run_field_pipeline(ctx)
-        if group.verdict:
-            evaluations.append(group.verdict.model_dump(mode='json'))
-
-    ai_report_payload = {
-        'correlation_id': str(correlation_id),
-        'evaluations': evaluations,
-    }
-    artifact.metadata_payload['ai_evaluation'] = ai_report_payload
-
-    ai_artifact = Artifact(
-        process_instance_id=process_id,
-        activity_run_id=current_run.id,
-        key='ai_evaluation_report',
-        name=(
-            f'Relatório de Avaliação por IA (Run #{current_run.run_number})'
-        ),
-        status='COMPLETED',
-        metadata_payload=ai_report_payload,
-    )
-    ai_artifact.set_creation_audit(user_id)
-    session.add(ai_artifact)
 
 
 async def save_field_reviews(
@@ -1300,9 +1232,7 @@ async def update_form_template_definition(  # noqa: PLR0912, PLR0913, PLR0914, P
     # IA associadas a eles (senão a associação órfã trava o PUT de
     # evaluation-assignments, que valida a lista inteira).
     removed_keys = {
-        f_key
-        for f_key in existing_fields
-        if f_key not in processed_keys
+        f_key for f_key in existing_fields if f_key not in processed_keys
     }
     for f_key in removed_keys:
         existing_fields[f_key].set_deletion_audit(user_id)

@@ -1336,6 +1336,12 @@ class EvaluationRun(AuditMixin):
     error_summary: Mapped[str | None] = mapped_column(
         Text, nullable=True, default=None
     )
+    # Snapshot imutável do conteúdo que alimentou a IA nesta execução
+    # (Spec 014). Lista de {field_key, label, value}. NULL em execuções
+    # anteriores à migração e em execuções que falharam.
+    evaluated_content_snapshot: Mapped[Any | None] = mapped_column(
+        JSONB, nullable=True, default=None
+    )
 
     items: Mapped[list['EvaluationRunItem']] = relationship(
         back_populates='run', init=False

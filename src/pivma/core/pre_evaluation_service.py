@@ -127,6 +127,9 @@ async def _execute(session: AsyncSession, run_id: UUID) -> None:
     for item, version_id in items:
         session.add(_run_item(run.id, version_id, item))
 
+    run.evaluated_content_snapshot = _content_fields(
+        fields_by_key, values, assignments
+    )
     run.status = 'completed'
     run.consolidated_result = consolidation.result
     run.real_cost = round(total_cost, 6)
@@ -409,7 +412,11 @@ async def get_pre_evaluation(
     )
     versions_used = await _versions_used(session, run_items)
     refs_by_version = {v['version_id']: v['references'] for v in versions_used}
-    evaluated_content = await _evaluated_content(session, run)
+    evaluated_content = (
+        run.evaluated_content_snapshot
+        if run.evaluated_content_snapshot is not None
+        else await _evaluated_content(session, run)
+    )
     return {
         'run_id': run.id,
         'correlation_id': run.correlation_id,
@@ -484,17 +491,15 @@ async def _load_submission(
     return template, fields_by_key, values
 
 
-async def _evaluated_content(
-    session: AsyncSession, run: EvaluationRun
+def _content_fields(
+    fields_by_key: dict[str, Any],
+    values: dict[str, Any],
+    assignments: list[EvaluationAssignment],
 ) -> list[dict[str, Any]]:
-    """Conteúdo do formulário que alimentou a IA (FR-039).
+    """Lista {field_key, label, value} dos campos cobertos pelas associações.
 
-    Reconstruído da `FormInstance` da execução (imutável após o envio). Lista
-    os campos cobertos pelas associações ativas; um alvo `form`/`process`
-    cobre todos os campos.
+    Um alvo `form`/`process` (ou sem `field_keys`) cobre todos os campos.
     """
-    template, fields_by_key, values = await _load_submission(session, run)
-    assignments = await _active_assignments(session, template.id)
     if not assignments:
         return []
     covers_all = any(
@@ -512,13 +517,24 @@ async def _evaluated_content(
     return [
         {
             'field_key': k,
-            'label': (
-                fields_by_key[k].label if k in fields_by_key else k
-            ),
+            'label': fields_by_key[k].label if k in fields_by_key else k,
             'value': values.get(k),
         }
         for k in keys
     ]
+
+
+async def _evaluated_content(
+    session: AsyncSession, run: EvaluationRun
+) -> list[dict[str, Any]]:
+    """Reconstrói o conteúdo avaliado da `FormInstance` (fallback — FR-024).
+
+    Usado quando a execução não tem snapshot (execuções pré-Spec 014 ou
+    execuções que falharam).
+    """
+    template, fields_by_key, values = await _load_submission(session, run)
+    assignments = await _active_assignments(session, template.id)
+    return _content_fields(fields_by_key, values, assignments)
 
 
 async def _active_assignments(

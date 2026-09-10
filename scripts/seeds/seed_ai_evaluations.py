@@ -24,7 +24,6 @@ from sqlalchemy import func, select
 from pivma.core import evaluation_service as evsvc
 from pivma.core import pre_evaluation_service as presvc
 from pivma.core.database.models import (
-    Assignment,
     ProcessInstance,
     ProcessTemplateVersion,
     User,
@@ -43,14 +42,26 @@ DEMO_TITLE = '[DEMO IA] Extensão de Escopo com Pré-avaliação'
 
 POP_CRITERIA = [
     ('Deve possuir identificação e versão do documento', 'presence', 'low'),
-    ('Deve apresentar objetivo e escopo do procedimento', 'conformity',
-     'medium'),
-    ('O procedimento deve permitir reprodução por outro laboratório',
-     'quality', 'critical'),
-    ('Deve definir critérios de aceitação dos resultados', 'conformity',
-     'critical'),
-    ('Deve apresentar referências bibliográficas ou normativas', 'presence',
-     'low'),
+    (
+        'Deve apresentar objetivo e escopo do procedimento',
+        'conformity',
+        'medium',
+    ),
+    (
+        'O procedimento deve permitir reprodução por outro laboratório',
+        'quality',
+        'critical',
+    ),
+    (
+        'Deve definir critérios de aceitação dos resultados',
+        'conformity',
+        'critical',
+    ),
+    (
+        'Deve apresentar referências bibliográficas ou normativas',
+        'presence',
+        'low',
+    ),
 ]
 
 FORM_VALUES = {
@@ -158,69 +169,37 @@ async def _publish_evaluation(session, admin_id) -> None:
     await session.commit()
 
 
-async def _grant_group_manager(session, process_id, user, granted_by) -> None:
-    """O revisor de triagem do BraCVAM atua como gestor do processo.
-
-    A leitura da pré-avaliação e o registro de feedback por critério são
-    restritos, na API, a proponente / gestor do processo / perfil
-    Administrador (permissão ``ai_evaluations.read``). Para a demo de
-    Triagem funcionar com a conta ``triage_evaluator`` (perfil Revisor),
-    ela recebe a designação ``group_manager`` neste processo — o mesmo
-    mecanismo que o endpoint ``POST /processes/{id}/participants`` usa.
-    """
+async def _demo_process_in_triage(session, proponent) -> None:
     exists = (
-        await session.execute(
-            select(Assignment).where(
-                Assignment.process_instance_id == process_id,
-                Assignment.user_id == user.id,
-                Assignment.role_key == 'group_manager',
-                Assignment.revoked_at.is_(None),
-                Assignment.deleted_at.is_(None),
+        (
+            await session.execute(
+                select(ProcessInstance).where(
+                    ProcessInstance.title == DEMO_TITLE,
+                    ProcessInstance.deleted_at.is_(None),
+                )
             )
         )
-    ).scalar_one_or_none()
-    if exists is not None:
-        return
-    assignment = Assignment(
-        process_instance_id=process_id,
-        user_id=user.id,
-        role_key='group_manager',
-        assigned_by=granted_by.id,
+        .scalars()
+        .first()
     )
-    assignment.set_creation_audit(granted_by.id)
-    session.add(assignment)
-
-
-async def _demo_process_in_triage(
-    session, admin, proponent, evaluator
-) -> None:
-    exists = (
-        await session.execute(
-            select(ProcessInstance).where(
-                ProcessInstance.title == DEMO_TITLE,
-                ProcessInstance.deleted_at.is_(None),
-            )
-        )
-    ).scalars().first()
     if exists is not None:
-        if evaluator is not None:
-            await _grant_group_manager(
-                session, exists.id, evaluator, admin
-            )
-            await session.commit()
         return
 
     ptv = (
-        await session.execute(
-            select(ProcessTemplateVersion)
-            .join(PT)
-            .where(
-                PT.key == 'scope_extension',
-                ProcessTemplateVersion.deleted_at.is_(None),
+        (
+            await session.execute(
+                select(ProcessTemplateVersion)
+                .join(PT)
+                .where(
+                    PT.key == 'scope_extension',
+                    ProcessTemplateVersion.deleted_at.is_(None),
+                )
+                .order_by(ProcessTemplateVersion.version_number.desc())
             )
-            .order_by(ProcessTemplateVersion.version_number.desc())
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     process = await instantiate_process(
         session,
         template_version=ptv,
@@ -228,10 +207,6 @@ async def _demo_process_in_triage(
         creator_user_id=proponent.id,
     )
     await session.commit()
-
-    if evaluator is not None:
-        await _grant_group_manager(session, process.id, evaluator, admin)
-        await session.commit()
 
     _, _, _, pending_run = await submit_proposal_form(
         session, process.id, 'proposal_submission', FORM_VALUES, proponent.id
@@ -256,13 +231,12 @@ async def run_seed_ai_evaluations() -> None:
     async with get_session() as session:
         admin = await _user(session, 'admin')
         proponent = await _user(session, 'proponent_user')
-        evaluator = await _user(session, 'triage_evaluator')
         if admin is None or proponent is None:
             print('! Usuários ausentes. Execute seed_users.py primeiro.')
             return
 
         await _publish_evaluation(session, admin.id)
-        await _demo_process_in_triage(session, admin, proponent, evaluator)
+        await _demo_process_in_triage(session, proponent)
         print('✓ Seed de Avaliação por IA (Spec 013) concluído.')
 
 

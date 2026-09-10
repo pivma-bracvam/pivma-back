@@ -127,8 +127,9 @@ async def test_payload_carries_evaluated_content(
 
     content = {c['field_key']: c['value'] for c in body['evaluated_content']}
     assert 'scientific_justification' in content
-    assert content['scientific_justification'] == (
-        FULL_VALUES['scientific_justification']
+    assert (
+        content['scientific_justification']
+        == (FULL_VALUES['scientific_justification'])
     )
 
 

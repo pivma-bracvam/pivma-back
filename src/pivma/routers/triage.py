@@ -1,8 +1,11 @@
 from http import HTTPStatus
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from pivma.core.authorization import TRIAGE_REVIEW
+from pivma.core.database.models import User
 from pivma.core.process_engine import (
     AuthorizationError,
     ConflictError,
@@ -11,7 +14,11 @@ from pivma.core.process_engine import (
     execute_triage_decision,
     save_field_reviews,
 )
-from pivma.dependencies import CurrentUser, Session
+from pivma.dependencies import (
+    Session,
+    TrustedOrigin,
+    require_permission,
+)
 from pivma.schemas import (
     SaveFieldReviewsRequest,
     TriageDecisionRequest,
@@ -19,6 +26,8 @@ from pivma.schemas import (
 )
 
 router = APIRouter(prefix='/processes', tags=['Triage'])
+
+TriageUser = Annotated[User, Depends(require_permission(TRIAGE_REVIEW))]
 
 
 @router.post(
@@ -29,7 +38,8 @@ async def submit_field_reviews(
     id: UUID,
     body: SaveFieldReviewsRequest,
     session: Session,
-    current_user: CurrentUser,
+    current_user: TriageUser,
+    _origin: TrustedOrigin,
 ):
     try:
         reviews_dicts = [r.model_dump() for r in body.reviews]
@@ -60,7 +70,8 @@ async def submit_triage_decision(
     id: UUID,
     body: TriageDecisionRequest,
     session: Session,
-    current_user: CurrentUser,
+    current_user: TriageUser,
+    _origin: TrustedOrigin,
 ):
     try:
         decision, new_status, next_run = await execute_triage_decision(

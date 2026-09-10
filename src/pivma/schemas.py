@@ -454,7 +454,6 @@ class FormInstanceResponse(BaseModel):
     fields: list[FormFieldDefinition]
     values: dict[str, Any]
     reviews: dict[str, FieldReviewSummary]
-    ai_evaluation: dict[str, Any] | None = None
 
 
 class SaveFormValuesRequest(BaseModel):
@@ -494,7 +493,6 @@ class ActivityCompletionResponse(BaseModel):
     run_number: int
     status: str
     artifact_id: UUID | None = None
-    ai_evaluation: dict[str, Any] | None = None
     pre_evaluation: dict[str, Any] | None = None
 
 

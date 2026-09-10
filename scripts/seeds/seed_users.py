@@ -40,7 +40,7 @@ async def run_seed_users() -> None:
             full_name='Dr. Roberto Avaliador',
             password='Triage@123456',
         )
-        await ensure_profile_by_name(session, evaluator.id, 'Revisor')
+        await ensure_profile_by_name(session, evaluator.id, 'BraCVAM')
 
         # 4. Usuários para consulta e teste de filtros
         sample_users = [

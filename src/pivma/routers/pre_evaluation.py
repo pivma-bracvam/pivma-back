@@ -7,10 +7,9 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from pivma.core import pre_evaluation_service as svc
 from pivma.core.authorization import (
-    AI_EVALUATIONS_READ,
+    TRIAGE_REVIEW,
     has_permission,
     is_active_effective_proponent,
-    is_effective_group_manager,
 )
 from pivma.core.database.models import EvaluationRun
 from pivma.core.process_engine import (
@@ -40,9 +39,7 @@ async def _ensure_can_read(
 ) -> None:
     if await is_active_effective_proponent(session, user_id, process_id):
         return
-    if await is_effective_group_manager(session, user_id, process_id):
-        return
-    if await has_permission(session, user_id, AI_EVALUATIONS_READ):
+    if await has_permission(session, user_id, TRIAGE_REVIEW):
         return
     raise HTTPException(
         status_code=HTTPStatus.FORBIDDEN,
@@ -109,13 +106,10 @@ async def record_feedback(  # noqa: PLR0913, PLR0917
     origin: TrustedOrigin,
 ):
     del origin
-    if not (
-        await is_effective_group_manager(session, current_user.id, id)
-        or await has_permission(session, current_user.id, AI_EVALUATIONS_READ)
-    ):
+    if not await has_permission(session, current_user.id, TRIAGE_REVIEW):
         raise HTTPException(
             status_code=HTTPStatus.FORBIDDEN,
-            detail='Apenas gestores do BraCVAM registram feedback.',
+            detail='Apenas o BraCVAM registra feedback da pré-avaliação.',
         )
     try:
         recorded = await svc.record_feedback(

@@ -28,6 +28,7 @@ INSTITUTIONAL_AFFILIATIONS_MANAGE = 'institutional.affiliations.manage'
 PROCESS_PARTICIPANTS_MANAGE = 'process.participants.manage'
 AI_EVALUATIONS_READ = 'ai_evaluations.read'
 AI_EVALUATIONS_MANAGE = 'ai_evaluations.manage'
+TRIAGE_REVIEW = 'triage.review'
 ADMINISTRATIVE_PERMISSIONS = frozenset({
     RBAC_READ,
     RBAC_PROFILES_MANAGE,

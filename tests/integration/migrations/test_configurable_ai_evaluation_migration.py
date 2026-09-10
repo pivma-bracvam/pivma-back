@@ -14,7 +14,8 @@ from tests.integration.migrations.test_secure_user_registration import (
     run_migration,
 )
 
-EXPECTED_PERMISSION_GRANTS = 2
+# 2 do Administrador (Spec 013) + 2 do perfil bracvam (Spec 014).
+EXPECTED_PERMISSION_GRANTS = 4
 
 READ_PERMISSION_ID = UUID('00000000-0000-0000-0000-00000000010a')
 MANAGE_PERMISSION_ID = UUID('00000000-0000-0000-0000-00000000010b')

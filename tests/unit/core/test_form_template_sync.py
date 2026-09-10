@@ -1,4 +1,3 @@
-
 import pytest
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates

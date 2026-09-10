@@ -200,9 +200,7 @@ async def test_removing_field_prunes_its_assignments(
     detail = client.get(
         f'/processes/templates/pre_validated_method/forms/{TEMPLATE_KEY}'
     ).json()
-    kept_fields = [
-        f for f in detail['fields'] if f['field_key'] != AI_FIELD
-    ]
+    kept_fields = [f for f in detail['fields'] if f['field_key'] != AI_FIELD]
     edit = client.put(
         f'/processes/templates/pre_validated_method/forms/{TEMPLATE_KEY}',
         json={'fields': kept_fields},

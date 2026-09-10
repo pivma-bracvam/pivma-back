@@ -5,7 +5,7 @@ from datetime import datetime
 import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
-from sqlalchemy import event
+from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from testcontainers.postgres import PostgresContainer
 
@@ -121,38 +121,74 @@ def _stub_pre_evaluation_background(monkeypatch):
         monkeypatch.setattr(target, _noop, raising=False)
 
 
-@pytest_asyncio.fixture
-async def ai_eval_admin(session):
-    """Usuário BraCVAM com as permissões de avaliação por IA (Spec 013)."""
+async def _make_rbac_user(session, *, system_key, name, codes):
+    """Cria um usuário com um perfil de acesso e as permissões `codes`."""
     from pivma.core.database.models import (  # noqa: PLC0415
         AccessProfile,
         AccessProfilePermission,
         Permission,
         UserAccessProfile,
     )
+
+    user = UserFactory()
+    profile = AccessProfile(system_key=system_key, name=name, description=name)
+    session.add_all([user, profile])
+    await session.flush()
+    for code in codes:
+        permission = await session.scalar(
+            select(Permission).where(Permission.code == code)
+        )
+        if permission is None:
+            permission = Permission(
+                code=code, description=f'Permission {code}'
+            )
+            session.add(permission)
+            await session.flush()
+        session.add(
+            AccessProfilePermission(
+                profile_id=profile.id, permission_id=permission.id
+            )
+        )
+    session.add(UserAccessProfile(user_id=user.id, profile_id=profile.id))
+    await session.commit()
+    return user
+
+
+@pytest_asyncio.fixture
+async def ai_eval_admin(session):
+    """Administrador BraCVAM: config de IA + triagem (Spec 013 + 014)."""
     from tests.ai_eval_helpers import AI_EVAL_CODES  # noqa: PLC0415
 
-    admin = UserFactory()
-    permissions = [
-        Permission(code=code, description=f'Permission {code}')
-        for code in AI_EVAL_CODES
-    ]
-    profile = AccessProfile(
+    return await _make_rbac_user(
+        session,
         system_key='administrator',
         name='Administrador',
-        description='BraCVAM admin',
+        codes=(*AI_EVAL_CODES, 'triage.review'),
     )
-    session.add_all([admin, profile, *permissions])
-    await session.flush()
-    session.add_all([
-        AccessProfilePermission(
-            profile_id=profile.id, permission_id=permission.id
-        )
-        for permission in permissions
-    ])
-    session.add(UserAccessProfile(user_id=admin.id, profile_id=profile.id))
-    await session.commit()
-    return admin
+
+
+@pytest_asyncio.fixture
+async def bracvam_user(session):
+    """Usuário do perfil BraCVAM (Spec 014): triagem + config de IA."""
+    from tests.ai_eval_helpers import AI_EVAL_CODES  # noqa: PLC0415
+
+    return await _make_rbac_user(
+        session,
+        system_key='bracvam',
+        name='BraCVAM',
+        codes=(*AI_EVAL_CODES, 'triage.review'),
+    )
+
+
+@pytest_asyncio.fixture
+async def non_triage_user(session):
+    """Usuário do perfil Grupo Gestor: sem permissão de triagem."""
+    return await _make_rbac_user(
+        session,
+        system_key='management_group',
+        name='Grupo Gestor',
+        codes=(),
+    )
 
 
 @pytest.fixture

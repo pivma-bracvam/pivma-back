@@ -36,9 +36,15 @@ async def run_all_seeds() -> None:
     print('Hub de Demonstrações: http://localhost:8000/demos/')
     print('Ciclo básico (4 módulos):')
     print('  1. Editor de Formulário + IA: http://localhost:8000/demos/forms/')
-    print('  2. Submissão + Pré-avaliação: http://localhost:8000/demos/submission/')
-    print('  3. Triagem + Feedback de IA:  http://localhost:8000/demos/triage/')
-    print('  4. Observabilidade de IA:     http://localhost:8000/demos/ai-pipeline/')
+    print(
+        '  2. Submissão + Pré-avaliação: http://localhost:8000/demos/submission/'
+    )
+    print(
+        '  3. Triagem + Feedback de IA:  http://localhost:8000/demos/triage/'
+    )
+    print(
+        '  4. Observabilidade de IA:     http://localhost:8000/demos/ai-pipeline/'
+    )
     print('Apoio: /demos/users/  |  /demos/operational-index/')
     print('\nContas Pré-Configuradas (login: /auth/login):')
     print(

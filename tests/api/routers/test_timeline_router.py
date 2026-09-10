@@ -10,11 +10,13 @@ from tests.factories.user_factory import UserFactory
 
 
 @pytest.mark.asyncio
-async def test_process_timeline_events_recorded_and_ordered(client, session):
+async def test_process_timeline_events_recorded_and_ordered(
+    client, session, bracvam_user
+):
     await bootstrap_all_templates(session)
     proponente = UserFactory()
-    triador = UserFactory()
-    session.add_all([proponente, triador])
+    triador = bracvam_user
+    session.add(proponente)
     await session.commit()
 
     # 1. Proponente creates process
@@ -52,15 +54,18 @@ async def test_process_timeline_events_recorded_and_ordered(client, session):
 
     # 4. Triador evaluates and approves
     authenticate(client, triador)
+    _origin = {'Origin': 'https://testserver'}
     client.post(
         f'/processes/{process_id}/triage/reviews',
         json={
             'reviews': [{'field_key': 'method_title', 'status': 'CONFORME'}]
         },
+        headers=_origin,
     )
     client.post(
         f'/processes/{process_id}/triage/decision',
         json={'outcome': 'APPROVED', 'justification': 'Aprovado com sucesso.'},
+        headers=_origin,
     )
 
     # 5. Query timeline
