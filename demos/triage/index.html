@@ -113,6 +113,7 @@
     .status-PLANNING { background: #bbf7d0; color: #166534; }
     .status-CLOSED { background: #fecaca; color: #991b1b; }
     .status-SUBMISSION { background: #fef08a; color: #854d0e; }
+    .status-AI_PRE_EVALUATION { background: #bfdbfe; color: #1e40af; }
 
     table {
       width: 100%;
@@ -196,6 +197,7 @@
       </div>
 
       <div id="triage-ai-evaluation-box"></div>
+      <div id="triage-pre-evaluation-box"></div>
 
       <table>
         <thead>
@@ -360,6 +362,8 @@
         aiBox.style.display = 'none';
       }
 
+      await loadPreEvaluation();
+
       submittedFields = data.fields || [];
       const tbody = document.getElementById('reviews-table-body');
       tbody.innerHTML = '';
@@ -389,6 +393,84 @@
       document.getElementById('card-reviews').style.display = 'block';
       document.getElementById('card-decision').style.display = 'block';
       loadTimeline();
+    }
+
+    let activePreEvalRunId = null;
+
+    async function loadPreEvaluation() {
+      const box = document.getElementById('triage-pre-evaluation-box');
+      const url = `/processes/${activeProcessId}/pre-evaluation`;
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) { box.innerHTML = ''; box.style.display = 'none'; return; }
+      const d = await res.json();
+      inspect('GET', url, res.status, d);
+      activePreEvalRunId = d.run_id;
+
+      if (d.status === 'in_progress') {
+        box.style.display = 'block';
+        box.innerHTML = `<div style="margin-bottom:20px; padding:16px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px;">
+          <h3 style="font-size:16px; color:#1e293b; margin-bottom:4px;">Pré-avaliação por IA em andamento</h3>
+          <p style="font-size:13px; color:var(--text-muted);">A triagem deste processo está bloqueada até a IA concluir
+            (execução <code>${d.run_id}</code>). Recarregue em alguns segundos.</p>
+          <button class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="loadPreEvaluation()">Atualizar</button></div>`;
+        return;
+      }
+
+      const negativo = d.consolidated_result === 'negative';
+      let html = `<div style="margin-bottom:20px; padding:16px; background:#eef2ff; border:1px solid #c7d2fe; border-radius:8px;">`;
+      html += `<h3 style="font-size:16px; color:#1e293b; margin-bottom:4px;">Pré-avaliação por IA (evidência auxiliar)</h3>`;
+      const evs = (d.evaluations || []).map(e => `${e.definition_name} v${e.version_number}`).join(', ');
+      html += `<p style="font-size:13px; color:var(--text-muted); margin-bottom:6px;">
+        Avaliação: <strong>${evs || '-'}</strong> &bull; Execução <code>${d.run_id}</code> &bull; ${d.finished_at || d.started_at}<br>
+        Resultado consolidado: <strong style="color:${negativo?'#b91c1c':'#15803d'}">${(d.consolidated_result||d.status||'').toUpperCase()}</strong>
+        &bull; Provedor: ${d.provider || '-'}</p>`;
+      if (d.direct_review_request) {
+        html += `<p style="font-size:13px; color:#b45309;">O proponente contestou a IA e solicitou intervenção direta: "${d.direct_review_request.justification || ''}"</p>`;
+      }
+
+      (d.attention_points || []).forEach(p => {
+        const rid = p.item_id;
+        html += `<div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:12px; margin-top:10px;">
+          <div style="display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+            <strong>${p.criterion_statement}</strong>
+            <span style="font-size:12px; font-weight:700; color:#b91c1c;">${p.conclusion} &bull; ${p.severity}${p.is_alert ? ' &bull; alerta' : ''}</span>
+          </div>
+          ${p.evidence_excerpt ? `<p style="font-size:13px; color:#334155; margin-top:4px;"><strong>Evidência:</strong> ${p.evidence_excerpt}${p.evidence_location ? ` <em>(${p.evidence_location})</em>` : ''}</p>` : ''}
+          ${p.justification ? `<p style="font-size:13px; color:#475569;">${p.justification}</p>` : ''}
+          ${(p.references && p.references.length) ? `<p style="font-size:12px; color:#0369a1;">Ref.: ${p.references.map(r=>r.identifier+' '+r.version_label).join(', ')}</p>` : ''}
+          <div style="margin-top:6px; font-size:13px;">
+            <label style="margin-right:10px;"><input type="radio" name="fb-${rid}" value="agree"> concordo</label>
+            <label style="margin-right:10px;"><input type="radio" name="fb-${rid}" value="disagree"> discordo</label>
+            <label style="margin-right:10px;"><input type="radio" name="fb-${rid}" value="inconclusive"> inconclusivo</label>
+            <input type="text" id="fb-reason-${rid}" placeholder="motivo (opcional)" style="width:220px; font-size:12px;">
+          </div>
+        </div>`;
+      });
+      html += `<button class="btn btn-secondary btn-sm" style="margin-top:12px;" onclick="submitPreEvalFeedback()">Registrar concordância por critério</button>`;
+      html += `<p style="font-size:12px; color:var(--text-muted); margin-top:6px;">A decisão de triagem continua sendo sua (passo 3). A IA não decide.</p>`;
+      html += `</div>`;
+      box.innerHTML = html;
+      box.style.display = 'block';
+    }
+
+    async function submitPreEvalFeedback() {
+      const items = [];
+      document.querySelectorAll('input[type=radio][name^="fb-"]:checked').forEach(r => {
+        const rid = r.name.replace('fb-', '');
+        const reason = document.getElementById(`fb-reason-${rid}`)?.value.trim() || null;
+        items.push({ item_id: rid, verdict: r.value, reason });
+      });
+      if (!items.length) { alert('Marque ao menos um critério.'); return; }
+      const url = `/processes/${activeProcessId}/pre-evaluation/${activePreEvalRunId}/feedback`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Origin': location.origin },
+        credentials: 'include',
+        body: JSON.stringify({ items })
+      });
+      const data = await res.json().catch(() => null);
+      inspect('POST', url, res.status, data);
+      alert(res.ok ? `Feedback registrado em ${data.recorded} critério(s).` : (data?.detail || 'Falha.'));
     }
 
     async function saveReviews() {

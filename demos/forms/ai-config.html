@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PIVMA - Configurar Avaliação por IA do Campo</title>
+  <style>
+    :root {
+      --bg:#f8fafc; --card-bg:#fff; --text:#0f172a; --text-muted:#64748b;
+      --primary:#1d4ed8; --primary-hover:#1e40af; --success:#15803d;
+      --danger:#b91c1c; --border:#cbd5e1; --radius:8px;
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+      background:var(--bg); color:var(--text); line-height:1.5; padding:24px; }
+    .container { max-width:1000px; margin:0 auto; }
+    .back-link { font-size:14px; color:var(--primary); text-decoration:none; font-weight:600; }
+    h1 { font-size:22px; margin:6px 0 2px; }
+    .subtitle { font-size:14px; color:var(--text-muted); margin-bottom:18px; }
+    .session-bar { display:flex; align-items:center; gap:10px; background:var(--card-bg);
+      padding:8px 14px; border-radius:var(--radius); border:1px solid var(--border);
+      font-size:13px; margin-bottom:16px; }
+    .session-badge { font-weight:600; color:var(--primary); }
+    .card { background:var(--card-bg); border:1px solid var(--border);
+      border-radius:var(--radius); padding:18px; margin-bottom:16px; }
+    .card h2 { font-size:16px; margin-bottom:12px; }
+    .step-num { display:inline-block; width:22px; height:22px; line-height:22px;
+      text-align:center; border-radius:50%; background:var(--primary); color:#fff;
+      font-size:12px; font-weight:700; margin-right:8px; }
+    .btn { font-size:13px; font-weight:600; padding:8px 14px; border-radius:6px;
+      border:none; cursor:pointer; text-decoration:none; display:inline-flex;
+      align-items:center; gap:6px; }
+    .btn-primary { background:var(--primary); color:#fff; }
+    .btn-primary:hover { background:var(--primary-hover); }
+    .btn-success { background:var(--success); color:#fff; }
+    .btn-outline { background:transparent; border:1px solid var(--border); color:#334155; }
+    .btn-sm { font-size:12px; padding:4px 9px; }
+    .btn:disabled { opacity:.45; cursor:not-allowed; }
+    label { font-size:13px; font-weight:600; color:#334155; display:block; margin-bottom:4px; }
+    input, select, textarea { font-size:13px; padding:8px 10px; border:1px solid var(--border);
+      border-radius:5px; width:100%; font-family:inherit; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th, td { border:1px solid #e2e8f0; padding:6px 8px; text-align:left; vertical-align:top; }
+    th { background:#f1f5f9; }
+    .inspector { background:#0f172a; color:#38bdf8; padding:12px; border-radius:var(--radius);
+      font-family:ui-monospace,monospace; font-size:12px; overflow-x:auto; max-height:220px;
+      white-space:pre-wrap; }
+    .muted { color:var(--text-muted); font-size:13px; }
+    .disabled-section { opacity:.5; pointer-events:none; }
+    .pill { font-size:11px; padding:2px 7px; border-radius:999px; background:#e0e7ff; color:#3730a3; }
+    .ok { color:var(--success); } .bad { color:var(--danger); }
+  </style>
+</head>
+<body>
+<div class="container">
+  <a class="back-link" href="/demos/forms/">&larr; Voltar ao Editor de Formulários</a>
+  <h1>Configurar Avaliação por IA do Campo</h1>
+  <p class="subtitle">
+    Formulário <code id="tpl-key"></code> &bull; campo <code id="field-key"></code>.
+    O BraCVAM descreve <em>o que verificar</em>; o sistema monta a avaliação, testa e publica.
+  </p>
+
+  <div class="session-bar">
+    <span>Sessão:</span>
+    <span id="user-display" class="session-badge">Não autenticado</span>
+    <button id="btn-login" class="btn btn-sm btn-primary" onclick="loginAdmin()">Entrar como BraCVAM (admin)</button>
+  </div>
+
+  <div id="field-warning" class="card" hidden style="border-color:#f59e0b; background:#fffbeb;"></div>
+
+  <div class="card">
+    <h2><span class="step-num">1</span>Reaproveitar da biblioteca ou criar nova</h2>
+    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+      <div style="flex:1; min-width:260px;">
+        <label>Avaliação publicada existente</label>
+        <select id="lib-select"><option value="">-- criar uma nova --</option></select>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="loadLibrary()">Recarregar biblioteca</button>
+      <button class="btn btn-primary btn-sm" onclick="useSelected()">Usar selecionada</button>
+    </div>
+    <div id="lib-info" class="muted" style="margin-top:8px;"></div>
+  </div>
+
+  <div id="create-block" class="card">
+    <h2><span class="step-num">2</span>Nova avaliação — objetivo em linguagem natural</h2>
+    <label>Nome</label>
+    <input id="ev-name" value="Verificação da justificativa científica">
+    <label style="margin-top:10px;">Objetivo (o que a IA deve verificar neste campo?)</label>
+    <textarea id="ev-obj" rows="2">Verificar se a justificativa comprova a plausibilidade biológica do método para o novo uso pretendido.</textarea>
+    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn btn-primary btn-sm" onclick="createEval()">Criar rascunho</button>
+      <button class="btn btn-outline btn-sm" id="btn-suggest" disabled onclick="suggest()">Sugerir critérios (IA)</button>
+      <span id="ev-state" class="pill" hidden></span>
+    </div>
+  </div>
+
+  <div id="criteria-block" class="card disabled-section">
+    <h2><span class="step-num">3</span>Critérios</h2>
+    <p class="muted">Aceite as sugestões, edite, remova ou adicione. Cada critério tem tipo, severidade e polaridade.</p>
+    <table style="margin-top:8px;">
+      <thead><tr><th style="width:44%">Enunciado</th><th>Tipo</th><th>Severidade</th><th>Polaridade</th><th></th></tr></thead>
+      <tbody id="crit-body"></tbody>
+    </table>
+    <div style="margin-top:10px; display:flex; gap:8px;">
+      <button class="btn btn-outline btn-sm" onclick="addCriterion()">+ critério</button>
+      <button class="btn btn-primary btn-sm" onclick="saveCriteria()">Salvar critérios (PATCH)</button>
+    </div>
+  </div>
+
+  <div id="test-block" class="card disabled-section">
+    <h2><span class="step-num">4</span>Testar antes de publicar</h2>
+    <label>Conteúdo de exemplo</label>
+    <textarea id="sample" rows="3">A justificativa descreve o objetivo do método e apresenta o procedimento operacional detalhado, com critérios de aceitação e referências normativas.</textarea>
+    <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="runTest()">Testar avaliação</button>
+    <div id="test-out" style="margin-top:10px;"></div>
+  </div>
+
+  <div id="publish-block" class="card disabled-section">
+    <h2><span class="step-num">5</span>Publicar e associar a este campo</h2>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn btn-success btn-sm" onclick="publish()">Publicar versão</button>
+      <button class="btn btn-primary btn-sm" id="btn-assign" onclick="assignToField()">Associar ao campo <code id="field-key-2"></code></button>
+    </div>
+    <div id="publish-out" class="muted" style="margin-top:8px;"></div>
+  </div>
+
+  <div class="card">
+    <h2>Inspetor da API</h2>
+    <div id="inspector-info" class="muted" style="margin-bottom:6px;">Nenhuma requisição.</div>
+    <pre id="inspector" class="inspector">{}</pre>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const PROCESS = params.get('process') || '';
+const TPL = params.get('template') || 'submission_pre_validated_v1';
+const FIELD = params.get('field') || '';
+document.getElementById('tpl-key').textContent = TPL;
+document.getElementById('field-key').textContent = FIELD || '(sem campo na URL)';
+document.getElementById('field-key-2').textContent = FIELD || '?';
+
+let evId = null;
+let evVersion = 1;
+let criteria = [];
+// Campos que realmente existem no template salvo (preenchido por checkField()).
+let templateFieldKeys = null;
+
+function inspect(method, url, status, data) {
+  document.getElementById('inspector-info').textContent = `${method} ${url} -> HTTP ${status}`;
+  document.getElementById('inspector').textContent = JSON.stringify(data, null, 2);
+}
+async function api(path, opts = {}) {
+  opts.credentials = 'include';
+  opts.headers = { 'Content-Type': 'application/json', 'Origin': location.origin, ...(opts.headers || {}) };
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => null);
+  inspect(opts.method || 'GET', path, res.status, data);
+  return { status: res.status, ok: res.ok, data };
+}
+function enable(id) { document.getElementById(id).classList.remove('disabled-section'); }
+
+async function checkSession() {
+  const res = await fetch('/auth/me', { credentials: 'include' });
+  const el = document.getElementById('user-display');
+  if (res.ok) {
+    const u = await res.json();
+    el.textContent = `${u.full_name || u.username} (${u.username})`;
+    document.getElementById('btn-login').style.display = 'none';
+  } else {
+    el.textContent = 'Não autenticado';
+    document.getElementById('btn-login').style.display = 'inline-block';
+  }
+}
+async function loginAdmin() {
+  const r = await api('/auth/login', { method: 'POST', body: JSON.stringify({ identifier: 'admin', password: 'Admin@123456' }) });
+  if (r.ok) { await checkSession(); await loadLibrary(); await checkField(); }
+  else alert('Falha na autenticação. Rode os seeds (scripts/seeds/seed_all.py).');
+}
+
+// Descobre os campos que realmente existem no template salvo, para avisar
+// quando o campo da URL não existe (o PUT de associações valida contra o banco,
+// não contra o rascunho aberto no editor).
+async function checkField() {
+  const box = document.getElementById('field-warning');
+  const btn = document.getElementById('btn-assign');
+  if (!PROCESS) {
+    box.hidden = false;
+    box.innerHTML = '<strong>Aviso:</strong> a URL não traz <code>process</code>. ' +
+      'Não é possível conferir localmente se o campo existe no template — abra esta ' +
+      'página pelo botão do editor de formulário.';
+    return;
+  }
+  const r = await api(`/processes/templates/${PROCESS}/forms/${TPL}`);
+  if (!r.ok) return;
+  templateFieldKeys = (r.data.fields || []).map(f => f.field_key);
+  const f = (r.data.fields || []).find(x => x.field_key === FIELD);
+  if (!FIELD || !f) {
+    box.hidden = false;
+    box.innerHTML =
+      `<strong>O campo <code>${FIELD || '(vazio)'}</code> não existe no template salvo.</strong> ` +
+      `Campos atuais: <code>${templateFieldKeys.join('</code>, <code>') || '(nenhum)'}</code>.<br>` +
+      'Se você acabou de criar/renomear o campo no editor, <strong>salve o template primeiro</strong> ' +
+      'e reabra este link. A associação não pode ser gravada para um campo inexistente.';
+    btn.disabled = true;
+    return;
+  }
+  if (!f.ai_evaluation_enabled) {
+    box.hidden = false;
+    box.innerHTML = `<strong>O campo <code>${FIELD}</code> não está marcado como ` +
+      '<code>ai_evaluation_enabled</code>.</strong> A associação será gravada, mas a ' +
+      'pré-avaliação só roda em campos habilitados — marque o checkbox no editor e salve.';
+  }
+}
+
+async function loadLibrary() {
+  const r = await api('/ai-evaluations?limit=50');
+  if (!r.ok) return;
+  const sel = document.getElementById('lib-select');
+  sel.innerHTML = '<option value="">-- criar uma nova --</option>';
+  (r.data.items || []).forEach(it => {
+    const lv = it.latest_version || {};
+    const opt = document.createElement('option');
+    opt.value = it.id;
+    opt.dataset.version = lv.version_number || 1;
+    opt.dataset.status = lv.status || 'draft';
+    opt.textContent = `${it.name} — v${lv.version_number || 1} (${lv.status || 'draft'}), ${it.assignments_count} associação(ões)`;
+    sel.appendChild(opt);
+  });
+}
+
+function useSelected() {
+  const opt = document.getElementById('lib-select').selectedOptions[0];
+  if (!opt || !opt.value) { alert('Selecione uma avaliação publicada ou crie uma nova abaixo.'); return; }
+  evId = opt.value;
+  evVersion = parseInt(opt.dataset.version, 10) || 1;
+  const published = opt.dataset.status === 'published';
+  document.getElementById('lib-info').innerHTML = published
+    ? `Selecionada <code>${evId}</code> v${evVersion} (publicada). Pule para o passo 5 e associe ao campo.`
+    : `Selecionada <code>${evId}</code> v${evVersion} (rascunho). Ajuste os critérios (passo 3), teste e publique.`;
+  document.getElementById('create-block').classList.add('disabled-section');
+  enable('criteria-block'); enable('test-block'); enable('publish-block');
+  loadVersion();
+}
+
+async function loadVersion() {
+  const r = await api(`/ai-evaluations/${evId}/versions/${evVersion}`);
+  if (!r.ok) return;
+  criteria = (r.data.criteria || []).map(c => ({
+    statement: c.statement, check_type: c.check_type, severity: c.severity, polarity: c.polarity
+  }));
+  renderCriteria();
+}
+
+async function createEval() {
+  const r = await api('/ai-evaluations', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: document.getElementById('ev-name').value,
+      mode: 'simple',
+      objective: document.getElementById('ev-obj').value
+    })
+  });
+  if (!r.ok) { alert(r.data?.detail || 'Erro ao criar.'); return; }
+  evId = r.data.id; evVersion = 1;
+  const st = document.getElementById('ev-state');
+  st.hidden = false; st.textContent = 'rascunho v1 criado';
+  document.getElementById('btn-suggest').disabled = false;
+  enable('criteria-block'); enable('test-block'); enable('publish-block');
+}
+
+async function suggest() {
+  const r = await api('/ai-evaluations/suggest-criteria', {
+    method: 'POST',
+    body: JSON.stringify({ objective: document.getElementById('ev-obj').value, target_type: 'field' })
+  });
+  if (!r.ok) { alert('Serviço de IA indisponível para sugerir critérios.'); return; }
+  criteria = (r.data.suggestions || []).map(s => ({
+    statement: s.statement, check_type: s.check_type, severity: s.suggested_severity, polarity: s.polarity
+  }));
+  renderCriteria();
+}
+
+function renderCriteria() {
+  const body = document.getElementById('crit-body');
+  body.innerHTML = '';
+  const types = ['presence','conformity','quality','comparison','cross_field_consistency'];
+  const sevs = ['info','low','medium','high','critical'];
+  const pols = ['positive','negative','consistency'];
+  criteria.forEach((c, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><textarea rows="2" onchange="criteria[${i}].statement=this.value">${c.statement}</textarea></td>
+      <td><select onchange="criteria[${i}].check_type=this.value">${types.map(t=>`<option ${t===c.check_type?'selected':''}>${t}</option>`).join('')}</select></td>
+      <td><select onchange="criteria[${i}].severity=this.value">${sevs.map(s=>`<option ${s===c.severity?'selected':''}>${s}</option>`).join('')}</select></td>
+      <td><select onchange="criteria[${i}].polarity=this.value">${pols.map(p=>`<option ${p===c.polarity?'selected':''}>${p}</option>`).join('')}</select></td>
+      <td><button class="btn btn-outline btn-sm" onclick="criteria.splice(${i},1); renderCriteria()">x</button></td>`;
+    body.appendChild(tr);
+  });
+}
+function addCriterion() {
+  criteria.push({ statement: 'Novo critério', check_type: 'conformity', severity: 'medium', polarity: 'positive' });
+  renderCriteria();
+}
+async function saveCriteria() {
+  const payload = criteria.map((c, i) => ({ order_index: i, statement: c.statement, check_type: c.check_type, severity: c.severity, polarity: c.polarity }));
+  const r = await api(`/ai-evaluations/${evId}/versions/${evVersion}`, { method: 'PATCH', body: JSON.stringify({ criteria: payload }) });
+  if (!r.ok) alert(r.data?.detail || 'Erro ao salvar (versão publicada é imutável — crie nova versão).');
+}
+
+async function runTest() {
+  const r = await api(`/ai-evaluations/${evId}/versions/${evVersion}/test`, {
+    method: 'POST', body: JSON.stringify({ sample_content: document.getElementById('sample').value })
+  });
+  const out = document.getElementById('test-out');
+  if (!r.ok) { out.innerHTML = `<p class="bad">${r.data?.detail || 'Erro'}</p>`; return; }
+  const neg = r.data.consolidated_result === 'negative';
+  let h = `<p>Resultado consolidado: <strong class="${neg?'bad':'ok'}">${r.data.consolidated_result}</strong></p>`;
+  h += '<table style="margin-top:6px;"><thead><tr><th>Critério</th><th>Conclusão</th><th>Evidência</th></tr></thead><tbody>';
+  (r.data.results || []).forEach(x => {
+    h += `<tr><td>${x.statement}</td><td class="${x.conclusion==='compliant'?'ok':'bad'}">${x.conclusion} (${x.severity})</td><td>${x.evidence_excerpt || '-'}</td></tr>`;
+  });
+  h += '</tbody></table>';
+  out.innerHTML = h;
+}
+
+async function publish() {
+  const r = await api(`/ai-evaluations/${evId}/versions/${evVersion}/publish`, { method: 'POST' });
+  const out = document.getElementById('publish-out');
+  if (!r.ok) { out.innerHTML = `<span class="bad">${r.data?.detail || 'Erro ao publicar'}</span>`; return; }
+  out.innerHTML = `<span class="ok">Versão ${r.data.version_number} publicada.</span>` +
+    (r.data.test_warning ? ' <span class="bad">(nunca testada)</span>' : '');
+}
+
+async function assignToField() {
+  const out = document.getElementById('publish-out');
+  if (!evId) { out.innerHTML = '<span class="bad">Escolha ou crie uma avaliação primeiro.</span>'; return; }
+  if (templateFieldKeys && !templateFieldKeys.includes(FIELD)) {
+    out.innerHTML = `<span class="bad">O campo <code>${FIELD}</code> não existe no template salvo — salve o template no editor antes.</span>`;
+    return;
+  }
+
+  // O PUT substitui a lista inteira: relemos as associações atuais e
+  // reenviamos. Associações órfãs (apontando para campos que não existem mais)
+  // fariam o PUT inteiro falhar, então são descartadas aqui.
+  const cur = await api(`/form-templates/${TPL}/evaluation-assignments`);
+  const all = cur.ok ? (cur.data.assignments || []) : [];
+  const isFieldTarget = t => ['field', 'field_set', 'document'].includes(t);
+  const dropped = [];
+  const kept = all
+    .filter(a => !(a.definition_id === evId && (a.field_keys || []).includes(FIELD)))
+    .filter(a => {
+      if (!templateFieldKeys || !isFieldTarget(a.target_type)) return true;
+      const orphan = (a.field_keys || []).some(k => !templateFieldKeys.includes(k));
+      if (orphan) dropped.push(`${a.definition_name} → ${(a.field_keys || []).join(', ')}`);
+      return !orphan;
+    })
+    .map(a => ({ definition_id: a.definition_id, pinned_version_id: a.pinned_version_id, target_type: a.target_type, field_keys: a.field_keys || [], enabled: a.enabled }));
+  kept.push({ definition_id: evId, pinned_version_id: null, target_type: 'field', field_keys: [FIELD], enabled: true });
+
+  const r = await api(`/form-templates/${TPL}/evaluation-assignments`, { method: 'PUT', body: JSON.stringify({ assignments: kept }) });
+  if (!r.ok) {
+    out.innerHTML = `<span class="bad">${r.data?.detail || 'Erro ao associar.'}</span>` +
+      (String(r.data?.detail || '').includes('field_keys')
+        ? '<br><span class="muted">Há associações apontando para campos que não existem mais neste template. Abra a página pelo botão do editor (com <code>process</code> na URL) para que sejam limpas automaticamente.</span>'
+        : '');
+    return;
+  }
+  let msg = `<span class="ok">Avaliação associada ao campo <code>${FIELD}</code>.</span>`;
+  if (dropped.length) msg += `<br><span class="muted">${dropped.length} associação(ões) órfã(s) removida(s): ${dropped.join('; ')}.</span>`;
+  msg += ` <a class="back-link" href="/demos/forms/">&larr; voltar ao editor</a> — a próxima submissão do formulário dispara a pré-avaliação.`;
+  out.innerHTML = msg;
+}
+
+(async () => { await checkSession(); await loadLibrary(); await checkField(); })();
+</script>
+</body>
+</html>

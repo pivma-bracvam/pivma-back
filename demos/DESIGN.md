@@ -80,3 +80,43 @@ Toda página em `demos/<modulo>/index.html` deve conter:
 2. **Painel de Ações Rápidas:** Botões para disparar o caso de uso prioritário do módulo.
 3. **Área Interativa de Trabalho:** Tabelas com busca, formulários orientados a esquema ou painéis de decisão.
 4. **Inspetor de Requisição / Resposta da API:** Exibição clara e legível do JSON retornado.
+
+---
+
+## 5. Ciclo Básico (4 Módulos) e Avaliação por IA (Spec 013)
+
+O hub (`demos/index.html`) expõe **4 módulos** que juntos cobrem o ciclo Fase 1
+(submissão → pré-avaliação → triagem → decisão). Contas semeadas por
+`scripts/seeds/seed_all.py`, autenticação via `POST /auth/login`
+(`{identifier, password}`):
+
+| Conta | Senha | Papel na demo |
+|---|---|---|
+| `admin` | `Admin@123456` | BraCVAM: edita formulário e configura avaliações por IA |
+| `proponent_user` | `Proponent@123456` | Proponente: submete e acompanha a pré-avaliação |
+| `triage_evaluator` | `Triage@123456` | Avaliador: triagem, decisão e feedback por critério da IA |
+
+| # | Página | Endpoints principais |
+|---|---|---|
+| 1 | `demos/forms/` — Editor + Configuração de IA | `GET/PUT /processes/templates/...`, `GET /form-templates/{k}/evaluable-fields` |
+| 2 | `demos/submission/` — Submissão + Pré-avaliação | `POST /processes/{id}/activities/{k}/form`, `GET /processes/{id}/pre-evaluation`, `POST /processes/{id}/submission/direct-review` |
+| 3 | `demos/triage/` — Triagem & Decisão | `POST /processes/{id}/triage/reviews` e `/decision`, `GET /processes/{id}/pre-evaluation`, `POST /processes/{id}/pre-evaluation/{run}/feedback` |
+| 4 | `demos/ai-pipeline/` — Observabilidade de IA | painel de execuções de pipeline |
+
+**Configuração de IA por campo** — `demos/forms/ai-config.html?template=<k>&field=<f>`:
+página dedicada aberta pelo botão *Configurar Avaliação por IA →* de cada campo do
+editor. Fluxo com endpoints existentes apenas: reaproveitar da biblioteca
+(`GET /ai-evaluations`) ou criar (`POST /ai-evaluations`) → sugerir critérios
+(`POST /ai-evaluations/suggest-criteria`) → editar
+(`PATCH /ai-evaluations/{id:uuid}/versions/{n:int}`) → testar (`.../test`) →
+publicar (`.../publish`) → associar ao campo. A associação faz
+`GET` das associações atuais, **acrescenta** a nova e envia o conjunto completo
+via `PUT /form-templates/{k}/evaluation-assignments` (o `PUT` substitui a lista
+inteira).
+
+**Restrição de acesso conhecida:** `GET .../pre-evaluation` e
+`POST .../feedback` exigem proponente do processo, gestor do processo
+(`group_manager`) **ou** perfil Administrador (permissão `ai_evaluations.read`).
+O perfil *Revisor* não basta. O seed de Spec 013 designa `triage_evaluator`
+como `group_manager` do processo `[DEMO IA] Extensão de Escopo` para a demo de
+Triagem funcionar de ponta a ponta.

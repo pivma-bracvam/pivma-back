@@ -191,71 +191,87 @@
       </div>
     </header>
 
-    <div class="grid">
-      <!-- Módulo 1 -->
-      <div class="card">
-        <div>
-          <div class="card-number">Módulo 1</div>
-          <h2 class="card-title">Gestão de Usuários e RBAC</h2>
-          <p class="card-desc">Cadastro de usuários, busca textual, filtro ativo/inativo, alteração cadastral de nome e controle de perfis de acesso.</p>
-        </div>
-        <a href="/demos/users/" class="btn">Abrir Demonstração &rarr;</a>
-      </div>
+    <p class="subtitle" style="margin-bottom: 20px;">
+      Ciclo básico da plataforma em 4 módulos. Cada módulo opera sobre dados reais
+      do banco pela API local (<code>:8000</code>) — nada é simulado no frontend.
+    </p>
 
-      <!-- Módulo 2 -->
+    <div class="grid">
+      <!-- Módulo 1 — Editor + Configuração de IA -->
       <div class="card">
         <div>
-          <div class="card-number">Módulo 2</div>
-          <h2 class="card-title">Editor de Templates de Formulários</h2>
-          <p class="card-desc">Customização de formulários de processos padrão por administradores BraCVAM (seções, campos, tipos, obrigatoriedade e IA).</p>
+          <div class="card-number">Módulo 1 &bull; BraCVAM</div>
+          <h2 class="card-title">Editor de Formulário + Configuração de IA</h2>
+          <p class="card-desc">
+            Customização do formulário de um processo padrão (seções, campos, tipos,
+            obrigatoriedade). Ao marcar um campo como avaliável, o botão
+            <em>Configurar Avaliação por IA</em> abre o fluxo dedicado: objetivo em
+            linguagem natural &rarr; critérios assistidos &rarr; teste &rarr; publicação
+            &rarr; associação ao campo.
+          </p>
         </div>
         <a href="/demos/forms/" class="btn">Abrir Demonstração &rarr;</a>
       </div>
 
-      <!-- Módulo 3 -->
+      <!-- Módulo 2 — Submissão + Pré-avaliação -->
       <div class="card">
         <div>
-          <div class="card-number">Módulo 3</div>
-          <h2 class="card-title">Submissão de Proposta</h2>
-          <p class="card-desc">Visão do Proponente: instanciação de novo processo de validação, preenchimento técnico e envio da proposta para triagem.</p>
+          <div class="card-number">Módulo 2 &bull; Proponente</div>
+          <h2 class="card-title">Submissão de Proposta + Pré-avaliação por IA</h2>
+          <p class="card-desc">
+            Instanciação do processo, preenchimento técnico e envio. Quando o
+            formulário tem campos configurados, a submissão dispara a pré-avaliação
+            assíncrona: o proponente acompanha o resultado, corrige e reenvia, ou
+            ignora a IA e solicita intervenção direta do BraCVAM.
+          </p>
         </div>
         <a href="/demos/submission/" class="btn">Abrir Demonstração &rarr;</a>
       </div>
 
-      <!-- Módulo 4 -->
+      <!-- Módulo 3 — Triagem + Feedback -->
       <div class="card">
         <div>
-          <div class="card-number">Módulo 4</div>
-          <h2 class="card-title">Triagem Técnica & Decisão</h2>
-          <p class="card-desc">Visão do Avaliador: inspeção de propostas, parecer campo a campo, decisão final (Aprovar / Diligência / Rejeitar) e timeline auditável.</p>
+          <div class="card-number">Módulo 3 &bull; Avaliador</div>
+          <h2 class="card-title">Triagem Técnica &amp; Decisão</h2>
+          <p class="card-desc">
+            Inspeção da proposta, parecer campo a campo e decisão final (Aprovar /
+            Diligência / Rejeitar). Exibe o painel da pré-avaliação por IA com
+            pontos de atenção, evidências e referências — e o avaliador registra
+            concordância ou discordância por critério. A IA não decide.
+          </p>
         </div>
         <a href="/demos/triage/" class="btn">Abrir Demonstração &rarr;</a>
       </div>
 
-      <!-- Módulos Adicionais de Observabilidade -->
+      <!-- Módulo 4 — Observabilidade de IA -->
       <div class="card">
         <div>
-          <div class="card-number">Módulo 5</div>
-          <h2 class="card-title">Índice Operacional (Logs SSE)</h2>
-          <p class="card-desc">Visualização cronológica em tempo real dos eventos operacionais da plataforma com stream SSE e chaves de correlação.</p>
-        </div>
-        <a href="/demos/operational-index/" class="btn">Acessar Índice Operacional &rarr;</a>
-      </div>
-
-      <div class="card">
-        <div>
-          <div class="card-number">Módulo 6</div>
+          <div class="card-number">Módulo 4 &bull; Observabilidade</div>
           <h2 class="card-title">Observabilidade de IA</h2>
-          <p class="card-desc">Painel interativo com pipelines de avaliação simulada de IA com linha do tempo sequencial e custos simulados.</p>
+          <p class="card-desc">
+            Painel com as pipelines de avaliação de IA: linha do tempo sequencial
+            das etapas, provedor e modelos utilizados, e custo real por execução.
+          </p>
         </div>
         <a href="/demos/ai-pipeline/" class="btn">Acessar Observabilidade de IA &rarr;</a>
       </div>
     </div>
 
     <div class="info-section">
+      <h2>Ferramentas de apoio</h2>
+      <p style="color: var(--text-muted); font-size: 16px; margin-bottom: 12px;">
+        Fora do ciclo básico, mas úteis para preparar a massa de dados e auditar a plataforma.
+      </p>
+      <div class="footer-links">
+        <a href="/demos/users/">&rarr; Gestão de Usuários e RBAC</a>
+        <a href="/demos/operational-index/">&rarr; Índice Operacional (Logs SSE)</a>
+      </div>
+    </div>
+
+    <div class="info-section">
       <h2>Contas de Teste Pré-Configuradas (Seeds)</h2>
       <p style="color: var(--text-muted); font-size: 16px; margin-bottom: 12px;">
-        Para carregar ou renovar a massa de dados de teste, execute no terminal: <code>poetry run python scripts/seeds/seed_all.py</code>
+        Para carregar ou renovar a massa de dados de teste, execute no terminal: <code>uv run python -m scripts.seeds.seed_all</code>
       </p>
       <table>
         <thead>
