@@ -329,6 +329,25 @@
       document.getElementById('form-desc').value = templateData.description || '';
       document.getElementById('editor-container').style.display = 'block';
       renderFields();
+      loadAssignmentBadges();
+    }
+
+    async function loadAssignmentBadges() {
+      const fKey = document.getElementById('select-form').value;
+      const res = await fetch(`/form-templates/${fKey}/evaluable-fields`, { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const byKey = {};
+      (data.fields || []).forEach(f => { byKey[f.field_key] = f.assignments || []; });
+      (templateData.fields || []).forEach((f, idx) => {
+        const el = document.getElementById(`ai-assign-badge-${idx}`);
+        if (!el) return;
+        const asg = byKey[f.field_key] || [];
+        el.textContent = asg.length
+          ? `${asg.length} avaliação(ões): ${asg.map(a => a.definition_name).join(', ')}`
+          : (f.ai_evaluation_enabled ? 'sem avaliação configurada' : '');
+        el.style.color = asg.length ? '#15803d' : 'var(--text-muted)';
+      });
     }
 
     function renderFields() {
@@ -398,14 +417,14 @@
             </div>
           </div>
 
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 5px; padding: 10px; margin-top: 6px;">
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 5px; padding: 10px; margin-top: 6px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
             <label style="cursor: pointer; margin-bottom: 0;">
               <input type="checkbox" ${f.ai_evaluation_enabled ? 'checked' : ''} onchange="updateField(${idx}, 'ai_evaluation_enabled', this.checked)" style="width: auto; margin-right: 6px;">
-              Habilitar Avaliação Automatizada por IA
+              Disponível para avaliação por IA (<code>ai_evaluation_enabled</code>)
             </label>
-            <div style="margin-top: 6px; display: ${f.ai_evaluation_enabled ? 'block' : 'none'};" id="ai-instructions-box-${idx}">
-              <label style="font-size: 12px;">Instruções para a IA:</label>
-              <textarea rows="2" onchange="updateField(${idx}, 'ai_context_instructions', this.value)">${f.ai_context_instructions || ''}</textarea>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span id="ai-assign-badge-${idx}" style="font-size: 11px; color: var(--text-muted);"></span>
+              <a class="btn btn-outline btn-sm" href="/demos/forms/ai-config.html?process=${encodeURIComponent(document.getElementById('select-process').value)}&template=${encodeURIComponent(document.getElementById('select-form').value)}&field=${encodeURIComponent(f.field_key || '')}" target="_self">Configurar Avaliação por IA &rarr;</a>
             </div>
           </div>
         `;
@@ -417,10 +436,6 @@
     function updateField(index, prop, value) {
       if (templateData && templateData.fields[index]) {
         templateData.fields[index][prop] = value;
-        if (prop === 'ai_evaluation_enabled') {
-          const el = document.getElementById(`ai-instructions-box-${index}`);
-          if (el) el.style.display = value ? 'block' : 'none';
-        }
       }
     }
 

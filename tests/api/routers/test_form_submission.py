@@ -492,7 +492,7 @@ async def test_all_five_process_forms_definitions_and_submissions(
     submit_data = submit_resp.json()
     assert submit_data['status'] == 'COMPLETED'
     assert submit_data['artifact_id'] is not None
-    # 4. Check AI evaluation triggered automatically
-    assert submit_data.get('ai_evaluation') is not None
-    assert 'evaluations' in submit_data['ai_evaluation']
-    assert len(submit_data['ai_evaluation']['evaluations']) >= 1
+    # Spec 014: sem esteira legada. Templates padrão não têm avaliações por IA
+    # associadas → sem `ai_evaluation`, sem pré-avaliação.
+    assert 'ai_evaluation' not in submit_data
+    assert submit_data['pre_evaluation'] is None

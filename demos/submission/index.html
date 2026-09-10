@@ -107,6 +107,7 @@
       color: #1e293b;
     }
     .status-SUBMISSION { background: #fef08a; color: #854d0e; }
+    .status-AI_PRE_EVALUATION { background: #bfdbfe; color: #1e40af; }
     .status-TRIAGE { background: #bae6fd; color: #0369a1; }
     .inspector {
       background: #0f172a;
@@ -181,14 +182,8 @@
       </div>
     </div>
 
-    <!-- Alerta de Conclusão / Transição -->
-    <div id="transition-card" class="card" style="display: none; background: #ecfdf5; border-color: #a7f3d0;">
-      <h2 style="color: var(--success); margin-bottom: 8px;">&check; Proposta Submetida com Sucesso!</h2>
-      <p style="font-size: 16px; margin-bottom: 16px;">
-        O processo avançou para o status <strong>TRIAGE</strong> e a atividade de Triagem Inicial foi desbloqueada.
-      </p>
-      <a href="/demos/triage/" class="btn btn-primary">&rarr; Ir para a Página de Triagem & Decisão</a>
-    </div>
+    <!-- Alerta de Conclusão / Transição — conteúdo definido por renderTransition() -->
+    <div id="transition-card" class="card" style="display: none; background: #ecfdf5; border-color: #a7f3d0;"></div>
 
     <!-- Inspetor da API -->
     <div class="card">
@@ -367,46 +362,21 @@
         });
       });
 
-      if (data.ai_evaluation) {
-        html += renderAiReportBox(data.ai_evaluation);
-      }
-
       container.innerHTML = html;
 
       if (!data.is_submitted) {
         document.getElementById('submission-actions').style.display = 'flex';
-        document.getElementById('transition-card').style.display = 'none';
       } else {
+        // Formulário submetido: trava a edição na tela (o backend também recusa
+        // PUT/POST enquanto is_submitted=true) e esconde o botão de enviar.
         document.getElementById('submission-actions').style.display = 'none';
-        document.getElementById('transition-card').style.display = 'block';
+        container.querySelectorAll('input, textarea, select').forEach(el => { el.disabled = true; });
       }
+      // O cartão de transição reflete o estado REAL (status do processo +
+      // pré-avaliação), nunca um texto fixo.
+      await renderTransition(processId, { justSubmitted: false });
     }
 
-    function renderAiReportBox(aiReport) {
-      if (!aiReport || !aiReport.evaluations) return '';
-      let out = `<div style="margin-top: 24px; padding: 16px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px;">`;
-      out += `<h3 style="font-size: 16px; color: #1e293b; margin-bottom: 8px;">Parecer Técnico Automatizado por IA:</h3>`;
-      out += `<p style="font-size: 14px; color: var(--text-muted); margin-bottom: 12px;">ID de Correlação: <code>${aiReport.correlation_id || '-'}</code></p>`;
-      
-      aiReport.evaluations.forEach(ev => {
-        const vColor = ev.verdict === 'APPROVED' ? '#15803d' : (ev.verdict === 'NEEDS_ADJUSTMENT' ? '#b45309' : '#b91c1c');
-        out += `<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 10px;">`;
-        out += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">`;
-        out += `<strong>Campo: <code>${ev.field_id || '-'}</code></strong>`;
-        out += `<span style="font-weight: 700; color: ${vColor}; background: #fef2f2; padding: 2px 8px; border-radius: 4px; font-size: 13px;">Veredito: ${ev.verdict} (Confiança: ${(ev.confidence_score * 100).toFixed(0)}%)</span>`;
-        out += `</div>`;
-        out += `<p style="font-size: 14px; color: #334155;"><strong>Resumo:</strong> ${ev.summary || '-'}</p>`;
-        if (ev.inconsistencies && ev.inconsistencies.length > 0) {
-          out += `<p style="font-size: 13px; color: #b91c1c; margin-top: 4px;"><strong>Inconsistências:</strong> ${ev.inconsistencies.join('; ')}</p>`;
-        }
-        if (ev.recommendations && ev.recommendations.length > 0) {
-          out += `<p style="font-size: 13px; color: #0369a1; margin-top: 4px;"><strong>Recomendações:</strong> ${ev.recommendations.join('; ')}</p>`;
-        }
-        out += `</div>`;
-      });
-      out += `</div>`;
-      return out;
-    }
 
     function fillValidSampleData() {
       currentFields.forEach(f => {
@@ -480,24 +450,135 @@
       inspect('POST', url, res.status, data);
 
       if (res.ok) {
-        updateStatusBadge('TRIAGE');
         document.getElementById('submission-actions').style.display = 'none';
-        
-        let transHtml = `<h2 style="color: var(--success); margin-bottom: 8px;">&check; Proposta Submetida com Sucesso!</h2>`;
-        transHtml += `<p style="font-size: 16px; margin-bottom: 12px;">O processo avançou para o status <strong>TRIAGE</strong> e a atividade de Triagem Inicial foi desbloqueada.</p>`;
-        
-        if (data.ai_evaluation) {
-          transHtml += renderAiReportBox(data.ai_evaluation);
-        }
-        
-        transHtml += `<div style="margin-top: 16px;"><a href="/demos/triage/" class="btn btn-primary">&rarr; Ir para a Página de Triagem & Decisão</a></div>`;
-        
-        const transCard = document.getElementById('transition-card');
-        transCard.innerHTML = transHtml;
-        transCard.style.display = 'block';
+        // Trava visualmente o formulário recém-enviado.
+        document.querySelectorAll('#submission-form-container input, #submission-form-container textarea, #submission-form-container select')
+          .forEach(el => { el.disabled = true; });
+        await renderTransition(activeProcessId, { justSubmitted: true });
       } else {
         alert('Falha na submissão: ' + (data?.detail || res.statusText));
       }
+    }
+
+    let preEvalPollTimer = null;
+    function stopPreEvalPoll() {
+      if (preEvalPollTimer) { clearTimeout(preEvalPollTimer); preEvalPollTimer = null; }
+    }
+
+    // Fonte única da verdade do cartão de transição. Consulta o status real do
+    // processo e a pré-avaliação por IA e decide o que mostrar. Chamado após
+    // submeter e a cada carregamento/refresh da página.
+    async function renderTransition(processId, { justSubmitted } = {}) {
+      stopPreEvalPoll();
+      const transCard = document.getElementById('transition-card');
+
+      let procStatus = null;
+      try {
+        const pr = await fetch(`/processes/${processId}`, { credentials: 'include' });
+        if (pr.ok) { procStatus = (await pr.json()).status; updateStatusBadge(procStatus); }
+      } catch (e) {}
+
+      const url = `/processes/${processId}/pre-evaluation`;
+      const res = await fetch(url, { credentials: 'include' });
+      const pe = await res.json().catch(() => null);
+      inspect('GET', url, res.status, pe);
+
+      const show = (bg, border, inner) => {
+        transCard.style.display = 'block';
+        transCard.style.background = bg;
+        transCard.style.borderColor = border;
+        transCard.innerHTML = inner;
+      };
+      const hide = () => { transCard.style.display = 'none'; };
+      const triageLink = '<a href="/demos/triage/" class="btn btn-primary" style="margin-top:8px;">&rarr; Página de Triagem &amp; Decisão</a>';
+
+      if (!res.ok) {
+        // Sem pré-avaliação para este processo (fluxo legado ou rascunho novo).
+        if (justSubmitted || procStatus === 'TRIAGE') {
+          show('#ecfdf5', '#a7f3d0', `
+            <h2 style="color: var(--success); margin-bottom: 8px;">&check; Proposta submetida</h2>
+            <p style="font-size: 15px; margin-bottom: 16px;">Processo em <strong>${procStatus || 'TRIAGE'}</strong>. Sem pré-avaliação por IA configurada para este formulário.</p>
+            ${triageLink}`);
+        } else {
+          hide();
+        }
+        return;
+      }
+
+      if (pe.status === 'in_progress') {
+        // Backend: process.status = 'AI_PRE_EVALUATION' (Spec 013). Rótulo curto
+        // no selo para leitura rápida.
+        const badge = document.getElementById('current-process-status');
+        badge.textContent = 'AGUARDANDO IA'; badge.className = 'status-pill status-AI_PRE_EVALUATION';
+        show('#eff6ff', '#bfdbfe', `
+          <h2 style="color: #1d4ed8; margin-bottom: 8px;">&#9203; Aguardando pré-avaliação por IA</h2>
+          <p style="font-size: 15px; margin-bottom: 12px;">A submissão foi registrada e está <strong>travada para edição</strong>
+            até a IA concluir a avaliação dos critérios configurados (execução <code>${pe.run_id}</code>).
+            A triagem do BraCVAM só é liberada quando o resultado sai. Atualiza sozinho a cada 4&nbsp;s.</p>
+          <button class="btn btn-primary btn-sm" onclick="renderTransition('${processId}')">Atualizar agora</button>`);
+        preEvalPollTimer = setTimeout(() => renderTransition(processId), 4000);
+        return;
+      }
+
+      // Painel de pontos de atenção (reaproveitado nos casos terminais).
+      const s = pe.summary || {};
+      let panel = '';
+      if (pe.status === 'failed') {
+        panel = `<p style="color:#b91c1c; margin:8px 0;">${pe.error_summary || 'Falha no processamento da IA.'}</p>`;
+      } else {
+        panel = `<p style="font-size:13px; color:var(--text-muted); margin:8px 0;">${s.total} critérios &bull; ${s.compliant} conformes &bull; ${s.non_compliant} não conformes &bull; ${s.partial} parciais &bull; ${s.indeterminate} indeterminados</p>`;
+      }
+      (pe.attention_points || []).forEach(p => {
+        panel += `<div style="border-left:3px solid ${p.severity==='critical'||p.severity==='high'?'#b91c1c':'#b45309'}; background:#f8fafc; padding:8px 10px; margin-bottom:8px;">
+          <strong>${p.criterion_statement}</strong> — ${p.conclusion} (${p.severity})<br>
+          ${p.evidence_excerpt ? `<span style="font-size:13px; color:#475569;">Evidência: ${p.evidence_excerpt}</span><br>` : ''}
+          ${p.recommendation ? `<span style="font-size:13px; color:#0369a1;">Recomendação: ${p.recommendation}</span>` : ''}
+        </div>`;
+      });
+
+      const negativo = pe.status === 'failed' || pe.consolidated_result === 'negative';
+
+      if (!negativo) {
+        show('#ecfdf5', '#a7f3d0', `
+          <h2 style="color: var(--success); margin-bottom: 8px;">&check; Pré-avaliação positiva — processo em TRIAGE</h2>
+          ${panel}${triageLink}`);
+        return;
+      }
+
+      if (pe.direct_review_request) {
+        show('#fefce8', '#fde68a', `
+          <h2 style="color: #b45309; margin-bottom: 8px;">Encaminhada ao BraCVAM (intervenção direta)</h2>
+          <p style="font-size:15px; margin-bottom:12px;">Você contestou a pré-avaliação automática. O processo está em
+            <strong>${procStatus || 'TRIAGE'}</strong> aguardando análise humana.</p>
+          ${panel}${triageLink}`);
+        return;
+      }
+
+      // Negativa/falha sem contestação: o backend reabriu a submissão
+      // (nova execução com is_submitted=false) para o proponente corrigir.
+      show('#fef2f2', '#fecaca', `
+        <h2 style="color: #b91c1c; margin-bottom: 8px;">Pré-avaliação ${pe.status === 'failed' ? 'falhou' : 'negativa'} — submissão reaberta para correção</h2>
+        <p style="font-size:15px; margin-bottom:12px;">O formulário acima voltou a ficar editável. Corrija e reenvie,
+          ou ignore a IA e solicite intervenção direta do BraCVAM.</p>
+        ${panel}
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+          <button class="btn btn-outline btn-sm" onclick="loadSubmissionForm(activeProcessId)">Recarregar formulário</button>
+          <button class="btn btn-primary btn-sm" onclick="requestDirectReview()">Ignorar a IA e solicitar intervenção direta do BraCVAM</button>
+        </div>`);
+    }
+
+    async function requestDirectReview() {
+      const url = `/processes/${activeProcessId}/submission/direct-review`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Origin': location.origin },
+        credentials: 'include',
+        body: JSON.stringify({ justification: 'Discordo da avaliação automática; solicito análise humana.' })
+      });
+      const data = await res.json().catch(() => null);
+      inspect('POST', url, res.status, data);
+      if (res.ok) { await renderTransition(activeProcessId); }
+      else { alert(data?.detail || 'Falha ao solicitar intervenção direta.'); }
     }
 
     // Inicialização

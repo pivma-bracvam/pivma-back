@@ -10,11 +10,11 @@ from tests.factories.user_factory import UserFactory
 
 
 @pytest.mark.asyncio
-async def test_triage_field_review_flow(client, session):
+async def test_triage_field_review_flow(client, session, bracvam_user):
     await bootstrap_all_templates(session)
     proponente = UserFactory()
-    triador = UserFactory()
-    session.add_all([proponente, triador])
+    triador = bracvam_user
+    session.add(proponente)
     await session.commit()
 
     # 1. Proponente creates and submits process
@@ -61,6 +61,7 @@ async def test_triage_field_review_flow(client, session):
     rev_resp = client.post(
         f'/processes/{process_id}/triage/reviews',
         json=review_payload,
+        headers={'Origin': 'https://testserver'},
     )
     assert rev_resp.status_code == HTTPStatus.OK
 

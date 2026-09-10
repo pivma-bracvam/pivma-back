@@ -3,7 +3,6 @@ from pathlib import Path
 from uuid import UUID
 
 from pivma.ai.contracts import (
-    AIEvaluationVerdict,
     AIStepExecutionLog,
     OperationalEventIndex,
     PipelineExecutionGroup,
@@ -71,27 +70,20 @@ def _build_pipeline_group(
 ) -> PipelineExecutionGroup:
     steps_sorted = sorted(steps, key=lambda s: s.step_order)
     total_duration = sum(s.step_duration_ms for s in steps_sorted)
-    total_cost = sum(s.simulated_cost for s in steps_sorted)
-
-    verdict = None
-    for s in reversed(steps_sorted):
-        is_verdict_step = s.step_name == 'verdict_synthesis'
-        if is_verdict_step and 'verdict' in s.output_payload:
-            try:
-                verdict = AIEvaluationVerdict.model_validate(
-                    s.output_payload['verdict']
-                )
-                break
-            except Exception:
-                pass
+    total_cost = sum(s.simulated_cost or s.real_cost for s in steps_sorted)
 
     field_key = steps_sorted[0].field_key if steps_sorted else None
     started_at = steps_sorted[0].timestamp if steps_sorted else None
     completed_at = steps_sorted[-1].timestamp if steps_sorted else None
 
+    pipeline_name = (
+        steps_sorted[0].pipeline_name
+        if steps_sorted
+        else 'form_ai_pre_evaluation'
+    )
     return PipelineExecutionGroup(
         correlation_id=UUID(cid),
-        pipeline_name='form_ai_field_evaluation',
+        pipeline_name=pipeline_name,
         field_key=field_key,
         status='COMPLETED',
         started_at=started_at,
@@ -99,7 +91,6 @@ def _build_pipeline_group(
         total_duration_ms=round(total_duration, 2),
         total_cost=round(total_cost, 6),
         steps=steps_sorted,
-        verdict=verdict,
     )
 
 

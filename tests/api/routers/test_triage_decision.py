@@ -11,12 +11,12 @@ from tests.factories.user_factory import UserFactory
 
 @pytest.mark.asyncio
 async def test_triage_decision_needs_revision_and_resubmission(
-    client, session
+    client, session, bracvam_user
 ):
     await bootstrap_all_templates(session)
     proponente = UserFactory()
-    triador = UserFactory()
-    session.add_all([proponente, triador])
+    triador = bracvam_user
+    session.add(proponente)
     await session.commit()
 
     # 1. Proponente submits
@@ -53,6 +53,7 @@ async def test_triage_decision_needs_revision_and_resubmission(
             'outcome': 'NEEDS_REVISION',
             'justification': 'Favor incluir histórico de testes comparativos.',
         },
+        headers={'Origin': 'https://testserver'},
     )
     assert dec_resp.status_code == HTTPStatus.OK
     dec_data = dec_resp.json()
@@ -96,6 +97,7 @@ async def test_triage_decision_needs_revision_and_resubmission(
             'outcome': 'APPROVED',
             'justification': 'Proposta ajustada e aprovada.',
         },
+        headers={'Origin': 'https://testserver'},
     )
     assert approve_resp.status_code == HTTPStatus.OK
     assert approve_resp.json()['new_process_status'] == 'PLANNING'

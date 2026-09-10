@@ -1,14 +1,10 @@
 from http import HTTPStatus
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from pivma.ai.contracts import PipelineContext
-from pivma.ai.pipeline import FormAIPipelineEngine
-from pivma.core.database.models import Artifact, FormInstance, FormTemplate
+from pivma.core.pre_evaluation_service import run_pre_evaluation
 from pivma.core.process_engine import (
     ConflictError,
     NotFoundError,
@@ -85,28 +81,6 @@ async def get_activity_form(
                 reviewed_at=fr.reviewed_at,
             )
 
-    ai_eval = None
-    art_stmt = (
-        select(Artifact)
-        .where(
-            Artifact.process_instance_id == id,
-            Artifact.key.in_([
-                'ai_evaluation_report',
-                'proposal_form_submission',
-            ]),
-            Artifact.deleted_at.is_(None),
-        )
-        .order_by(Artifact.created_at.desc())
-    )
-    artifacts = (await session.execute(art_stmt)).scalars().all()
-    for art in artifacts:
-        if art.metadata_payload and 'ai_evaluation' in art.metadata_payload:
-            ai_eval = art.metadata_payload['ai_evaluation']
-            break
-        if art.key == 'ai_evaluation_report' and art.metadata_payload:
-            ai_eval = art.metadata_payload
-            break
-
     return FormInstanceResponse(
         form_instance_id=form_inst.id,
         template_key=template.key,
@@ -134,7 +108,6 @@ async def get_activity_form(
         ],
         values=values_dict,
         reviews=reviews_dict,
-        ai_evaluation=ai_eval,
     )
 
 
@@ -182,15 +155,16 @@ async def save_form_draft(
     response_model=ActivityCompletionResponse,
     status_code=HTTPStatus.OK,
 )
-async def submit_form(
+async def submit_form(  # noqa: PLR0913, PLR0917
     id: UUID,
     activity_key: str,
     body: SubmitFormRequest,
     session: Session,
     current_user: CurrentUser,
+    background_tasks: BackgroundTasks,
 ):
     try:
-        act, run, artifact = await submit_proposal_form(
+        act, run, artifact, pre_eval_run = await submit_proposal_form(
             session=session,
             process_id=id,
             activity_key=activity_key,
@@ -210,90 +184,18 @@ async def submit_form(
             status_code=HTTPStatus.CONFLICT, detail=str(e)
         ) from e
 
-    ai_eval = None
-    if artifact and artifact.metadata_payload:
-        ai_eval = artifact.metadata_payload.get('ai_evaluation')
+    pre_evaluation = None
+    if pre_eval_run is not None:
+        background_tasks.add_task(run_pre_evaluation, pre_eval_run.id)
+        pre_evaluation = {
+            'run_id': str(pre_eval_run.id),
+            'status': pre_eval_run.status,
+        }
 
     return ActivityCompletionResponse(
         activity_key=act.key,
         run_number=run.run_number,
         status=run.status,
         artifact_id=artifact.id if artifact else None,
-        ai_evaluation=ai_eval,
+        pre_evaluation=pre_evaluation,
     )
-
-
-direct_forms_router = APIRouter(prefix='/forms', tags=['Forms AI'])
-
-
-@direct_forms_router.post(
-    '/instances/{instance_id}/evaluate-ai',
-    status_code=HTTPStatus.OK,
-)
-async def evaluate_form_instance_ai(
-    instance_id: UUID,
-    session: Session,
-    current_user: CurrentUser,
-):
-    stmt = (
-        select(FormInstance)
-        .where(
-            FormInstance.id == instance_id, FormInstance.deleted_at.is_(None)
-        )
-        .options(
-            selectinload(FormInstance.form_template).selectinload(
-                FormTemplate.fields
-            ),
-            selectinload(FormInstance.values),
-        )
-    )
-    result = await session.execute(stmt)
-    form_inst = result.scalar_one_or_none()
-    if not form_inst:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail='Instância de formulário não encontrada.',
-        )
-
-    engine = FormAIPipelineEngine()
-    correlation_id = uuid4()
-    evaluations = []
-
-    # Mapeamento de valores submetidos indexados por form_field_id
-    field_map = {
-        f.id: f for f in form_inst.form_template.fields if f.deleted_at is None
-    }
-    values_map = {}
-    for fv in form_inst.values:
-        if fv.deleted_at is None and fv.form_field_id in field_map:
-            fld = field_map[fv.form_field_id]
-            values_map[fld.id] = _extract_form_field_value(fv, fld.field_type)
-
-    # Filtrar apenas campos elegíveis para IA
-    ai_fields = [
-        f
-        for f in form_inst.form_template.fields
-        if f.deleted_at is None and f.ai_evaluation_enabled
-    ]
-
-    for fld in ai_fields:
-        raw_val = values_map.get(fld.id)
-        ctx = PipelineContext(
-            form_instance_id=form_inst.id,
-            field_key=fld.field_key,
-            field_label=fld.label,
-            submitted_value=raw_val,
-            instructions=fld.ai_context_instructions,
-            validation_rules=fld.ai_validation_rules,
-            correlation_id=correlation_id,
-        )
-        group = engine.run_field_pipeline(ctx)
-        if group.verdict:
-            evaluations.append(group.verdict.model_dump(mode='json'))
-
-    return {
-        'form_instance_id': str(form_inst.id),
-        'correlation_id': str(correlation_id),
-        'status': 'COMPLETED',
-        'evaluations': evaluations,
-    }

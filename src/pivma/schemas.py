@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
@@ -454,7 +454,6 @@ class FormInstanceResponse(BaseModel):
     fields: list[FormFieldDefinition]
     values: dict[str, Any]
     reviews: dict[str, FieldReviewSummary]
-    ai_evaluation: dict[str, Any] | None = None
 
 
 class SaveFormValuesRequest(BaseModel):
@@ -494,7 +493,7 @@ class ActivityCompletionResponse(BaseModel):
     run_number: int
     status: str
     artifact_id: UUID | None = None
-    ai_evaluation: dict[str, Any] | None = None
+    pre_evaluation: dict[str, Any] | None = None
 
 
 class TaskSummary(BaseModel):
@@ -628,3 +627,332 @@ class ParticipantHistoryPage(BaseModel):
     offset: int
     limit: int
     items: list[ParticipantHistoryItem]
+
+
+# ---------------------------------------------------------------------------
+# Spec 013 — Avaliação Configurável por IA
+# ---------------------------------------------------------------------------
+
+EvaluationMode = Literal['simple', 'advanced']
+CheckType = Literal[
+    'presence',
+    'conformity',
+    'quality',
+    'comparison',
+    'cross_field_consistency',
+]
+CriterionPolarity = Literal['positive', 'negative', 'consistency']
+CriterionSeverity = Literal['info', 'low', 'medium', 'high', 'critical']
+CriterionOnMissing = Literal['non_compliant', 'indeterminate']
+AssignmentTargetType = Literal[
+    'field', 'field_set', 'document', 'form', 'process'
+]
+ConsolidatedResult = Literal['positive', 'negative']
+ItemConclusion = Literal[
+    'compliant', 'non_compliant', 'partial', 'indeterminate'
+]
+
+EvaluationName = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=3, max_length=255)
+]
+Statement = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=3, max_length=2000),
+]
+
+
+class CriterionInput(BaseModel):
+    id: UUID | None = None
+    order_index: int = Field(0, ge=0)
+    statement: Statement
+    check_type: CheckType
+    polarity: CriterionPolarity = 'positive'
+    required_evidence: str | None = None
+    severity: CriterionSeverity = 'medium'
+    on_missing_info: CriterionOnMissing = 'indeterminate'
+    recommendation_hint: str | None = None
+
+
+class CriterionPublic(BaseModel):
+    id: UUID
+    order_index: int
+    statement: str
+    check_type: str
+    polarity: str
+    required_evidence: str | None = None
+    severity: str
+    on_missing_info: str
+    recommendation_hint: str | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CreateEvaluationRequest(BaseModel):
+    name: EvaluationName
+    description: str | None = None
+    mode: EvaluationMode = 'simple'
+    objective: Statement
+
+
+class EvaluationVersionSummary(BaseModel):
+    version_number: int
+    status: str
+    criteria_count: int = 0
+    test_run_count: int = 0
+    published_at: datetime | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EvaluationVersionResponse(BaseModel):
+    version_number: int
+    status: str
+    objective: str
+    references: list[dict[str, Any]] = Field(default_factory=list)
+    test_run_count: int
+    published_at: datetime | None = None
+    criteria: list[CriterionPublic] = Field(default_factory=list)
+
+
+class EvaluationDefinitionResponse(BaseModel):
+    id: UUID
+    name: str
+    slug: str
+    mode: str
+    description: str | None = None
+    versions: list[EvaluationVersionSummary] = Field(default_factory=list)
+
+
+class EvaluationDefinitionSummary(BaseModel):
+    id: UUID
+    name: str
+    slug: str
+    mode: str
+    latest_version: EvaluationVersionSummary | None = None
+    published_versions: int = 0
+    assignments_count: int = 0
+
+
+class EvaluationDefinitionPage(FilterPage):
+    offset: int = Field(..., ge=0)
+    limit: int = Field(..., ge=1, le=100)
+    items: list[EvaluationDefinitionSummary]
+
+
+class PatchEvaluationVersionRequest(BaseModel):
+    objective: Statement | None = None
+    references: list[UUID] | None = None
+    criteria: list[CriterionInput] | None = None
+
+
+class PublishResponse(BaseModel):
+    version_number: int
+    status: str
+    published_at: datetime | None = None
+    test_warning: bool
+
+
+class SuggestCriteriaRequest(BaseModel):
+    objective: Statement
+    target_type: AssignmentTargetType
+
+
+class SuggestedCriterionPublic(BaseModel):
+    statement: str
+    check_type: str
+    polarity: str
+    suggested_severity: str
+
+
+class SuggestCriteriaResponse(BaseModel):
+    suggestions: list[SuggestedCriterionPublic] = Field(default_factory=list)
+
+
+class EvaluationTestRequest(BaseModel):
+    sample_content: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1)
+    ]
+
+
+class CriterionTestResult(BaseModel):
+    criterion_id: UUID | None = None
+    statement: str
+    check_type: str
+    severity: str
+    conclusion: str
+    is_alert: bool
+    evidence_excerpt: str | None = None
+    evidence_location: str | None = None
+    justification: str | None = None
+    recommendation: str | None = None
+
+
+class EvaluationTestResponse(BaseModel):
+    results: list[CriterionTestResult] = Field(default_factory=list)
+    consolidated_result: ConsolidatedResult
+    real_cost: float
+
+
+class ReferenceCreateRequest(BaseModel):
+    identifier: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=64),
+    ]
+    label: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
+    ]
+    version_label: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=64),
+    ]
+    reference_date: date | None = None
+
+
+class ReferencePublic(BaseModel):
+    id: UUID
+    identifier: str
+    label: str
+    version_label: str
+    reference_date: date | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ReferenceImpactVersion(BaseModel):
+    definition_id: UUID
+    version_number: int
+
+
+class ReferenceImpactResponse(BaseModel):
+    evaluation_versions: list[ReferenceImpactVersion] = Field(
+        default_factory=list
+    )
+    runs_count: int = 0
+
+
+class EvaluationAssignmentInput(BaseModel):
+    definition_id: UUID
+    pinned_version_id: UUID | None = None
+    target_type: AssignmentTargetType
+    field_keys: list[str] = Field(default_factory=list)
+    enabled: bool = True
+
+
+class EvaluationAssignmentPublic(BaseModel):
+    id: UUID
+    definition_id: UUID
+    definition_name: str
+    pinned_version_id: UUID | None = None
+    effective_version_number: int | None = None
+    target_type: str
+    field_keys: list[str] = Field(default_factory=list)
+    enabled: bool
+
+
+class ReplaceAssignmentsRequest(BaseModel):
+    assignments: list[EvaluationAssignmentInput] = Field(default_factory=list)
+
+
+class AssignmentsResponse(BaseModel):
+    template_key: str
+    assignments: list[EvaluationAssignmentPublic] = Field(default_factory=list)
+
+
+class EvaluableFieldPublic(BaseModel):
+    field_key: str
+    label: str
+    assignments: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class EvaluableFieldsResponse(BaseModel):
+    fields: list[EvaluableFieldPublic] = Field(default_factory=list)
+
+
+class PreEvaluationSummary(BaseModel):
+    total: int = 0
+    compliant: int = 0
+    non_compliant: int = 0
+    partial: int = 0
+    indeterminate: int = 0
+
+
+class PreEvaluationItemPublic(BaseModel):
+    item_id: UUID
+    criterion_id: UUID | None = None
+    criterion_statement: str
+    check_type: str
+    severity: str
+    conclusion: str
+    is_alert: bool
+    evidence_excerpt: str | None = None
+    evidence_location: str | None = None
+    justification: str | None = None
+    recommendation: str | None = None
+    inference_confidence: float | None = None
+    evidence_completeness: str | None = None
+    references: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class PreEvaluationVersionUsed(BaseModel):
+    definition_name: str
+    version_number: int
+    references: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class EvaluatedContentField(BaseModel):
+    field_key: str
+    label: str
+    value: Any = None
+
+
+class PreEvaluationResponse(BaseModel):
+    run_id: UUID
+    correlation_id: UUID
+    status: str
+    consolidated_result: ConsolidatedResult | None = None
+    provider: str | None = None
+    models_used: dict[str, Any] = Field(default_factory=dict)
+    real_cost: float = 0.0
+    started_at: datetime
+    finished_at: datetime | None = None
+    error_summary: str | None = None
+    summary: PreEvaluationSummary
+    attention_points: list[PreEvaluationItemPublic] = Field(
+        default_factory=list
+    )
+    evaluations: list[PreEvaluationVersionUsed] = Field(default_factory=list)
+    evaluated_content: list[EvaluatedContentField] = Field(
+        default_factory=list
+    )
+    direct_review_request: dict[str, Any] | None = None
+
+
+class DirectReviewRequestBody(BaseModel):
+    justification: str | None = None
+
+
+class DirectReviewResponse(BaseModel):
+    process_status: str
+    direct_review_request_id: UUID
+
+
+class ReviewerFeedbackItem(BaseModel):
+    item_id: UUID
+    verdict: Literal['agree', 'disagree', 'inconclusive']
+    reason: str | None = None
+
+
+class ReviewerFeedbackRequest(BaseModel):
+    items: list[ReviewerFeedbackItem] = Field(default_factory=list)
+
+
+class ReviewerFeedbackResponse(BaseModel):
+    recorded: int
+
+
+class AgreementMetricsResponse(BaseModel):
+    overall_agreement_rate: float | None = None
+    total_feedback: int = 0
+    by_check_type: dict[str, float] = Field(default_factory=dict)
+    most_contested_criteria: list[dict[str, Any]] = Field(default_factory=list)
+    runs_with_most_disagreements: list[dict[str, Any]] = Field(
+        default_factory=list
+    )

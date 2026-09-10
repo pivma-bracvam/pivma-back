@@ -19,6 +19,7 @@ from pivma.core.database.models import (
 )
 from pivma.core.database.models import User as UserModel
 from pivma.core.process_engine import (
+    PROPONENT_SCOPED_STATUSES,
     NotFoundError,
     ValidationError,
     instantiate_process,
@@ -350,7 +351,7 @@ async def list_processes(
         .where(
             ProcessInstance.deleted_at.is_(None),
             or_(
-                ProcessInstance.status != 'SUBMISSION',
+                ProcessInstance.status.notin_(PROPONENT_SCOPED_STATUSES),
                 ProcessInstance.id.in_(
                     active_proponent_process_scope(current_user.id)
                 ),
@@ -411,7 +412,7 @@ async def get_process(id: UUID, session: Session, current_user: CurrentUser):
             ProcessInstance.id == id,
             ProcessInstance.deleted_at.is_(None),
             or_(
-                ProcessInstance.status != 'SUBMISSION',
+                ProcessInstance.status.notin_(PROPONENT_SCOPED_STATUSES),
                 ProcessInstance.id.in_(
                     active_proponent_process_scope(current_user.id)
                 ),
@@ -454,7 +455,7 @@ async def get_process_timeline(
         ProcessInstance.id == id,
         ProcessInstance.deleted_at.is_(None),
         or_(
-            ProcessInstance.status != 'SUBMISSION',
+            ProcessInstance.status.notin_(PROPONENT_SCOPED_STATUSES),
             ProcessInstance.id.in_(
                 active_proponent_process_scope(current_user.id)
             ),

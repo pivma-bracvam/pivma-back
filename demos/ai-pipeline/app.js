@@ -68,10 +68,9 @@ async function quickLoginAdmin() {
   if (res.ok) {
     await checkSession();
     await loadInitialHistory();
-    await autoFillFormInstance();
   } else {
     alert(
-      'Falha ao autenticar como admin. Verifique se o seed foi executado (poetry run python scripts/seeds/seed_all.py).'
+      'Falha ao autenticar como admin. Execute os seeds (uv run python -m scripts.seeds.seed_all).'
     );
   }
 }
@@ -206,98 +205,6 @@ async function loadInitialHistory() {
   }
 }
 
-async function autoFillFormInstance() {
-  const inputEl = document.getElementById('form-instance-id');
-  const feedbackEl = document.getElementById('trigger-feedback');
-  if (!inputEl) return;
-
-  feedbackEl.textContent = 'Buscando formulários no banco...';
-  feedbackEl.style.color = 'var(--text-muted)';
-
-  try {
-    const res = await fetch('/processes?size=10', { credentials: 'include' });
-    if (!res.ok) {
-      feedbackEl.textContent = 'Não foi possível listar processos (faça login antes).';
-      feedbackEl.style.color = 'var(--danger)';
-      return;
-    }
-
-    const data = await res.json();
-    const items = data.items || [];
-    if (items.length === 0) {
-      feedbackEl.textContent = 'Nenhum processo cadastrado. Execute os seeds.';
-      feedbackEl.style.color = 'var(--warning)';
-      return;
-    }
-
-    // Procurar processo em TRIAGE ou o primeiro com proposal_form
-    for (const p of items) {
-      const formRes = await fetch(`/processes/${p.id}/forms/proposal_form`, {
-        credentials: 'include',
-      });
-      if (formRes.ok) {
-        const formData = await formRes.json();
-        if (formData && formData.instance_id) {
-          inputEl.value = formData.instance_id;
-          localStorage.setItem('pivma_demo_form_instance_id', formData.instance_id);
-          feedbackEl.textContent = `Formulário localizado: Processo "${p.title}" (${p.code})`;
-          feedbackEl.style.color = 'var(--success)';
-          return;
-        }
-      }
-    }
-
-    feedbackEl.textContent = 'Nenhum Form Instance ID encontrado automaticamente.';
-    feedbackEl.style.color = 'var(--warning)';
-  } catch (err) {
-    feedbackEl.textContent = `Erro ao buscar: ${err.message}`;
-    feedbackEl.style.color = 'var(--danger)';
-  }
-}
-
-async function triggerEvaluation() {
-  const formInstId = document.getElementById('form-instance-id')?.value.trim();
-  const feedbackEl = document.getElementById('trigger-feedback');
-  const btnTrigger = document.getElementById('btn-trigger');
-
-  if (!formInstId) {
-    alert('Por favor, informe o Form Instance ID.');
-    return;
-  }
-
-  localStorage.setItem('pivma_demo_form_instance_id', formInstId);
-  feedbackEl.textContent = 'Disparando pipeline de IA...';
-  feedbackEl.style.color = 'var(--warning)';
-  if (btnTrigger) btnTrigger.disabled = true;
-
-  const url = `/forms/instances/${formInstId}/evaluate-ai`;
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-    });
-
-    const data = await res.json().catch(() => null);
-    inspect('POST', url, res.status, data);
-
-    if (res.ok) {
-      const count = data.evaluations ? data.evaluations.length : 0;
-      feedbackEl.textContent = `Avaliação concluída com sucesso! ${count} campo(s) avaliados pela IA.`;
-      feedbackEl.style.color = 'var(--success)';
-    } else {
-      feedbackEl.textContent = `Erro (${res.status}): ${data?.detail || res.statusText}`;
-      feedbackEl.style.color = 'var(--danger)';
-    }
-  } catch (err) {
-    feedbackEl.textContent = `Falha na requisição: ${err.message}`;
-    feedbackEl.style.color = 'var(--danger)';
-    inspect('POST', url, 0, { error: err.message });
-  } finally {
-    if (btnTrigger) btnTrigger.disabled = false;
-  }
-}
-
 function handleIncomingStep(step) {
   const cid = step.correlation_id;
   if (!pipelines.has(cid)) {
@@ -309,7 +216,6 @@ function handleIncomingStep(step) {
       total_duration_ms: 0,
       total_cost: 0,
       steps: [],
-      verdict: null,
     });
   }
 
@@ -329,18 +235,9 @@ function handleIncomingStep(step) {
     0
   );
   group.total_cost = group.steps.reduce(
-    (acc, s) => acc + (s.simulated_cost || 0),
+    (acc, s) => acc + (s.real_cost || s.simulated_cost || 0),
     0
   );
-
-  if (
-    step.step_name === 'verdict_synthesis' &&
-    step.output_payload &&
-    step.output_payload.verdict
-  ) {
-    group.verdict = step.output_payload.verdict;
-    group.status = 'COMPLETED';
-  }
 
   renderAllPipelines();
 }
@@ -398,88 +295,49 @@ function createPipelineCard(group) {
   const stepsBody = document.createElement('div');
   stepsBody.style.padding = '18px 20px';
 
-  const stepDefs = [
-    { order: 1, name: 'context_extraction', label: '1. Extração de Contexto' },
-    { order: 2, name: 'mock_evaluation', label: '2. Avaliação de Conformidade (Mock)' },
-    { order: 3, name: 'verdict_synthesis', label: '3. Síntese do Veredito' },
-  ];
+  const steps = [...group.steps].sort((a, b) => a.step_order - b.step_order);
+  if (steps.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'step-box';
+    empty.style.color = 'var(--text-muted)';
+    empty.textContent = 'Aguardando etapas da pré-avaliação...';
+    stepsBody.appendChild(empty);
+  }
 
-  stepDefs.forEach((def) => {
-    const executedStep = group.steps.find((s) => s.step_order === def.order);
+  steps.forEach((s) => {
+    const stepId = `step-${group.correlation_id}-${s.step_order}`;
     const stepBox = document.createElement('div');
     stepBox.className = 'step-box';
-
-    if (executedStep) {
-      const stepId = `step-${group.correlation_id}-${def.order}`;
-      stepBox.innerHTML = `
-        <div class="step-header">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="color: var(--success); font-weight: 700;">✔</span>
-            <strong style="font-size: 14px; color: #1e293b;">${def.label}</strong>
-          </div>
-          <div style="display: flex; align-items: center; gap: 12px; font-size: 13px; font-family: monospace;">
-            <span>${executedStep.step_duration_ms.toFixed(1)} ms</span>
-            <span style="color: var(--warning);">$${executedStep.simulated_cost.toFixed(6)}</span>
-            <button class="btn btn-sm btn-secondary" onclick="document.getElementById('${stepId}').style.display = document.getElementById('${stepId}').style.display === 'none' ? 'grid' : 'none'">
-              Ver Payloads
-            </button>
-          </div>
+    const cost = (s.real_cost || s.simulated_cost || 0).toFixed(6);
+    stepBox.innerHTML = `
+      <div class="step-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="color: var(--success); font-weight: 700;">✔</span>
+          <strong style="font-size: 14px; color: #1e293b;">${s.step_order}. ${s.step_name}</strong>
+          <span style="font-size: 12px; color: var(--text-muted);">${s.field_key || ''}</span>
         </div>
-        <div id="${stepId}" style="display: none; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);">
-          <div>
-            <span style="font-size: 12px; font-weight: 700; color: #475569;">Entrada (Input):</span>
-            <pre class="payload-pre">${JSON.stringify(executedStep.input_payload, null, 2)}</pre>
-          </div>
-          <div>
-            <span style="font-size: 12px; font-weight: 700; color: #475569;">Saída (Output):</span>
-            <pre class="payload-pre">${JSON.stringify(executedStep.output_payload, null, 2)}</pre>
-          </div>
+        <div style="display: flex; align-items: center; gap: 12px; font-size: 13px; font-family: monospace;">
+          <span>${(s.step_duration_ms || 0).toFixed(1)} ms</span>
+          <span style="color: var(--warning);">$${cost}</span>
+          ${s.model_name ? `<span style="color: var(--text-muted);">${s.model_name}</span>` : ''}
+          <button class="btn btn-sm btn-secondary" onclick="const e=document.getElementById('${stepId}');e.style.display=e.style.display==='none'?'grid':'none'">
+            Ver Payloads
+          </button>
         </div>
-      `;
-    } else {
-      stepBox.innerHTML = `
-        <div class="step-header" style="color: var(--text-muted);">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span>⏳</span>
-            <span style="font-size: 14px;">${def.label}</span>
-          </div>
-          <span style="font-size: 13px; font-style: italic;">Aguardando execução...</span>
-        </div>
-      `;
-    }
-    stepsBody.appendChild(stepBox);
-  });
-
-  if (group.verdict) {
-    const v = group.verdict;
-    const isOk = v.status === 'CONFORME';
-    const verdictDiv = document.createElement('div');
-    verdictDiv.className = 'verdict-box';
-    verdictDiv.style.background = isOk ? '#f0fdf4' : '#fff1f2';
-    verdictDiv.style.borderColor = isOk ? '#bbf7d0' : '#fecdd3';
-
-    verdictDiv.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <span style="font-weight: 700; color: ${isOk ? 'var(--success)' : 'var(--danger)'};">
-          ${isOk ? '✅' : '❌'} Veredito Canônico: <span class="badge ${isOk ? 'badge-success' : 'badge-failed'}">${v.status}</span>
-        </span>
-        <span style="font-size: 13px; font-family: monospace;">Confiança: ${(v.confidence_score * 100).toFixed(0)}%</span>
       </div>
-      <div style="margin-bottom: 6px;">
-        <strong style="font-size: 13px; color: #334155;">Apontamentos / Issues:</strong>
-        <ul style="font-size: 13px; color: #475569; padding-left: 18px; margin-top: 4px;">
-          ${(v.issues || []).map((iss) => `<li>${iss}</li>`).join('') || '<li>Nenhuma inconsistência.</li>'}
-        </ul>
-      </div>
-      <div>
-        <strong style="font-size: 13px; color: #334155;">Recomendações:</strong>
-        <ul style="font-size: 13px; color: #475569; padding-left: 18px; margin-top: 4px;">
-          ${(v.recommendations || []).map((rec) => `<li>${rec}</li>`).join('') || '<li>Sem recomendações adicionais.</li>'}
-        </ul>
+      <div id="${stepId}" style="display: none; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);">
+        <div>
+          <span style="font-size: 12px; font-weight: 700; color: #475569;">Entrada (Input):</span>
+          <pre class="payload-pre">${JSON.stringify(s.input_payload, null, 2)}</pre>
+        </div>
+        <div>
+          <span style="font-size: 12px; font-weight: 700; color: #475569;">Saída (Output):</span>
+          <pre class="payload-pre">${JSON.stringify(s.output_payload, null, 2)}</pre>
+        </div>
       </div>
     `;
-    stepsBody.appendChild(verdictDiv);
-  }
+    stepsBody.appendChild(stepBox);
+  });
 
   card.appendChild(stepsBody);
   return card;
@@ -491,19 +349,9 @@ function clearPipelines() {
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
-  if (localStorage.getItem('pivma_demo_form_instance_id')) {
-    const inputEl = document.getElementById('form-instance-id');
-    if (inputEl) {
-      inputEl.value = localStorage.getItem('pivma_demo_form_instance_id');
-    }
-  }
-
   const user = await checkSession();
   if (user) {
     await loadInitialHistory();
-    if (!document.getElementById('form-instance-id')?.value) {
-      await autoFillFormInstance();
-    }
   }
 });
 

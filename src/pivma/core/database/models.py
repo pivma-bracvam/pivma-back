@@ -7,6 +7,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     Date,
+    Float,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
@@ -1073,5 +1074,445 @@ class AuditEvent(AuditMixin):
             'ix_audit_events_process_time',
             'process_instance_id',
             column('occurred_at').desc(),
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Spec 013 — Avaliação Configurável por IA na Submissão e Triagem
+# ---------------------------------------------------------------------------
+
+
+@table_registry.mapped_as_dataclass
+class EvaluationDefinition(AuditMixin):
+    """Item da biblioteca: a intenção regulatória de verificar algo."""
+
+    __tablename__ = 'evaluation_definitions'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    name: Mapped[str] = mapped_column(String(255))
+    slug: Mapped[str] = mapped_column(String(80))
+    description: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+    mode: Mapped[str] = mapped_column(String(16), default='simple')
+
+    versions: Mapped[list['EvaluationVersion']] = relationship(
+        back_populates='definition', init=False
+    )
+    assignments: Mapped[list['EvaluationAssignment']] = relationship(
+        back_populates='definition', init=False
+    )
+
+    __table_args__ = (
+        Index(
+            'uq_evaluation_definitions_slug_active',
+            'slug',
+            unique=True,
+            postgresql_where=column('deleted_at').is_(None),
+        ),
+    )
+
+
+@table_registry.mapped_as_dataclass
+class EvaluationVersion(AuditMixin):
+    """Versão publicável e imutável de uma avaliação."""
+
+    __tablename__ = 'evaluation_versions'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    definition_id: Mapped[UUID] = mapped_column(
+        ForeignKey('evaluation_definitions.id')
+    )
+    version_number: Mapped[int] = mapped_column(Integer)
+    objective: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16), default='draft')
+    references: Mapped[Any | None] = mapped_column(
+        JSONB, nullable=True, default=None
+    )
+    test_run_count: Mapped[int] = mapped_column(Integer, default=0)
+    published_at: Mapped[datetime | None] = mapped_column(
+        nullable=True, default=None
+    )
+    published_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey('users.id'), nullable=True, default=None
+    )
+
+    definition: Mapped[EvaluationDefinition] = relationship(
+        back_populates='versions', init=False
+    )
+    criteria: Mapped[list['EvaluationCriterion']] = relationship(
+        back_populates='version', init=False
+    )
+    test_runs: Mapped[list['EvaluationTestRun']] = relationship(
+        back_populates='version', init=False
+    )
+
+    __table_args__ = (
+        Index(
+            'uq_evaluation_versions_number_active',
+            'definition_id',
+            'version_number',
+            unique=True,
+            postgresql_where=column('deleted_at').is_(None),
+        ),
+        Index(
+            'uq_evaluation_versions_single_draft',
+            'definition_id',
+            unique=True,
+            postgresql_where=(
+                column('deleted_at').is_(None) & (column('status') == 'draft')
+            ),
+        ),
+    )
+
+
+@table_registry.mapped_as_dataclass
+class EvaluationCriterion(AuditMixin):
+    """Unidade de verificação dentro de uma versão de avaliação."""
+
+    __tablename__ = 'evaluation_criteria'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    version_id: Mapped[UUID] = mapped_column(
+        ForeignKey('evaluation_versions.id')
+    )
+    statement: Mapped[str] = mapped_column(Text)
+    check_type: Mapped[str] = mapped_column(String(32))
+    order_index: Mapped[int] = mapped_column(Integer, default=0)
+    polarity: Mapped[str] = mapped_column(String(16), default='positive')
+    required_evidence: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+    severity: Mapped[str] = mapped_column(String(16), default='medium')
+    on_missing_info: Mapped[str] = mapped_column(
+        String(16), default='indeterminate'
+    )
+    recommendation_hint: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+
+    version: Mapped[EvaluationVersion] = relationship(
+        back_populates='criteria', init=False
+    )
+
+    __table_args__ = (
+        Index(
+            'ix_evaluation_criteria_version_order',
+            'version_id',
+            'order_index',
+        ),
+    )
+
+
+@table_registry.mapped_as_dataclass
+class EvaluationReference(AuditMixin):
+    """Entrada versionada do catálogo de referências normativas."""
+
+    __tablename__ = 'evaluation_references'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    identifier: Mapped[str] = mapped_column(String(64))
+    label: Mapped[str] = mapped_column(String(255))
+    version_label: Mapped[str] = mapped_column(String(64))
+    reference_date: Mapped[date | None] = mapped_column(
+        Date, nullable=True, default=None
+    )
+
+    __table_args__ = (
+        Index(
+            'uq_evaluation_references_id_version_active',
+            'identifier',
+            'version_label',
+            unique=True,
+            postgresql_where=column('deleted_at').is_(None),
+        ),
+    )
+
+
+@table_registry.mapped_as_dataclass
+class EvaluationAssignment(AuditMixin):
+    """Associação de uma avaliação a um alvo de um formulário."""
+
+    __tablename__ = 'evaluation_assignments'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    form_template_id: Mapped[UUID] = mapped_column(
+        ForeignKey('form_templates.id')
+    )
+    definition_id: Mapped[UUID] = mapped_column(
+        ForeignKey('evaluation_definitions.id')
+    )
+    target_type: Mapped[str] = mapped_column(String(16))
+    pinned_version_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey('evaluation_versions.id'), nullable=True, default=None
+    )
+    field_keys: Mapped[Any | None] = mapped_column(
+        JSONB, nullable=True, default=None
+    )
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    definition: Mapped[EvaluationDefinition] = relationship(
+        back_populates='assignments', init=False
+    )
+
+    __table_args__ = (
+        Index('ix_evaluation_assignments_template', 'form_template_id'),
+        Index(
+            'uq_evaluation_assignments_active',
+            'form_template_id',
+            'definition_id',
+            'target_type',
+            unique=True,
+            postgresql_where=column('deleted_at').is_(None),
+        ),
+    )
+
+
+@table_registry.mapped_as_dataclass
+class EvaluationRun(AuditMixin):
+    """Execução de pré-avaliação para uma submissão (imutável pós-fim)."""
+
+    __tablename__ = 'evaluation_runs'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    process_instance_id: Mapped[UUID] = mapped_column(
+        ForeignKey('process_instances.id')
+    )
+    activity_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey('activity_runs.id')
+    )
+    form_instance_id: Mapped[UUID] = mapped_column(
+        ForeignKey('form_instances.id')
+    )
+    correlation_id: Mapped[UUID] = mapped_column(default_factory=uuid4)
+    status: Mapped[str] = mapped_column(String(16), default='in_progress')
+    consolidated_result: Mapped[str | None] = mapped_column(
+        String(16), nullable=True, default=None
+    )
+    provider_name: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, default=None
+    )
+    models_used: Mapped[Any | None] = mapped_column(
+        JSONB, nullable=True, default=None
+    )
+    real_cost: Mapped[float] = mapped_column(Float, default=0.0)
+    started_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), default_factory=datetime.utcnow
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(
+        nullable=True, default=None
+    )
+    error_summary: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+    # Snapshot imutável do conteúdo que alimentou a IA nesta execução
+    # (Spec 014). Lista de {field_key, label, value}. NULL em execuções
+    # anteriores à migração e em execuções que falharam.
+    evaluated_content_snapshot: Mapped[Any | None] = mapped_column(
+        JSONB, nullable=True, default=None
+    )
+
+    items: Mapped[list['EvaluationRunItem']] = relationship(
+        back_populates='run', init=False
+    )
+
+    __table_args__ = (
+        Index(
+            'ix_evaluation_runs_process_time',
+            'process_instance_id',
+            column('started_at').desc(),
+        ),
+        Index('ix_evaluation_runs_status', 'status'),
+    )
+
+
+@table_registry.mapped_as_dataclass
+class EvaluationRunItem(AuditMixin):
+    """Resultado por critério dentro de uma execução (snapshot)."""
+
+    __tablename__ = 'evaluation_run_items'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    run_id: Mapped[UUID] = mapped_column(ForeignKey('evaluation_runs.id'))
+    criterion_statement: Mapped[str] = mapped_column(Text)
+    check_type: Mapped[str] = mapped_column(String(32))
+    polarity: Mapped[str] = mapped_column(String(16))
+    severity: Mapped[str] = mapped_column(String(16))
+    conclusion: Mapped[str] = mapped_column(String(16))
+    is_alert: Mapped[bool] = mapped_column(Boolean, default=False)
+    criterion_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey('evaluation_criteria.id'), nullable=True, default=None
+    )
+    evaluation_version_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey('evaluation_versions.id'), nullable=True, default=None
+    )
+    evidence_excerpt: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+    evidence_location: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+    justification: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+    recommendation: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+    inference_confidence: Mapped[float | None] = mapped_column(
+        Float, nullable=True, default=None
+    )
+    evidence_completeness: Mapped[str | None] = mapped_column(
+        String(16), nullable=True, default=None
+    )
+    model_layer: Mapped[str] = mapped_column(String(16), default='fast')
+
+    run: Mapped[EvaluationRun] = relationship(
+        back_populates='items', init=False
+    )
+    feedback: Mapped[list['ReviewerFeedback']] = relationship(
+        back_populates='run_item', init=False
+    )
+
+    __table_args__ = (
+        Index('ix_evaluation_run_items_run', 'run_id'),
+        Index('ix_evaluation_run_items_criterion', 'criterion_id'),
+    )
+
+
+@table_registry.mapped_as_dataclass
+class DirectReviewRequest(AuditMixin):
+    """Proponente ignora a IA e pede intervenção direta do BraCVAM."""
+
+    __tablename__ = 'direct_review_requests'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    evaluation_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey('evaluation_runs.id')
+    )
+    process_instance_id: Mapped[UUID] = mapped_column(
+        ForeignKey('process_instances.id')
+    )
+    requested_by: Mapped[UUID] = mapped_column(ForeignKey('users.id'))
+    justification: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+
+    __table_args__ = (
+        Index(
+            'uq_direct_review_requests_run_active',
+            'evaluation_run_id',
+            unique=True,
+            postgresql_where=column('deleted_at').is_(None),
+        ),
+    )
+
+
+@table_registry.mapped_as_dataclass
+class ReviewerFeedback(AuditMixin):
+    """Concordância/discordância do triador por critério (append-only)."""
+
+    __tablename__ = 'reviewer_feedback'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    run_item_id: Mapped[UUID] = mapped_column(
+        ForeignKey('evaluation_run_items.id')
+    )
+    reviewer_id: Mapped[UUID] = mapped_column(ForeignKey('users.id'))
+    verdict: Mapped[str] = mapped_column(String(16))
+    reason: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+
+    run_item: Mapped[EvaluationRunItem] = relationship(
+        back_populates='feedback', init=False
+    )
+
+    __table_args__ = (
+        Index(
+            'uq_reviewer_feedback_item_reviewer_active',
+            'run_item_id',
+            'reviewer_id',
+            unique=True,
+            postgresql_where=column('deleted_at').is_(None),
+        ),
+    )
+
+
+@table_registry.mapped_as_dataclass
+class EvaluationTestRun(AuditMixin):
+    """Execução do modo de teste sobre um conteúdo de exemplo."""
+
+    __tablename__ = 'evaluation_test_runs'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    version_id: Mapped[UUID] = mapped_column(
+        ForeignKey('evaluation_versions.id')
+    )
+    sample_content: Mapped[str] = mapped_column(Text)
+    result_payload: Mapped[Any | None] = mapped_column(
+        JSONB, nullable=True, default=None
+    )
+    real_cost: Mapped[float] = mapped_column(Float, default=0.0)
+
+    version: Mapped[EvaluationVersion] = relationship(
+        back_populates='test_runs', init=False
+    )
+
+    __table_args__ = (
+        Index(
+            'ix_evaluation_test_runs_version_time',
+            'version_id',
+            column('created_at').desc(),
         ),
     )

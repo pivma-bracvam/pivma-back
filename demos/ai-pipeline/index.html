@@ -315,24 +315,15 @@
         </button>
       </div>
 
-      <!-- Área de Disparo Interativo -->
+      <!-- Como gerar execuções -->
       <div style="padding-top: 16px; border-top: 1px solid var(--border);">
-        <label style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 8px; display: block;">
-          Disparar Avaliação Interativa de Formulário (POST /forms/instances/{id}/evaluate-ai)
-        </label>
-        <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-          <div class="form-group" style="flex: 1; min-width: 300px;">
-            <label>Form Instance ID (UUID)</label>
-            <input type="text" id="form-instance-id" placeholder="Cole ou selecione o Form Instance ID...">
-          </div>
-          <button class="btn btn-secondary" onclick="autoFillFormInstance()" title="Localiza automaticamente o formulário semeado no banco de dados">
-            <span>🔍 Buscar Formulário do Seed</span>
-          </button>
-          <button id="btn-trigger" class="btn btn-success" onclick="triggerEvaluation()">
-            <span>⚡ Disparar Avaliação por IA</span>
-          </button>
-        </div>
-        <div id="trigger-feedback" style="margin-top: 8px; font-size: 14px; font-weight: 600;"></div>
+        <p style="font-size: 14px; color: var(--text-muted);">
+          As execuções de pré-avaliação são geradas pela <strong>submissão real</strong>
+          de um formulário com avaliações por IA associadas. Abra
+          <a href="/demos/submission/" target="_self">Submissão de Proposta</a>,
+          submeta a proposta e volte aqui com o stream ligado para acompanhar as
+          etapas agrupadas por <code>correlation_id</code>.
+        </p>
       </div>
     </div>
 

@@ -2,14 +2,12 @@ import secrets
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from pivma.ai.contracts import PipelineContext
-from pivma.ai.pipeline import FormAIPipelineEngine
 from pivma.core.authorization import (
     has_current_conflict,
     is_active_effective_proponent,
@@ -22,6 +20,8 @@ from pivma.core.database.models import (
     Assignment,
     AuditEvent,
     Decision,
+    EvaluationAssignment,
+    EvaluationRun,
     FieldReview,
     FormField,
     FormInstance,
@@ -60,6 +60,19 @@ class NotFoundError(ProcessEngineError):
 
 class AuthorizationError(ProcessEngineError):
     pass
+
+
+# Estados do processo em que a submissão ainda está "sob o proponente" — o
+# formulário fica travado para edição e o processo só é visível ao próprio
+# proponente. `AI_PRE_EVALUATION` é a espera pela pré-avaliação assíncrona por
+# IA (Spec 013, FR-021a): a submissão foi confirmada, mas o roteamento
+# (positivo → triagem / negativo → proponente) só ocorre quando a IA conclui.
+STATUS_SUBMISSION = 'SUBMISSION'
+STATUS_AI_PRE_EVALUATION = 'AI_PRE_EVALUATION'
+PROPONENT_SCOPED_STATUSES = (STATUS_SUBMISSION, STATUS_AI_PRE_EVALUATION)
+
+# Alvos de avaliação por IA que se prendem a `field_keys` do formulário.
+FIELD_TARGET_TYPES = frozenset({'field', 'field_set', 'document'})
 
 
 async def _guard_against_current_conflict(
@@ -293,7 +306,7 @@ async def get_current_form_instance(
         if process_status is None:
             raise NotFoundError('Processo não encontrado.')
         if (
-            process_status == 'SUBMISSION'
+            process_status in PROPONENT_SCOPED_STATUSES
             and not await is_active_effective_proponent(
                 session, user_id, process_id
             )
@@ -661,13 +674,13 @@ async def _unblock_triage_activity(
             session.add(t_form_inst)
 
 
-async def submit_proposal_form(  # noqa: PLR0914
+async def submit_proposal_form(  # noqa: PLR0914, PLR0915
     session: AsyncSession,
     process_id: UUID,
     activity_key: str,
     values_dict: dict[str, Any],
     user_id: UUID,
-) -> tuple[ActivityInstance, ActivityRun, Artifact]:
+) -> tuple[ActivityInstance, ActivityRun, Artifact, EvaluationRun | None]:
     (
         act,
         current_run,
@@ -719,55 +732,60 @@ async def submit_proposal_form(  # noqa: PLR0914
     artifact.set_creation_audit(user_id)
     session.add(artifact)
 
-    # Disparo automatizado de IA para campos habilitados
-    ai_fields = [
-        f for f in fields if f.ai_evaluation_enabled and f.deleted_at is None
-    ]
-    if ai_fields:
-        ai_engine = FormAIPipelineEngine()
-        correlation_id = uuid4()
-        evaluations = []
-        for fld in ai_fields:
-            val = values_dict.get(fld.field_key)
-            ctx = PipelineContext(
-                form_instance_id=form_inst.id,
-                field_key=fld.field_key,
-                field_label=fld.label,
-                submitted_value=val,
-                instructions=fld.ai_context_instructions,
-                validation_rules=fld.ai_validation_rules,
-                correlation_id=correlation_id,
-            )
-            group = ai_engine.run_field_pipeline(ctx)
-            if group.verdict:
-                evaluations.append(group.verdict.model_dump(mode='json'))
-
-        ai_report_payload = {
-            'correlation_id': str(correlation_id),
-            'evaluations': evaluations,
-        }
-        artifact.metadata_payload['ai_evaluation'] = ai_report_payload
-
-        ai_artifact = Artifact(
-            process_instance_id=process_id,
-            activity_run_id=current_run.id,
-            key='ai_evaluation_report',
-            name=(
-                'Relatório de Avaliação por IA'
-                f' (Run #{current_run.run_number})'
-            ),
-            status='COMPLETED',
-            metadata_payload=ai_report_payload,
-        )
-        ai_artifact.set_creation_audit(user_id)
-        session.add(ai_artifact)
-
-    await _unblock_triage_activity(session, process_id, user_id)
-
     p_stmt = select(ProcessInstance).where(ProcessInstance.id == process_id)
     process = (await session.execute(p_stmt)).scalar_one()
-    process.status = 'TRIAGE'
-    process.set_update_audit(user_id)
+
+    assignment_stmt = select(EvaluationAssignment.id).where(
+        EvaluationAssignment.form_template_id == template.id,
+        EvaluationAssignment.enabled.is_(True),
+        EvaluationAssignment.deleted_at.is_(None),
+    )
+    has_assignments = (
+        await session.execute(assignment_stmt)
+    ).first() is not None
+
+    pending_run: EvaluationRun | None = None
+    if has_assignments:
+        pending_run = EvaluationRun(
+            process_instance_id=process_id,
+            activity_run_id=current_run.id,
+            form_instance_id=form_inst.id,
+        )
+        pending_run.set_creation_audit(user_id)
+        session.add(pending_run)
+
+        # A submissão fica travada aguardando a pré-avaliação assíncrona; o
+        # roteamento definitivo ocorre em `pre_evaluation_service._execute`.
+        process.status = STATUS_AI_PRE_EVALUATION
+        process.set_update_audit(user_id)
+
+        triage_stmt = select(ActivityInstance).where(
+            ActivityInstance.process_instance_id == process_id,
+            ActivityInstance.key == 'triage_evaluation',
+            ActivityInstance.deleted_at.is_(None),
+        )
+        triage_act = (await session.execute(triage_stmt)).scalar_one_or_none()
+        if triage_act:
+            triage_act.blocked_reason = (
+                'Aguardando pré-avaliação automática por IA.'
+            )
+            triage_act.set_update_audit(user_id)
+
+        session.add(
+            AuditEvent(
+                process_instance_id=process_id,
+                activity_run_id=current_run.id,
+                user_id=user_id,
+                event_type='AI_PRE_EVALUATION_STARTED',
+                context_data={'run_number': current_run.run_number},
+            )
+        )
+    else:
+        # Sem avaliações por IA associadas: segue direto para a triagem com
+        # relatório de pré-avaliação vazio (Spec 013 FR-027).
+        await _unblock_triage_activity(session, process_id, user_id)
+        process.status = 'TRIAGE'
+        process.set_update_audit(user_id)
 
     session.add(
         AuditEvent(
@@ -779,7 +797,7 @@ async def submit_proposal_form(  # noqa: PLR0914
         )
     )
     await session.commit()
-    return act, current_run, artifact
+    return act, current_run, artifact, pending_run
 
 
 async def save_field_reviews(
@@ -844,9 +862,20 @@ async def save_field_reviews(
     await session.commit()
 
 
-async def _handle_needs_revision(
-    session: AsyncSession, ctx: TriageContext
+async def _open_new_submission_run(
+    session: AsyncSession,
+    process_id: UUID,
+    *,
+    reason: str,
+    task_title: str,
+    user_id: UUID,
 ) -> int:
+    """Abre nova execução da submissão para o proponente ajustar.
+
+    Reutilizado pela diligência de triagem e pelo retorno automático da
+    pré-avaliação por IA. Copia os valores da execução anterior e cria a
+    tarefa do proponente. Não altera o estado da triagem nem do processo.
+    """
     (
         sub_act,
         prev_sub_run,
@@ -854,7 +883,7 @@ async def _handle_needs_revision(
         form_tmpl,
         _,
     ) = await get_current_form_instance(
-        session, ctx.process.id, 'proposal_submission'
+        session, process_id, 'proposal_submission'
     )
 
     next_run_number = prev_sub_run.run_number + 1
@@ -863,9 +892,9 @@ async def _handle_needs_revision(
         activity_instance_id=sub_act.id,
         run_number=next_run_number,
         status='IN_PROGRESS',
-        execution_reason=f'Diligência de triagem: {ctx.justification}',
+        execution_reason=reason,
     )
-    new_sub_run.set_creation_audit(ctx.user_id)
+    new_sub_run.set_creation_audit(user_id)
     session.add(new_sub_run)
     await session.flush()
 
@@ -874,7 +903,7 @@ async def _handle_needs_revision(
         activity_run_id=new_sub_run.id,
         is_submitted=False,
     )
-    new_form_inst.set_creation_audit(ctx.user_id)
+    new_form_inst.set_creation_audit(user_id)
     session.add(new_form_inst)
     await session.flush()
 
@@ -893,20 +922,34 @@ async def _handle_needs_revision(
             json_value=pv.json_value,
             file_attachment_id=pv.file_attachment_id,
         )
-        nv.set_creation_audit(ctx.user_id)
+        nv.set_creation_audit(user_id)
         session.add(nv)
 
     prop_task = Task(
         activity_run_id=new_sub_run.id,
-        title='Revisar e Ajustar Submissão da Proposta (Diligência)',
+        title=task_title,
         assigned_role='PROPONENT',
         status='READY',
     )
-    prop_task.set_creation_audit(ctx.user_id)
+    prop_task.set_creation_audit(user_id)
     session.add(prop_task)
 
     sub_act.status = 'IN_PROGRESS'
-    sub_act.set_update_audit(ctx.user_id)
+    sub_act.set_update_audit(user_id)
+
+    return next_run_number
+
+
+async def _handle_needs_revision(
+    session: AsyncSession, ctx: TriageContext
+) -> int:
+    next_run_number = await _open_new_submission_run(
+        session,
+        ctx.process.id,
+        reason=f'Diligência de triagem: {ctx.justification}',
+        task_title=('Revisar e Ajustar Submissão da Proposta (Diligência)'),
+        user_id=ctx.user_id,
+    )
 
     ctx.triage_act.status = 'BLOCKED'
     ctx.triage_act.blocked_reason = 'Aguardando reenvio pelo proponente.'
@@ -1047,6 +1090,33 @@ async def execute_triage_decision(
     return decision, process.status, next_run_number
 
 
+async def _prune_evaluation_assignments(
+    session: AsyncSession,
+    form_template_id: UUID,
+    removed_field_keys: set[str],
+    user_id: UUID,
+) -> None:
+    """Remove chaves de campos apagados das associações de avaliação por IA.
+
+    Uma associação que fique sem nenhum ``field_key`` é desativada (soft
+    delete). Assim, remover/renomear um campo no editor não deixa associações
+    órfãs que fariam ``replace_assignments`` rejeitar todo o lote depois.
+    """
+    stmt = select(EvaluationAssignment).where(
+        EvaluationAssignment.form_template_id == form_template_id,
+        EvaluationAssignment.deleted_at.is_(None),
+    )
+    for assignment in (await session.execute(stmt)).scalars():
+        current = assignment.field_keys or []
+        kept = [k for k in current if k not in removed_field_keys]
+        if kept == current:
+            continue
+        assignment.field_keys = kept
+        assignment.set_update_audit(user_id)
+        if not kept and assignment.target_type in FIELD_TARGET_TYPES:
+            assignment.set_deletion_audit(user_id)
+
+
 async def update_form_template_definition(  # noqa: PLR0912, PLR0913, PLR0914, PLR0915, PLR0917
     session: AsyncSession,
     process_template_key: str,
@@ -1158,10 +1228,18 @@ async def update_form_template_definition(  # noqa: PLR0912, PLR0913, PLR0914, P
             session.add(field)
             result_fields.append(field)
 
-    # Soft-delete nos campos removidos
-    for f_key, field in existing_fields.items():
-        if f_key not in processed_keys:
-            field.set_deletion_audit(user_id)
+    # Soft-delete nos campos removidos + limpeza em cascata das avaliações por
+    # IA associadas a eles (senão a associação órfã trava o PUT de
+    # evaluation-assignments, que valida a lista inteira).
+    removed_keys = {
+        f_key for f_key in existing_fields if f_key not in processed_keys
+    }
+    for f_key in removed_keys:
+        existing_fields[f_key].set_deletion_audit(user_id)
+    if removed_keys:
+        await _prune_evaluation_assignments(
+            session, form_template.id, removed_keys, user_id
+        )
 
     # 5. Sincronizar ProcessTemplateVersion (definition_payload)
     v_stmt = (

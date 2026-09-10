@@ -7,7 +7,10 @@ import pytest
 from sqlalchemy import func, select
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
-from pivma.core.authorization import PROCESS_PARTICIPANTS_MANAGE
+from pivma.core.authorization import (
+    PROCESS_PARTICIPANTS_MANAGE,
+    TRIAGE_REVIEW,
+)
 from pivma.core.database.models import (
     AccessProfile,
     AccessProfilePermission,
@@ -113,10 +116,25 @@ async def submit_to_triage(client, session):
     return admin, process_id
 
 
+async def grant_triage_review(session, user):
+    permission = Permission(code=TRIAGE_REVIEW, description=TRIAGE_REVIEW)
+    profile = AccessProfile(name=f'Triagem {user.id}', description='triagem')
+    session.add_all([permission, profile])
+    await session.flush()
+    session.add_all([
+        AccessProfilePermission(
+            profile_id=profile.id, permission_id=permission.id
+        ),
+        UserAccessProfile(user_id=user.id, profile_id=profile.id),
+    ])
+    await session.commit()
+
+
 async def setup_reviewer(session, client, admin, process_id, role_key):
     reviewer = UserFactory()
     session.add(reviewer)
     await session.commit()
+    await grant_triage_review(session, reviewer)
     authenticate(client, admin)
     assignment = create_participant(
         client, process_id, reviewer.id, role_key
@@ -134,7 +152,9 @@ async def test_current_conflict_blocks_field_review_with_403(session, client):
     authenticate(client, reviewer)
     declare_conflict(client, process_id, assignment['id'], True)
     response = client.post(
-        f'/processes/{process_id}/triage/reviews', json=REVIEW_PAYLOAD
+        f'/processes/{process_id}/triage/reviews',
+        json=REVIEW_PAYLOAD,
+        headers=ORIGIN,
     )
     assert response.status_code == HTTPStatus.FORBIDDEN
 
@@ -151,7 +171,9 @@ async def test_current_conflict_blocks_triage_decision_with_403(
     authenticate(client, reviewer)
     declare_conflict(client, process_id, assignment['id'], True)
     response = client.post(
-        f'/processes/{process_id}/triage/decision', json=DECISION_PAYLOAD
+        f'/processes/{process_id}/triage/decision',
+        json=DECISION_PAYLOAD,
+        headers=ORIGIN,
     )
     assert response.status_code == HTTPStatus.FORBIDDEN
 
@@ -167,7 +189,9 @@ async def test_absence_of_conflict_preserves_existing_review_path(
 
     authenticate(client, reviewer)
     response = client.post(
-        f'/processes/{process_id}/triage/reviews', json=REVIEW_PAYLOAD
+        f'/processes/{process_id}/triage/reviews',
+        json=REVIEW_PAYLOAD,
+        headers=ORIGIN,
     )
     assert response.status_code == HTTPStatus.OK
 
@@ -184,13 +208,17 @@ async def test_later_false_declaration_restores_triage_decision(
     authenticate(client, reviewer)
     declare_conflict(client, process_id, assignment['id'], True)
     blocked = client.post(
-        f'/processes/{process_id}/triage/decision', json=DECISION_PAYLOAD
+        f'/processes/{process_id}/triage/decision',
+        json=DECISION_PAYLOAD,
+        headers=ORIGIN,
     )
     assert blocked.status_code == HTTPStatus.FORBIDDEN
 
     declare_conflict(client, process_id, assignment['id'], False)
     restored = client.post(
-        f'/processes/{process_id}/triage/decision', json=DECISION_PAYLOAD
+        f'/processes/{process_id}/triage/decision',
+        json=DECISION_PAYLOAD,
+        headers=ORIGIN,
     )
     assert restored.status_code == HTTPStatus.OK
 
@@ -206,7 +234,11 @@ async def test_blocked_review_does_not_create_or_alter_field_review(
 
     authenticate(client, reviewer)
     declare_conflict(client, process_id, assignment['id'], True)
-    client.post(f'/processes/{process_id}/triage/reviews', json=REVIEW_PAYLOAD)
+    client.post(
+        f'/processes/{process_id}/triage/reviews',
+        json=REVIEW_PAYLOAD,
+        headers=ORIGIN,
+    )
 
     review_count = await session.scalar(
         select(func.count()).select_from(FieldReview)
@@ -234,7 +266,9 @@ async def test_blocked_decision_does_not_create_decision_or_event(
     authenticate(client, reviewer)
     declare_conflict(client, process_id, assignment['id'], True)
     client.post(
-        f'/processes/{process_id}/triage/decision', json=DECISION_PAYLOAD
+        f'/processes/{process_id}/triage/decision',
+        json=DECISION_PAYLOAD,
+        headers=ORIGIN,
     )
 
     decision_count = await session.scalar(
@@ -267,7 +301,9 @@ async def test_conflict_in_one_role_blocks_action_authorized_by_another_role(
     authenticate(client, reviewer)
     declare_conflict(client, process_id, first_role['id'], True)
     response = client.post(
-        f'/processes/{process_id}/triage/reviews', json=REVIEW_PAYLOAD
+        f'/processes/{process_id}/triage/reviews',
+        json=REVIEW_PAYLOAD,
+        headers=ORIGIN,
     )
     assert response.status_code == HTTPStatus.FORBIDDEN
 
@@ -286,7 +322,9 @@ async def test_revoking_conflicted_cycle_restores_action_via_other_cycle(
     authenticate(client, reviewer)
     declare_conflict(client, process_id, first_role['id'], True)
     blocked = client.post(
-        f'/processes/{process_id}/triage/reviews', json=REVIEW_PAYLOAD
+        f'/processes/{process_id}/triage/reviews',
+        json=REVIEW_PAYLOAD,
+        headers=ORIGIN,
     )
     assert blocked.status_code == HTTPStatus.FORBIDDEN
 
@@ -295,6 +333,8 @@ async def test_revoking_conflicted_cycle_restores_action_via_other_cycle(
 
     authenticate(client, reviewer)
     restored = client.post(
-        f'/processes/{process_id}/triage/reviews', json=REVIEW_PAYLOAD
+        f'/processes/{process_id}/triage/reviews',
+        json=REVIEW_PAYLOAD,
+        headers=ORIGIN,
     )
     assert restored.status_code == HTTPStatus.OK

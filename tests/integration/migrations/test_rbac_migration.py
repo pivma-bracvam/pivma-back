@@ -53,11 +53,14 @@ async def test_rbac_migration_seeds_catalog_and_downgrades(
         "Especialista",
         "Analista Estatístico",
         "Administrador",
+        "BraCVAM",  # Spec 014
     }
+    # Antes da Spec 014: (11, 11, 0). A migração 014 acrescenta a permissão
+    # `triage.review` e 4 composições; 3 delas no perfil bracvam (não-admin).
     assert (permission_count, composition_count, non_admin_compositions) == (
-        9,
-        9,
-        0,
+        12,
+        15,
+        3,
     )
 
     await run_downgrade("2d7f9a4c6b81")
