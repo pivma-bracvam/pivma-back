@@ -392,6 +392,28 @@ class ProcessInstanceListResponse(BaseModel):
     size: int
 
 
+class AttachmentMetadata(BaseModel):
+    artifact_id: UUID
+    filename: str
+    size: int
+    mime_type: str | None = None
+    extension: str
+    checksum_sha256: str
+    uploaded_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AttachmentUploadResponse(BaseModel):
+    field_key: str
+    attachment: AttachmentMetadata
+    replaced_previous: bool = False
+
+
+class AttachmentRemovedResponse(BaseModel):
+    field_key: str
+    removed: bool = True
+
+
 class FormFieldDefinition(BaseModel):
     field_key: str
     label: str
@@ -405,6 +427,7 @@ class FormFieldDefinition(BaseModel):
     ai_evaluation_enabled: bool = False
     ai_context_instructions: str | None = None
     ai_validation_rules: dict | None = None
+    attachment: AttachmentMetadata | None = None
     model_config = ConfigDict(from_attributes=True)
 
 

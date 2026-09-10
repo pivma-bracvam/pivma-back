@@ -93,7 +93,7 @@ O motor de formulários do PIVMA (`pivma.core.process_engine`) e o modelo `FormF
 | `"boolean"` | `input[type="checkbox"]` / Switch | `boolean_value` (`bool`) | Booleano simples (`true` ou `false`). |
 | `"date"` | `input[type="date"]` | `date_value` (`date`) | Data no formato ISO `YYYY-MM-DD`. Valida string ISO na API. |
 | `"select"` | `select` / Dropdown | `json_value` ou `text_value` | Escolha de opção única a partir da lista fornecida em `options`. |
-| `"file_upload"` | Upload / Anexo | `text_value` (`str`) | Armazena o identificador/URI do artefato enviado. *(Nota: anexos não são salvos no modo rascunho sem upload prévio).* |
+| `"file_upload"` | Upload / Anexo | `file_attachment_id` → `artifacts.id` | Anexo de arquivo (Spec 016). O binário **não** trafega no corpo JSON de rascunho/submissão: use as rotas dedicadas (ver Seção 5.2). Campos `file_upload` ficam **fora** da avaliação por IA. |
 
 ---
 
@@ -130,6 +130,24 @@ O objeto `validation_rules` permite definir restrições validadas tanto na grav
     allowed_extensions: ["pdf"]
     max_size_mb: 25
 ```
+
+Na ausência de `allowed_extensions`/`max_size_mb` no campo, valem os padrões do
+sistema (`Settings.ATTACHMENT_DEFAULT_EXTENSIONS` = `pdf, docx, doc, png, jpg,
+jpeg`; `Settings.ATTACHMENT_MAX_SIZE_MB` = 25). A validação é por extensão
+declarada e tamanho — não há inspeção do conteúdo real nem antivírus nesta
+entrega.
+
+**Rotas de anexo** (Spec 016) — o proponente gere o arquivo enquanto o
+formulário está em rascunho; após a submissão tudo fica imutável:
+
+| Método | Rota | Efeito |
+| :-- | :-- | :-- |
+| `POST` | `/processes/{id}/activities/{activity_key}/form/fields/{field_key}/attachment` | Envia (multipart `file`) ou substitui o anexo do campo. Exige `Origin` confiável. |
+| `GET` | mesma rota | Baixa o arquivo original (escopo de leitura do processo). |
+| `DELETE` | mesma rota | Remove o anexo (só em rascunho). Exige `Origin` confiável. |
+
+O `GET .../form` passa a expor, em cada campo `file_upload`, o objeto
+`attachment` (nome, tamanho, tipo, `checksum_sha256`, `uploaded_at`) ou `null`.
 
 ### 5.3 Agrupamento Visual (`section`)
 Pode ser declarado como chave de primeiro nível no campo ou dentro de `validation_rules`:

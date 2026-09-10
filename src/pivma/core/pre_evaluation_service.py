@@ -77,7 +77,7 @@ async def run_pre_evaluation(run_id: UUID) -> None:
             await _mark_failed(session, run_id)
 
 
-async def _execute(session: AsyncSession, run_id: UUID) -> None:
+async def _execute(session: AsyncSession, run_id: UUID) -> None:  # noqa: PLR0914
     run = await session.get(EvaluationRun, run_id)
     if run is None or run.status != 'in_progress':
         return
@@ -88,9 +88,22 @@ async def _execute(session: AsyncSession, run_id: UUID) -> None:
 
     items: list[tuple[PipelineItem, UUID]] = []
     total_cost = 0.0
+    skipped_files: dict[str, str] = {}
     for assignment in assignments:
         version = await _effective_version(session, assignment)
         if version is None:
+            continue
+        text_keys, file_keys = _split_file_keys(
+            _effective_keys(assignment, values), fields_by_key
+        )
+        for key in file_keys:
+            field = fields_by_key.get(key)
+            skipped_files.setdefault(
+                key, field.label if field is not None else key
+            )
+        if not text_keys:
+            # Anexos não são avaliados por IA (Spec 016): nenhum conteúdo de
+            # arquivo é enviado ao provedor e a associação é pulada.
             continue
         content, kind = _target_content(assignment, fields_by_key, values)
         request = PipelineRequest(
@@ -127,9 +140,17 @@ async def _execute(session: AsyncSession, run_id: UUID) -> None:
     for item, version_id in items:
         session.add(_run_item(run.id, version_id, item))
 
-    run.evaluated_content_snapshot = _content_fields(
-        fields_by_key, values, assignments
+    snapshot = _content_fields(fields_by_key, values, assignments)
+    snapshot.extend(
+        {
+            'field_key': key,
+            'label': label,
+            'ai_status': 'not_evaluated',
+            'reason': 'attachment_not_ai_evaluable',
+        }
+        for key, label in skipped_files.items()
     )
+    run.evaluated_content_snapshot = snapshot
     run.status = 'completed'
     run.consolidated_result = consolidation.result
     run.real_cost = round(total_cost, 6)
@@ -514,13 +535,14 @@ def _content_fields(
             for k in a.field_keys or []:
                 if k not in keys:
                     keys.append(k)
+    text_keys, _ = _split_file_keys(keys, fields_by_key)
     return [
         {
             'field_key': k,
             'label': fields_by_key[k].label if k in fields_by_key else k,
             'value': values.get(k),
         }
-        for k in keys
+        for k in text_keys
     ]
 
 
@@ -588,21 +610,41 @@ async def _criteria(
     )
 
 
+def _effective_keys(
+    assignment: EvaluationAssignment, values: dict[str, Any]
+) -> list[str]:
+    keys = list(assignment.field_keys or [])
+    if assignment.target_type in {'form', 'process'} or not keys:
+        keys = list(values.keys())
+    return keys
+
+
+def _split_file_keys(
+    keys: list[str], fields_by_key: dict[str, Any]
+) -> tuple[list[str], list[str]]:
+    """Separa (chaves de texto, chaves de anexo) de uma lista de campos."""
+    text_keys, file_keys = [], []
+    for key in keys:
+        field = fields_by_key.get(key)
+        if field is not None and field.field_type in _FILE_FIELD_TYPES:
+            file_keys.append(key)
+        else:
+            text_keys.append(key)
+    return text_keys, file_keys
+
+
 def _target_content(
     assignment: EvaluationAssignment,
     fields_by_key: dict[str, Any],
     values: dict[str, Any],
 ) -> tuple[str, str]:
-    keys = list(assignment.field_keys or [])
-    if assignment.target_type in {'form', 'process'} or not keys:
-        keys = list(values.keys())
-
+    keys, _ = _split_file_keys(
+        _effective_keys(assignment, values), fields_by_key
+    )
     kind = 'document' if assignment.target_type == 'document' else 'text'
     parts = []
     for key in keys:
         field = fields_by_key.get(key)
-        if field is not None and field.field_type in _FILE_FIELD_TYPES:
-            kind = 'document'
         label = field.label if field is not None else key
         parts.append(f'{label}: {values.get(key)}')
     return '\n'.join(parts), kind

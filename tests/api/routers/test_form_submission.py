@@ -240,7 +240,7 @@ async def test_draft_persists_false_and_zero_from_dynamic_fields(
 
 
 @pytest.mark.asyncio
-async def test_draft_rejects_file_upload_without_persisting_artifact(
+async def test_draft_rejects_inline_file_upload_value_without_persisting(
     client, session
 ):
     user = UserFactory()
@@ -272,7 +272,7 @@ async def test_draft_rejects_file_upload_without_persisting_artifact(
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert (
         response.json()['detail']['errors'][0]['code']
-        == 'file_upload_not_supported'
+        == 'file_upload_uses_attachment_endpoint'
     )
     assert await session.scalar(select(FormValue.id)) is None
     assert await session.scalar(select(Artifact.id)) is None

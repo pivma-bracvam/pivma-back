@@ -51,6 +51,7 @@ def setup_logging() -> None:
 
     app_logger = logging.getLogger('pivma.operational')
     app_logger.setLevel(logging.INFO)
+    app_logger.disabled = False
     if not app_logger.handlers:
         app_logger.addHandler(app_handler)
     app_logger.propagate = False
@@ -69,6 +70,7 @@ def setup_logging() -> None:
 
     ai_logger = logging.getLogger('pivma.ai')
     ai_logger.setLevel(logging.INFO)
+    ai_logger.disabled = False
     if not ai_logger.handlers:
         ai_logger.addHandler(ai_handler)
     ai_logger.propagate = False

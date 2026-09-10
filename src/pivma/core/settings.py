@@ -24,6 +24,16 @@ class Settings(BaseSettings):
     AI_MODEL_FAST: str = Field(default='gpt-5.4-nano')
     AI_MODEL_REASONING: str = Field(default='gpt-5.4-mini')
 
+    # Anexos de formulário (Spec 016). Armazenamento em disco local; sem
+    # serviço externo. `ATTACHMENTS_DIR` é a raiz onde os binários vivem
+    # (coberta por `var/` no `.gitignore`); o teto de tamanho e a allowlist
+    # de extensões valem quando o campo não os declara em `validation_rules`.
+    ATTACHMENTS_DIR: str = Field(default='var/attachments')
+    ATTACHMENT_MAX_SIZE_MB: int = Field(default=25)
+    ATTACHMENT_DEFAULT_EXTENSIONS: list[str] = Field(
+        default_factory=lambda: ['pdf', 'docx', 'doc', 'png', 'jpg', 'jpeg']
+    )
+
     @field_validator('JWT_SECRET_KEY')
     @classmethod
     def validate_jwt_secret_key(cls, value):

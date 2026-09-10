@@ -1,5 +1,7 @@
+import io
 import json
 import logging
+from contextlib import contextmanager
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
@@ -8,6 +10,25 @@ from pivma.core.logging import (
     get_operational_logger,
     setup_logging,
 )
+
+
+@contextmanager
+def capture_jsonl(logger_name: str):
+    """Captura as linhas emitidas por um logger stdlib nomeado.
+
+    Evita depender do arquivo real rotativo em ``logs/`` (compartilhado por
+    toda a suíte e sujeito à rotação de meia-noite do
+    ``TimedRotatingFileHandler``).
+    """
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(logging.Formatter('%(message)s'))
+    target = logging.getLogger(logger_name)
+    target.addHandler(handler)
+    try:
+        yield stream
+    finally:
+        target.removeHandler(handler)
 
 
 def test_setup_logging_configures_rotating_handlers(tmp_path: Path):
@@ -42,19 +63,18 @@ def test_operational_logger_emits_valid_jsonl():
     logger = get_operational_logger()
 
     expected_duration = 42.5
-    logger.info(
-        'test_event',
-        correlation_id='corr-123',
-        status='SUCCESS',
-        duration_ms=expected_duration,
-    )
+    with capture_jsonl('pivma.operational') as stream:
+        logger.info(
+            'test_event',
+            correlation_id='corr-123',
+            status='SUCCESS',
+            duration_ms=expected_duration,
+        )
 
-    app_log = Path('logs/application/events.jsonl')
-    assert app_log.exists()
+    # O handler de arquivo continua conectado (destino real de produção).
+    assert Path('logs/application/events.jsonl').exists()
 
-    with open(app_log, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
-
+    lines = [ln for ln in stream.getvalue().splitlines() if ln.strip()]
     assert len(lines) >= 1
     events = [json.loads(line) for line in lines]
     matching = [e for e in events if e.get('correlation_id') == 'corr-123']
@@ -74,20 +94,18 @@ def test_ai_logger_emits_valid_jsonl():
 
     expected_duration = 15.2
     expected_tokens = 120
-    logger.info(
-        'ai_step_completed',
-        correlation_id='corr-ai-456',
-        step='context_extraction',
-        step_duration_ms=expected_duration,
-        tokens_used=expected_tokens,
-    )
+    with capture_jsonl('pivma.ai') as stream:
+        logger.info(
+            'ai_step_completed',
+            correlation_id='corr-ai-456',
+            step='context_extraction',
+            step_duration_ms=expected_duration,
+            tokens_used=expected_tokens,
+        )
 
-    ai_log = Path('logs/ai/ai_steps.jsonl')
-    assert ai_log.exists()
+    assert Path('logs/ai/ai_steps.jsonl').exists()
 
-    with open(ai_log, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
-
+    lines = [ln for ln in stream.getvalue().splitlines() if ln.strip()]
     assert len(lines) >= 1
     events = [json.loads(line) for line in lines]
     matching = [e for e in events if e.get('correlation_id') == 'corr-ai-456']

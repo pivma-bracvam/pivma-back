@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PIVMA — Anexos de Formulário</title>
+  <link rel="stylesheet" href="/demos/assets/base.css">
+  <style>
+    .container { max-width: 860px; margin: 0 auto; }
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 12px; margin-bottom: 20px;
+      padding-bottom: 16px; border-bottom: 2px solid var(--border);
+    }
+    h1 { font-size: 26px; font-weight: 800; }
+    .step-num {
+      display: inline-block; width: 24px; height: 24px; line-height: 24px;
+      text-align: center; border-radius: 50%; background: var(--primary);
+      color: #fff; font-weight: 700; font-size: 14px; margin-right: 8px;
+    }
+    label { display: block; font-weight: 600; margin: 12px 0 4px; }
+    input[type=file], select {
+      width: 100%; padding: 8px; border: 1px solid var(--border);
+      border-radius: var(--radius); font: inherit; background: #fff;
+    }
+    .meta {
+      margin-top: 12px; padding: 12px; border: 1px solid var(--border-soft);
+      border-radius: var(--radius); background: var(--bg); font-size: 14px;
+    }
+    .meta dt { font-weight: 600; color: var(--text-muted); }
+    .meta dd { margin: 0 0 6px; word-break: break-all; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    pre {
+      background: #0f172a; color: #e2e8f0; padding: 12px;
+      border-radius: var(--radius); overflow-x: auto; font-size: 13px;
+    }
+    .muted { color: var(--text-muted); font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <a class="back-link" href="/demos/">&larr; Hub de demonstrações</a>
+      <span class="api-status" data-api-status>
+        <span class="dot"></span><span data-api-status-text>Verificando API...</span>
+      </span>
+    </header>
+
+    <h1>Anexos de formulário</h1>
+    <p class="lead">
+      O proponente anexa um documento de apoio — por exemplo o Procedimento
+      Operacional Padrão (POP) — ao formulário de submissão e, depois, o
+      avaliador da triagem baixa o arquivo original. Anexos não são avaliados
+      pela IA do sistema.
+    </p>
+
+    <div class="card">
+      <div class="step-title"><span class="step-num">1</span>Sessão</div>
+      <div class="row">
+        <button class="btn" id="btn-login">Entrar como proponente</button>
+        <span class="muted" id="session">Não autenticado.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="step-title"><span class="step-num">2</span>Processo e campo de anexo</div>
+      <label for="process">Processo (Prova de Conceito — Formulário Preliminar)</label>
+      <select id="process"><option value="">— carregue a sessão —</option></select>
+      <label for="field">Campo de anexo</label>
+      <select id="field"><option value="">—</option></select>
+    </div>
+
+    <div class="card">
+      <div class="step-title"><span class="step-num">3</span>Enviar arquivo</div>
+      <label for="file">Arquivo (PDF ou DOCX, até 25 MB)</label>
+      <input type="file" id="file" accept=".pdf,.docx">
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="btn-upload">Enviar anexo</button>
+        <button class="btn secondary" id="btn-refresh">Recarregar formulário</button>
+      </div>
+      <div id="attachment-meta"></div>
+    </div>
+
+    <div class="card">
+      <div class="step-title"><span class="step-num">4</span>Baixar / remover</div>
+      <div class="row">
+        <button class="btn" id="btn-download" disabled>Baixar anexo original</button>
+        <button class="btn secondary" id="btn-remove" disabled>Remover anexo</button>
+      </div>
+      <p class="muted" style="margin-top:8px">
+        O download segue o escopo de leitura do processo (proponente dono,
+        avaliador de triagem autorizado, administrador).
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="step-title">Última resposta da API</div>
+      <pre id="inspector">—</pre>
+    </div>
+  </div>
+
+  <script src="/demos/assets/base.js"></script>
+  <script>
+    const ACT = 'proposal_submission';
+    let state = { processId: null, fieldKey: null };
+
+    const $ = (id) => document.getElementById(id);
+    function inspect(method, url, status, data) {
+      $('inspector').textContent =
+        `${method} ${url} -> HTTP ${status}\n\n` +
+        (typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+    }
+
+    async function api(method, url, opts = {}) {
+      const res = await fetch(url, { method, credentials: 'include', ...opts });
+      let data = null;
+      try { data = await res.clone().json(); } catch (e) { data = res.statusText; }
+      inspect(method, url, res.status, data);
+      return { res, data };
+    }
+
+    async function checkSession() {
+      const res = await fetch('/auth/me', { credentials: 'include' });
+      if (res.ok) {
+        const u = await res.json();
+        $('session').textContent = `${u.full_name || u.username} (${u.username})`;
+        $('btn-login').style.display = 'none';
+        return true;
+      }
+      $('session').textContent = 'Não autenticado.';
+      return false;
+    }
+
+    async function login() {
+      const { res } = await api('POST', '/auth/login', {
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: 'proponent_user', password: 'Proponent@123456' }),
+      });
+      if (!res.ok) { window.showNeedsSeed($('inspector').parentElement); return; }
+      await checkSession();
+      await loadProcesses();
+    }
+
+    async function loadProcesses() {
+      const { res, data } = await api('GET', '/processes?size=50');
+      if (!res.ok) return;
+      const sel = $('process');
+      sel.innerHTML = '<option value="">— selecione —</option>';
+      (data.items || [])
+        .filter((p) => (p.title || '').includes('Prova de Conceito') || p.template_key === 'proof_of_concept')
+        .forEach((p) => {
+          const o = document.createElement('option');
+          o.value = p.id;
+          o.textContent = `${p.code} — ${p.title} (${p.status})`;
+          sel.appendChild(o);
+        });
+      if (sel.options.length === 1) {
+        window.showNeedsSeed($('inspector').parentElement,
+          'Nenhum processo "Prova de Conceito" encontrado.');
+      }
+    }
+
+    async function loadForm() {
+      if (!state.processId) return;
+      const url = `/processes/${state.processId}/activities/${ACT}/form`;
+      const { res, data } = await api('GET', url);
+      const fieldSel = $('field');
+      fieldSel.innerHTML = '';
+      if (!res.ok) return;
+      const fileFields = (data.fields || []).filter((f) => f.field_type === 'file_upload');
+      fileFields.forEach((f) => {
+        const o = document.createElement('option');
+        o.value = f.field_key;
+        o.textContent = `${f.label} (${f.field_key})`;
+        fieldSel.appendChild(o);
+      });
+      state.fieldKey = fileFields[0] ? fileFields[0].field_key : null;
+      const current = fileFields.find((f) => f.field_key === state.fieldKey);
+      renderMeta(current && current.attachment);
+    }
+
+    function renderMeta(att) {
+      const box = $('attachment-meta');
+      const has = !!att;
+      $('btn-download').disabled = !has;
+      $('btn-remove').disabled = !has;
+      if (!has) { box.innerHTML = '<p class="muted" style="margin-top:12px">Nenhum anexo neste campo.</p>'; return; }
+      box.innerHTML = `<dl class="meta">
+        <dt>Arquivo</dt><dd>${att.filename}</dd>
+        <dt>Tamanho</dt><dd>${att.size} bytes</dd>
+        <dt>Tipo</dt><dd>${att.mime_type || '—'}</dd>
+        <dt>SHA-256</dt><dd>${att.checksum_sha256}</dd>
+        <dt>Enviado em</dt><dd>${att.uploaded_at}</dd>
+      </dl>`;
+    }
+
+    function attachmentUrl() {
+      return `/processes/${state.processId}/activities/${ACT}/form/fields/${state.fieldKey}/attachment`;
+    }
+
+    async function upload() {
+      if (!state.processId || !state.fieldKey) { alert('Escolha processo e campo.'); return; }
+      const file = $('file').files[0];
+      if (!file) { alert('Selecione um arquivo.'); return; }
+      const fd = new FormData();
+      fd.append('file', file);
+      const { res } = await api('POST', attachmentUrl(), { body: fd });
+      if (res.ok) await loadForm();
+    }
+
+    async function remove() {
+      const { res } = await api('DELETE', attachmentUrl());
+      if (res.ok) await loadForm();
+    }
+
+    function download() {
+      window.open(attachmentUrl(), '_blank');
+    }
+
+    $('btn-login').addEventListener('click', login);
+    $('btn-upload').addEventListener('click', upload);
+    $('btn-remove').addEventListener('click', remove);
+    $('btn-download').addEventListener('click', download);
+    $('btn-refresh').addEventListener('click', loadForm);
+    $('process').addEventListener('change', (e) => { state.processId = e.target.value || null; loadForm(); });
+    $('field').addEventListener('change', (e) => { state.fieldKey = e.target.value || null; loadForm(); });
+
+    (async () => { if (await checkSession()) await loadProcesses(); })();
+  </script>
+</body>
+</html>

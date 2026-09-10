@@ -388,7 +388,8 @@ def _set_value_on_field(
         else:
             form_value.date_value = None
     elif field_type == 'file_upload':
-        form_value.text_value = str(val) if val is not None else None
+        # Anexos vivem em `file_attachment_id`, gerido pela rota de anexo.
+        return
     else:
         form_value.json_value = val
 
@@ -437,10 +438,11 @@ def _validate_draft_values(  # noqa: PLR0912
             errors.append(
                 _draft_validation_error(
                     field_key,
-                    'file_upload_not_supported',
+                    'file_upload_uses_attachment_endpoint',
                     (
-                        'Anexos não fazem parte do salvamento de rascunho '
-                        'desta feature.'
+                        'Anexos são enviados pela rota dedicada '
+                        '.../form/fields/{field_key}/attachment, não no '
+                        'corpo do rascunho.'
                     ),
                 )
             )
@@ -574,6 +576,10 @@ def _validate_form_values(
 ) -> None:
     errors = []
     for field in fields:
+        if field.field_type == 'file_upload':
+            # Anexos são validados por `_required_attachment_errors`, contra o
+            # vínculo `FormValue.file_attachment_id`, não contra `values_dict`.
+            continue
         val = values_dict.get(field.field_key)
         if field.is_required and not val:
             errors.append(
@@ -581,6 +587,103 @@ def _validate_form_values(
             )
     if errors:
         raise ValidationError('; '.join(errors))
+
+
+async def _required_attachment_errors(
+    session: AsyncSession,
+    form_instance_id: UUID,
+    fields: list[FormField],
+) -> list[dict[str, str]]:
+    required = {
+        f.id: f
+        for f in fields
+        if f.field_type == 'file_upload' and f.is_required
+    }
+    if not required:
+        return []
+    rows = (
+        (
+            await session.execute(
+                select(FormValue).where(
+                    FormValue.form_instance_id == form_instance_id,
+                    FormValue.form_field_id.in_(required.keys()),
+                    FormValue.deleted_at.is_(None),
+                    FormValue.file_attachment_id.is_not(None),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    satisfied = {fv.form_field_id for fv in rows}
+    return [
+        {
+            'field_key': field.field_key,
+            'code': 'attachment_required',
+            'message': f"O anexo '{field.label}' é obrigatório.",
+        }
+        for field_id, field in required.items()
+        if field_id not in satisfied
+    ]
+
+
+async def _mark_submitted_attachments(
+    session: AsyncSession,
+    form_instance_id: UUID,
+    fields: list[FormField],
+    user_id: UUID,
+) -> list[dict[str, Any]]:
+    file_fields = {
+        f.id: f.field_key for f in fields if f.field_type == 'file_upload'
+    }
+    if not file_fields:
+        return []
+    form_values = (
+        (
+            await session.execute(
+                select(FormValue).where(
+                    FormValue.form_instance_id == form_instance_id,
+                    FormValue.form_field_id.in_(file_fields.keys()),
+                    FormValue.deleted_at.is_(None),
+                    FormValue.file_attachment_id.is_not(None),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not form_values:
+        return []
+    by_artifact = {
+        fv.file_attachment_id: file_fields[fv.form_field_id]
+        for fv in form_values
+    }
+    artifacts = (
+        (
+            await session.execute(
+                select(Artifact).where(
+                    Artifact.id.in_(by_artifact.keys()),
+                    Artifact.deleted_at.is_(None),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    manifest: list[dict[str, Any]] = []
+    for artifact in artifacts:
+        artifact.status = 'SUBMITTED'
+        artifact.set_update_audit(user_id)
+        meta = artifact.metadata_payload or {}
+        manifest.append({
+            'field_key': by_artifact[artifact.id],
+            'artifact_id': str(artifact.id),
+            'filename': meta.get('original_filename') or artifact.name,
+            'size': artifact.file_size,
+            'mime_type': artifact.mime_type,
+            'checksum': artifact.checksum_sha256,
+        })
+    return manifest
 
 
 async def _save_submitted_values(
@@ -603,6 +706,8 @@ async def _save_submitted_values(
         if f_key not in field_map:
             continue
         field = field_map[f_key]
+        if field.field_type == 'file_upload':
+            continue
         fv = existing_vals.get(field.id)
         if fv is None:
             fv = FormValue(
@@ -695,8 +800,18 @@ async def submit_proposal_form(  # noqa: PLR0914, PLR0915
         raise ConflictError('O formulário desta execução já foi submetido.')
 
     _validate_form_values(fields, values_dict)
+    attachment_errors = await _required_attachment_errors(
+        session, form_inst.id, fields
+    )
+    if attachment_errors:
+        raise ValidationError(
+            'Anexos obrigatórios ausentes.', errors=attachment_errors
+        )
     await _save_submitted_values(
         session, form_inst.id, fields, values_dict, user_id
+    )
+    attachments_manifest = await _mark_submitted_attachments(
+        session, form_inst.id, fields, user_id
     )
 
     form_inst.is_submitted = True
@@ -727,7 +842,11 @@ async def submit_proposal_form(  # noqa: PLR0914, PLR0915
         key='proposal_dossier',
         name=doc_name,
         status='SUBMITTED',
-        metadata_payload={'form_key': template.key, 'values': values_dict},
+        metadata_payload={
+            'form_key': template.key,
+            'values': values_dict,
+            'attachments': attachments_manifest,
+        },
     )
     artifact.set_creation_audit(user_id)
     session.add(artifact)
