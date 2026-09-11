@@ -1,12 +1,17 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PIVMA - Gestão de Usuários e RBAC</title>
   <link rel="stylesheet" href="/demos/assets/base.css">
   <style>
-    .container { max-width: 1100px; margin: 0 auto; }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
     header {
       display: flex;
       justify-content: space-between;
@@ -17,13 +22,19 @@
       flex-wrap: wrap;
       gap: 12px;
     }
+
     .back-link {
       font-size: 16px;
       color: var(--primary);
       text-decoration: none;
       font-weight: 700;
     }
-    h1 { font-size: 28px; font-weight: 800; }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 800;
+    }
+
     .session-bar {
       display: flex;
       align-items: center;
@@ -34,46 +45,62 @@
       border: 1px solid var(--border);
       font-size: 16px;
     }
+
     .session-badge {
       font-weight: 700;
       color: var(--primary);
     }
+
     .card {
       background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 24px;
       margin-bottom: 24px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
     }
-    h2 { font-size: 20px; font-weight: 700; margin-bottom: 16px; color: #1e293b; }
+
+    h2 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: #1e293b;
+    }
+
     .grid-form {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 16px;
       margin-bottom: 16px;
     }
+
     .form-group {
       display: flex;
       flex-direction: column;
       gap: 6px;
     }
+
     label {
       font-size: 16px;
       font-weight: 600;
       color: #334155;
     }
-    input, select {
+
+    input,
+    select {
       font-size: 16px;
       padding: 10px 14px;
       border: 1px solid var(--border);
       border-radius: 6px;
       outline: none;
     }
-    input:focus, select:focus {
+
+    input:focus,
+    select:focus {
       border-color: var(--primary);
       box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.2);
     }
+
     .btn {
       font-size: 16px;
       font-weight: 700;
@@ -83,12 +110,35 @@
       cursor: pointer;
       transition: opacity 0.15s;
     }
-    .btn-primary { background: var(--primary); color: #fff; }
-    .btn-secondary { background: #64748b; color: #fff; }
-    .btn-success { background: var(--success); color: #fff; }
-    .btn-danger { background: var(--danger); color: #fff; }
-    .btn-sm { font-size: 14px; padding: 6px 12px; }
-    .btn:hover { opacity: 0.9; }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: #64748b;
+      color: #fff;
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    .btn-sm {
+      font-size: 14px;
+      padding: 6px 12px;
+    }
+
+    .btn:hover {
+      opacity: 0.9;
+    }
 
     table {
       width: 100%;
@@ -96,12 +146,19 @@
       margin-top: 12px;
       font-size: 16px;
     }
-    th, td {
+
+    th,
+    td {
       padding: 12px;
       text-align: left;
       border-bottom: 1px solid var(--border);
     }
-    th { background: #f1f5f9; font-weight: 700; }
+
+    th {
+      background: #f1f5f9;
+      font-weight: 700;
+    }
+
     .badge {
       display: inline-block;
       font-size: 13px;
@@ -112,7 +169,12 @@
       color: #1e293b;
       margin-right: 4px;
     }
-    .badge-admin { background: #fef3c7; color: #92400e; }
+
+    .badge-admin {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
     .inspector {
       background: #0f172a;
       color: #38bdf8;
@@ -125,6 +187,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <header>
@@ -135,7 +198,8 @@
       <div class="session-bar">
         <span>Sessão:</span>
         <span id="user-display" class="session-badge">Não autenticado</span>
-        <button id="btn-quick-login" class="btn btn-sm btn-primary" onclick="quickLoginAdmin()">Entrar como Admin</button>
+        <button id="btn-quick-login" class="btn btn-sm btn-primary" onclick="quickLoginAdmin()">Entrar como
+          Admin</button>
         <button id="btn-logout" class="btn btn-sm btn-secondary" onclick="logout()" style="display: none;">Sair</button>
       </div>
     </header>
@@ -171,7 +235,8 @@
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
         <h2>2. Consultar Usuários (GET /users)</h2>
         <div style="display: flex; gap: 12px; align-items: center;">
-          <input type="text" id="search-input" placeholder="Buscar por nome/email..." oninput="fetchUsers()" style="width: 250px;">
+          <input type="text" id="search-input" placeholder="Buscar por nome/email..." oninput="fetchUsers()"
+            style="width: 250px;">
           <select id="active-filter" onchange="fetchUsers()">
             <option value="true">Apenas Ativos</option>
             <option value="false">Apenas Inativos</option>
@@ -191,7 +256,9 @@
           </tr>
         </thead>
         <tbody id="users-table-body">
-          <tr><td colspan="5" style="text-align: center;">Carregando usuários...</td></tr>
+          <tr>
+            <td colspan="5" style="text-align: center;">Carregando usuários...</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -233,7 +300,8 @@
     <!-- Inspetor da API -->
     <div class="card">
       <h2>Inspetor de Resposta da API</h2>
-      <div id="inspector-info" style="font-size: 15px; margin-bottom: 8px; font-weight: 600;">Nenhuma requisição realizada ainda.</div>
+      <div id="inspector-info" style="font-size: 15px; margin-bottom: 8px; font-weight: 600;">Nenhuma requisição
+        realizada ainda.</div>
       <pre id="api-inspector" class="inspector">{}</pre>
     </div>
   </div>
@@ -270,7 +338,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ identifier: 'admin', password: 'Admin@123456' })
+        body: JSON.stringify({ identifier: 'admin', password: 'Password123!' })
       });
       inspect('POST', '/auth/login', res.status, res.ok ? { message: 'Login com sucesso!' } : { detail: 'Falha no login' });
       if (res.ok) {
@@ -292,7 +360,7 @@
       const search = document.getElementById('search-input').value.trim();
       const active = document.getElementById('active-filter').value;
       const url = `/users?active=${active}${search ? '&search=' + encodeURIComponent(search) : ''}`;
-      
+
       const res = await fetch(url, { credentials: 'include' });
       const data = await res.json().catch(() => null);
       inspect('GET', url, res.status, data);
@@ -310,7 +378,7 @@
       data.items.forEach(u => {
         const tr = document.createElement('tr');
         const profilesHtml = (u.profiles || []).map(p => `<span class="badge ${p.name.toLowerCase().includes('admin') ? 'badge-admin' : ''}">${p.name}</span>`).join(' ') || '<span style="color: var(--text-muted);">Nenhum</span>';
-        
+
         tr.innerHTML = `
           <td><strong>${u.full_name || '-'}</strong></td>
           <td><code>${u.username}</code></td>
@@ -461,4 +529,5 @@
     })();
   </script>
 </body>
+
 </html>

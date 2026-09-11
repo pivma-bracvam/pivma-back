@@ -1,12 +1,17 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PIVMA - Observabilidade de Pipelines de IA (Tempo Real)</title>
   <link rel="stylesheet" href="/demos/assets/base.css">
   <style>
-    .container { max-width: 1200px; margin: 0 auto; }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
     header {
       display: flex;
       justify-content: space-between;
@@ -17,16 +22,30 @@
       flex-wrap: wrap;
       gap: 12px;
     }
+
     .back-link {
       font-size: 16px;
       color: var(--primary);
       text-decoration: none;
       font-weight: 700;
     }
-    .back-link:hover { text-decoration: underline; }
-    h1 { font-size: 28px; font-weight: 800; color: #1e293b; }
-    .subtitle { font-size: 16px; color: var(--text-muted); margin-top: 4px; }
-    
+
+    .back-link:hover {
+      text-decoration: underline;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 800;
+      color: #1e293b;
+    }
+
+    .subtitle {
+      font-size: 16px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
     .session-bar {
       display: flex;
       align-items: center;
@@ -37,18 +56,28 @@
       border: 1px solid var(--border);
       font-size: 15px;
     }
-    .session-badge { font-weight: 700; color: var(--primary); }
-    
+
+    .session-badge {
+      font-weight: 700;
+      color: var(--primary);
+    }
+
     .card {
       background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 24px;
       margin-bottom: 24px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
     }
-    h2 { font-size: 20px; font-weight: 700; margin-bottom: 16px; color: #1e293b; }
-    
+
+    h2 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: #1e293b;
+    }
+
     .dev-banner {
       background: #eff6ff;
       border: 1px solid #bfdbfe;
@@ -56,6 +85,7 @@
       padding: 16px 20px;
       margin-bottom: 20px;
     }
+
     .dev-banner h3 {
       font-size: 17px;
       font-weight: 700;
@@ -65,11 +95,13 @@
       align-items: center;
       gap: 8px;
     }
+
     .dev-banner p {
       font-size: 14px;
       color: #334155;
       margin-bottom: 12px;
     }
+
     .creds-tags {
       display: flex;
       flex-wrap: wrap;
@@ -78,6 +110,7 @@
       margin-bottom: 12px;
       font-size: 14px;
     }
+
     .cred-tag {
       background: #ffffff;
       padding: 6px 12px;
@@ -87,14 +120,21 @@
       font-weight: 600;
       color: #1e3a8a;
     }
-    
+
     .form-group {
       display: flex;
       flex-direction: column;
       gap: 6px;
     }
-    label { font-size: 15px; font-weight: 600; color: #334155; }
-    input, select {
+
+    label {
+      font-size: 15px;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    input,
+    select {
       font-size: 15px;
       padding: 9px 12px;
       border: 1px solid var(--border);
@@ -103,11 +143,13 @@
       font-family: inherit;
       background: #fff;
     }
-    input:focus, select:focus {
+
+    input:focus,
+    select:focus {
       border-color: var(--primary);
       box-shadow: 0 0 0 2px rgba(67, 56, 202, 0.2);
     }
-    
+
     .btn {
       font-size: 15px;
       font-weight: 700;
@@ -121,15 +163,44 @@
       justify-content: center;
       gap: 8px;
     }
-    .btn-primary { background: var(--primary); color: #fff; }
-    .btn-primary:hover { background: var(--primary-hover); }
-    .btn-secondary { background: #64748b; color: #fff; }
-    .btn-secondary:hover { background: #475569; }
-    .btn-success { background: var(--success); color: #fff; }
-    .btn-danger { background: var(--danger); color: #fff; }
-    .btn-sm { font-size: 13px; padding: 6px 12px; }
-    .btn:hover { opacity: 0.95; }
-    
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background: #64748b;
+      color: #fff;
+    }
+
+    .btn-secondary:hover {
+      background: #475569;
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    .btn-sm {
+      font-size: 13px;
+      padding: 6px 12px;
+    }
+
+    .btn:hover {
+      opacity: 0.95;
+    }
+
     .stream-status-box {
       display: flex;
       align-items: center;
@@ -141,37 +212,56 @@
       border: 1px solid var(--border);
       background: #f1f5f9;
     }
+
     .status-dot {
       width: 10px;
       height: 10px;
       border-radius: 50%;
       background: #94a3b8;
     }
+
     .status-dot.connected {
       background: #16a34a;
       box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.25);
       animation: pulse 1.8s infinite;
     }
+
     .status-dot.connecting {
       background: #eab308;
       box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.25);
     }
-    .status-dot.disconnected { background: #94a3b8; }
-    .status-dot.error { background: #dc2626; }
-    
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.15); opacity: 0.8; }
+
+    .status-dot.disconnected {
+      background: #94a3b8;
     }
-    
+
+    .status-dot.error {
+      background: #dc2626;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+
+      50% {
+        transform: scale(1.15);
+        opacity: 0.8;
+      }
+    }
+
     .pipeline-card {
       background: #ffffff;
       border: 1px solid var(--border);
       border-radius: var(--radius);
       margin-bottom: 20px;
       overflow: hidden;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
     }
+
     .pipeline-header {
       background: #f8fafc;
       padding: 16px 20px;
@@ -182,6 +272,7 @@
       flex-wrap: wrap;
       gap: 12px;
     }
+
     .step-box {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
@@ -189,6 +280,7 @@
       padding: 14px 16px;
       margin-bottom: 12px;
     }
+
     .step-header {
       display: flex;
       justify-content: space-between;
@@ -196,6 +288,7 @@
       flex-wrap: wrap;
       gap: 8px;
     }
+
     .badge {
       display: inline-block;
       font-size: 12px;
@@ -203,10 +296,25 @@
       padding: 3px 8px;
       border-radius: 6px;
     }
-    .badge-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-    .badge-progress { background: #fef9c3; color: #854d0e; border: 1px solid #fef08a; }
-    .badge-failed { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
-    
+
+    .badge-success {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+
+    .badge-progress {
+      background: #fef9c3;
+      color: #854d0e;
+      border: 1px solid #fef08a;
+    }
+
+    .badge-failed {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+
     .verdict-box {
       background: #fff1f2;
       border: 1px solid #fecdd3;
@@ -214,7 +322,7 @@
       padding: 16px;
       margin-top: 16px;
     }
-    
+
     .inspector {
       background: #0f172a;
       color: #38bdf8;
@@ -225,6 +333,7 @@
       overflow-x: auto;
       max-height: 280px;
     }
+
     .payload-pre {
       background: #0f172a;
       color: #f8fafc;
@@ -238,18 +347,21 @@
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <header>
       <div>
         <a href="/demos/" class="back-link">&larr; Voltar ao Catálogo de Demonstrações</a>
         <h1 style="margin-top: 4px;">Observabilidade de Pipelines de IA</h1>
-        <p class="subtitle">Monitoramento cronológico em tempo real de execuções de IA, custos simulados e síntese de vereditos</p>
+        <p class="subtitle">Monitoramento cronológico em tempo real de execuções de IA, custos simulados e síntese de
+          vereditos</p>
       </div>
       <div class="session-bar">
         <span>Sessão:</span>
         <span id="user-display" class="session-badge">Verificando...</span>
-        <button id="btn-quick-login" class="btn btn-sm btn-primary" onclick="quickLoginAdmin()">Entrar como Admin</button>
+        <button id="btn-quick-login" class="btn btn-sm btn-primary" onclick="quickLoginAdmin()">Entrar como
+          Admin</button>
         <button id="btn-logout" class="btn btn-sm btn-secondary" onclick="logout()" style="display: none;">Sair</button>
       </div>
     </header>
@@ -258,23 +370,27 @@
     <div class="dev-banner">
       <h3>🔑 Credenciais Sugeridas para Desenvolvimento (Acesso de Administrador)</h3>
       <p>
-        Os endpoints administrativos de observabilidade de IA (<code>/admin/logs/ai*</code>) exigem perfil com a chave <code>administrator</code> ou permissão <code>rbac:read</code>.
+        Os endpoints administrativos de observabilidade de IA (<code>/admin/logs/ai*</code>) exigem perfil com a chave
+        <code>administrator</code> ou permissão <code>rbac:read</code>.
         Utilize a conta de Administrador abaixo para liberar o monitoramento de pipelines em tempo real:
       </p>
       <div class="creds-tags">
         <span class="cred-tag">Usuário: <strong>admin</strong></span>
-        <span class="cred-tag">Senha: <strong>Admin@123456</strong></span>
+        <span class="cred-tag">Senha: <strong>Password123!</strong></span>
         <span class="cred-tag">Perfil: <strong>Administrador do Sistema</strong></span>
       </div>
       <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-        <button class="btn btn-sm btn-primary" onclick="quickLoginAdmin()">⚡ Preencher e Entrar como Admin (1 Clique)</button>
-        <button class="btn btn-sm btn-secondary" onclick="testForbiddenUser()">Testar Acesso com Proponente (Validação de 403)</button>
+        <button class="btn btn-sm btn-primary" onclick="quickLoginAdmin()">⚡ Preencher e Entrar como Admin (1
+          Clique)</button>
+        <button class="btn btn-sm btn-secondary" onclick="testForbiddenUser()">Testar Acesso com Proponente (Validação
+          de 403)</button>
       </div>
     </div>
 
     <!-- Card 2: Painel de Controle e Disparo de Simulação -->
     <div class="card">
-      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+      <div
+        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
         <h2>1. Conexão do Stream SSE & Simulação de Avaliação</h2>
         <div id="stream-status" class="stream-status-box">
           <span id="stream-status-dot" class="status-dot disconnected"></span>
@@ -308,16 +424,19 @@
 
     <!-- Card 3: Pipelines Agrupados -->
     <div class="card">
-      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+      <div
+        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
         <h2>2. Execuções de Pipelines Monitorados</h2>
         <div style="font-size: 14px; color: var(--text-muted);">
-          <span>Pipelines monitorados: <strong id="pipeline-count" style="color: var(--text);">0</strong></span> | 
-          <span>Destino em disco: <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">logs/ai/ai_steps.jsonl</code></span>
+          <span>Pipelines monitorados: <strong id="pipeline-count" style="color: var(--text);">0</strong></span> |
+          <span>Destino em disco: <code
+              style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">logs/ai/ai_steps.jsonl</code></span>
         </div>
       </div>
 
       <div id="pipelines-container">
-        <div id="empty-message" style="text-align: center; color: var(--text-muted); padding: 32px; border: 1px dashed var(--border); border-radius: 8px;">
+        <div id="empty-message"
+          style="text-align: center; color: var(--text-muted); padding: 32px; border: 1px dashed var(--border); border-radius: 8px;">
           Nenhum pipeline recebido ainda. Conecte ao stream SSE e dispare uma avaliação interativa acima.
         </div>
       </div>
@@ -335,4 +454,5 @@
 
   <script src="app.js"></script>
 </body>
+
 </html>

@@ -47,7 +47,7 @@ Nenhuma página nova é criada.
 | C6 | Catálogo `demos/index.html` lista as 6 páginas, cada uma com descrição de 1 linha, sem link quebrado. | Abrir o catálogo; clicar em todos os links. |
 | C7 | Zero referências a `DESIGN.md` em `demos/`. | `grep -rn "DESIGN.md" demos/` → vazio. |
 | C8 | Páginas consomem apenas a API real; sem simulação de dados no frontend e sem endpoint facilitador. | Revisão de código; Constituição II. |
-| C9 | Contas de teste exibidas onde forem úteis: `admin` / `Admin@123456`, `proponent_user` / `Proponent@123456`, `triage_evaluator` / `Triage@123456`. | Inspeção. |
+| C9 | Contas de teste exibidas onde forem úteis: `admin` / `Password123!`, `proponent_user` / `Password123!`, `triage_evaluator` / `Password123!`. | Inspeção. |
 
 ## Comando de carga canônico
 

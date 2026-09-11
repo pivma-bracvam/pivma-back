@@ -1,12 +1,17 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PIVMA - Submissão de Métodos Alternativos</title>
   <link rel="stylesheet" href="/demos/assets/base.css">
   <style>
-    .container { max-width: 1000px; margin: 0 auto; }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
     header {
       display: flex;
       justify-content: space-between;
@@ -17,13 +22,19 @@
       flex-wrap: wrap;
       gap: 12px;
     }
+
     .back-link {
       font-size: 16px;
       color: var(--primary);
       text-decoration: none;
       font-weight: 700;
     }
-    h1 { font-size: 28px; font-weight: 800; }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 800;
+    }
+
     .session-bar {
       display: flex;
       align-items: center;
@@ -34,24 +45,44 @@
       border: 1px solid var(--border);
       font-size: 16px;
     }
-    .session-badge { font-weight: 700; color: var(--primary); }
+
+    .session-badge {
+      font-weight: 700;
+      color: var(--primary);
+    }
+
     .card {
       background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 24px;
       margin-bottom: 24px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
     }
-    h2 { font-size: 20px; font-weight: 700; margin-bottom: 16px; color: #1e293b; }
+
+    h2 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: #1e293b;
+    }
+
     .form-group {
       display: flex;
       flex-direction: column;
       gap: 6px;
       margin-bottom: 16px;
     }
-    label { font-size: 16px; font-weight: 600; color: #334155; }
-    input, select, textarea {
+
+    label {
+      font-size: 16px;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    input,
+    select,
+    textarea {
       font-size: 16px;
       padding: 10px 14px;
       border: 1px solid var(--border);
@@ -59,10 +90,14 @@
       outline: none;
       font-family: inherit;
     }
-    input:focus, select:focus, textarea:focus {
+
+    input:focus,
+    select:focus,
+    textarea:focus {
       border-color: var(--primary);
       box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.2);
     }
+
     .btn {
       font-size: 16px;
       font-weight: 700;
@@ -72,11 +107,30 @@
       cursor: pointer;
       transition: opacity 0.15s;
     }
-    .btn-primary { background: var(--primary); color: #fff; }
-    .btn-secondary { background: #64748b; color: #fff; }
-    .btn-success { background: var(--success); color: #fff; }
-    .btn-sm { font-size: 14px; padding: 6px 12px; }
-    .btn:hover { opacity: 0.9; }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: #64748b;
+      color: #fff;
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .btn-sm {
+      font-size: 14px;
+      padding: 6px 12px;
+    }
+
+    .btn:hover {
+      opacity: 0.9;
+    }
 
     .status-pill {
       display: inline-block;
@@ -87,9 +141,22 @@
       background: #e2e8f0;
       color: #1e293b;
     }
-    .status-SUBMISSION { background: #fef08a; color: #854d0e; }
-    .status-AI_PRE_EVALUATION { background: #bfdbfe; color: #1e40af; }
-    .status-TRIAGE { background: #bae6fd; color: #0369a1; }
+
+    .status-SUBMISSION {
+      background: #fef08a;
+      color: #854d0e;
+    }
+
+    .status-AI_PRE_EVALUATION {
+      background: #bfdbfe;
+      color: #1e40af;
+    }
+
+    .status-TRIAGE {
+      background: #bae6fd;
+      color: #0369a1;
+    }
+
     .inspector {
       background: #0f172a;
       color: #38bdf8;
@@ -102,6 +169,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <header>
@@ -112,7 +180,8 @@
       <div class="session-bar">
         <span>Sessão:</span>
         <span id="user-display" class="session-badge">Não autenticado</span>
-        <button id="btn-quick-login" class="btn btn-sm btn-primary" onclick="quickLoginProponent()">Entrar como Proponente</button>
+        <button id="btn-quick-login" class="btn btn-sm btn-primary" onclick="quickLoginProponent()">Entrar como
+          Proponente</button>
       </div>
     </header>
 
@@ -140,7 +209,8 @@
 
     <!-- Passo 2: Processo Ativo & Formulário de Submissão -->
     <div class="card">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+      <div
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
         <h2>Passo 2: Preencher e Submeter Proposta</h2>
         <div>
           <span>Processo: <strong id="current-process-code">Nenhum</strong></span>
@@ -149,7 +219,8 @@
       </div>
 
       <div id="submission-form-container">
-        <p style="color: var(--text-muted); font-size: 16px;">Crie um processo no Passo 1 ou selecione um processo abaixo para submeter a proposta.</p>
+        <p style="color: var(--text-muted); font-size: 16px;">Crie um processo no Passo 1 ou selecione um processo
+          abaixo para submeter a proposta.</p>
       </div>
 
       <div style="margin-top: 16px; display: flex; gap: 12px; align-items: center;">
@@ -193,7 +264,7 @@
           document.getElementById('user-display').textContent = 'Não autenticado';
           document.getElementById('btn-quick-login').style.display = 'inline-block';
         }
-      } catch (err) {}
+      } catch (err) { }
     }
 
     async function quickLoginProponent() {
@@ -201,7 +272,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ identifier: 'proponent_user', password: 'Proponent@123456' })
+        body: JSON.stringify({ identifier: 'proponent_user', password: 'Password123!' })
       });
       if (res.ok) {
         await checkSession();
@@ -240,7 +311,7 @@
           opt.textContent = `${t.name} (${t.key})`;
           select.appendChild(opt);
         });
-      } catch (err) {}
+      } catch (err) { }
     }
 
     async function createProcess() {
@@ -457,7 +528,7 @@
       try {
         const pr = await fetch(`/processes/${processId}`, { credentials: 'include' });
         if (pr.ok) { procStatus = (await pr.json()).status; updateStatusBadge(procStatus); }
-      } catch (e) {}
+      } catch (e) { }
 
       const url = `/processes/${processId}/pre-evaluation`;
       const res = await fetch(url, { credentials: 'include' });
@@ -510,7 +581,7 @@
         panel = `<p style="font-size:13px; color:var(--text-muted); margin:8px 0;">${s.total} critérios &bull; ${s.compliant} conformes &bull; ${s.non_compliant} não conformes &bull; ${s.partial} parciais &bull; ${s.indeterminate} indeterminados</p>`;
       }
       (pe.attention_points || []).forEach(p => {
-        panel += `<div style="border-left:3px solid ${p.severity==='critical'||p.severity==='high'?'#b91c1c':'#b45309'}; background:#f8fafc; padding:8px 10px; margin-bottom:8px;">
+        panel += `<div style="border-left:3px solid ${p.severity === 'critical' || p.severity === 'high' ? '#b91c1c' : '#b45309'}; background:#f8fafc; padding:8px 10px; margin-bottom:8px;">
           <strong>${p.criterion_statement}</strong> — ${p.conclusion} (${p.severity})<br>
           ${p.evidence_excerpt ? `<span style="font-size:13px; color:#475569;">Evidência: ${p.evidence_excerpt}</span><br>` : ''}
           ${p.recommendation ? `<span style="font-size:13px; color:#0369a1;">Recomendação: ${p.recommendation}</span>` : ''}
@@ -570,4 +641,5 @@
     })();
   </script>
 </body>
+
 </html>

@@ -34,6 +34,9 @@ class Settings(BaseSettings):
         default_factory=lambda: ['pdf', 'docx', 'doc', 'png', 'jpg', 'jpeg']
     )
 
+    # Diretório das demonstrações estáticas (servidas em /demos)
+    DEMOS_DIR: str | None = Field(default=None)
+
     @field_validator('JWT_SECRET_KEY')
     @classmethod
     def validate_jwt_secret_key(cls, value):

@@ -1,12 +1,17 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PIVMA - Editor de Templates de Formulários</title>
   <link rel="stylesheet" href="/demos/assets/base.css">
   <style>
-    .container { max-width: 1080px; margin: 0 auto; }
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
     header {
       display: flex;
       justify-content: space-between;
@@ -17,14 +22,25 @@
       flex-wrap: wrap;
       gap: 12px;
     }
+
     .back-link {
       font-size: 14px;
       color: var(--primary);
       text-decoration: none;
       font-weight: 600;
     }
-    h1 { font-size: 24px; font-weight: 700; color: #0f172a; }
-    .subtitle { font-size: 14px; color: var(--text-muted); margin-top: 2px; }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
 
     .session-bar {
       display: flex;
@@ -36,7 +52,11 @@
       border: 1px solid var(--border);
       font-size: 13px;
     }
-    .session-badge { font-weight: 600; color: var(--primary); }
+
+    .session-badge {
+      font-weight: 600;
+      color: var(--primary);
+    }
 
     .card {
       background: var(--card-bg);
@@ -45,7 +65,13 @@
       padding: 20px;
       margin-bottom: 20px;
     }
-    h2 { font-size: 17px; font-weight: 700; margin-bottom: 14px; color: #1e293b; }
+
+    h2 {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      color: #1e293b;
+    }
 
     .btn {
       font-size: 13px;
@@ -60,15 +86,48 @@
       text-decoration: none;
       transition: background-color 0.15s, opacity 0.15s;
     }
-    .btn-primary { background: var(--primary); color: #fff; }
-    .btn-primary:hover { background: var(--primary-hover); }
-    .btn-success { background: var(--success); color: #fff; }
-    .btn-success:hover { background: #166534; }
-    .btn-danger { background: var(--danger); color: #fff; }
-    .btn-danger:hover { background: #991b1b; }
-    .btn-outline { background: transparent; border: 1px solid var(--border); color: #334155; }
-    .btn-outline:hover { background: #f1f5f9; }
-    .btn-sm { font-size: 12px; padding: 4px 8px; }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .btn-success:hover {
+      background: #166534;
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    .btn-danger:hover {
+      background: #991b1b;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: #334155;
+    }
+
+    .btn-outline:hover {
+      background: #f1f5f9;
+    }
+
+    .btn-sm {
+      font-size: 12px;
+      padding: 4px 8px;
+    }
 
     .form-group {
       display: flex;
@@ -76,8 +135,16 @@
       gap: 4px;
       margin-bottom: 12px;
     }
-    label { font-size: 13px; font-weight: 600; color: #334155; }
-    input, select, textarea {
+
+    label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    input,
+    select,
+    textarea {
       font-size: 13px;
       padding: 8px 10px;
       border: 1px solid var(--border);
@@ -86,7 +153,10 @@
       font-family: inherit;
       width: 100%;
     }
-    input:focus, select:focus, textarea:focus {
+
+    input:focus,
+    select:focus,
+    textarea:focus {
       border-color: var(--primary);
     }
 
@@ -97,6 +167,7 @@
       margin-bottom: 12px;
       background: #ffffff;
     }
+
     .field-header {
       display: flex;
       justify-content: space-between;
@@ -111,13 +182,19 @@
       grid-template-columns: 1fr 1fr;
       gap: 12px;
     }
+
     .grid-3 {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
       gap: 12px;
     }
+
     @media (max-width: 768px) {
-      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+
+      .grid-2,
+      .grid-3 {
+        grid-template-columns: 1fr;
+      }
     }
 
     .inspector {
@@ -133,6 +210,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <header>
@@ -145,7 +223,8 @@
       <div class="session-bar">
         <span>Sessão:</span>
         <span id="user-display" class="session-badge">Não autenticado</span>
-        <button id="btn-login" class="btn btn-sm btn-primary" onclick="quickLoginAdmin()">Entrar como Administrador (BraCVAM)</button>
+        <button id="btn-login" class="btn btn-sm btn-primary" onclick="quickLoginAdmin()">Entrar como Administrador
+          (BraCVAM)</button>
         <button id="btn-logout" class="btn btn-sm btn-outline" style="display:none;" onclick="logout()">Sair</button>
       </div>
     </header>
@@ -180,7 +259,8 @@
 
     <!-- Área de Edição do Template -->
     <div id="editor-container" class="card" style="display: none;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+      <div
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
         <h2>Campos do Formulário</h2>
         <div style="display: flex; gap: 8px;">
           <button class="btn btn-outline btn-sm" onclick="addNewField()">Adicionar Campo</button>
@@ -203,7 +283,8 @@
         <!-- Renderizado dinamicamente -->
       </div>
 
-      <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border);">
+      <div
+        style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border);">
         <button class="btn btn-outline" onclick="addNewField()">Adicionar Campo</button>
         <button class="btn btn-success" onclick="saveTemplate()">Salvar Template (PUT)</button>
       </div>
@@ -215,7 +296,8 @@
         <h2>Inspetor da API</h2>
         <span id="inspector-status" style="font-size: 12px; font-weight: 600; color: var(--primary);">Pronto</span>
       </div>
-      <div id="inspector-info" style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Nenhuma requisição efetuada.</div>
+      <div id="inspector-info" style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Nenhuma requisição
+        efetuada.</div>
       <pre id="api-inspector" class="inspector">{}</pre>
     </div>
   </div>
@@ -264,13 +346,13 @@
           document.getElementById('btn-login').style.display = 'inline-block';
           document.getElementById('btn-logout').style.display = 'none';
         }
-      } catch (err) {}
+      } catch (err) { }
     }
 
     async function quickLoginAdmin() {
       const res = await apiRequest('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ identifier: 'admin', password: 'Admin@123456' })
+        body: JSON.stringify({ identifier: 'admin', password: 'Password123!' })
       });
       if (res.ok) {
         await checkSession();
@@ -514,4 +596,5 @@
     })();
   </script>
 </body>
+
 </html>

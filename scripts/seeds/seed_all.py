@@ -67,15 +67,15 @@ async def run_all_seeds() -> None:
     )
     print('\nContas pré-configuradas (login: /auth/login):')
     print(
-        '  - admin / Admin@123456              '
+        '  - admin / Password123!              '
         '(BraCVAM: edita formulário, configura IA)'
     )
     print(
-        '  - proponent_user / Proponent@123456 '
+        '  - proponent_user / Password123! '
         '(Proponente: submete e acompanha a pré-avaliação)'
     )
     print(
-        '  - triage_evaluator / Triage@123456  '
+        '  - triage_evaluator / Password123!  '
         '(Avaliador: triagem e feedback por critério)'
     )
     print(

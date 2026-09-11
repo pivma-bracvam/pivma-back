@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,17 +13,35 @@
       gap: 16px;
       margin-bottom: 28px;
     }
-    .card .card-desc { font-size: 15px; color: var(--text-muted); margin: 6px 0 16px; }
-    .card-number { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--primary); }
-    .card h2 { font-size: 18px; margin: 4px 0 0; }
+
+    .card .card-desc {
+      font-size: 15px;
+      color: var(--text-muted);
+      margin: 6px 0 16px;
+    }
+
+    .card-number {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--primary);
+    }
+
+    .card h2 {
+      font-size: 18px;
+      margin: 4px 0 0;
+    }
   </style>
 </head>
+
 <body>
   <div class="container">
     <header>
       <div>
         <h1>PIVMA — Hub de Demonstrações</h1>
-        <p class="lead" style="margin:4px 0 0;">Catálogo das demonstrações da plataforma. Cada página opera sobre dados reais da API local.</p>
+        <p class="lead" style="margin:4px 0 0;">Catálogo das demonstrações da plataforma. Cada página opera sobre dados
+          reais da API local.</p>
       </div>
       <span class="api-status" data-api-status>
         <span class="dot"></span>
@@ -40,25 +59,29 @@
       <div class="card">
         <div class="card-number">1 &bull; BraCVAM</div>
         <h2>Editor de formulário + configuração de IA</h2>
-        <p class="card-desc">Customização de um formulário padrão e configuração da avaliação por IA de um campo: objetivo em linguagem natural, critérios assistidos, teste e publicação.</p>
+        <p class="card-desc">Customização de um formulário padrão e configuração da avaliação por IA de um campo:
+          objetivo em linguagem natural, critérios assistidos, teste e publicação.</p>
         <a href="/demos/forms/" class="btn">Abrir demonstração &rarr;</a>
       </div>
       <div class="card">
         <div class="card-number">2 &bull; Proponente</div>
         <h2>Submissão + pré-avaliação por IA</h2>
-        <p class="card-desc">Instanciação do processo, preenchimento e envio. Quando o formulário tem campos configurados, a submissão dispara a pré-avaliação assíncrona.</p>
+        <p class="card-desc">Instanciação do processo, preenchimento e envio. Quando o formulário tem campos
+          configurados, a submissão dispara a pré-avaliação assíncrona.</p>
         <a href="/demos/submission/" class="btn">Abrir demonstração &rarr;</a>
       </div>
       <div class="card">
         <div class="card-number">3 &bull; Avaliador</div>
         <h2>Triagem técnica &amp; decisão</h2>
-        <p class="card-desc">Inspeção da proposta, parecer campo a campo e decisão final. Exibe o painel da pré-avaliação por IA; o avaliador registra concordância por critério. A IA não decide.</p>
+        <p class="card-desc">Inspeção da proposta, parecer campo a campo e decisão final. Exibe o painel da
+          pré-avaliação por IA; o avaliador registra concordância por critério. A IA não decide.</p>
         <a href="/demos/triage/" class="btn">Abrir demonstração &rarr;</a>
       </div>
       <div class="card">
         <div class="card-number">4 &bull; Observabilidade</div>
         <h2>Observabilidade de IA</h2>
-        <p class="card-desc">Linha do tempo das esteiras de avaliação por IA: etapas, provedor e modelos usados, e custo real por execução.</p>
+        <p class="card-desc">Linha do tempo das esteiras de avaliação por IA: etapas, provedor e modelos usados, e custo
+          real por execução.</p>
         <a href="/demos/ai-pipeline/" class="btn">Abrir demonstração &rarr;</a>
       </div>
     </div>
@@ -80,19 +103,23 @@
       <div class="card">
         <div class="card-number">7 &bull; Proponente</div>
         <h2>Anexos de formulário</h2>
-        <p class="card-desc">Envio de um documento de apoio (POP) a um campo do formulário de submissão, com substituição, remoção e download pelo avaliador. Anexos não são avaliados por IA.</p>
+        <p class="card-desc">Envio de um documento de apoio (POP) a um campo do formulário de submissão, com
+          substituição, remoção e download pelo avaliador. Anexos não são avaliados por IA.</p>
         <a href="/demos/attachments/" class="btn">Abrir demonstração &rarr;</a>
       </div>
       <div class="card">
         <div class="card-number">8 &bull; Plataforma</div>
         <h2>Roteiro em duas fases (prévia)</h2>
-        <p class="card-desc">Prova, com a API real, que o roteiro do processo pode avançar para uma atividade que não é formulário. Não representa regra de negócio real de Planejamento.</p>
+        <p class="card-desc">Prova, com a API real, que o roteiro do processo pode avançar para uma atividade que não é
+          formulário. Não representa regra de negócio real de Planejamento.</p>
         <a href="/demos/roadmap/" class="btn">Abrir demonstração &rarr;</a>
       </div>
       <div class="card">
         <div class="card-number">9 &bull; BraCVAM / Padrão</div>
         <h2>Kanban de pendências</h2>
-        <p class="card-desc">Todas as atividades de todos os métodos associados ao usuário, em uma única consulta, organizadas em Não Iniciado/Em Andamento/Em Atraso/Concluído — e a visibilidade correta por cargo global vs. cargo contextual.</p>
+        <p class="card-desc">Todas as atividades de todos os métodos associados ao usuário, em uma única consulta,
+          organizadas em Não Iniciado/Em Andamento/Em Atraso/Concluído — e a visibilidade correta por cargo global vs.
+          cargo contextual.</p>
         <a href="/demos/kanban/" class="btn">Abrir demonstração &rarr;</a>
       </div>
     </div>
@@ -101,31 +128,80 @@
       <h2>Contas de teste</h2>
       <table>
         <thead>
-          <tr><th>Usuário</th><th>Senha</th><th>Perfil</th></tr>
+          <tr>
+            <th>Usuário</th>
+            <th>Senha</th>
+            <th>Perfil</th>
+          </tr>
         </thead>
         <tbody>
-          <tr><td><code>admin</code></td><td><code>Admin@123456</code></td><td>Administrador do sistema / BraCVAM</td></tr>
-          <tr><td><code>proponent_user</code></td><td><code>Proponent@123456</code></td><td>Proponente</td></tr>
-          <tr><td><code>triage_evaluator</code></td><td><code>Triage@123456</code></td><td>Avaliador de triagem (perfil BraCVAM)</td></tr>
-          <tr><td><code>kanban_demo_bracvam</code></td><td><code>KanbanDemo@123456</code></td><td>BraCVAM — vê todos os métodos no Kanban (demo 9)</td></tr>
-          <tr><td><code>kanban_demo_padrao_a</code> / <code>kanban_demo_padrao_b</code></td><td><code>KanbanDemo@123456</code></td><td>Padrão — cargos contextuais cruzados (demo 9)</td></tr>
+          <tr>
+            <td><code>admin</code></td>
+            <td><code>Password123!</code></td>
+            <td>Administrador do sistema / BraCVAM</td>
+          </tr>
+          <tr>
+            <td><code>proponent_user</code></td>
+            <td><code>Password123!</code></td>
+            <td>Proponente</td>
+          </tr>
+          <tr>
+            <td><code>triage_evaluator</code></td>
+            <td><code>Password123!</code></td>
+            <td>Avaliador de triagem (perfil BraCVAM)</td>
+          </tr>
+          <tr>
+            <td><code>kanban_demo_bracvam</code></td>
+            <td><code>KanbanDemo@123456</code></td>
+            <td>BraCVAM — vê todos os métodos no Kanban (demo 9)</td>
+          </tr>
+          <tr>
+            <td><code>kanban_demo_padrao_a</code> / <code>kanban_demo_padrao_b</code></td>
+            <td><code>KanbanDemo@123456</code></td>
+            <td>Padrão — cargos contextuais cruzados (demo 9)</td>
+          </tr>
         </tbody>
       </table>
     </div>
 
     <div class="card">
       <h2>Processos padrão (BraCVAM — Fase 1)</h2>
-      <p class="lead" style="margin:0 0 12px;">O sistema carrega cinco processos canônicos, restritos à Fase 1 (Submissão e Triagem). O <code>seed_all</code> instancia um de cada.</p>
+      <p class="lead" style="margin:0 0 12px;">O sistema carrega cinco processos canônicos, restritos à Fase 1
+        (Submissão e Triagem). O <code>seed_all</code> instancia um de cada.</p>
       <table>
         <thead>
-          <tr><th>Chave</th><th>Nome</th><th>Formulário de submissão na demo</th></tr>
+          <tr>
+            <th>Chave</th>
+            <th>Nome</th>
+            <th>Formulário de submissão na demo</th>
+          </tr>
         </thead>
         <tbody>
-          <tr><td><code>pre_validated_method</code></td><td>Método Pré-Validado</td><td>1 campo (título) — já em triagem</td></tr>
-          <tr><td><code>scope_extension</code></td><td>Extensão de Escopo</td><td>1 campo (título)</td></tr>
-          <tr><td><code>me_too_validation</code></td><td>Validação Me-Too</td><td>1 campo (título)</td></tr>
-          <tr><td><code>validated_method_dossier</code></td><td>Método Validado – Dossiê</td><td>Exemplo de avaliação por IA — já em triagem &bull; versão 3 traz uma Fase 2 de prévia (demo 8)</td></tr>
-          <tr><td><code>proof_of_concept</code></td><td>Prova de Conceito</td><td>Formulário Preliminar (FP) completo do BraCVAM</td></tr>
+          <tr>
+            <td><code>pre_validated_method</code></td>
+            <td>Método Pré-Validado</td>
+            <td>1 campo (título) — já em triagem</td>
+          </tr>
+          <tr>
+            <td><code>scope_extension</code></td>
+            <td>Extensão de Escopo</td>
+            <td>1 campo (título)</td>
+          </tr>
+          <tr>
+            <td><code>me_too_validation</code></td>
+            <td>Validação Me-Too</td>
+            <td>1 campo (título)</td>
+          </tr>
+          <tr>
+            <td><code>validated_method_dossier</code></td>
+            <td>Método Validado – Dossiê</td>
+            <td>Exemplo de avaliação por IA — já em triagem &bull; versão 3 traz uma Fase 2 de prévia (demo 8)</td>
+          </tr>
+          <tr>
+            <td><code>proof_of_concept</code></td>
+            <td>Prova de Conceito</td>
+            <td>Formulário Preliminar (FP) completo do BraCVAM</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -137,4 +213,5 @@
 
   <script src="/demos/assets/base.js"></script>
 </body>
+
 </html>

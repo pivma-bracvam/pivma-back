@@ -10,8 +10,8 @@
 - Autenticação: `POST /auth/login` `{identifier, password}` grava cookie;
   `Origin: http://localhost:8000` nas mutações.
 
-Contas: `admin` / `Admin@123456` · `proponent_user` / `Proponent@123456` ·
-`triage_evaluator` / `Triage@123456` (perfil **BraCVAM**) ·
+Contas: `admin` / `Password123!` · `proponent_user` / `Password123!` ·
+`triage_evaluator` / `Password123!` (perfil **BraCVAM**) ·
 `mariana_gestora` / `Mariana@123456` (perfil **Grupo Gestor**).
 
 ## Cenário A — Triagem só pelo BraCVAM (US1)

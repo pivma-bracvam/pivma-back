@@ -1,42 +1,105 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PIVMA — Anexos de Formulário</title>
   <link rel="stylesheet" href="/demos/assets/base.css">
   <style>
-    .container { max-width: 860px; margin: 0 auto; }
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
     header {
-      display: flex; justify-content: space-between; align-items: center;
-      flex-wrap: wrap; gap: 12px; margin-bottom: 20px;
-      padding-bottom: 16px; border-bottom: 2px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid var(--border);
     }
-    h1 { font-size: 26px; font-weight: 800; }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 800;
+    }
+
     .step-num {
-      display: inline-block; width: 24px; height: 24px; line-height: 24px;
-      text-align: center; border-radius: 50%; background: var(--primary);
-      color: #fff; font-weight: 700; font-size: 14px; margin-right: 8px;
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      line-height: 24px;
+      text-align: center;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 700;
+      font-size: 14px;
+      margin-right: 8px;
     }
-    label { display: block; font-weight: 600; margin: 12px 0 4px; }
-    input[type=file], select {
-      width: 100%; padding: 8px; border: 1px solid var(--border);
-      border-radius: var(--radius); font: inherit; background: #fff;
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin: 12px 0 4px;
     }
+
+    input[type=file],
+    select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font: inherit;
+      background: #fff;
+    }
+
     .meta {
-      margin-top: 12px; padding: 12px; border: 1px solid var(--border-soft);
-      border-radius: var(--radius); background: var(--bg); font-size: 14px;
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius);
+      background: var(--bg);
+      font-size: 14px;
     }
-    .meta dt { font-weight: 600; color: var(--text-muted); }
-    .meta dd { margin: 0 0 6px; word-break: break-all; }
-    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+    .meta dt {
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .meta dd {
+      margin: 0 0 6px;
+      word-break: break-all;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
     pre {
-      background: #0f172a; color: #e2e8f0; padding: 12px;
-      border-radius: var(--radius); overflow-x: auto; font-size: 13px;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 12px;
+      border-radius: var(--radius);
+      overflow-x: auto;
+      font-size: 13px;
     }
-    .muted { color: var(--text-muted); font-size: 14px; }
+
+    .muted {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
   </style>
 </head>
+
 <body>
   <div class="container">
     <header>
@@ -65,9 +128,13 @@
     <div class="card">
       <div class="step-title"><span class="step-num">2</span>Processo e campo de anexo</div>
       <label for="process">Processo (Prova de Conceito — Formulário Preliminar)</label>
-      <select id="process"><option value="">— carregue a sessão —</option></select>
+      <select id="process">
+        <option value="">— carregue a sessão —</option>
+      </select>
       <label for="field">Campo de anexo</label>
-      <select id="field"><option value="">—</option></select>
+      <select id="field">
+        <option value="">—</option>
+      </select>
     </div>
 
     <div class="card">
@@ -134,7 +201,7 @@
     async function login() {
       const { res } = await api('POST', '/auth/login', {
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: 'proponent_user', password: 'Proponent@123456' }),
+        body: JSON.stringify({ identifier: 'proponent_user', password: 'Password123!' }),
       });
       if (!res.ok) { window.showNeedsSeed($('inspector').parentElement); return; }
       await checkSession();
@@ -228,4 +295,5 @@
     (async () => { if (await checkSession()) await loadProcesses(); })();
   </script>
 </body>
+
 </html>

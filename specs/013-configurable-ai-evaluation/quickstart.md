@@ -17,7 +17,7 @@ Guia para validar a feature ponta a ponta contra a API real. Detalhes de entidad
 - Conta admin: registrar via `POST /users` e promover com `uv run python -m pivma.bootstrap_rbac --user-id <UUID>`
 - Seed da feature: `uv run python -m scripts.seeds.seed_ai_evaluations` (ou `seed_all`)
 
-Autenticação nas chamadas: `POST /auth/login` com `{identifier, password}` grava o cookie `access_token`; envie `Origin: http://localhost:8000` nas mutações. Contas semeadas: `admin` / `Admin@123456`, `proponent_user` / `Proponent@123456`, `triage_evaluator` / `Triage@123456`.
+Autenticação nas chamadas: `POST /auth/login` com `{identifier, password}` grava o cookie `access_token`; envie `Origin: http://localhost:8000` nas mutações. Contas semeadas: `admin` / `Password123!`, `proponent_user` / `Password123!`, `triage_evaluator` / `Password123!`.
 
 ---
 

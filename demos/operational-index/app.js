@@ -56,7 +56,7 @@ async function quickLoginAdmin() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ identifier: 'admin', password: 'Admin@123456' }),
+    body: JSON.stringify({ identifier: 'admin', password: 'Password123!' }),
   });
   const data = res.ok
     ? { message: 'Autenticado com sucesso como Administrador!' }
@@ -80,7 +80,7 @@ async function testForbiddenUser() {
     credentials: 'include',
     body: JSON.stringify({
       identifier: 'proponent_user',
-      password: 'Proponent@123456',
+      password: 'Password123!',
     }),
   });
   const data = res.ok

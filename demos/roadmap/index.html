@@ -1,12 +1,17 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PIVMA - Roteiro em Duas Fases (Spec 017)</title>
   <link rel="stylesheet" href="/demos/assets/base.css">
   <style>
-    .container { max-width: 1000px; margin: 0 auto; }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
     header {
       display: flex;
       justify-content: space-between;
@@ -17,8 +22,19 @@
       flex-wrap: wrap;
       gap: 12px;
     }
-    .back-link { font-size: 16px; color: var(--primary); text-decoration: none; font-weight: 700; }
-    h1 { font-size: 26px; font-weight: 800; }
+
+    .back-link {
+      font-size: 16px;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 800;
+    }
+
     .session-bar {
       display: flex;
       align-items: center;
@@ -30,17 +46,34 @@
       font-size: 15px;
       flex-wrap: wrap;
     }
-    .session-badge { font-weight: 700; color: var(--primary); }
+
+    .session-badge {
+      font-weight: 700;
+      color: var(--primary);
+    }
+
     .card {
       background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 24px;
       margin-bottom: 24px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
     }
-    h2 { font-size: 19px; font-weight: 700; margin-bottom: 12px; color: #1e293b; }
-    .note { font-size: 14px; color: var(--text-muted); margin-bottom: 16px; }
+
+    h2 {
+      font-size: 19px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #1e293b;
+    }
+
+    .note {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
     .btn {
       font-size: 15px;
       font-weight: 700;
@@ -50,47 +83,148 @@
       cursor: pointer;
       transition: opacity 0.15s;
     }
-    .btn-primary { background: var(--primary); color: #fff; }
-    .btn-secondary { background: #64748b; color: #fff; }
-    .btn-success { background: var(--success); color: #fff; }
-    .btn-sm { font-size: 13px; padding: 6px 12px; }
-    .btn:hover { opacity: 0.9; }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    .roadmap { display: flex; flex-direction: column; gap: 10px; }
-    .phase-block { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: #64748b;
+      color: #fff;
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .btn-sm {
+      font-size: 13px;
+      padding: 6px 12px;
+    }
+
+    .btn:hover {
+      opacity: 0.9;
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .roadmap {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .phase-block {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
     .phase-header {
-      background: #f1f5f9; padding: 8px 14px; font-weight: 700; font-size: 14px;
-      color: #1e293b; display: flex; justify-content: space-between; align-items: center;
+      background: #f1f5f9;
+      padding: 8px 14px;
+      font-weight: 700;
+      font-size: 14px;
+      color: #1e293b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
+
     .activity-row {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 10px 14px; border-top: 1px solid var(--border); gap: 10px; flex-wrap: wrap;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      border-top: 1px solid var(--border);
+      gap: 10px;
+      flex-wrap: wrap;
     }
-    .activity-name { font-weight: 600; font-size: 15px; }
+
+    .activity-name {
+      font-weight: 600;
+      font-size: 15px;
+    }
+
     .type-badge {
-      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
-      padding: 2px 8px; border-radius: 999px; background: #e2e8f0; color: #334155;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      color: #334155;
     }
-    .type-form { background: #dbeafe; color: #1e40af; }
-    .type-placeholder { background: #fce7f3; color: #9d174d; }
-    .type-decision { background: #fef3c7; color: #92400e; }
-    .type-external_task { background: #dcfce7; color: #166534; }
+
+    .type-form {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .type-placeholder {
+      background: #fce7f3;
+      color: #9d174d;
+    }
+
+    .type-decision {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .type-external_task {
+      background: #dcfce7;
+      color: #166534;
+    }
+
     .status-pill {
-      font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
-      background: #e2e8f0; color: #1e293b;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      color: #1e293b;
     }
-    .status-COMPLETED { background: #bbf7d0; color: #166534; }
-    .status-READY, .status-IN_PROGRESS { background: #bae6fd; color: #0369a1; }
-    .status-BLOCKED { background: #fecaca; color: #991b1b; }
-    .status-NOT_DECLARED { background: #e2e8f0; color: #64748b; }
+
+    .status-COMPLETED {
+      background: #bbf7d0;
+      color: #166534;
+    }
+
+    .status-READY,
+    .status-IN_PROGRESS {
+      background: #bae6fd;
+      color: #0369a1;
+    }
+
+    .status-BLOCKED {
+      background: #fecaca;
+      color: #991b1b;
+    }
+
+    .status-NOT_DECLARED {
+      background: #e2e8f0;
+      color: #64748b;
+    }
 
     .inspector {
-      background: #0f172a; color: #38bdf8; padding: 16px; border-radius: var(--radius);
-      font-family: monospace; font-size: 14px; overflow-x: auto; max-height: 240px;
+      background: #0f172a;
+      color: #38bdf8;
+      padding: 16px;
+      border-radius: var(--radius);
+      font-family: monospace;
+      font-size: 14px;
+      overflow-x: auto;
+      max-height: 240px;
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <header>
@@ -101,8 +235,10 @@
       <div class="session-bar">
         <span>Sessão:</span>
         <span id="user-display" class="session-badge">Não autenticado</span>
-        <button class="btn btn-sm btn-primary" onclick="quickLogin('proponent_user', 'Proponent@123456')">Entrar como Proponente</button>
-        <button class="btn btn-sm btn-secondary" onclick="quickLogin('triage_evaluator', 'Triage@123456')">Entrar como Avaliador</button>
+        <button class="btn btn-sm btn-primary" onclick="quickLogin('proponent_user', 'Password123!')">Entrar como
+          Proponente</button>
+        <button class="btn btn-sm btn-secondary" onclick="quickLogin('triage_evaluator', 'Password123!')">Entrar como
+          Avaliador</button>
       </div>
     </header>
 
@@ -130,7 +266,8 @@
         <div style="display:flex; align-items:center; gap:8px;">
           <span>Processo: <strong id="current-process-code">Nenhum</strong></span>
         </div>
-        <button class="btn btn-primary" id="btn-create" onclick="createProcess()" disabled>Criar processo (login como Proponente)</button>
+        <button class="btn btn-primary" id="btn-create" onclick="createProcess()" disabled>Criar processo (login como
+          Proponente)</button>
       </div>
     </div>
 
@@ -138,26 +275,30 @@
     <div class="card">
       <h2>3. Preencher e enviar a submissão (Fase 1)</h2>
       <p class="note">Reaproveita o formulário já existente de <code>validated_method_dossier</code> (Spec 011/013).</p>
-      <button class="btn btn-secondary btn-sm" id="btn-submit-form" onclick="submitForm()" disabled>Preencher e enviar submissão</button>
+      <button class="btn btn-secondary btn-sm" id="btn-submit-form" onclick="submitForm()" disabled>Preencher e enviar
+        submissão</button>
     </div>
 
     <!-- Passo 4: Aprovar triagem -->
     <div class="card">
       <h2>4. Aprovar a triagem (login como Avaliador)</h2>
-      <p class="note">Ao aprovar, a dependência da Fase 2 é satisfeita e <code>planning_preview</code> deve sair de bloqueada.</p>
+      <p class="note">Ao aprovar, a dependência da Fase 2 é satisfeita e <code>planning_preview</code> deve sair de
+        bloqueada.</p>
       <p class="note" id="ai-wait-note" style="display:none; color:#b45309;">
         Este método tem avaliação por IA configurada em ambientes que já rodaram o seed
         completo (<code>seed_all</code>). O processo entrou em <code>AI_PRE_EVALUATION</code>;
         aguardando a IA liberar a triagem (a Fase 1 continua igual à Spec 013 — nada
         desta demo altera esse fluxo).
       </p>
-      <button class="btn btn-success btn-sm" id="btn-approve" onclick="approveTriage()" disabled>Aprovar triagem (POST /triage/decision)</button>
+      <button class="btn btn-success btn-sm" id="btn-approve" onclick="approveTriage()" disabled>Aprovar triagem (POST
+        /triage/decision)</button>
     </div>
 
     <!-- Passo 5: Roteiro da instância -->
     <div class="card">
       <h2>5. Roteiro da instância (GET /processes/{id} + GET /tasks)</h2>
-      <button class="btn btn-secondary btn-sm" onclick="loadInstanceRoadmap()" disabled id="btn-instance-roadmap">Ver roteiro da instância</button>
+      <button class="btn btn-secondary btn-sm" onclick="loadInstanceRoadmap()" disabled id="btn-instance-roadmap">Ver
+        roteiro da instância</button>
       <div id="instance-roadmap" class="roadmap" style="margin-top: 16px;"></div>
     </div>
 
@@ -190,7 +331,7 @@
         } else {
           document.getElementById('user-display').textContent = 'Não autenticado';
         }
-      } catch (err) {}
+      } catch (err) { }
     }
 
     async function quickLogin(identifier, password) {
@@ -368,4 +509,5 @@
     })();
   </script>
 </body>
+
 </html>

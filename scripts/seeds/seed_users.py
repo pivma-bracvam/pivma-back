@@ -18,7 +18,7 @@ async def run_seed_users() -> None:
             username='admin',
             email='admin@bracvam.fiocruz.br',
             full_name='Administrador do Sistema BraCVAM',
-            password='Admin@123456',
+            password='Password123!',
         )
         await ensure_admin_profile(session, admin.id)
 
@@ -28,7 +28,7 @@ async def run_seed_users() -> None:
             username='proponent_user',
             email='proponente@laboratorio.com.br',
             full_name='Dra. Helena Proponente',
-            password='Proponent@123456',
+            password='Password123!',
         )
         await ensure_profile_by_name(session, proponent.id, 'Proponente')
 
@@ -38,7 +38,7 @@ async def run_seed_users() -> None:
             username='triage_evaluator',
             email='avaliador@bracvam.fiocruz.br',
             full_name='Dr. Roberto Avaliador',
-            password='Triage@123456',
+            password='Password123!',
         )
         await ensure_profile_by_name(session, evaluator.id, 'BraCVAM')
 
@@ -48,21 +48,21 @@ async def run_seed_users() -> None:
                 'carlos_pesquisador',
                 'carlos@fiocruz.br',
                 'Dr. Carlos Eduardo',
-                'Carlos@123456',
+                'Password123!',
                 'Laboratório Participante',
             ),
             (
                 'mariana_gestora',
                 'mariana@fiocruz.br',
                 'Mariana Rocha',
-                'Mariana@123456',
+                'Password123!',
                 'Grupo Gestor',
             ),
             (
                 'beatriz_estudo',
                 'beatriz@fiocruz.br',
                 'Beatriz Lima',
-                'Beatriz@123456',
+                'Password123!',
                 'Gerente do Estudo',
             ),
         ]
