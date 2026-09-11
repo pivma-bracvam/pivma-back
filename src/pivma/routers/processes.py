@@ -4,11 +4,10 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from pivma.core.authorization import (
-    active_proponent_process_scope,
     can_manage_participants,
     can_manage_process_templates,
 )
@@ -21,10 +20,10 @@ from pivma.core.database.models import (
 )
 from pivma.core.database.models import User as UserModel
 from pivma.core.process_engine import (
-    PROPONENT_SCOPED_STATUSES,
     NotFoundError,
     ValidationError,
     instantiate_process,
+    process_visibility_clause,
     update_form_template_definition,
 )
 from pivma.dependencies import CurrentUser, Session
@@ -367,21 +366,13 @@ async def list_processes(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
 ):
-    stmt = (
-        select(ProcessInstance)
-        .where(
-            ProcessInstance.deleted_at.is_(None),
-            or_(
-                ProcessInstance.status.notin_(PROPONENT_SCOPED_STATUSES),
-                ProcessInstance.id.in_(
-                    active_proponent_process_scope(current_user.id)
-                ),
-            ),
-        )
-        .options(
-            selectinload(ProcessInstance.template_version).selectinload(
-                ProcessTemplateVersion.template
-            )
+    stmt = select(ProcessInstance).where(ProcessInstance.deleted_at.is_(None))
+    visibility = await process_visibility_clause(session, current_user.id)
+    if visibility is not None:
+        stmt = stmt.where(visibility)
+    stmt = stmt.options(
+        selectinload(ProcessInstance.template_version).selectinload(
+            ProcessTemplateVersion.template
         )
     )
     if status:
@@ -427,22 +418,15 @@ async def list_processes(
     status_code=HTTPStatus.OK,
 )
 async def get_process(id: UUID, session: Session, current_user: CurrentUser):
-    stmt = (
-        select(ProcessInstance)
-        .where(
-            ProcessInstance.id == id,
-            ProcessInstance.deleted_at.is_(None),
-            or_(
-                ProcessInstance.status.notin_(PROPONENT_SCOPED_STATUSES),
-                ProcessInstance.id.in_(
-                    active_proponent_process_scope(current_user.id)
-                ),
-            ),
-        )
-        .options(
-            selectinload(ProcessInstance.template_version).selectinload(
-                ProcessTemplateVersion.template
-            )
+    stmt = select(ProcessInstance).where(
+        ProcessInstance.id == id, ProcessInstance.deleted_at.is_(None)
+    )
+    visibility = await process_visibility_clause(session, current_user.id)
+    if visibility is not None:
+        stmt = stmt.where(visibility)
+    stmt = stmt.options(
+        selectinload(ProcessInstance.template_version).selectinload(
+            ProcessTemplateVersion.template
         )
     )
     p = (await session.execute(stmt)).scalar_one_or_none()
@@ -473,15 +457,11 @@ async def get_process_timeline(
     id: UUID, session: Session, current_user: CurrentUser
 ):
     p_stmt = select(ProcessInstance).where(
-        ProcessInstance.id == id,
-        ProcessInstance.deleted_at.is_(None),
-        or_(
-            ProcessInstance.status.notin_(PROPONENT_SCOPED_STATUSES),
-            ProcessInstance.id.in_(
-                active_proponent_process_scope(current_user.id)
-            ),
-        ),
+        ProcessInstance.id == id, ProcessInstance.deleted_at.is_(None)
     )
+    visibility = await process_visibility_clause(session, current_user.id)
+    if visibility is not None:
+        p_stmt = p_stmt.where(visibility)
     p = (await session.execute(p_stmt)).scalar_one_or_none()
     if not p:
         raise HTTPException(

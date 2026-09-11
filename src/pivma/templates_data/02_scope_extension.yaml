@@ -2,7 +2,7 @@ process_template:
   key: "scope_extension"
   name: "Extensão de Escopo de Aplicação"
   description: "Método já validado sendo proposta uma nova aplicação regulatória ou nova finalidade de uso (Fitness-for-Purpose Validation)."
-  version: 1
+  version: 2
   is_active: true
 
 phases:
@@ -13,14 +13,16 @@ phases:
       - key: "proposal_submission"
         name: "Submissão da Proposta"
         order_index: 1
-        assigned_role: "PROPONENT"
+        assigned_role: "proponent"
+        sla_hours: 168  # 7 dias corridos para preencher e submeter (Spec 018)
         form_template_key: "submission_scope_extension_v1"
         dependencies: []
 
       - key: "triage_evaluation"
         name: "Triagem e Decisão BraCVAM"
         order_index: 2
-        assigned_role: "TRIAGE_LEAD"
+        assigned_role: "bracvam"
+        sla_hours: 72  # 3 dias corridos para a triagem decidir (Spec 018)
         form_template_key: "triage_review_v1"
         dependencies:
           - required_activity_key: "proposal_submission"

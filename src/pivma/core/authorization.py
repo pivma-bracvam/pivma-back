@@ -35,12 +35,40 @@ ADMINISTRATIVE_PERMISSIONS = frozenset({
     RBAC_ASSIGNMENTS_MANAGE,
 })
 ADMINISTRATOR_SYSTEM_KEY = 'administrator'
+BRACVAM_SYSTEM_KEY = 'bracvam'
+PLATFORM_WIDE_SYSTEM_KEYS = frozenset({
+    ADMINISTRATOR_SYSTEM_KEY,
+    BRACVAM_SYSTEM_KEY,
+})
 LABORATORY_ROLE_KEYS = frozenset({
     'lead_laboratory',
     'participating_laboratory',
 })
 GROUP_MANAGER_ROLE_KEY = 'group_manager'
 PROPONENT_ROLE_KEY = 'proponent'
+
+# Cargo declarado por uma atividade de processo (`Task.assigned_role`).
+# Espelha `ActivityCargo` de `schemas.py` (camada de API); duplicado aqui,
+# sem import cruzado, no mesmo padrão já usado por `LABORATORY_ROLE_KEYS`
+# (Spec 018).
+GLOBAL_ACTIVITY_CARGOS = frozenset({'admin', 'bracvam'})
+ACTIVITY_CARGOS = (
+    frozenset({
+        'group_manager',
+        'study_manager',
+        'statistician',
+        'adhoc_evaluator',
+        'peer_reviewer',
+        'lead_laboratory',
+        'participating_laboratory',
+        'proponent',
+    })
+    | GLOBAL_ACTIVITY_CARGOS
+)
+_GLOBAL_CARGO_SYSTEM_KEYS = {
+    'admin': ADMINISTRATOR_SYSTEM_KEY,
+    'bracvam': BRACVAM_SYSTEM_KEY,
+}
 
 
 async def effective_permission_codes(
@@ -313,6 +341,79 @@ async def is_active_effective_proponent(
         .limit(1)
     )
     return result is not None
+
+
+async def has_platform_wide_access(
+    session: AsyncSession, user_id: UUID
+) -> bool:
+    """`Admin`/`BraCVAM` (Spec 018): vê e gerencia todo processo da plataforma,
+
+    independente de atribuição por processo.
+    """
+    profiles = await active_profiles_for_user(session, user_id)
+    return any(p.system_key in PLATFORM_WIDE_SYSTEM_KEYS for p in profiles)
+
+
+def active_participant_process_scope(user_id: UUID):
+    """Subquery dos processos onde o usuário tem `Assignment` ativa,
+
+    em qualquer `role_key` (irmã de `active_proponent_process_scope`, que
+    filtra só `proponent`) — usada pelos cargos `Padrão` (Spec 018, FR-004).
+    """
+    return (
+        select(Assignment.process_instance_id)
+        .join(User, User.id == Assignment.user_id)
+        .where(
+            Assignment.user_id == user_id,
+            Assignment.revoked_at.is_(None),
+            Assignment.deleted_at.is_(None),
+            User.deleted_at.is_(None),
+        )
+    )
+
+
+async def resolve_activity_holders(
+    session: AsyncSession, process_id: UUID, cargo: str
+) -> list[User]:
+    """Quem ocupa hoje o cargo de uma atividade (Spec 018, FR-016).
+
+    Cargo global (`admin`/`bracvam`) resolve via `AccessProfile`; cargo
+    contextual resolve via `Assignment` ativa naquele processo. Lista vazia
+    significa que ninguém ocupa o cargo ainda (ver `cargo_unassigned` no
+    endpoint de Kanban).
+    """
+    if cargo in GLOBAL_ACTIVITY_CARGOS:
+        system_key = _GLOBAL_CARGO_SYSTEM_KEYS[cargo]
+        result = await session.scalars(
+            select(User)
+            .join(UserAccessProfile, UserAccessProfile.user_id == User.id)
+            .join(
+                AccessProfile,
+                AccessProfile.id == UserAccessProfile.profile_id,
+            )
+            .where(
+                AccessProfile.system_key == system_key,
+                UserAccessProfile.deleted_at.is_(None),
+                AccessProfile.deleted_at.is_(None),
+                User.deleted_at.is_(None),
+            )
+            .distinct()
+        )
+        return list(result)
+
+    result = await session.scalars(
+        select(User)
+        .join(Assignment, Assignment.user_id == User.id)
+        .where(
+            Assignment.process_instance_id == process_id,
+            Assignment.role_key == cargo,
+            Assignment.revoked_at.is_(None),
+            Assignment.deleted_at.is_(None),
+            User.deleted_at.is_(None),
+        )
+        .distinct()
+    )
+    return list(result)
 
 
 async def can_manage_participants(

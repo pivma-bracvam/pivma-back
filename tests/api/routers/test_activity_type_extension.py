@@ -110,7 +110,9 @@ async def test_placeholder_activity_unlocks_on_triage_approval(
     )
     assert resp.status_code == HTTPStatus.CREATED
     process_id = resp.json()['id']
-    assert resp.json()['version_number'] == 2
+    # Spec 018 bumpou a versão publicada ao normalizar `assigned_role`
+    # ('BRACVAM_ADMIN' -> 'bracvam') no mesmo payload desta Fase 2 exemplo.
+    assert resp.json()['version_number'] == 3
 
     client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
@@ -125,12 +127,15 @@ async def test_placeholder_activity_unlocks_on_triage_approval(
         },
     )
 
-    # 2. A Fase 2 ainda não existe como tarefa (dependência não satisfeita)
+    # 2. A Fase 2 ainda não existe como tarefa (dependência não satisfeita).
+    #    Filtra por título, não por `assigned_role`: a normalização da
+    #    Spec 018 faz a tarefa de triagem também usar o cargo global
+    #    'bracvam', então o cargo sozinho não distingue mais as duas.
     tasks_before = client.get(
         '/tasks', params={'process_id': process_id}
     ).json()
     assert not [
-        t for t in tasks_before if t['assigned_role'] == 'BRACVAM_ADMIN'
+        t for t in tasks_before if t['title'] == 'Prévia do Planejamento'
     ]
 
     # 3. Triador aprova a triagem
@@ -148,10 +153,11 @@ async def test_placeholder_activity_unlocks_on_triage_approval(
         '/tasks', params={'process_id': process_id}
     ).json()
     preview_tasks = [
-        t for t in tasks_after if t['assigned_role'] == 'BRACVAM_ADMIN'
+        t for t in tasks_after if t['title'] == 'Prévia do Planejamento'
     ]
     assert len(preview_tasks) == 1
     assert preview_tasks[0]['status'] == 'READY'
+    assert preview_tasks[0]['assigned_role'] == 'bracvam'
 
     # 5. Confirmação direta no banco: atividade ativada com o tipo declarado
     #    e nenhum FormInstance criado para ela (Spec 017 FR-005).

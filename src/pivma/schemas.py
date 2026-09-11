@@ -392,6 +392,48 @@ class ProcessInstanceListResponse(BaseModel):
     size: int
 
 
+# ==========================================
+# KANBAN DE PENDÊNCIAS (Spec 018)
+# ==========================================
+
+KanbanColumn = Literal[
+    'NAO_INICIADO', 'EM_ANDAMENTO', 'EM_ATRASO', 'CONCLUIDO'
+]
+
+
+class KanbanCardProcess(BaseModel):
+    id: UUID
+    code: str
+    title: str
+    template_key: str
+
+
+class KanbanCardItem(BaseModel):
+    activity_id: UUID
+    activity_key: str
+    activity_name: str
+    column: KanbanColumn
+    cargo: ActivityCargo
+    process: KanbanCardProcess
+    blocked_reason: str | None = None
+    blocking_activity_key: str | None = None
+    blocking_activity_status: str | None = None
+    blocking_activity_cargo: ActivityCargo | None = None
+    run_started_at: datetime | None = None
+    sla_hours: int | None = None
+    completed_at: datetime | None = None
+    cargo_unassigned: bool = False
+    actionable_now: bool = False
+
+
+class KanbanPage(BaseModel):
+    items: list[KanbanCardItem]
+    total: int
+    page: int
+    size: int
+    counts_by_column: dict[KanbanColumn, int]
+
+
 class AttachmentMetadata(BaseModel):
     artifact_id: UUID
     filename: str
@@ -572,6 +614,24 @@ ParticipantRole = Literal[
     'participating_laboratory',
     'proponent',
 ]
+
+# Cargo declarado por uma atividade de processo (`Task.assigned_role` / YAML do
+# template). Mesmo vocabulário contextual de `ParticipantRole` (resolvido via
+# `Assignment` ativa no processo), mais dois valores reservados de cargo global
+# (resolvidos via `AccessProfile`, nunca por processo) — Spec 018.
+ActivityCargo = Literal[
+    'group_manager',
+    'study_manager',
+    'statistician',
+    'adhoc_evaluator',
+    'peer_reviewer',
+    'lead_laboratory',
+    'participating_laboratory',
+    'proponent',
+    'admin',
+    'bracvam',
+]
+GLOBAL_ACTIVITY_CARGOS = frozenset({'admin', 'bracvam'})
 
 LABORATORY_ROLE_KEYS = frozenset({
     'lead_laboratory',

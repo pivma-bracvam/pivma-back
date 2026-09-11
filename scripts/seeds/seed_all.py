@@ -5,6 +5,7 @@ import sys
 
 from scripts.seeds.seed_ai_evaluations import run_seed_ai_evaluations
 from scripts.seeds.seed_forms import run_seed_forms
+from scripts.seeds.seed_kanban import run_seed_kanban
 from scripts.seeds.seed_triage import run_seed_triage
 from scripts.seeds.seed_users import run_seed_users
 
@@ -14,20 +15,24 @@ async def run_all_seeds() -> None:
     print('PIVMA-Back: Executando Carga Completa de Dados (Seeds)')
     print('=====================================================\n')
 
-    print('[1/4] Semeando Usuários e Perfis RBAC...')
+    print('[1/5] Semeando Usuários e Perfis RBAC...')
     await run_seed_users()
     print()
 
-    print('[2/4] Semeando Templates de Processo e Formulários...')
+    print('[2/5] Semeando Templates de Processo e Formulários...')
     await run_seed_forms()
     print()
 
-    print('[3/4] Semeando Processos em Triagem e Ciclo de Vida...')
+    print('[3/5] Semeando Processos em Triagem e Ciclo de Vida...')
     await run_seed_triage()
     print()
 
-    print('[4/4] Semeando Avaliação por IA e processo em triagem...')
+    print('[4/5] Semeando Avaliação por IA e processo em triagem...')
     await run_seed_ai_evaluations()
+    print()
+
+    print('[5/5] Semeando Kanban de pendências (Spec 018, ~300 métodos)...')
+    await run_seed_kanban()
     print()
 
     print('=====================================================')
@@ -49,12 +54,15 @@ async def run_all_seeds() -> None:
     print(
         '  5. Roteiro em duas fases:      http://localhost:8000/demos/roadmap/'
     )
+    print(
+        '  6. Kanban de pendências:       http://localhost:8000/demos/kanban/'
+    )
     print('Apoio:')
     print(
-        '  6. Usuários e RBAC:            http://localhost:8000/demos/users/'
+        '  7. Usuários e RBAC:            http://localhost:8000/demos/users/'
     )
     print(
-        '  7. Índice operacional:        '
+        '  8. Índice operacional:        '
         'http://localhost:8000/demos/operational-index/'
     )
     print('\nContas pré-configuradas (login: /auth/login):')
@@ -69,6 +77,14 @@ async def run_all_seeds() -> None:
     print(
         '  - triage_evaluator / Triage@123456  '
         '(Avaliador: triagem e feedback por critério)'
+    )
+    print(
+        '  - kanban_demo_bracvam / KanbanDemo@123456 '
+        '(BraCVAM: vê todos os ~300 métodos no Kanban)'
+    )
+    print(
+        '  - kanban_demo_padrao_a / KanbanDemo@123456 '
+        '(Padrão: Proponente no Método A, Gestor no Método B)'
     )
     print(
         '\n"[DEMO 4] Dossiê Validado — Exemplo de IA" já está em triagem com'

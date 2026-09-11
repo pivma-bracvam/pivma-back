@@ -10,6 +10,7 @@ from pivma.core.database.models import (
     ActivityRun,
     Task,
 )
+from pivma.core.process_engine import process_visibility_clause
 from pivma.dependencies import CurrentUser, Session
 from pivma.schemas import TaskDetail, TaskSummary
 
@@ -40,6 +41,11 @@ async def list_tasks(
             .selectinload(ActivityInstance.process_instance)
         )
     )
+    # Spec 018 (FR-006/FR-014): sem isto, qualquer usuário autenticado listava
+    # as tarefas de todos os processos da plataforma, sem nenhuma restrição.
+    visibility = await process_visibility_clause(session, current_user.id)
+    if visibility is not None:
+        stmt = stmt.where(visibility)
     if status:
         stmt = stmt.where(Task.status == status)
     if role:
@@ -72,10 +78,13 @@ async def list_tasks(
 async def get_task_detail(
     id: UUID,
     session: Session,
-    _: CurrentUser,
+    current_user: CurrentUser,
 ):
     stmt = (
         select(Task)
+        .join(Task.activity_run)
+        .join(ActivityRun.activity_instance)
+        .join(ActivityInstance.process_instance)
         .where(Task.id == id, Task.deleted_at.is_(None))
         .options(
             selectinload(Task.activity_run).selectinload(
@@ -83,6 +92,9 @@ async def get_task_detail(
             )
         )
     )
+    visibility = await process_visibility_clause(session, current_user.id)
+    if visibility is not None:
+        stmt = stmt.where(visibility)
     t = (await session.execute(stmt)).scalar_one_or_none()
     if not t:
         raise HTTPException(

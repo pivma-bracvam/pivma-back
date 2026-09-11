@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PIVMA - Kanban de Pendências (Spec 018)</title>
+  <link rel="stylesheet" href="/demos/assets/base.css">
+  <style>
+    .container { max-width: 1280px; margin: 0 auto; }
+    .session-bar { flex-wrap: wrap; }
+    .btn-sm { font-size: 13px; padding: 6px 12px; }
+    .btn.secondary.active { background: var(--primary); }
+
+    .summary-bar {
+      display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;
+    }
+    .summary-pill {
+      flex: 1; min-width: 140px; border-radius: var(--radius);
+      border: 1px solid var(--border); background: var(--card-bg);
+      padding: 12px 16px; text-align: center; cursor: pointer;
+    }
+    .summary-pill.active { outline: 2px solid var(--primary); }
+    .summary-pill .n { font-size: 26px; font-weight: 800; display: block; }
+    .summary-pill .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+
+    .board {
+      display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr));
+      gap: 12px; align-items: start;
+    }
+    @media (max-width: 900px) { .board { grid-template-columns: 1fr; } }
+    .column { background: #f1f5f9; border-radius: var(--radius); padding: 10px; min-height: 80px; }
+    .column h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; color: #334155; }
+    .card-item {
+      background: var(--card-bg); border: 1px solid var(--border-soft);
+      border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px;
+      cursor: pointer;
+    }
+    .card-item.actionable { border-left: 4px solid var(--success); }
+    .card-item .act-name { font-weight: 700; margin-bottom: 2px; }
+    .card-item .proc-title { color: var(--text-muted); font-size: 12px; }
+    .card-item .cargo-badge {
+      display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 700;
+      padding: 2px 8px; border-radius: 999px; background: #e2e8f0; color: #334155;
+    }
+    .card-item.unassigned { background: #fffbeb; border-color: #fde68a; }
+    .empty-note { font-size: 12px; color: var(--text-muted); padding: 8px; }
+
+    .detail-panel {
+      background: #0f172a; color: #e2e8f0; padding: 14px; border-radius: var(--radius);
+      font-size: 13px; margin-top: 16px; white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <a href="/demos/" class="back-link">&larr; Voltar ao Catálogo de Demonstrações</a>
+        <h1 style="margin-top: 4px;">Kanban de Pendências (Spec 018)</h1>
+      </div>
+      <div class="session-bar">
+        <span>Sessão:</span>
+        <span id="user-display" class="session-badge">Não autenticado</span>
+        <button class="btn btn-sm" onclick="quickLogin('kanban_demo_bracvam', 'KanbanDemo@123456')">Entrar como BraCVAM</button>
+        <button class="btn secondary btn-sm" id="btn-proponent-a" onclick="quickLogin('kanban_demo_padrao_a', 'KanbanDemo@123456')">Entrar como Padrão A</button>
+        <button class="btn secondary btn-sm" id="btn-padrao-b" onclick="quickLogin('kanban_demo_padrao_b', 'KanbanDemo@123456')">Entrar como Padrão B</button>
+      </div>
+    </header>
+
+    <div class="card" style="background:#f0f9ff;border-color:#bae6fd;">
+      <p class="lead" style="margin-bottom:0; color:#0369a1; font-size: 14px;">
+        Consome exclusivamente <code>GET /activities/kanban</code>, <code>GET /auth/me</code> e
+        <code>POST /auth/login</code> — a API real do backend, sem nenhum endpoint criado só
+        para esta demonstração (Constituição, Princípio II). Rode
+        <code>python -m scripts.seeds.seed_kanban</code> antes de abrir esta página.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="step-title">Meu cargo</div>
+      <div id="my-scopes" class="lead" style="font-size: 14px; margin-bottom: 0;">Faça login para ver seus cargos.</div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; justify-content: space-between; align-items:center; flex-wrap: wrap; gap: 8px;">
+        <div class="step-title" style="margin-bottom:0;">Kanban consolidado</div>
+        <div>
+          <button class="btn btn-sm" onclick="reloadBoard()">Recarregar</button>
+          <button class="btn secondary btn-sm" id="btn-load-more" onclick="loadMore()" style="display:none;">Carregar mais</button>
+        </div>
+      </div>
+      <p class="lead" id="load-status" style="font-size: 13px; margin: 8px 0 0;">Nenhuma consulta ainda.</p>
+
+      <div class="summary-bar" id="summary-bar"></div>
+
+      <div class="board" id="board">
+        <div class="column" data-column="NAO_INICIADO"><h3>Não Iniciado</h3><div class="cards"></div></div>
+        <div class="column" data-column="EM_ANDAMENTO"><h3>Em Andamento</h3><div class="cards"></div></div>
+        <div class="column" data-column="EM_ATRASO"><h3>Em Atraso</h3><div class="cards"></div></div>
+        <div class="column" data-column="CONCLUIDO"><h3>Concluído</h3><div class="cards"></div></div>
+      </div>
+
+      <div id="detail-panel" class="detail-panel" style="display:none;"></div>
+    </div>
+  </div>
+
+  <script>
+    const COLUMNS = ['NAO_INICIADO', 'EM_ANDAMENTO', 'EM_ATRASO', 'CONCLUIDO'];
+    const PAGE_SIZE = 100;
+    let allItems = [];
+    let countsByColumn = {};
+    let total = 0;
+    let nextPage = 1;
+    let columnFilter = null;
+
+    async function checkSession() {
+      try {
+        const res = await fetch('/auth/me', { credentials: 'include' });
+        if (!res.ok) {
+          document.getElementById('user-display').textContent = 'Não autenticado';
+          document.getElementById('my-scopes').textContent = 'Faça login para ver seus cargos.';
+          return;
+        }
+        const user = await res.json();
+        document.getElementById('user-display').textContent = `${user.user.full_name || user.user.username} (${user.user.username})`;
+
+        const profiles = (user.access.profiles || []).map(p => p.name);
+        const scopes = (user.access.scopes || []).map(s => `processo ${s.process_id.slice(0, 8)}…: ${s.roles.join(', ')}`);
+        let summary = profiles.length
+          ? `Cargo global: ${profiles.join(', ')} — vê a plataforma inteira.`
+          : 'Cargo global: Padrão.';
+        if (scopes.length) {
+          summary += ' Cargos por processo — ' + scopes.join(' | ');
+        } else if (!profiles.length) {
+          summary += ' Nenhuma atribuição por processo ainda.';
+        }
+        document.getElementById('my-scopes').textContent = summary;
+      } catch (err) {
+        document.getElementById('user-display').textContent = 'Não autenticado';
+      }
+    }
+
+    async function quickLogin(identifier, password) {
+      const res = await fetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ identifier, password })
+      });
+      if (res.ok) {
+        await checkSession();
+        await reloadBoard();
+      } else {
+        alert('Erro ao autenticar. Certifique-se de executar scripts.seeds.seed_kanban.');
+      }
+    }
+
+    function renderSummary() {
+      const bar = document.getElementById('summary-bar');
+      bar.innerHTML = '';
+      const labels = { NAO_INICIADO: 'Não Iniciado', EM_ANDAMENTO: 'Em Andamento', EM_ATRASO: 'Em Atraso', CONCLUIDO: 'Concluído' };
+      COLUMNS.forEach(col => {
+        const pill = document.createElement('div');
+        pill.className = 'summary-pill' + (columnFilter === col ? ' active' : '');
+        pill.innerHTML = `<span class="n">${countsByColumn[col] ?? 0}</span><span class="label">${labels[col]}</span>`;
+        pill.onclick = () => { columnFilter = (columnFilter === col ? null : col); renderBoard(); renderSummary(); };
+        bar.appendChild(pill);
+      });
+    }
+
+    function showDetail(item) {
+      const panel = document.getElementById('detail-panel');
+      panel.style.display = 'block';
+      let text = `${item.activity_name} — ${item.process.title} (${item.process.code})\n`;
+      text += `Cargo responsável: ${item.cargo}${item.actionable_now ? ' (sua vez agora)' : ''}\n`;
+      if (item.blocked_reason) text += `Motivo do bloqueio: ${item.blocked_reason}\n`;
+      if (item.blocking_activity_key) {
+        text += `Depende de: ${item.blocking_activity_key} (status ${item.blocking_activity_status}, cargo ${item.blocking_activity_cargo})\n`;
+      }
+      if (item.sla_hours != null) text += `Prazo (SLA): ${item.sla_hours}h desde ${item.run_started_at}\n`;
+      if (item.cargo_unassigned) text += `⚠ Nenhuma pessoa ocupa este cargo neste método ainda.\n`;
+      panel.textContent = text;
+    }
+
+    function renderBoard() {
+      COLUMNS.forEach(col => {
+        const container = document.querySelector(`.column[data-column="${col}"] .cards`);
+        container.innerHTML = '';
+        const items = allItems.filter(i => i.column === col && (!columnFilter || columnFilter === col));
+        if (columnFilter && columnFilter !== col) {
+          document.querySelector(`.column[data-column="${col}"]`).style.display = 'none';
+          return;
+        }
+        document.querySelector(`.column[data-column="${col}"]`).style.display = '';
+        if (!items.length) {
+          container.innerHTML = '<div class="empty-note">Nenhuma pendência aqui.</div>';
+          return;
+        }
+        items.forEach(item => {
+          const div = document.createElement('div');
+          div.className = 'card-item' + (item.actionable_now ? ' actionable' : '') + (item.cargo_unassigned ? ' unassigned' : '');
+          div.innerHTML = `
+            <div class="act-name">${item.activity_name}</div>
+            <div class="proc-title">${item.process.title}</div>
+            <span class="cargo-badge">${item.cargo}</span>`;
+          div.onclick = () => showDetail(item);
+          container.appendChild(div);
+        });
+      });
+    }
+
+    async function fetchPage(page) {
+      const url = `/activities/kanban?page=${page}&size=${PAGE_SIZE}`;
+      const res = await fetch(url, { credentials: 'include' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) { alert('Falha ao consultar o Kanban: ' + (data?.detail || res.statusText)); return null; }
+      return data;
+    }
+
+    async function reloadBoard() {
+      allItems = [];
+      nextPage = 1;
+      document.getElementById('load-status').textContent = 'Carregando...';
+      const data = await fetchPage(1);
+      if (!data) return;
+      allItems = data.items;
+      countsByColumn = data.counts_by_column;
+      total = data.total;
+      nextPage = 2;
+      updateLoadStatus();
+      renderSummary();
+      renderBoard();
+    }
+
+    async function loadMore() {
+      const data = await fetchPage(nextPage);
+      if (!data) return;
+      allItems = allItems.concat(data.items);
+      nextPage += 1;
+      updateLoadStatus();
+      renderBoard();
+    }
+
+    function updateLoadStatus() {
+      document.getElementById('load-status').textContent =
+        `${allItems.length} de ${total} pendências carregadas — sem abrir nenhum método individualmente.`;
+      document.getElementById('btn-load-more').style.display = allItems.length < total ? 'inline-block' : 'none';
+    }
+
+    (async () => {
+      await checkSession();
+      await reloadBoard();
+    })();
+  </script>
+</body>
+</html>

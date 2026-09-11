@@ -34,15 +34,16 @@ async def test_list_and_filter_tasks(client, session):
     prop_task = next(
         t
         for t in tasks
-        if t['process_id'] == process_id and t['assigned_role'] == 'PROPONENT'
+        if t['process_id'] == process_id and t['assigned_role'] == 'proponent'
     )
     assert prop_task['status'] == 'READY'
 
     # 3. Filter tasks by role
-    prop_filter_resp = client.get('/tasks?role=PROPONENT')
+    prop_filter_resp = client.get('/tasks?role=proponent')
     assert prop_filter_resp.status_code == HTTPStatus.OK
     filtered = prop_filter_resp.json()
-    assert all(t['assigned_role'] == 'PROPONENT' for t in filtered)
+    assert filtered
+    assert all(t['assigned_role'] == 'proponent' for t in filtered)
 
     # 4. Get task detail
     task_detail_resp = client.get(f'/tasks/{prop_task["id"]}')
@@ -53,9 +54,13 @@ async def test_list_and_filter_tasks(client, session):
 
 
 @pytest.mark.asyncio
-async def test_task_listing_preserves_legacy_proponent_assigned_role(
+async def test_task_listing_reflects_normalized_proponent_assigned_role(
     client, session
 ):
+    """`assigned_role` sai normalizado ('proponent', não 'PROPONENT') desde
+
+    a instanciação (Spec 018, research.md D5).
+    """
     await bootstrap_all_templates(session)
     user = UserFactory()
     session.add(user)
@@ -76,6 +81,6 @@ async def test_task_listing_preserves_legacy_proponent_assigned_role(
     prop_task = next(
         t
         for t in tasks_resp.json()
-        if t['process_id'] == process_id and t['assigned_role'] == 'PROPONENT'
+        if t['process_id'] == process_id and t['assigned_role'] == 'proponent'
     )
-    assert prop_task['assigned_role'] == 'PROPONENT'
+    assert prop_task['assigned_role'] == 'proponent'

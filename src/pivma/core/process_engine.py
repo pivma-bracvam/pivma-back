@@ -1,15 +1,20 @@
 import secrets
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.sql import ColumnElement
 
 from pivma.core.authorization import (
+    ACTIVITY_CARGOS,
+    active_participant_process_scope,
+    active_proponent_process_scope,
     has_current_conflict,
+    has_platform_wide_access,
     is_active_effective_proponent,
 )
 from pivma.core.database.models import (
@@ -75,6 +80,35 @@ PROPONENT_SCOPED_STATUSES = (STATUS_SUBMISSION, STATUS_AI_PRE_EVALUATION)
 FIELD_TARGET_TYPES = frozenset({'field', 'field_set', 'document'})
 
 
+async def process_visibility_clause(
+    session: AsyncSession, user_id: UUID
+) -> ColumnElement | None:
+    """Regra de visibilidade de processo unificada.
+
+    Spec 018, FR-003/FR-004/FR-014.
+
+    `None` significa "sem restrição adicional" (usuário com acesso de
+    plataforma — Admin/BraCVAM). Caso contrário, retorna a cláusula a aplicar
+    sobre `ProcessInstance`: nos estados sob o proponente
+    (`PROPONENT_SCOPED_STATUSES`) só o proponente ativo enxerga, preservando
+    a trava já existente (Spec 009); nos demais estados, qualquer atribuição
+    ativa (`Assignment`, qualquer `role_key`) basta — nunca mais "qualquer
+    usuário autenticado", como acontecia antes desta spec.
+    """
+    if await has_platform_wide_access(session, user_id):
+        return None
+    return or_(
+        and_(
+            ProcessInstance.status.notin_(PROPONENT_SCOPED_STATUSES),
+            ProcessInstance.id.in_(active_participant_process_scope(user_id)),
+        ),
+        and_(
+            ProcessInstance.status.in_(PROPONENT_SCOPED_STATUSES),
+            ProcessInstance.id.in_(active_proponent_process_scope(user_id)),
+        ),
+    )
+
+
 async def _guard_against_current_conflict(
     session: AsyncSession, process_id: UUID, user_id: UUID
 ) -> None:
@@ -95,6 +129,63 @@ class TriageContext:
 
 def utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+# Colunas do Kanban de pendências (Spec 018, FR-002).
+KANBAN_NAO_INICIADO = 'NAO_INICIADO'
+KANBAN_EM_ANDAMENTO = 'EM_ANDAMENTO'
+KANBAN_EM_ATRASO = 'EM_ATRASO'
+KANBAN_CONCLUIDO = 'CONCLUIDO'
+
+
+def classify_kanban_column(
+    *,
+    activity_status: str,
+    run_started_at: datetime | None,
+    sla_hours: int | None,
+    now: datetime | None = None,
+) -> str:
+    """Classifica uma atividade em uma das 4 colunas do Kanban.
+
+    Função pura (data-model.md, tabela de classificação): `BLOCKED` (com ou
+    sem run) é sempre `NAO_INICIADO`; `COMPLETED` é sempre `CONCLUIDO`;
+    `READY`/`IN_PROGRESS` é `EM_ATRASO` só quando o template declara
+    `sla_hours` para a etapa e o tempo decorrido desde `run_started_at` já
+    excede esse prazo — do contrário, `EM_ANDAMENTO`. Uma etapa sem
+    `sla_hours` declarado nunca entra em `EM_ATRASO` (spec, Assumptions).
+    """
+    if activity_status == 'COMPLETED':
+        return KANBAN_CONCLUIDO
+    if activity_status == 'BLOCKED':
+        return KANBAN_NAO_INICIADO
+
+    if sla_hours is not None and run_started_at is not None:
+        reference = now or utc_now()
+        # `ActivityRun.started_at` pode chegar naive (server_default do
+        # banco / `datetime.utcnow()` legado); normaliza para UTC-aware
+        # antes de subtrair, em vez de propagar o `TypeError`.
+        if run_started_at.tzinfo is None:
+            run_started_at = run_started_at.replace(tzinfo=UTC)
+        if reference - run_started_at > timedelta(hours=sla_hours):
+            return KANBAN_EM_ATRASO
+    return KANBAN_EM_ANDAMENTO
+
+
+def _resolve_activity_cargo(a_data: dict[str, Any]) -> str:
+    """Cargo declarado por uma atividade do template (Spec 018, FR-016).
+
+    Falha alto e cedo (na instanciação/ativação, não na leitura do Kanban)
+    quando um template declara um `assigned_role` fora do vocabulário
+    compartilhado com `Assignment.role_key` — em vez de aceitar string livre
+    e deixar a inconsistência para ser descoberta depois.
+    """
+    cargo = a_data.get('assigned_role', 'proponent')
+    if cargo not in ACTIVITY_CARGOS:
+        raise ValidationError(
+            f'Cargo de atividade inválido: {cargo!r}. Valores aceitos: '
+            f'{sorted(ACTIVITY_CARGOS)}.'
+        )
+    return cargo
 
 
 async def generate_process_code(session: AsyncSession) -> str:
@@ -167,8 +258,10 @@ async def _init_first_activity(
     task = Task(
         activity_run_id=run.id,
         title=f'Preencher {act.name}',
-        assigned_role=a_data.get('assigned_role', 'PROPONENT'),
-        assigned_user_id=creator_id,
+        # Sempre por cargo, nunca vinculada à pessoa que disparou a
+        # submissão (Spec 018, FR-016/FR-017) — `created_by` (AuditMixin)
+        # já registra quem criou; múltiplos proponentes podem coexistir.
+        assigned_role=_resolve_activity_cargo(a_data),
         status='READY',
     )
     task.set_creation_audit(creator_id)
@@ -759,7 +852,9 @@ async def _unblock_triage_activity(
         triage_task = Task(
             activity_run_id=triage_run.id,
             title='Realizar Triagem da Proposta',
-            assigned_role='TRIAGE_LEAD',
+            # Cargo global (Spec 018): triagem é responsabilidade da equipe
+            # BraCVAM/Admin, resolvida via AccessProfile, não por Assignment.
+            assigned_role='bracvam',
             status='READY',
         )
         triage_task.set_creation_audit(user_id)
@@ -830,7 +925,7 @@ async def _activate_activity(
     task = Task(
         activity_run_id=run.id,
         title=act.name,
-        assigned_role=a_data.get('assigned_role', 'PROPONENT'),
+        assigned_role=_resolve_activity_cargo(a_data),
         status='READY',
     )
     task.set_creation_audit(user_id)
@@ -1204,7 +1299,7 @@ async def _open_new_submission_run(
     prop_task = Task(
         activity_run_id=new_sub_run.id,
         title=task_title,
-        assigned_role='PROPONENT',
+        assigned_role='proponent',
         status='READY',
     )
     prop_task.set_creation_audit(user_id)
