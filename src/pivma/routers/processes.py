@@ -1,4 +1,6 @@
+from copy import deepcopy
 from http import HTTPStatus
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
@@ -46,6 +48,25 @@ PARTICIPANT_EVENT_TYPES = frozenset({
     'PARTICIPANT_REVOKED',
     'CONFLICT_DECLARED',
 })
+
+
+def _normalize_definition_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Garante `activity_type` explícito em cada atividade da definição.
+
+    A definição declarativa (YAML) de um template pode não declarar
+    `activity_type` — os métodos oficiais anteriores à Spec 017 não o
+    fazem. O valor padrão (`form`) só é aplicado no banco no momento da
+    instanciação (`_create_phases_and_activities`); esta função aplica a
+    mesma regra na leitura (Spec 017 FR-006), para que
+    `GET /processes/templates/{key}` seja consistente independentemente de
+    o YAML de origem declarar o campo ou não. Retorna uma cópia — nunca
+    modifica o payload persistido.
+    """
+    normalized = deepcopy(payload)
+    for phase in normalized.get('phases', []):
+        for activity in phase.get('activities', []):
+            activity.setdefault('activity_type', 'form')
+    return normalized
 
 
 async def _visible_events(
@@ -128,7 +149,7 @@ async def get_template_detail(key: str, session: Session, _: CurrentUser):
         key=template.key,
         name=template.name,
         version_number=latest.version_number,
-        definition=latest.definition_payload,
+        definition=_normalize_definition_payload(latest.definition_payload),
     )
 
 

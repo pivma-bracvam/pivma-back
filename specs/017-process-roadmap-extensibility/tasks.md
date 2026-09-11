@@ -209,6 +209,17 @@ executado manualmente com sucesso.
   A instância de teste criada (`[VALIDACAO SPEC017] Roteiro em Duas Fases`) não foi
   removida manualmente — o próprio `seed_triage.py` a desativa (soft-delete) no próximo
   `seed_all`, por não estar na lista de títulos oficiais.
+- [x] T021 **Bug encontrado durante a integração com o `pivma-front` e corrigido**:
+  `GET /processes/templates/{key}` retornava o `definition_payload` cru — para os 4
+  métodos não tocados por esta spec (nenhum declara `activity_type` no YAML), cada
+  atividade vinha **sem** o campo `activity_type`, violando FR-006/FR-003 no contrato
+  de leitura (o default só era aplicado na instanciação, não na leitura). Corrigido com
+  `_normalize_definition_payload` em `src/pivma/routers/processes.py` (preenche
+  `activity_type: "form"` por atividade, sem mutar o payload persistido). Teste de
+  regressão:
+  `test_template_detail_defaults_activity_type_for_legacy_templates` em
+  `tests/api/routers/test_activity_type_extension.py`. Suíte completa: 575 passed,
+  1 skipped.
 - [x] T020 `uv run pytest` (equivalente a `poe test` — `poe` indisponível neste ambiente)
   verde: **574 passed, 1 skipped**, cobrindo os testes novos desta feature e toda a
   suíte pré-existente das Specs 004/009/011/013/014/016.

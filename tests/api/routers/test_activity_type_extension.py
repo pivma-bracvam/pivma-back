@@ -60,6 +60,36 @@ async def test_template_detail_declares_both_phases_with_activity_type(
 
 
 @pytest.mark.asyncio
+async def test_template_detail_defaults_activity_type_for_legacy_templates(
+    client, session
+):
+    """Métodos anteriores à Spec 017 não declaram `activity_type` no YAML.
+
+    `GET /processes/templates/{key}` deve preencher o padrão `form` na
+    leitura (FR-006), em vez de omitir o campo — do contrário, um cliente
+    que exige `activity_type` em toda atividade (como o guia de frontend
+    orienta) quebra para os 4 métodos que não foram tocados por esta spec.
+    """
+    await bootstrap_all_templates(session)
+    user = UserFactory()
+    session.add(user)
+    await session.commit()
+    authenticate(client, user)
+
+    for template_key in (
+        'pre_validated_method',
+        'scope_extension',
+        'me_too_validation',
+        'proof_of_concept',
+    ):
+        resp = client.get(f'/processes/templates/{template_key}')
+        assert resp.status_code == HTTPStatus.OK
+        for phase in resp.json()['definition']['phases']:
+            for activity in phase['activities']:
+                assert activity['activity_type'] == 'form'
+
+
+@pytest.mark.asyncio
 async def test_placeholder_activity_unlocks_on_triage_approval(
     client, session, bracvam_user
 ):
