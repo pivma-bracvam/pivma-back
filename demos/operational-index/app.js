@@ -20,9 +20,10 @@ async function checkSession() {
   try {
     const res = await fetch('/auth/me', { credentials: 'include' });
     if (res.ok) {
-      const user = await res.json();
-      const profiles = (user.profiles || []).map(p => p.name).join(', ') || 'Sem perfil';
-      const isAdmin = (user.profiles || []).some(
+      const data = await res.json();
+      const user = data.user;
+      const profiles = ((data.access && data.access.profiles) || []).map(p => p.name).join(', ') || 'Sem perfil';
+      const isAdmin = ((data.access && data.access.profiles) || []).some(
         p => p.name.toLowerCase().includes('admin') || p.id === 'administrator'
       );
 
@@ -32,7 +33,7 @@ async function checkSession() {
       }
       if (btnLogin) btnLogin.style.display = 'none';
       if (btnLogout) btnLogout.style.display = 'inline-flex';
-      return user;
+      return data;
     } else {
       if (displayEl) {
         displayEl.textContent = 'Não autenticado';

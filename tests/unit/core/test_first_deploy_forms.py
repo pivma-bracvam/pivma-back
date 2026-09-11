@@ -1,8 +1,8 @@
 """Forma dos formulários de submissão do baseline de primeiro deploy.
 
-Spec 015. Valida o bootstrap declarativo dos cinco templates de processo:
+Spec 015 e 020. Valida o bootstrap dos cinco templates de processo:
 formulários 1-3 mínimos, formulário 4 com campo de IA e formulário 5 (FP)
-cobrindo as nove seções. O formulário de triagem permanece intocado.
+cobrindo as nove seções. A triagem foi desacoplada de formulário próprio.
 """
 
 import pytest
@@ -113,20 +113,28 @@ async def test_preliminary_form_covers_all_nine_sections(session):
     assert (sop.validation_rules or {}).get('allowed_extensions') == ['pdf']
 
 
-@pytest.mark.parametrize(
-    'form_key',
-    [
+@pytest.mark.asyncio
+async def test_triage_form_deactivated_and_submission_forms_active(
+    session,
+):
+    await bootstrap_all_templates(session)
+
+    active_forms = (
+        (
+            await session.execute(
+                select(FormTemplate).where(FormTemplate.deleted_at.is_(None))
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    active_keys = {f.key for f in active_forms}
+    assert 'triage_review_v1' not in active_keys
+    assert active_keys == {
         'submission_pre_validated_v1',
         'submission_scope_extension_v1',
         'submission_me_too_v1',
         'submission_validated_dossier_v1',
         'submission_proof_of_concept_v1',
-    ],
-)
-@pytest.mark.asyncio
-async def test_triage_review_form_is_untouched(session, form_key):
-    await bootstrap_all_templates(session)
-
-    fields = {f.field_key for f in await _fields(session, 'triage_review_v1')}
-
-    assert fields == {'regulatory_adherence_score', 'triage_summary_notes'}
+    }

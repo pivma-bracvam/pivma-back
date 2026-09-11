@@ -113,9 +113,10 @@ class CurrentUserAccess(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 
-class CurrentUserResponse(UserIdentity):
+class CurrentUserResponse(BaseModel):
     user: UserIdentity
     access: CurrentUserAccess
+    model_config = ConfigDict(extra='forbid')
 
 
 class FilterPage(BaseModel):

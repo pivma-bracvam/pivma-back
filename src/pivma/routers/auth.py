@@ -162,7 +162,6 @@ async def read_current_user(
     profiles = await active_profiles_for_user(session, current_user.id)
     identity = UserIdentity.model_validate(current_user)
     return CurrentUserResponse(
-        **identity.model_dump(),
         user=identity,
         access=CurrentUserAccess(
             profiles=[

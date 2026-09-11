@@ -463,6 +463,59 @@ async def get_current_form_instance(
     return act, current_run, form_instance, template, fields
 
 
+async def get_current_activity_run(
+    session: AsyncSession,
+    process_id: UUID,
+    activity_key: str,
+    user_id: UUID | None = None,
+) -> tuple[ActivityInstance, ActivityRun]:
+    """Obtém a ActivityInstance e sua execução mais recente ativa.
+
+    Não exige a presença de FormInstance.
+    """
+    if user_id is not None:
+        process_status = await session.scalar(
+            select(ProcessInstance.status).where(
+                ProcessInstance.id == process_id,
+                ProcessInstance.deleted_at.is_(None),
+            )
+        )
+        if process_status is None:
+            raise NotFoundError('Processo não encontrado.')
+        if (
+            process_status in PROPONENT_SCOPED_STATUSES
+            and not await is_active_effective_proponent(
+                session, user_id, process_id
+            )
+        ):
+            raise NotFoundError('Processo não encontrado.')
+
+    stmt = (
+        select(ActivityInstance)
+        .where(
+            ActivityInstance.process_instance_id == process_id,
+            ActivityInstance.key == activity_key,
+            ActivityInstance.deleted_at.is_(None),
+        )
+        .options(
+            selectinload(ActivityInstance.runs),
+        )
+    )
+    act = (await session.execute(stmt)).scalar_one_or_none()
+    if not act:
+        raise NotFoundError(f'Atividade {activity_key!r} não encontrada.')
+
+    runs = sorted(
+        [r for r in act.runs if r.deleted_at is None],
+        key=lambda x: x.run_number,
+        reverse=True,
+    )
+    if not runs:
+        raise NotFoundError(f'Sem execuções na atividade {activity_key!r}.')
+
+    return act, runs[0]
+
+
 def _set_value_on_field(
     form_value: FormValue, field_type: str, val: Any
 ) -> None:
@@ -860,20 +913,6 @@ async def _unblock_triage_activity(
         triage_task.set_creation_audit(user_id)
         session.add(triage_task)
 
-        t_f_stmt = select(FormTemplate).where(
-            FormTemplate.key == 'triage_review_v1',
-            FormTemplate.deleted_at.is_(None),
-        )
-        t_f_template = (await session.execute(t_f_stmt)).scalar_one_or_none()
-        if t_f_template:
-            t_form_inst = FormInstance(
-                form_template_id=t_f_template.id,
-                activity_run_id=triage_run.id,
-                is_submitted=False,
-            )
-            t_form_inst.set_creation_audit(user_id)
-            session.add(t_form_inst)
-
 
 async def _dependency_satisfied(
     session: AsyncSession, dependency: ActivityDependency
@@ -1182,7 +1221,7 @@ async def save_field_reviews(
     _, _, sub_form, _, sub_fields = await get_current_form_instance(
         session, process_id, 'proposal_submission'
     )
-    _, triage_run, _, _, _ = await get_current_form_instance(
+    _, triage_run = await get_current_activity_run(
         session, process_id, 'triage_evaluation'
     )
 
@@ -1415,7 +1454,7 @@ async def execute_triage_decision(
     if process.status != 'TRIAGE':
         raise ConflictError(f'Processo em status {process.status!r}.')
 
-    triage_act, triage_run, _, _, _ = await get_current_form_instance(
+    triage_act, triage_run = await get_current_activity_run(
         session, process_id, 'triage_evaluation'
     )
 

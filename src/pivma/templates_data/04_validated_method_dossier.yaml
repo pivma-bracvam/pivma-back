@@ -23,9 +23,7 @@ phases:
         name: "Triagem e Decisão BraCVAM"
         order_index: 2
         assigned_role: "bracvam"
-        activity_type: "form"
         sla_hours: 72  # 3 dias corridos para a triagem decidir (Spec 018)
-        form_template_key: "triage_review_v1"
         dependencies:
           - required_activity_key: "proposal_submission"
             required_status: "COMPLETED"
@@ -74,26 +72,3 @@ forms:
         ai_validation_rules:
           min_length: 30
 
-  - key: "triage_review_v1"
-    name: "Formulário de Parecer de Triagem"
-    version: 1
-    description: "Avaliação técnica preliminar dos requisitos de elegibilidade da proposta."
-    fields:
-      - field_key: "regulatory_adherence_score"
-        label: "Nível de Aderência Regulatória"
-        field_type: "select"
-        is_required: true
-        order_index: 1
-        options:
-          - value: "high"
-            label: "Alto - Atende a todas as diretrizes da OCDE"
-          - value: "medium"
-            label: "Médio - Pendências documentais sanáveis"
-          - value: "low"
-            label: "Baixo - Não atende critérios mínimos"
-
-      - field_key: "triage_summary_notes"
-        label: "Notas de Síntese da Triagem"
-        field_type: "textarea"
-        is_required: true
-        order_index: 2

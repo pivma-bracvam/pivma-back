@@ -266,8 +266,8 @@ async def test_updated_full_name_is_visible_in_auth_and_listing(
     listing = client.get('/users')
 
     assert current.status_code == HTTPStatus.OK
-    assert current.json()['full_name'] == 'Administrator Name'
     assert current.json()['user']['full_name'] == 'Administrator Name'
+    assert 'full_name' not in current.json()
     listed = next(
         item
         for item in listing.json()['items']

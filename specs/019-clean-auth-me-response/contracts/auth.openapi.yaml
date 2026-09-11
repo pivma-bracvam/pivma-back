@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: pi*VMA Authentication API
-  version: 1.0.0
+  version: 2.0.0
 paths:
   /auth/login:
     post:
@@ -33,7 +33,7 @@ paths:
         - cookieAuth: []
       responses:
         '200':
-          description: Identidade da conta autenticada.
+          description: Identidade da conta autenticada e escopo de acesso.
           content:
             application/json:
               schema:
@@ -113,6 +113,18 @@ components:
           type: array
           items:
             type: string
+    ProfileSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, active]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        active:
+          type: boolean
     CurrentUserAccess:
       type: object
       additionalProperties: false
@@ -130,18 +142,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AccessScope'
-    ProfileSummary:
-      type: object
-      additionalProperties: false
-      required: [id, name, active]
-      properties:
-        id:
-          type: string
-          format: uuid
-        name:
-          type: string
-        active:
-          type: boolean
     CurrentUserResponse:
       type: object
       additionalProperties: false

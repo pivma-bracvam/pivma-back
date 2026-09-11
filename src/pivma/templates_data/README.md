@@ -25,7 +25,7 @@ phases:
         name: "Submissão da Proposta"
         order_index: 1
         assigned_role: "PROPONENT"
-        form_template_key: "chave_do_formulario_v1" # Vincula ao bloco 'forms'
+        form_template_key: "chave_do_formulario_v1" # Opcional: vincula ao bloco 'forms' (atividades deliberativas/periciais como triagem não utilizam formulário)
         dependencies: []
 
 forms:
@@ -41,7 +41,7 @@ forms:
         order_index: 1
 ```
 
-O script `bootstrap_process_templates.py` lê esses arquivos, registra as entidades `FormTemplate` e mapeia cada elemento da lista `fields` para instâncias de `FormField`.
+O script `bootstrap_process_templates.py` lê esses arquivos, registra as entidades `FormTemplate` e mapeia cada elemento da lista `fields` para instâncias de `FormField`. Atividades que não declaram `form_template_key` (como a triagem e etapas sem formulário) criam execuções e tarefas diretamente, sem gerar `FormInstance`.
 
 ---
 

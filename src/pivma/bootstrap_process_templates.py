@@ -163,10 +163,14 @@ async def bootstrap_all_templates(session: AsyncSession) -> None:
         return
 
     loaded_keys = set()
+    loaded_form_keys = set()
     for yaml_file in sorted(templates_dir.glob('*.yaml')):
         data = load_yaml_template(yaml_file)
         if 'process_template' in data and 'key' in data['process_template']:
             loaded_keys.add(data['process_template']['key'])
+        for f_data in data.get('forms', []):
+            if 'key' in f_data:
+                loaded_form_keys.add(f_data['key'])
         await sync_template_from_dict(session, data)
 
     # Desativar e soft-delete em templates descontinuados (ex: full_validation)
@@ -178,6 +182,17 @@ async def bootstrap_all_templates(session: AsyncSession) -> None:
         if pt.key not in loaded_keys:
             pt.is_active = False
             pt.deleted_at = datetime.now(UTC)
+
+    # Desativar e soft-delete em form templates descontinuados (ex:
+    # triage_review_v1)
+    all_forms_stmt = select(FormTemplate).where(
+        FormTemplate.deleted_at.is_(None)
+    )
+    forms_res = await session.execute(all_forms_stmt)
+    for ft in forms_res.scalars().all():
+        if ft.key not in loaded_form_keys:
+            ft.deleted_at = datetime.now(UTC)
+
     await session.commit()
 
 

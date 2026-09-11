@@ -189,7 +189,8 @@
     async function checkSession() {
       const res = await fetch('/auth/me', { credentials: 'include' });
       if (res.ok) {
-        const u = await res.json();
+        const data = await res.json();
+        const u = data.user;
         $('session').textContent = `${u.full_name || u.username} (${u.username})`;
         $('btn-login').style.display = 'none';
         return true;

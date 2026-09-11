@@ -257,7 +257,8 @@
       try {
         const res = await fetch('/auth/me', { credentials: 'include' });
         if (res.ok) {
-          const user = await res.json();
+          const data = await res.json();
+          const user = data.user;
           document.getElementById('user-display').textContent = `${user.full_name || user.username} (${user.username})`;
           document.getElementById('btn-quick-login').style.display = 'none';
         } else {

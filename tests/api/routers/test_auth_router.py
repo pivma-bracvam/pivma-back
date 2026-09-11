@@ -38,10 +38,6 @@ def test_login_with_username_and_recognize_identity(client, user):
 
     assert identity.status_code == HTTPStatus.OK
     assert identity.json() == {
-        'id': str(user.id),
-        'full_name': user.full_name,
-        'username': user.username,
-        'email': user.email,
         'user': {
             'id': str(user.id),
             'full_name': user.full_name,
@@ -65,8 +61,8 @@ async def test_me_returns_full_name(client, user, session):
     response = client.get('/auth/me')
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json()['full_name'] == 'Maria Silva'
     assert response.json()['user']['full_name'] == 'Maria Silva'
+    assert 'full_name' not in response.json()
 
 
 def test_login_with_email(client, user):
