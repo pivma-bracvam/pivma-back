@@ -134,6 +134,7 @@ async def _create_phases_and_activities(
                 order_index=a_data.get('order_index', 1),
                 status='BLOCKED',
                 blocked_reason=None,
+                activity_type=a_data.get('activity_type', 'form'),
             )
             act.set_creation_audit(creator_id)
             session.add(act)
@@ -779,6 +780,162 @@ async def _unblock_triage_activity(
             session.add(t_form_inst)
 
 
+async def _dependency_satisfied(
+    session: AsyncSession, dependency: ActivityDependency
+) -> bool:
+    if dependency.required_activity_id is None:
+        return True
+    required_act = await session.get(
+        ActivityInstance, dependency.required_activity_id
+    )
+    return (
+        required_act is not None
+        and required_act.status == dependency.required_status
+    )
+
+
+async def _activate_activity(
+    session: AsyncSession,
+    act: ActivityInstance,
+    a_data: dict[str, Any],
+    user_id: UUID,
+    reason: str,
+) -> ActivityRun:
+    """Ativa uma atividade BLOCKED cuja(s) dependência(s) já foram satisfeitas.
+
+    Generaliza o que ``_init_first_activity`` faz para a primeira atividade
+    (sem dependências), permitindo qualquer ``activity_type`` — cria
+    ``FormInstance`` apenas quando a atividade declara ``form_template_key``
+    (Spec 017, FR-005).
+    """
+    act.status = 'IN_PROGRESS'
+    act.blocked_reason = None
+    act.set_update_audit(user_id)
+
+    phase = await session.get(Phase, act.phase_id)
+    if phase is not None and phase.status == 'NOT_STARTED':
+        phase.status = 'IN_PROGRESS'
+        phase.set_update_audit(user_id)
+
+    run = ActivityRun(
+        activity_instance_id=act.id,
+        run_number=1,
+        status='IN_PROGRESS',
+        execution_reason=reason,
+    )
+    run.set_creation_audit(user_id)
+    session.add(run)
+    await session.flush()
+
+    task = Task(
+        activity_run_id=run.id,
+        title=act.name,
+        assigned_role=a_data.get('assigned_role', 'PROPONENT'),
+        status='READY',
+    )
+    task.set_creation_audit(user_id)
+    session.add(task)
+
+    f_key = a_data.get('form_template_key')
+    if f_key:
+        f_stmt = select(FormTemplate).where(
+            FormTemplate.key == f_key, FormTemplate.deleted_at.is_(None)
+        )
+        f_template = (await session.execute(f_stmt)).scalar_one_or_none()
+        if f_template:
+            form_inst = FormInstance(
+                form_template_id=f_template.id,
+                activity_run_id=run.id,
+                is_submitted=False,
+            )
+            form_inst.set_creation_audit(user_id)
+            session.add(form_inst)
+
+    return run
+
+
+async def _advance_dependent_activities(
+    session: AsyncSession,
+    process: ProcessInstance,
+    completed_act: ActivityInstance,
+    user_id: UUID,
+) -> None:
+    """Desbloqueia atividades cuja dependência acabou de ser satisfeita.
+
+    Lê de volta as linhas de ``ActivityDependency`` já gravadas na
+    instanciação (Spec 004) para decidir avanço, em vez de uma chave de
+    atividade hardcoded — mecanismo mínimo exigido pela Spec 017 (FR-005,
+    User Story 2) para que fases futuras não precisem de uma função dedicada
+    no motor a cada nova atividade declarada.
+    """
+    dep_stmt = select(ActivityDependency).where(
+        ActivityDependency.required_activity_id == completed_act.id,
+        ActivityDependency.deleted_at.is_(None),
+    )
+    dependencies = (await session.execute(dep_stmt)).scalars().all()
+    if not dependencies:
+        return
+
+    template_version = await session.get(
+        ProcessTemplateVersion, process.template_version_id
+    )
+    payload = template_version.definition_payload if template_version else {}
+    activities_by_key = {
+        a['key']: a
+        for p in payload.get('phases', [])
+        for a in p.get('activities', [])
+    }
+
+    seen_dependent_ids: set[UUID] = set()
+    for dependency in dependencies:
+        if dependency.dependent_activity_id in seen_dependent_ids:
+            continue
+        seen_dependent_ids.add(dependency.dependent_activity_id)
+
+        dependent_act = await session.get(
+            ActivityInstance, dependency.dependent_activity_id
+        )
+        if dependent_act is None or dependent_act.status != 'BLOCKED':
+            continue
+
+        all_deps_stmt = select(ActivityDependency).where(
+            ActivityDependency.dependent_activity_id == dependent_act.id,
+            ActivityDependency.deleted_at.is_(None),
+        )
+        all_deps = (await session.execute(all_deps_stmt)).scalars().all()
+        satisfied = all([
+            await _dependency_satisfied(session, d) for d in all_deps
+        ])
+        if not satisfied:
+            continue
+
+        a_data = activities_by_key.get(dependent_act.key, {})
+        run = await _activate_activity(
+            session,
+            dependent_act,
+            a_data,
+            user_id,
+            reason=(
+                'Fase liberada automaticamente após conclusão da '
+                f'dependência {completed_act.key!r}.'
+            ),
+        )
+
+        session.add(
+            AuditEvent(
+                process_instance_id=process.id,
+                activity_run_id=run.id,
+                user_id=user_id,
+                event_type='ACTIVITY_UNBLOCKED',
+                context_data={
+                    'activity_key': dependent_act.key,
+                    'activity_type': dependent_act.activity_type,
+                    'unblocked_by': completed_act.key,
+                },
+            )
+        )
+
+
 async def submit_proposal_form(  # noqa: PLR0914, PLR0915
     session: AsyncSession,
     process_id: UUID,
@@ -1115,6 +1272,10 @@ async def _handle_approved_decision(
             event_type='TRIAGE_APPROVED',
             context_data={'justification': ctx.justification},
         )
+    )
+
+    await _advance_dependent_activities(
+        session, ctx.process, ctx.triage_act, ctx.user_id
     )
 
 

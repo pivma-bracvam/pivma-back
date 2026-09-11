@@ -46,12 +46,15 @@ async def run_all_seeds() -> None:
     print(
         '  4. Observabilidade de IA:      http://localhost:8000/demos/ai-pipeline/'
     )
+    print(
+        '  5. Roteiro em duas fases:      http://localhost:8000/demos/roadmap/'
+    )
     print('Apoio:')
     print(
-        '  5. Usuários e RBAC:            http://localhost:8000/demos/users/'
+        '  6. Usuários e RBAC:            http://localhost:8000/demos/users/'
     )
     print(
-        '  6. Índice operacional:        '
+        '  7. Índice operacional:        '
         'http://localhost:8000/demos/operational-index/'
     )
     print('\nContas pré-configuradas (login: /auth/login):')

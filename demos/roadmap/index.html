@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PIVMA - Roteiro em Duas Fases (Spec 017)</title>
+  <link rel="stylesheet" href="/demos/assets/base.css">
+  <style>
+    .container { max-width: 1000px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid var(--border);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .back-link { font-size: 16px; color: var(--primary); text-decoration: none; font-weight: 700; }
+    h1 { font-size: 26px; font-weight: 800; }
+    .session-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--card-bg);
+      padding: 8px 16px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      font-size: 15px;
+      flex-wrap: wrap;
+    }
+    .session-badge { font-weight: 700; color: var(--primary); }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    }
+    h2 { font-size: 19px; font-weight: 700; margin-bottom: 12px; color: #1e293b; }
+    .note { font-size: 14px; color: var(--text-muted); margin-bottom: 16px; }
+    .btn {
+      font-size: 15px;
+      font-weight: 700;
+      padding: 10px 18px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-secondary { background: #64748b; color: #fff; }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-sm { font-size: 13px; padding: 6px 12px; }
+    .btn:hover { opacity: 0.9; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .roadmap { display: flex; flex-direction: column; gap: 10px; }
+    .phase-block { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .phase-header {
+      background: #f1f5f9; padding: 8px 14px; font-weight: 700; font-size: 14px;
+      color: #1e293b; display: flex; justify-content: space-between; align-items: center;
+    }
+    .activity-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 14px; border-top: 1px solid var(--border); gap: 10px; flex-wrap: wrap;
+    }
+    .activity-name { font-weight: 600; font-size: 15px; }
+    .type-badge {
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+      padding: 2px 8px; border-radius: 999px; background: #e2e8f0; color: #334155;
+    }
+    .type-form { background: #dbeafe; color: #1e40af; }
+    .type-placeholder { background: #fce7f3; color: #9d174d; }
+    .type-decision { background: #fef3c7; color: #92400e; }
+    .type-external_task { background: #dcfce7; color: #166534; }
+    .status-pill {
+      font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
+      background: #e2e8f0; color: #1e293b;
+    }
+    .status-COMPLETED { background: #bbf7d0; color: #166534; }
+    .status-READY, .status-IN_PROGRESS { background: #bae6fd; color: #0369a1; }
+    .status-BLOCKED { background: #fecaca; color: #991b1b; }
+    .status-NOT_DECLARED { background: #e2e8f0; color: #64748b; }
+
+    .inspector {
+      background: #0f172a; color: #38bdf8; padding: 16px; border-radius: var(--radius);
+      font-family: monospace; font-size: 14px; overflow-x: auto; max-height: 240px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <a href="/demos/" class="back-link">&larr; Voltar ao Catálogo de Demonstrações</a>
+        <h1 style="margin-top: 4px;">Roteiro em Duas Fases — Prévia (Spec 017)</h1>
+      </div>
+      <div class="session-bar">
+        <span>Sessão:</span>
+        <span id="user-display" class="session-badge">Não autenticado</span>
+        <button class="btn btn-sm btn-primary" onclick="quickLogin('proponent_user', 'Proponent@123456')">Entrar como Proponente</button>
+        <button class="btn btn-sm btn-secondary" onclick="quickLogin('triage_evaluator', 'Triage@123456')">Entrar como Avaliador</button>
+      </div>
+    </header>
+
+    <div class="card" style="background:#f0f9ff;border-color:#bae6fd;">
+      <p class="note" style="margin-bottom:0; color:#0369a1;">
+        Esta demonstração não representa nenhuma regra de negócio real de Planejamento.
+        A "Fase 2" abaixo existe apenas para provar, com a API real, que o motor de
+        processos e o frontend conseguem avançar o roteiro para uma atividade que não é
+        formulário (<code>activity_type</code>, Spec 017) — sem nenhum endpoint novo.
+      </p>
+    </div>
+
+    <!-- Passo 1: Roteiro declarado pelo template -->
+    <div class="card">
+      <h2>1. Roteiro declarado (GET /processes/templates/validated_method_dossier)</h2>
+      <p class="note">Estrutura completa do método, incluindo a Fase 2, mesmo antes de qualquer instância existir.</p>
+      <button class="btn btn-secondary btn-sm" onclick="loadDeclaredRoadmap()">Consultar roteiro declarado</button>
+      <div id="declared-roadmap" class="roadmap" style="margin-top: 16px;"></div>
+    </div>
+
+    <!-- Passo 2: Instanciar -->
+    <div class="card">
+      <h2>2. Iniciar submissão de exemplo (POST /processes)</h2>
+      <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span>Processo: <strong id="current-process-code">Nenhum</strong></span>
+        </div>
+        <button class="btn btn-primary" id="btn-create" onclick="createProcess()" disabled>Criar processo (login como Proponente)</button>
+      </div>
+    </div>
+
+    <!-- Passo 3: Submeter formulário -->
+    <div class="card">
+      <h2>3. Preencher e enviar a submissão (Fase 1)</h2>
+      <p class="note">Reaproveita o formulário já existente de <code>validated_method_dossier</code> (Spec 011/013).</p>
+      <button class="btn btn-secondary btn-sm" id="btn-submit-form" onclick="submitForm()" disabled>Preencher e enviar submissão</button>
+    </div>
+
+    <!-- Passo 4: Aprovar triagem -->
+    <div class="card">
+      <h2>4. Aprovar a triagem (login como Avaliador)</h2>
+      <p class="note">Ao aprovar, a dependência da Fase 2 é satisfeita e <code>planning_preview</code> deve sair de bloqueada.</p>
+      <p class="note" id="ai-wait-note" style="display:none; color:#b45309;">
+        Este método tem avaliação por IA configurada em ambientes que já rodaram o seed
+        completo (<code>seed_all</code>). O processo entrou em <code>AI_PRE_EVALUATION</code>;
+        aguardando a IA liberar a triagem (a Fase 1 continua igual à Spec 013 — nada
+        desta demo altera esse fluxo).
+      </p>
+      <button class="btn btn-success btn-sm" id="btn-approve" onclick="approveTriage()" disabled>Aprovar triagem (POST /triage/decision)</button>
+    </div>
+
+    <!-- Passo 5: Roteiro da instância -->
+    <div class="card">
+      <h2>5. Roteiro da instância (GET /processes/{id} + GET /tasks)</h2>
+      <button class="btn btn-secondary btn-sm" onclick="loadInstanceRoadmap()" disabled id="btn-instance-roadmap">Ver roteiro da instância</button>
+      <div id="instance-roadmap" class="roadmap" style="margin-top: 16px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Inspetor de Resposta da API</h2>
+      <div id="inspector-info" style="font-weight: 700; margin-bottom: 8px;">Nenhuma requisição realizada.</div>
+      <pre id="api-inspector" class="inspector">{}</pre>
+    </div>
+  </div>
+
+  <script>
+    const TEMPLATE_KEY = 'validated_method_dossier';
+    let activeProcessId = null;
+    let declaredDefinition = null;
+
+    function inspect(method, url, status, data) {
+      document.getElementById('inspector-info').textContent = `${method} ${url} -> HTTP ${status}`;
+      document.getElementById('api-inspector').textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function checkSession() {
+      try {
+        const res = await fetch('/auth/me', { credentials: 'include' });
+        if (res.ok) {
+          const user = await res.json();
+          document.getElementById('user-display').textContent = `${user.full_name || user.username} (${user.username})`;
+          document.getElementById('btn-create').disabled = user.username !== 'proponent_user';
+          document.getElementById('btn-create').textContent = user.username === 'proponent_user'
+            ? 'Criar processo' : 'Criar processo (login como Proponente)';
+        } else {
+          document.getElementById('user-display').textContent = 'Não autenticado';
+        }
+      } catch (err) {}
+    }
+
+    async function quickLogin(identifier, password) {
+      const res = await fetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ identifier, password })
+      });
+      if (res.ok) { await checkSession(); }
+      else { alert('Erro ao autenticar. Certifique-se de executar os seeds.'); }
+    }
+
+    function typeBadge(type) {
+      return `<span class="type-badge type-${type}">${type}</span>`;
+    }
+
+    function statusBadge(status) {
+      return `<span class="status-pill status-${status}">${status}</span>`;
+    }
+
+    async function loadDeclaredRoadmap() {
+      const url = `/processes/templates/${TEMPLATE_KEY}`;
+      const res = await fetch(url, { credentials: 'include' });
+      const data = await res.json().catch(() => null);
+      inspect('GET', url, res.status, data);
+      if (!res.ok) { alert('Falha ao consultar o template: ' + (data?.detail || res.statusText)); return; }
+
+      declaredDefinition = data.definition;
+      const container = document.getElementById('declared-roadmap');
+      container.innerHTML = '';
+      (data.definition.phases || []).forEach(phase => {
+        const block = document.createElement('div');
+        block.className = 'phase-block';
+        let html = `<div class="phase-header"><span>${phase.name}</span></div>`;
+        (phase.activities || []).forEach(act => {
+          html += `<div class="activity-row">
+            <span class="activity-name">${act.name} <code style="font-size:12px;color:#94a3b8;">(${act.key})</code></span>
+            ${typeBadge(act.activity_type || 'form')}
+          </div>`;
+        });
+        block.innerHTML = html;
+        container.appendChild(block);
+      });
+    }
+
+    async function createProcess() {
+      const url = '/processes';
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ template_key: TEMPLATE_KEY, title: 'Roteiro em Duas Fases — Prévia' })
+      });
+      const data = await res.json().catch(() => null);
+      inspect('POST', url, res.status, data);
+      if (!res.ok) { alert('Falha ao criar processo: ' + (data?.detail || res.statusText)); return; }
+
+      activeProcessId = data.id;
+      document.getElementById('current-process-code').textContent = `${data.code} (versão ${data.version_number})`;
+      document.getElementById('btn-submit-form').disabled = false;
+      document.getElementById('btn-instance-roadmap').disabled = false;
+      await loadInstanceRoadmap();
+    }
+
+    async function submitForm() {
+      if (!activeProcessId) return;
+      const url = `/processes/${activeProcessId}/activities/proposal_submission/form`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          values: {
+            method_title: 'Método de exemplo do roteiro em duas fases',
+            terminology_notes: 'Conceito descrito com nomenclatura atual e detalhamento suficiente para avaliação por IA.'
+          }
+        })
+      });
+      const data = await res.json().catch(() => null);
+      inspect('POST', url, res.status, data);
+      if (!res.ok) { alert('Falha ao submeter: ' + (data?.detail || res.statusText)); return; }
+
+      document.getElementById('btn-submit-form').disabled = true;
+      await waitForTriageReady();
+      await loadInstanceRoadmap();
+    }
+
+    // O método reaproveitado tem avaliação por IA configurável (Spec 013).
+    // Se um ambiente já rodou o seed completo, a submissão pode entrar em
+    // AI_PRE_EVALUATION antes de liberar a triagem — aguardamos de verdade
+    // em vez de assumir que o processo já está em TRIAGE.
+    async function waitForTriageReady(attempt = 0) {
+      const res = await fetch(`/processes/${activeProcessId}`, { credentials: 'include' });
+      const data = await res.json().catch(() => null);
+      if (data && data.status === 'TRIAGE') {
+        document.getElementById('ai-wait-note').style.display = 'none';
+        document.getElementById('btn-approve').disabled = false;
+        return;
+      }
+      if (data && data.status === 'AI_PRE_EVALUATION' && attempt < 15) {
+        document.getElementById('ai-wait-note').style.display = 'block';
+        await new Promise(r => setTimeout(r, 2000));
+        await loadInstanceRoadmap();
+        return waitForTriageReady(attempt + 1);
+      }
+      if (data && data.status !== 'TRIAGE') {
+        document.getElementById('ai-wait-note').textContent =
+          `Status atual: ${data.status}. Consulte a demo de Avaliador (/demos/triage/) ` +
+          'para tratar o retorno da pré-avaliação antes de aprovar aqui.';
+        document.getElementById('ai-wait-note').style.display = 'block';
+      }
+    }
+
+    async function approveTriage() {
+      if (!activeProcessId) return;
+      const url = `/processes/${activeProcessId}/triage/decision`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Origin': location.origin },
+        credentials: 'include',
+        body: JSON.stringify({ outcome: 'APPROVED', justification: 'Aprovado para fins de demonstração do roteiro.' })
+      });
+      const data = await res.json().catch(() => null);
+      inspect('POST', url, res.status, data);
+      if (!res.ok) { alert('Falha ao aprovar (confira se está logado como Avaliador): ' + (data?.detail || res.statusText)); return; }
+
+      document.getElementById('btn-approve').disabled = true;
+      await loadInstanceRoadmap();
+    }
+
+    async function loadInstanceRoadmap() {
+      if (!activeProcessId) return;
+      if (!declaredDefinition) await loadDeclaredRoadmap();
+
+      const pUrl = `/processes/${activeProcessId}`;
+      const pRes = await fetch(pUrl, { credentials: 'include' });
+      const pData = await pRes.json().catch(() => null);
+      inspect('GET', pUrl, pRes.status, pData);
+
+      const tUrl = `/tasks?process_id=${activeProcessId}`;
+      const tRes = await fetch(tUrl, { credentials: 'include' });
+      const tasks = await tRes.json().catch(() => []);
+
+      // TaskSummary não expõe activity_key (limite conhecido, endereçado por
+      // uma consulta agregada dedicada em trabalho futuro — Spec 017 US1).
+      // Nesta demo, casamos Task <-> atividade pelo assigned_role declarado
+      // no template, que é único por atividade neste método.
+      const statusByRole = {};
+      (tasks || []).forEach(t => { statusByRole[t.assigned_role] = t.status; });
+
+      const container = document.getElementById('instance-roadmap');
+      container.innerHTML = `<p class="note">Processo <strong>${pData.code}</strong> — status macro: ${statusBadge(pData.status)}</p>`;
+      (declaredDefinition.phases || []).forEach(phase => {
+        const block = document.createElement('div');
+        block.className = 'phase-block';
+        let html = `<div class="phase-header"><span>${phase.name}</span></div>`;
+        (phase.activities || []).forEach(act => {
+          const taskStatus = statusByRole[act.assigned_role];
+          const status = taskStatus || 'NOT_DECLARED';
+          html += `<div class="activity-row">
+            <span class="activity-name">${act.name}</span>
+            ${typeBadge(act.activity_type || 'form')}
+            ${statusBadge(status)}
+          </div>`;
+        });
+        block.innerHTML = html;
+        container.appendChild(block);
+      });
+    }
+
+    (async () => {
+      await checkSession();
+      await loadDeclaredRoadmap();
+    })();
+  </script>
+</body>
+</html>

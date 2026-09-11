@@ -630,6 +630,7 @@ class ActivityInstance(AuditMixin):
     blocked_reason: Mapped[str | None] = mapped_column(
         Text, nullable=True, default=None
     )
+    activity_type: Mapped[str] = mapped_column(String(32), default='form')
 
     process_instance: Mapped[ProcessInstance] = relationship(
         back_populates='activities', init=False

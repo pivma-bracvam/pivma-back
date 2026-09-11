@@ -2,7 +2,7 @@ process_template:
   key: "validated_method_dossier"
   name: "Método Validado – Dossiê Submetido"
   description: "Método 100% novo já desenvolvido, protocolo estabelecido e toda validação já concluída – dossiê pronto para revisão por pares e adoção regulatória (Peer-Review Ready)."
-  version: 1
+  version: 2
   is_active: true
 
 phases:
@@ -14,6 +14,7 @@ phases:
         name: "Submissão da Proposta"
         order_index: 1
         assigned_role: "PROPONENT"
+        activity_type: "form"
         form_template_key: "submission_validated_dossier_v1"
         dependencies: []
 
@@ -21,9 +22,29 @@ phases:
         name: "Triagem e Decisão BraCVAM"
         order_index: 2
         assigned_role: "TRIAGE_LEAD"
+        activity_type: "form"
         form_template_key: "triage_review_v1"
         dependencies:
           - required_activity_key: "proposal_submission"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+  # Fase 2 de exemplo (Spec 017): não representa nenhuma regra de negócio real
+  # de Planejamento. Existe apenas para validar, com a API real, que o motor
+  # de processos e o frontend conseguem avançar o roteiro para uma atividade
+  # que não é formulário. Instâncias criadas a partir da versão 1 deste
+  # template não são afetadas (Spec 004 FR-001/SC-002).
+  - key: "phase_2_planning_preview"
+    name: "Fase 2: Planejamento (prévia)"
+    order_index: 2
+    activities:
+      - key: "planning_preview"
+        name: "Prévia do Planejamento"
+        order_index: 1
+        assigned_role: "BRACVAM_ADMIN"
+        activity_type: "placeholder"
+        dependencies:
+          - required_activity_key: "triage_evaluation"
             required_status: "COMPLETED"
             condition_type: "ACTIVITY_COMPLETED"
 
