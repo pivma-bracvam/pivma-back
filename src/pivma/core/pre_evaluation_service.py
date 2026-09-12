@@ -42,11 +42,14 @@ from pivma.core.database.models import (
 )
 from pivma.core.process_engine import (
     STATUS_AI_PRE_EVALUATION,
+    STATUS_ARCHIVED,
+    STATUS_CANCELLED,
     AuthorizationError,
     ConflictError,
     NotFoundError,
     _open_new_submission_run,  # noqa: PLC2701
     _unblock_triage_activity,  # noqa: PLC2701
+    ensure_process_mutable,
 )
 from pivma.core.settings import Settings
 
@@ -80,6 +83,13 @@ async def run_pre_evaluation(run_id: UUID) -> None:
 async def _execute(session: AsyncSession, run_id: UUID) -> None:  # noqa: PLR0914
     run = await session.get(EvaluationRun, run_id)
     if run is None or run.status != 'in_progress':
+        return
+    process_status = await session.scalar(
+        select(ProcessInstance.status).where(
+            ProcessInstance.id == run.process_instance_id
+        )
+    )
+    if process_status != STATUS_AI_PRE_EVALUATION:
         return
 
     template, fields_by_key, values = await _load_submission(session, run)
@@ -140,6 +150,19 @@ async def _execute(session: AsyncSession, run_id: UUID) -> None:  # noqa: PLR091
     for item, version_id in items:
         session.add(_run_item(run.id, version_id, item))
 
+    process = await session.scalar(
+        select(ProcessInstance)
+        .where(
+            ProcessInstance.id == run.process_instance_id,
+            ProcessInstance.status == STATUS_AI_PRE_EVALUATION,
+            ProcessInstance.deleted_at.is_(None),
+        )
+        .with_for_update()
+    )
+    if process is None:
+        await session.rollback()
+        return
+
     snapshot = _content_fields(fields_by_key, values, assignments)
     snapshot.extend(
         {
@@ -193,6 +216,20 @@ async def _execute(session: AsyncSession, run_id: UUID) -> None:  # noqa: PLR091
 async def _mark_failed(session: AsyncSession, run_id: UUID) -> None:
     run = await session.get(EvaluationRun, run_id)
     if run is None or run.status != 'in_progress':
+        return
+    process = await session.scalar(
+        select(ProcessInstance)
+        .where(
+            ProcessInstance.id == run.process_instance_id,
+            ProcessInstance.deleted_at.is_(None),
+        )
+        .with_for_update()
+    )
+    if process is None or process.status in {
+        STATUS_CANCELLED,
+        STATUS_ARCHIVED,
+    }:
+        await session.rollback()
         return
     run.status = 'failed'
     run.error_summary = _GENERIC_FAILURE
@@ -249,6 +286,7 @@ async def request_direct_review(
     justification: str | None,
 ) -> DirectReviewRequest:
     """Proponente ignora a IA e encaminha à triagem humana (US3)."""
+    await ensure_process_mutable(session, process_id)
     run = await _latest_run(session, process_id)
     if run is None or run.status not in {'completed', 'failed'}:
         raise ConflictError('Nenhuma pré-avaliação concluída para contestar.')
@@ -297,6 +335,7 @@ async def record_feedback(
     items: list[dict[str, Any]],
 ) -> int:
     """Feedback do triador por critério (US4). Não altera o resultado da IA."""
+    await ensure_process_mutable(session, process_id)
     if await has_current_conflict(session, reviewer_id, process_id):
         raise AuthorizationError(
             'Usuário com conflito de interesse vigente neste processo.'
@@ -362,6 +401,7 @@ async def retry_run(
         raise NotFoundError('Execução não encontrada.')
     if old.status == 'completed':
         raise ConflictError('Execução já concluída; nada a reprocessar.')
+    await ensure_process_mutable(session, old.process_instance_id)
 
     new_run = EvaluationRun(
         process_instance_id=old.process_instance_id,
@@ -401,6 +441,19 @@ async def _sweep_stale_runs(cutoff: float) -> None:
             )
         )
         for run in stale:
+            process = await session.scalar(
+                select(ProcessInstance)
+                .where(
+                    ProcessInstance.id == run.process_instance_id,
+                    ProcessInstance.deleted_at.is_(None),
+                )
+                .with_for_update()
+            )
+            if process is None or process.status in {
+                STATUS_CANCELLED,
+                STATUS_ARCHIVED,
+            }:
+                continue
             started = run.started_at
             if started.tzinfo is None:
                 started = started.replace(tzinfo=timezone.utc)
@@ -806,6 +859,10 @@ async def _set_process_status(
 ) -> None:
     process = await session.get(ProcessInstance, process_id)
     if process is not None:
+        if process.status in {STATUS_CANCELLED, STATUS_ARCHIVED}:
+            raise ConflictError(
+                f'Processo em status {process.status!r} não permite avanço.'
+            )
         process.status = status
 
 

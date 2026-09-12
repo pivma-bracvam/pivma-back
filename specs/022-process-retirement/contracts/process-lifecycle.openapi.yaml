@@ -1,0 +1,124 @@
+openapi: 3.1.0
+info:
+  title: Process lifecycle contract
+  version: 1.0.0
+paths:
+  /processes/{id}/lifecycle:
+    post:
+      summary: Executes an allowed process retirement action; DELETE_DRAFT permanently removes an unsubmitted draft
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessLifecycleActionRequest'
+      responses:
+        '200':
+          description: Lifecycle action completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessLifecycleActionResponse'
+        '400':
+          description: Invalid justification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Actor lacks permission
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Process does not exist or is outside the actor visibility scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Action is incompatible with the persisted lifecycle state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /processes:
+    get:
+      summary: Lists visible processes
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+          description: ARCHIVED is returned only when explicitly requested by a platform-wide actor.
+      responses:
+        '200':
+          description: Operational processes by default; archived only by explicit authorized query.
+components:
+  schemas:
+    ProcessLifecycleActionRequest:
+      type: object
+      additionalProperties: false
+      required: [action, justification]
+      properties:
+        action:
+          type: string
+          enum: [DELETE_DRAFT, CANCEL, ARCHIVE]
+        justification:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Leading and trailing whitespace are removed before validation.
+    ProcessLifecycleActionResponse:
+      type: object
+      required: [id, action, deleted]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          description: Present for CANCEL and ARCHIVE; absent after DELETE_DRAFT removes the process.
+        action:
+          type: string
+          enum: [DELETE_DRAFT, CANCEL, ARCHIVE]
+        deleted:
+          type: boolean
+          description: True only when DELETE_DRAFT permanently removed the aggregate.
+        available_actions:
+          type: array
+          items:
+            type: string
+            enum: [DELETE_DRAFT, CANCEL, ARCHIVE]
+    ProcessInstanceDetailExtension:
+      type: object
+      properties:
+        available_actions:
+          type: array
+          items:
+            type: string
+            enum: [DELETE_DRAFT, CANCEL, ARCHIVE]
+    ErrorResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          oneOf:
+            - type: string
+            - type: object
+              required: [code, message]
+              properties:
+                code:
+                  type: string
+                  enum: [not_found, forbidden, invalid_justification, invalid_transition]
+                message:
+                  type: string

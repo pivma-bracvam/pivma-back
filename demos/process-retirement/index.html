@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PIVMA — Ciclo de vida</title>
+  <link rel="stylesheet" href="/demos/assets/base.css">
+  <style>
+    .container { max-width: 1100px; margin: 0 auto; }
+    .toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .toolbar select { width:auto; min-width:190px; }
+    .status { margin:12px 0; color:var(--text-muted); }
+    .action { margin:2px 4px 2px 0; padding:6px 9px; border:0; border-radius:6px; color:white; background:var(--primary); cursor:pointer; font-weight:700; }
+    .action[data-action="DELETE_DRAFT"] { background:var(--danger); }
+    .action[data-action="ARCHIVE"] { background:#475569; }
+    .inspector { background:#0f172a; color:#bae6fd; border-radius:6px; padding:16px; overflow:auto; min-height:100px; }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header>
+      <div>
+        <a href="/demos/">&larr; Catálogo</a>
+        <h1>Ciclo de vida do processo</h1>
+        <p class="lead">O front-end consulta as ações permitidas e envia o comando único à API real.</p>
+      </div>
+      <span class="api-status" data-api-status><span class="dot"></span><span data-api-status-text>Verificando API...</span></span>
+    </header>
+
+    <section class="card">
+      <div class="toolbar">
+        <label for="account" style="margin:0">Conta</label>
+        <select id="account">
+          <option value="admin">admin (plataforma)</option>
+          <option value="proponent_user">proponent_user (proponente)</option>
+        </select>
+        <button class="btn" id="login" type="button">Entrar</button>
+        <button class="btn secondary" id="refresh" type="button">Atualizar processos</button>
+      </div>
+      <p class="status" id="session">Sessão não autenticada.</p>
+      <p class="status">Seed: <code>uv run python -m scripts.seeds.seed_process_retirement</code></p>
+    </section>
+
+    <section class="card">
+      <h2>Processos operacionais</h2>
+      <p class="status">O rascunho da demo remove o agregado e o diretório de anexos. Processos submetidos preservam a linha do tempo.</p>
+      <div id="processes"><p class="status">Entre para carregar os processos.</p></div>
+    </section>
+
+    <section class="card">
+      <h2>Resposta da API</h2>
+      <pre class="inspector" id="inspector">Nenhuma requisição executada.</pre>
+    </section>
+  </main>
+  <script src="/demos/assets/base.js"></script>
+  <script>
+    const credentials = {
+      admin: { identifier: 'admin', password: 'Password123!' },
+      proponent_user: { identifier: 'proponent_user', password: 'Password123!' }
+    };
+    let account = 'admin';
+
+    function inspect(method, url, response, body) {
+      document.getElementById('inspector').textContent = JSON.stringify({method, url, status: response.status, body}, null, 2);
+    }
+
+    async function login() {
+      account = document.getElementById('account').value;
+      const response = await fetch('/auth/login', {
+        method: 'POST', credentials: 'include', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(credentials[account])
+      });
+      const body = await response.json().catch(() => ({}));
+      inspect('POST', '/auth/login', response, body);
+      if (!response.ok) { window.showNeedsSeed(document.querySelector('main'), 'Execute o seed de usuários.'); return; }
+      document.getElementById('session').textContent = `Sessão ativa: ${account}`;
+      await loadProcesses();
+    }
+
+    function actionButton(process, action) {
+      const button = document.createElement('button');
+      button.className = 'action';
+      button.dataset.action = action;
+      button.textContent = action;
+      button.onclick = () => executeAction(process, action);
+      return button;
+    }
+
+    function render(items) {
+      const target = document.getElementById('processes');
+      target.innerHTML = '';
+      if (!items.length) { target.textContent = 'Nenhum processo visível.'; return; }
+      const table = document.createElement('table');
+      table.innerHTML = '<thead><tr><th>Processo</th><th>Status</th><th>Ações permitidas</th></tr></thead>';
+      const body = document.createElement('tbody');
+      items.forEach(process => {
+        const row = document.createElement('tr');
+        const name = document.createElement('td');
+        const title = document.createElement('strong');
+        title.textContent = process.title;
+        const code = document.createElement('code');
+        code.textContent = process.code;
+        name.append(title, document.createElement('br'), code);
+        const status = document.createElement('td'); status.textContent = process.status;
+        const actions = document.createElement('td');
+        (process.available_actions || []).forEach(action => actions.appendChild(actionButton(process, action)));
+        if (!actions.childNodes.length) actions.textContent = '—';
+        row.append(name, status, actions); body.appendChild(row);
+      });
+      table.appendChild(body); target.appendChild(table);
+    }
+
+    async function loadProcesses() {
+      const query = '/processes?size=100';
+      const response = await fetch(query, {credentials: 'include'});
+      const body = await response.json().catch(() => ({}));
+      inspect('GET', query, response, body);
+      if (!response.ok) { document.getElementById('processes').textContent = `HTTP ${response.status}`; return; }
+      render(body.items || []);
+    }
+
+    async function executeAction(process, action) {
+      const justification = window.prompt(`Justificativa para ${action}`, 'Ação executada na demonstração');
+      if (justification === null) return;
+      const url = `/processes/${process.id}/lifecycle`;
+      const response = await fetch(url, {
+        method: 'POST', credentials: 'include', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action, justification})
+      });
+      const body = await response.json().catch(() => ({}));
+      inspect('POST', url, response, body);
+      await loadProcesses();
+    }
+
+    document.getElementById('login').onclick = login;
+    document.getElementById('refresh').onclick = loadProcesses;
+  </script>
+</body>
+</html>

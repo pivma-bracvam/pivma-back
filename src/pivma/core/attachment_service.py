@@ -9,6 +9,7 @@ calcula-se a soma de verificação e persiste-se o binário sob
 
 import hashlib
 import logging
+import shutil
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -117,3 +118,18 @@ def remove_file_best_effort(path: Path | str) -> None:
         Path(path).unlink(missing_ok=True)
     except OSError:
         logger.warning('attachment.disk_cleanup_failed path=%s', path)
+
+
+def remove_process_attachments(root: Path | str, process_id: UUID) -> None:
+    """Remove todos os binários pertencentes a um processo descartável.
+
+    A operação é estrita para que o serviço de ciclo de vida não confirme a
+    exclusão do banco quando a limpeza física falhar. Um diretório ausente já
+    representa um processo sem anexos e não impede a operação.
+    """
+    process_dir = Path(root) / str(process_id)
+    if not process_dir.exists():
+        return
+    if not process_dir.is_dir():
+        raise OSError(f'O caminho de anexos não é um diretório: {process_dir}')
+    shutil.rmtree(process_dir)

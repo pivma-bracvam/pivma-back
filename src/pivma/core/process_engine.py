@@ -1,14 +1,16 @@
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import ColumnElement
 
+from pivma.core.attachment_service import remove_process_attachments
 from pivma.core.authorization import (
     ACTIVITY_CARGOS,
     active_participant_process_scope,
@@ -24,9 +26,12 @@ from pivma.core.database.models import (
     Artifact,
     Assignment,
     AuditEvent,
+    ConflictInterestDeclaration,
     Decision,
+    DirectReviewRequest,
     EvaluationAssignment,
     EvaluationRun,
+    EvaluationRunItem,
     FieldReview,
     FormField,
     FormInstance,
@@ -36,6 +41,7 @@ from pivma.core.database.models import (
     ProcessInstance,
     ProcessTemplate,
     ProcessTemplateVersion,
+    ReviewerFeedback,
     Task,
 )
 
@@ -67,6 +73,29 @@ class AuthorizationError(ProcessEngineError):
     pass
 
 
+LIFECYCLE_DELETE_DRAFT = 'DELETE_DRAFT'
+LIFECYCLE_CANCEL = 'CANCEL'
+LIFECYCLE_ARCHIVE = 'ARCHIVE'
+LIFECYCLE_ACTIONS = frozenset({
+    LIFECYCLE_DELETE_DRAFT,
+    LIFECYCLE_CANCEL,
+    LIFECYCLE_ARCHIVE,
+})
+STATUS_CLOSED = 'CLOSED'
+STATUS_CANCELLED = 'CANCELLED'
+STATUS_ARCHIVED = 'ARCHIVED'
+TERMINAL_PROCESS_STATUSES = frozenset({
+    STATUS_CLOSED,
+    STATUS_CANCELLED,
+    STATUS_ARCHIVED,
+})
+IMMUTABLE_PROCESS_STATUSES = frozenset({
+    STATUS_CANCELLED,
+    STATUS_ARCHIVED,
+})
+LIFECYCLE_JUSTIFICATION_MAX_LENGTH = 2000
+
+
 # Estados do processo em que a submissão ainda está "sob o proponente" — o
 # formulário fica travado para edição e o processo só é visível ao próprio
 # proponente. `AI_PRE_EVALUATION` é a espera pela pré-avaliação assíncrona por
@@ -78,6 +107,39 @@ PROPONENT_SCOPED_STATUSES = (STATUS_SUBMISSION, STATUS_AI_PRE_EVALUATION)
 
 # Alvos de avaliação por IA que se prendem a `field_keys` do formulário.
 FIELD_TARGET_TYPES = frozenset({'field', 'field_set', 'document'})
+
+
+def normalize_lifecycle_justification(value: str) -> str:
+    """Valida e normaliza a justificativa de uma ação de ciclo de vida."""
+    if not isinstance(value, str):
+        raise ValueError('A justificativa deve ser texto.')
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError('A justificativa não pode ser vazia.')
+    if len(normalized) > LIFECYCLE_JUSTIFICATION_MAX_LENGTH:
+        raise ValueError(
+            'A justificativa deve ter no máximo 2.000 caracteres.'
+        )
+    return normalized
+
+
+def lifecycle_available_actions(
+    *,
+    status: str,
+    never_submitted: bool,
+    can_delete: bool,
+    can_manage: bool,
+) -> list[str]:
+    """Calcula os comandos que o ator pode tentar para um processo."""
+    if never_submitted and can_delete:
+        return [LIFECYCLE_DELETE_DRAFT]
+    if status == STATUS_ARCHIVED:
+        return []
+    if status in {STATUS_CLOSED, STATUS_CANCELLED}:
+        return [LIFECYCLE_ARCHIVE] if can_manage else []
+    if can_manage and status not in TERMINAL_PROCESS_STATUSES:
+        return [LIFECYCLE_CANCEL]
+    return []
 
 
 async def process_visibility_clause(
@@ -116,6 +178,428 @@ async def _guard_against_current_conflict(
         raise AuthorizationError(
             'Usuário com conflito de interesse vigente neste processo.'
         )
+
+
+async def _has_formal_submission(
+    session: AsyncSession, process_id: UUID
+) -> bool:
+    return (
+        await session.scalar(
+            select(AuditEvent.id)
+            .where(
+                AuditEvent.process_instance_id == process_id,
+                AuditEvent.event_type == 'SUBMISSION_SUBMITTED',
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
+async def available_lifecycle_actions(
+    session: AsyncSession, process: ProcessInstance, user_id: UUID
+) -> list[str]:
+    """Projeta ações aplicáveis sem substituir a autorização do comando."""
+    platform_access = await has_platform_wide_access(session, user_id)
+    proponent_access = await is_active_effective_proponent(
+        session, user_id, process.id
+    )
+    return lifecycle_available_actions(
+        status=process.status,
+        never_submitted=not await _has_formal_submission(session, process.id),
+        can_delete=platform_access or proponent_access,
+        can_manage=platform_access,
+    )
+
+
+async def ensure_process_mutable(
+    session: AsyncSession, process_id: UUID
+) -> ProcessInstance:
+    process = await session.scalar(
+        select(ProcessInstance).where(
+            ProcessInstance.id == process_id,
+            ProcessInstance.deleted_at.is_(None),
+        )
+    )
+    if process is None:
+        raise NotFoundError('Processo não encontrado.')
+    if process.status in IMMUTABLE_PROCESS_STATUSES:
+        raise ConflictError(
+            f'Processo em status {process.status!r} não permite mutações.'
+        )
+    return process
+
+
+async def _delete_process_aggregate(
+    session: AsyncSession,
+    process_id: UUID,
+    attachment_root: Path | str | None,
+) -> None:
+    """Remove o agregado em ordem de dependência das chaves estrangeiras.
+
+    Risco conhecido: a remoção física dos anexos não participa da transação
+    do banco. Ela roda primeiro de propósito, para que uma falha de
+    filesystem aborte tudo sem apagar nenhuma linha (o caso coberto pelos
+    testes). Mas se o `rmtree` tiver sucesso e algum `DELETE` seguinte
+    falhar depois, o rollback da transação não devolve os arquivos já
+    removidos do disco — o `ProcessInstance` sobreviveria referenciando
+    anexos inexistentes. Aceito como limitação inerente a misturar
+    filesystem com transação de banco; não vale a complexidade de um
+    mecanismo de duas fases só para este caso raro.
+    """
+    if attachment_root is None:
+        from pivma.core.settings import Settings  # noqa: PLC0415
+
+        attachment_root = Settings().ATTACHMENTS_DIR
+    remove_process_attachments(attachment_root, process_id)
+
+    activity_ids = list(
+        await session.scalars(
+            select(ActivityInstance.id).where(
+                ActivityInstance.process_instance_id == process_id
+            )
+        )
+    )
+    run_ids = list(
+        await session.scalars(
+            select(ActivityRun.id).where(
+                ActivityRun.activity_instance_id.in_(activity_ids)
+            )
+        )
+    )
+    form_ids = list(
+        await session.scalars(
+            select(FormInstance.id).where(
+                FormInstance.activity_run_id.in_(run_ids)
+            )
+        )
+    )
+    evaluation_run_ids = list(
+        await session.scalars(
+            select(EvaluationRun.id).where(
+                EvaluationRun.process_instance_id == process_id
+            )
+        )
+    )
+    evaluation_item_ids = list(
+        await session.scalars(
+            select(EvaluationRunItem.id).where(
+                EvaluationRunItem.run_id.in_(evaluation_run_ids)
+            )
+        )
+    )
+    assignment_ids = list(
+        await session.scalars(
+            select(Assignment.id).where(
+                Assignment.process_instance_id == process_id
+            )
+        )
+    )
+
+    if evaluation_item_ids:
+        await session.execute(
+            delete(ReviewerFeedback).where(
+                ReviewerFeedback.run_item_id.in_(evaluation_item_ids)
+            )
+        )
+        await session.execute(
+            delete(EvaluationRunItem).where(
+                EvaluationRunItem.id.in_(evaluation_item_ids)
+            )
+        )
+    if evaluation_run_ids:
+        await session.execute(
+            delete(DirectReviewRequest).where(
+                or_(
+                    DirectReviewRequest.process_instance_id == process_id,
+                    DirectReviewRequest.evaluation_run_id.in_(
+                        evaluation_run_ids
+                    ),
+                ),
+            )
+        )
+        # EvaluationRun references both FormInstance and ActivityRun, so it
+        # must be removed before either parent is deleted below.
+        await session.execute(
+            delete(EvaluationRun).where(
+                EvaluationRun.id.in_(evaluation_run_ids)
+            )
+        )
+    if form_ids:
+        await session.execute(
+            delete(FieldReview).where(
+                FieldReview.form_instance_id.in_(form_ids)
+            )
+        )
+        await session.execute(
+            delete(FormValue).where(FormValue.form_instance_id.in_(form_ids))
+        )
+    await session.execute(
+        delete(AuditEvent).where(AuditEvent.process_instance_id == process_id)
+    )
+    await session.execute(
+        delete(Decision).where(Decision.process_instance_id == process_id)
+    )
+    await session.execute(
+        delete(Artifact).where(Artifact.process_instance_id == process_id)
+    )
+    if run_ids:
+        await session.execute(
+            delete(Task).where(Task.activity_run_id.in_(run_ids))
+        )
+        await session.execute(
+            delete(FormInstance).where(FormInstance.id.in_(form_ids))
+        )
+    if activity_ids:
+        await session.execute(
+            delete(ActivityDependency).where(
+                or_(
+                    ActivityDependency.dependent_activity_id.in_(activity_ids),
+                    ActivityDependency.required_activity_id.in_(activity_ids),
+                )
+            )
+        )
+        await session.execute(
+            delete(ActivityRun).where(ActivityRun.id.in_(run_ids))
+        )
+        await session.execute(
+            delete(ActivityInstance).where(
+                ActivityInstance.id.in_(activity_ids)
+            )
+        )
+    await session.execute(
+        delete(Phase).where(Phase.process_instance_id == process_id)
+    )
+    if assignment_ids:
+        await session.execute(
+            delete(ConflictInterestDeclaration).where(
+                ConflictInterestDeclaration.assignment_id.in_(assignment_ids)
+            )
+        )
+        await session.execute(
+            delete(Assignment).where(Assignment.id.in_(assignment_ids))
+        )
+    await session.execute(
+        delete(ProcessInstance).where(ProcessInstance.id == process_id)
+    )
+
+
+async def execute_process_lifecycle(  # noqa: PLR0912, PLR0913, PLR0915
+    session: AsyncSession,
+    process_id: UUID,
+    action: str,
+    justification: str,
+    user_id: UUID,
+    *,
+    attachment_root: Path | str | None = None,
+) -> dict[str, Any]:
+    """Executa uma ação de exclusão, cancelamento ou arquivamento."""
+    try:
+        normalized_justification = normalize_lifecycle_justification(
+            justification
+        )
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+    if action not in LIFECYCLE_ACTIONS:
+        raise ValidationError(f'Ação de ciclo de vida inválida: {action!r}.')
+
+    platform_access = await has_platform_wide_access(session, user_id)
+    visibility = (
+        None
+        if platform_access
+        else await process_visibility_clause(session, user_id)
+    )
+    process_stmt = select(ProcessInstance).where(
+        ProcessInstance.id == process_id,
+        ProcessInstance.deleted_at.is_(None),
+    )
+    if visibility is not None:
+        process_stmt = process_stmt.where(visibility)
+    process = await session.scalar(process_stmt.with_for_update())
+    if process is None:
+        raise NotFoundError('Processo não encontrado.')
+
+    proponent_access = await is_active_effective_proponent(
+        session, user_id, process_id
+    )
+    submitted = await _has_formal_submission(session, process_id)
+
+    if action == LIFECYCLE_DELETE_DRAFT:
+        if not (platform_access or proponent_access):
+            raise AuthorizationError(
+                'Sem permissão para excluir este processo.'
+            )
+        if submitted:
+            raise ConflictError(
+                'Processo submetido não pode ser excluído como rascunho.'
+            )
+        await _delete_process_aggregate(session, process_id, attachment_root)
+        try:
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        return {
+            'id': process_id,
+            'action': action,
+            'deleted': True,
+            'available_actions': [],
+        }
+
+    if not platform_access:
+        raise AuthorizationError(
+            'Apenas Administrador ou BraCVAM pode executar esta ação.'
+        )
+    if action == LIFECYCLE_CANCEL:
+        if not submitted or process.status in TERMINAL_PROCESS_STATUSES:
+            raise ConflictError(
+                f'Processo em status {process.status!r} não pode ser '
+                'cancelado.'
+            )
+        previous_status = process.status
+        counts = await _cancel_pending_children(session, process, user_id)
+        process.status = STATUS_CANCELLED
+        process.closed_at = utc_now()
+        process.closure_reason = normalized_justification
+        process.set_update_audit(user_id)
+        session.add(
+            AuditEvent(
+                process_instance_id=process.id,
+                user_id=user_id,
+                event_type='PROCESS_CANCELLED',
+                context_data={
+                    'action': action,
+                    'previous_status': previous_status,
+                    'result_status': STATUS_CANCELLED,
+                    'justification': normalized_justification,
+                    'cancelled_counts': counts,
+                },
+            )
+        )
+        result_status = STATUS_CANCELLED
+    else:
+        if process.status not in {STATUS_CLOSED, STATUS_CANCELLED}:
+            raise ConflictError(
+                f'Processo em status {process.status!r} não pode ser '
+                'arquivado.'
+            )
+        previous_status = process.status
+        process.status = STATUS_ARCHIVED
+        process.set_update_audit(user_id)
+        session.add(
+            AuditEvent(
+                process_instance_id=process.id,
+                user_id=user_id,
+                event_type='PROCESS_ARCHIVED',
+                context_data={
+                    'action': action,
+                    'previous_status': previous_status,
+                    'result_status': STATUS_ARCHIVED,
+                    'justification': normalized_justification,
+                },
+            )
+        )
+        result_status = STATUS_ARCHIVED
+
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    return {
+        'id': process_id,
+        'status': result_status,
+        'action': action,
+        'deleted': False,
+        'available_actions': await available_lifecycle_actions(
+            session, process, user_id
+        ),
+    }
+
+
+async def _cancel_pending_children(
+    session: AsyncSession, process: ProcessInstance, user_id: UUID
+) -> dict[str, int]:
+    counts = {
+        'phases': 0,
+        'activities': 0,
+        'activity_runs': 0,
+        'tasks': 0,
+        'evaluation_runs': 0,
+    }
+    phases = list(
+        await session.scalars(
+            select(Phase).where(Phase.process_instance_id == process.id)
+        )
+    )
+    for phase in phases:
+        if phase.status not in {'COMPLETED', STATUS_CANCELLED}:
+            phase.status = STATUS_CANCELLED
+            phase.set_update_audit(user_id)
+            counts['phases'] += 1
+
+    activities = list(
+        await session.scalars(
+            select(ActivityInstance).where(
+                ActivityInstance.process_instance_id == process.id
+            )
+        )
+    )
+    for activity in activities:
+        if activity.status not in {'COMPLETED', STATUS_CANCELLED}:
+            activity.status = STATUS_CANCELLED
+            activity.blocked_reason = 'Processo cancelado.'
+            activity.set_update_audit(user_id)
+            counts['activities'] += 1
+
+    activity_ids = [activity.id for activity in activities]
+    runs = list(
+        await session.scalars(
+            select(ActivityRun).where(
+                ActivityRun.activity_instance_id.in_(activity_ids)
+            )
+        )
+    )
+    for run in runs:
+        if run.status not in {'COMPLETED', STATUS_CANCELLED}:
+            run.status = STATUS_CANCELLED
+            run.completed_at = run.completed_at or utc_now()
+            run.set_update_audit(user_id)
+            counts['activity_runs'] += 1
+
+    run_ids = [run.id for run in runs]
+    tasks = list(
+        await session.scalars(
+            select(Task).where(Task.activity_run_id.in_(run_ids))
+        )
+    )
+    for task in tasks:
+        if task.status not in {'COMPLETED', STATUS_CANCELLED}:
+            task.status = STATUS_CANCELLED
+            task.completed_at = task.completed_at or utc_now()
+            task.set_update_audit(user_id)
+            counts['tasks'] += 1
+
+    evaluation_runs = list(
+        await session.scalars(
+            select(EvaluationRun).where(
+                EvaluationRun.process_instance_id == process.id
+            )
+        )
+    )
+    for evaluation_run in evaluation_runs:
+        if evaluation_run.status not in {
+            'completed',
+            'failed',
+            STATUS_CANCELLED,
+        }:
+            evaluation_run.status = STATUS_CANCELLED
+            evaluation_run.finished_at = (
+                evaluation_run.finished_at or utc_now()
+            )
+            evaluation_run.set_update_audit(user_id)
+            counts['evaluation_runs'] += 1
+    return counts
 
 
 @dataclass
@@ -1125,6 +1609,7 @@ async def save_form_values_draft(
     values_dict: dict[str, Any],
     user_id: UUID,
 ) -> FormInstance:
+    await ensure_process_mutable(session, process_id)
     _, current_run, form_instance, _, fields = await get_current_form_instance(
         session, process_id, activity_key, user_id
     )
@@ -1533,6 +2018,7 @@ async def submit_proposal_form(  # noqa: PLR0914, PLR0915
     values_dict: dict[str, Any],
     user_id: UUID,
 ) -> tuple[ActivityInstance, ActivityRun, Artifact, EvaluationRun | None]:
+    await ensure_process_mutable(session, process_id)
     (
         act,
         current_run,
@@ -1676,6 +2162,7 @@ async def save_field_reviews(
     user_id: UUID,
 ) -> None:
     await _guard_against_current_conflict(session, process_id, user_id)
+    await ensure_process_mutable(session, process_id)
 
     _, _, sub_form, _, sub_fields = await get_current_form_instance(
         session, process_id, 'proposal_submission'
@@ -1745,6 +2232,7 @@ async def _open_new_submission_run(
     pré-avaliação por IA. Copia os valores da execução anterior e cria a
     tarefa do proponente. Não altera o estado da triagem nem do processo.
     """
+    await ensure_process_mutable(session, process_id)
     (
         sub_act,
         prev_sub_run,

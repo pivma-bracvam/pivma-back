@@ -27,6 +27,7 @@ from pivma.core.process_engine import (
     ConflictError,
     NotFoundError,
     ValidationError,
+    ensure_process_mutable,
     get_current_form_instance,
     is_artifact_referenced_by_submitted_form,
     save_form_values_draft,
@@ -221,7 +222,8 @@ async def save_form_draft(
         ) from e
     except ConflictError as e:
         raise HTTPException(
-            status_code=HTTPStatus.CONFLICT, detail=str(e)
+            status_code=HTTPStatus.CONFLICT,
+            detail={'code': 'invalid_transition', 'message': str(e)},
         ) from e
     except ValidationError as e:
         raise HTTPException(
@@ -269,7 +271,8 @@ async def submit_form(  # noqa: PLR0913, PLR0917
         ) from e
     except ConflictError as e:
         raise HTTPException(
-            status_code=HTTPStatus.CONFLICT, detail=str(e)
+            status_code=HTTPStatus.CONFLICT,
+            detail={'code': 'invalid_transition', 'message': str(e)},
         ) from e
 
     pre_evaluation = None
@@ -343,7 +346,7 @@ async def _active_form_value(
     response_model=AttachmentUploadResponse,
     status_code=HTTPStatus.OK,
 )
-async def upload_field_attachment(  # noqa: PLR0913, PLR0914, PLR0917
+async def upload_field_attachment(  # noqa: PLR0913, PLR0914, PLR0915, PLR0917
     id: UUID,
     activity_key: str,
     field_key: str,
@@ -356,6 +359,13 @@ async def upload_field_attachment(  # noqa: PLR0913, PLR0914, PLR0917
     run, form_inst, field = await _load_file_field(
         session, id, activity_key, field_key, current_user.id
     )
+    try:
+        await ensure_process_mutable(session, id)
+    except ConflictError as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail={'code': 'invalid_transition', 'message': str(exc)},
+        ) from exc
     if form_inst.is_submitted:
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,
@@ -478,6 +488,13 @@ async def delete_field_attachment(  # noqa: PLR0913, PLR0917
     _run, form_inst, field = await _load_file_field(
         session, id, activity_key, field_key, current_user.id
     )
+    try:
+        await ensure_process_mutable(session, id)
+    except ConflictError as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail={'code': 'invalid_transition', 'message': str(exc)},
+        ) from exc
     if form_inst.is_submitted:
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,

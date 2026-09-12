@@ -236,3 +236,12 @@ async def deleted_user(session):
 def auth_token(user):
     settings = Settings()
     return create_access_token(user.id, settings.JWT_SECRET_KEY)
+
+
+@pytest_asyncio.fixture
+async def process_retirement_factory(session):
+    from tests.factories.process_retirement_factory import (  # noqa: PLC0415
+        ProcessRetirementFactory,
+    )
+
+    return ProcessRetirementFactory(session)
