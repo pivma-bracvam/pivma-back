@@ -113,6 +113,10 @@ async def test_upload_then_submit_bundles_attachment(client, session):
     assert dossier.metadata_payload['attachments'][0]['field_key'] == (
         'pop_document'
     )
+    assert (
+        dossier.metadata_payload['attachments'][0]['artifact_id']
+        == (body['attachment']['artifact_id'])
+    )
 
     attachment = (
         await session.execute(
@@ -254,6 +258,40 @@ async def test_upload_rejected_after_submission(client, session):
 
     assert resp.status_code == HTTPStatus.CONFLICT
     assert resp.json()['detail']['code'] == 'form_submitted'
+
+
+@pytest.mark.asyncio
+async def test_replacing_attachment_after_revision_keeps_submitted_snapshot(
+    client, session, bracvam_user
+):
+    owner, pid = await setup_process_with_file_field(client, session)
+    first = upload(client, pid, name='first.pdf', data=b'first')
+    assert first.status_code == HTTPStatus.OK
+    first_id = first.json()['attachment']['artifact_id']
+    submit = client.post(
+        FORM_URL.format(pid=pid),
+        json={'values': {'method_title': 'Método enviado'}},
+    )
+    assert submit.status_code == HTTPStatus.OK
+
+    authenticate(client, bracvam_user)
+    revision = client.post(
+        f'/processes/{pid}/triage/decision',
+        headers=ORIGIN,
+        json={
+            'outcome': 'NEEDS_REVISION',
+            'justification': 'Atualizar o protocolo.',
+        },
+    )
+    assert revision.status_code == HTTPStatus.OK
+
+    authenticate(client, owner)
+    replacement = upload(client, pid, name='second.pdf', data=b'second')
+    assert replacement.status_code == HTTPStatus.OK
+
+    previous = await session.get(Artifact, UUID(first_id))
+    assert previous is not None
+    assert previous.deleted_at is None
 
 
 @pytest.mark.asyncio

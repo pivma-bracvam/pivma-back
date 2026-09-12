@@ -10,6 +10,7 @@ from pydantic import (
     StringConstraints,
     TypeAdapter,
     field_validator,
+    model_validator,
 )
 
 USERNAME_PATTERN = r'^[A-Za-z0-9._-]+$'
@@ -528,6 +529,65 @@ class SaveFormValuesRequest(BaseModel):
 
 class SubmitFormRequest(BaseModel):
     values: dict[str, Any]
+
+
+class ReplaceSubmissionRequest(BaseModel):
+    """Payload completo para a submissão ainda em elaboração."""
+
+    model_config = ConfigDict(extra='forbid')
+
+    title: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=3, max_length=255),
+    ]
+    values: dict[str, Any]
+
+
+class PatchSubmissionRequest(BaseModel):
+    """Payload parcial; valores ausentes permanecem no rascunho."""
+
+    model_config = ConfigDict(extra='forbid')
+
+    title: Annotated[
+        str | None,
+        StringConstraints(strip_whitespace=True, min_length=3, max_length=255),
+    ] = None
+    values: dict[str, Any] | None = None
+
+    @model_validator(mode='after')
+    def require_editable_attribute(self):
+        if 'title' in self.model_fields_set and self.title is None:
+            raise ValueError('title não pode ser nulo.')
+        if 'values' in self.model_fields_set and self.values is None:
+            raise ValueError('values não pode ser nulo.')
+        if self.title is None and (self.values is None or not self.values):
+            raise ValueError('Informe title e/ou values para atualizar.')
+        return self
+
+
+class ProcessSubmissionResponse(BaseModel):
+    id: UUID
+    title: str
+    status: str
+    template_key: str
+    version_number: int
+    run_number: int
+    form_instance_id: UUID
+    is_submitted: bool
+    values: dict[str, Any]
+
+
+class SubmissionVersionSummary(BaseModel):
+    run_number: int
+    submitted_at: datetime
+    returned_at: datetime
+    title: str
+    return_justification: str
+
+
+class SubmissionVersionResponse(SubmissionVersionSummary):
+    values: dict[str, Any]
+    attachments: list[dict[str, Any]]
 
 
 class FieldReviewItem(BaseModel):

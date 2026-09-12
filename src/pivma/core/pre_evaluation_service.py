@@ -213,7 +213,7 @@ async def _return_to_proponent(
     reason = 'Pré-avaliação automática por IA'
     if failed:
         reason += ' (falha no processamento)'
-    await _open_new_submission_run(
+    next_run_number = await _open_new_submission_run(
         session,
         run.process_instance_id,
         reason=reason,
@@ -226,6 +226,19 @@ async def _return_to_proponent(
             'Retornada ao proponente pela pré-avaliação por IA.'
         )
         triage_act.set_update_audit(run.created_by)
+    session.add(
+        AuditEvent(
+            process_instance_id=run.process_instance_id,
+            activity_run_id=run.activity_run_id,
+            user_id=run.created_by,
+            event_type='REVISION_REQUESTED',
+            context_data={
+                'new_run_number': next_run_number,
+                'justification': reason,
+                'source': 'AI_PRE_EVALUATION',
+            },
+        )
+    )
     await _set_process_status(session, run.process_instance_id, 'SUBMISSION')
 
 

@@ -35,3 +35,7 @@ Contrato completo: [`../specs/015-first-deploy-baseline/contracts/demo-standard.
 | 4 | `ai-pipeline/` | Observabilidade de IA |
 | 5 | `users/` | Usuários e RBAC |
 | 6 | `operational-index/` | Índice operacional (logs SSE) |
+| 7 | `attachments/` | Anexos de formulário |
+| 8 | `roadmap/` | Roteiro em duas fases (prévia) |
+| 9 | `kanban/` | Kanban de pendências |
+| 10 | `submission-update/` | Atualização integral e parcial de submissão |

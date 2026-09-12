@@ -541,6 +541,45 @@ def _set_value_on_field(
         form_value.json_value = val
 
 
+def _clear_form_value(form_value: FormValue) -> None:
+    """Limpa todas as colunas de armazenamento antes de gravar um valor."""
+    form_value.text_value = None
+    form_value.numeric_value = None
+    form_value.boolean_value = None
+    form_value.date_value = None
+    form_value.json_value = None
+
+
+def _form_value_to_python(  # noqa: PLR0911
+    form_value: FormValue, field_type: str
+) -> Any:
+    if field_type in {'text', 'textarea'}:
+        return form_value.text_value
+    if field_type == 'integer':
+        return (
+            int(form_value.numeric_value)
+            if form_value.numeric_value is not None
+            else None
+        )
+    if field_type == 'float':
+        return (
+            float(form_value.numeric_value)
+            if form_value.numeric_value is not None
+            else None
+        )
+    if field_type == 'boolean':
+        return form_value.boolean_value
+    if field_type == 'date':
+        return (
+            form_value.date_value.isoformat()
+            if form_value.date_value
+            else None
+        )
+    if field_type == 'file_upload':
+        return None
+    return form_value.json_value
+
+
 def _draft_validation_error(
     field_key: str, code: str, message: str
 ) -> dict[str, str]:
@@ -665,6 +704,420 @@ def _validate_draft_values(  # noqa: PLR0912
         )
 
 
+def _validate_submission_update_values(
+    fields: list[FormField],
+    values_dict: dict[str, Any],
+    *,
+    require_complete: bool,
+) -> None:
+    """Valida valores de PUT/PATCH sem alterar a sessão."""
+    _validate_draft_values(fields, values_dict)
+
+    non_file_fields = [f for f in fields if f.field_type != 'file_upload']
+    errors: list[dict[str, str]] = []
+    if require_complete:
+        for field in non_file_fields:
+            if field.field_key not in values_dict:
+                errors.append(
+                    _draft_validation_error(
+                        field.field_key,
+                        'required_field',
+                        (
+                            f"O campo '{field.field_key}' deve ser informado "
+                            'no PUT completo.'
+                        ),
+                    )
+                )
+
+    for field in non_file_fields:
+        if not field.is_required or field.field_key not in values_dict:
+            continue
+        value = values_dict[field.field_key]
+        missing = value is None or (
+            isinstance(value, str) and not value.strip()
+        )
+        if missing:
+            errors.append(
+                _draft_validation_error(
+                    field.field_key,
+                    'required_field',
+                    f"O campo '{field.field_key}' é obrigatório.",
+                )
+            )
+
+    if errors:
+        raise ValidationError(
+            'Valores de formulário incompletos.', errors=errors
+        )
+
+
+async def _load_editable_submission(
+    session: AsyncSession,
+    process_id: UUID,
+    user_id: UUID,
+) -> tuple[
+    ProcessInstance,
+    ActivityInstance,
+    ActivityRun,
+    FormInstance,
+    FormTemplate,
+    list[FormField],
+]:
+    """Carrega a submissão atual após autorização e guarda de estado."""
+    process = await session.scalar(
+        select(ProcessInstance).where(
+            ProcessInstance.id == process_id,
+            ProcessInstance.deleted_at.is_(None),
+        )
+    )
+    if process is None:
+        raise NotFoundError('Processo não encontrado.')
+
+    authorized = await has_platform_wide_access(session, user_id)
+    if not authorized:
+        authorized = await is_active_effective_proponent(
+            session, user_id, process_id
+        )
+    if not authorized:
+        raise NotFoundError('Processo não encontrado.')
+    if process.status != STATUS_SUBMISSION:
+        raise ConflictError(
+            f'Processo em status {process.status!r} não permite edição.'
+        )
+
+    (
+        act,
+        run,
+        form_instance,
+        template,
+        fields,
+    ) = await get_current_form_instance(
+        session, process_id, 'proposal_submission'
+    )
+    if form_instance.is_submitted:
+        raise ConflictError('O formulário desta execução já foi submetido.')
+    return process, act, run, form_instance, template, fields
+
+
+async def _serialize_submission_values(
+    session: AsyncSession,
+    form_instance_id: UUID,
+    fields: list[FormField],
+) -> dict[str, Any]:
+    field_map = {
+        field.id: field
+        for field in fields
+        if field.field_type != 'file_upload'
+    }
+    values = await session.scalars(
+        select(FormValue).where(
+            FormValue.form_instance_id == form_instance_id,
+            FormValue.deleted_at.is_(None),
+        )
+    )
+    return {
+        field_map[value.form_field_id].field_key: _form_value_to_python(
+            value, field_map[value.form_field_id].field_type
+        )
+        for value in values
+        if value.form_field_id in field_map
+    }
+
+
+async def _submission_response(  # noqa: PLR0913, PLR0917
+    session: AsyncSession,
+    process: ProcessInstance,
+    run: ActivityRun,
+    form_instance: FormInstance,
+    template: FormTemplate,
+    fields: list[FormField],
+) -> dict[str, Any]:
+    process_template = await session.get(
+        ProcessTemplateVersion, process.template_version_id
+    )
+    return {
+        'id': process.id,
+        'title': process.title,
+        'status': process.status,
+        'template_key': template.key,
+        'version_number': process_template.version_number
+        if process_template is not None
+        else 1,
+        'run_number': run.run_number,
+        'form_instance_id': form_instance.id,
+        'is_submitted': form_instance.is_submitted,
+        'values': await _serialize_submission_values(
+            session, form_instance.id, fields
+        ),
+    }
+
+
+async def update_process_submission(  # noqa: PLR0913, PLR0917
+    session: AsyncSession,
+    process_id: UUID,
+    user_id: UUID,
+    *,
+    mode: str,
+    title: str | None,
+    values_dict: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Atualiza título e valores do rascunho em uma única transação."""
+    (
+        process,
+        _act,
+        run,
+        form_instance,
+        template,
+        fields,
+    ) = await _load_editable_submission(session, process_id, user_id)
+    values_dict = values_dict or {}
+    _validate_submission_update_values(
+        fields,
+        values_dict,
+        require_complete=mode == 'PUT',
+    )
+
+    field_map = {field.field_key: field for field in fields}
+    active_values = {
+        value.form_field_id: value
+        for value in await session.scalars(
+            select(FormValue).where(
+                FormValue.form_instance_id == form_instance.id,
+                FormValue.deleted_at.is_(None),
+            )
+        )
+    }
+    keys_to_update = (
+        [
+            field.field_key
+            for field in fields
+            if field.field_type != 'file_upload'
+        ]
+        if mode == 'PUT'
+        else list(values_dict)
+    )
+    for field_key in keys_to_update:
+        field = field_map[field_key]
+        form_value = active_values.get(field.id)
+        if form_value is None:
+            form_value = FormValue(
+                form_instance_id=form_instance.id,
+                form_field_id=field.id,
+            )
+            form_value.set_creation_audit(user_id)
+            session.add(form_value)
+        else:
+            form_value.set_update_audit(user_id)
+        _clear_form_value(form_value)
+        _set_value_on_field(
+            form_value, field.field_type, values_dict[field_key]
+        )
+
+    changed_attributes = list(keys_to_update)
+    if title is not None:
+        process.title = title
+        process.set_update_audit(user_id)
+        changed_attributes.insert(0, 'title')
+
+    session.add(
+        AuditEvent(
+            process_instance_id=process_id,
+            activity_run_id=run.id,
+            user_id=user_id,
+            event_type='SUBMISSION_UPDATED',
+            context_data={
+                'mode': mode,
+                'operation': mode,
+                'attributes': sorted(set(changed_attributes)),
+                'fields': sorted(set(keys_to_update)),
+            },
+        )
+    )
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    return await _submission_response(
+        session, process, run, form_instance, template, fields
+    )
+
+
+async def _visible_process(
+    session: AsyncSession, process_id: UUID, user_id: UUID
+) -> ProcessInstance:
+    stmt = select(ProcessInstance).where(
+        ProcessInstance.id == process_id,
+        ProcessInstance.deleted_at.is_(None),
+    )
+    visibility = await process_visibility_clause(session, user_id)
+    if visibility is not None:
+        stmt = stmt.where(visibility)
+    process = await session.scalar(stmt)
+    if process is None:
+        raise NotFoundError('Processo não encontrado.')
+    return process
+
+
+async def list_returned_submission_versions(
+    session: AsyncSession, process_id: UUID, user_id: UUID
+) -> list[dict[str, Any]]:
+    """Projeta versões submetidas que foram devolvidas para revisão."""
+    await _visible_process(session, process_id, user_id)
+    revision_events = list(
+        await session.scalars(
+            select(AuditEvent)
+            .where(
+                AuditEvent.process_instance_id == process_id,
+                AuditEvent.event_type == 'REVISION_REQUESTED',
+                AuditEvent.deleted_at.is_(None),
+            )
+            .order_by(AuditEvent.occurred_at.desc(), AuditEvent.id.desc())
+        )
+    )
+    returned_by_run: dict[int, AuditEvent] = {}
+    for event in revision_events:
+        context = event.context_data or {}
+        try:
+            previous_run = int(context['new_run_number']) - 1
+        except KeyError, TypeError, ValueError:
+            continue
+        if previous_run > 0 and previous_run not in returned_by_run:
+            returned_by_run[previous_run] = event
+
+    if not returned_by_run:
+        return []
+    return await _load_submission_version_rows(
+        session, process_id, returned_by_run
+    )
+
+
+async def get_returned_submission_version(
+    session: AsyncSession,
+    process_id: UUID,
+    run_number: int,
+    user_id: UUID,
+) -> dict[str, Any]:
+    await _visible_process(session, process_id, user_id)
+    revision_events = list(
+        await session.scalars(
+            select(AuditEvent)
+            .where(
+                AuditEvent.process_instance_id == process_id,
+                AuditEvent.event_type == 'REVISION_REQUESTED',
+                AuditEvent.deleted_at.is_(None),
+            )
+            .order_by(AuditEvent.occurred_at.desc(), AuditEvent.id.desc())
+        )
+    )
+    returned_by_run: dict[int, AuditEvent] = {}
+    for event in revision_events:
+        context = event.context_data or {}
+        try:
+            previous_run = int(context['new_run_number']) - 1
+        except KeyError, TypeError, ValueError:
+            continue
+        if previous_run > 0 and previous_run not in returned_by_run:
+            returned_by_run[previous_run] = event
+    if run_number not in returned_by_run:
+        raise NotFoundError('Versão de submissão não encontrada.')
+    rows = await _load_submission_version_rows(
+        session, process_id, {run_number: returned_by_run[run_number]}
+    )
+    if not rows:
+        raise NotFoundError('Versão de submissão não encontrada.')
+    return rows[0]
+
+
+async def _load_submission_version_rows(
+    session: AsyncSession,
+    process_id: UUID,
+    returned_by_run: dict[int, AuditEvent],
+) -> list[dict[str, Any]]:
+    act = await session.scalar(
+        select(ActivityInstance).where(
+            ActivityInstance.process_instance_id == process_id,
+            ActivityInstance.key == 'proposal_submission',
+            ActivityInstance.deleted_at.is_(None),
+        )
+    )
+    if act is None:
+        return []
+
+    runs = list(
+        await session.scalars(
+            select(ActivityRun)
+            .where(
+                ActivityRun.activity_instance_id == act.id,
+                ActivityRun.run_number.in_(returned_by_run.keys()),
+                ActivityRun.status == 'COMPLETED',
+                ActivityRun.deleted_at.is_(None),
+            )
+            .options(
+                selectinload(ActivityRun.form_instances),
+                selectinload(ActivityRun.artifacts),
+            )
+            .order_by(ActivityRun.run_number.desc())
+        )
+    )
+    result: list[dict[str, Any]] = []
+    for run in runs:
+        form_instance = next(
+            (
+                item
+                for item in run.form_instances
+                if item.deleted_at is None and item.is_submitted
+            ),
+            None,
+        )
+        artifact = next(
+            (
+                item
+                for item in run.artifacts
+                if item.key == 'proposal_dossier' and item.deleted_at is None
+            ),
+            None,
+        )
+        if form_instance is None or artifact is None:
+            continue
+        metadata = artifact.metadata_payload or {}
+        returned_event = returned_by_run[run.run_number]
+        context = returned_event.context_data or {}
+        submitted_at = form_instance.submitted_at or run.completed_at
+        if submitted_at is None:
+            continue
+        result.append({
+            'run_number': run.run_number,
+            'submitted_at': submitted_at,
+            'returned_at': returned_event.occurred_at,
+            'title': metadata.get('title', ''),
+            'return_justification': str(context.get('justification') or ''),
+            'values': metadata.get('values') or {},
+            'attachments': metadata.get('attachments') or [],
+        })
+    return result
+
+
+async def is_artifact_referenced_by_submitted_form(
+    session: AsyncSession, artifact_id: UUID
+) -> bool:
+    """Indica se um anexo ainda compõe algum snapshot submetido."""
+    return (
+        await session.scalar(
+            select(FormValue.id)
+            .join(FormInstance, FormInstance.id == FormValue.form_instance_id)
+            .where(
+                FormValue.file_attachment_id == artifact_id,
+                FormValue.deleted_at.is_(None),
+                FormInstance.is_submitted.is_(True),
+                FormInstance.deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
 async def save_form_values_draft(
     session: AsyncSession,
     process_id: UUID,
@@ -728,7 +1181,10 @@ def _validate_form_values(
             # vínculo `FormValue.file_attachment_id`, não contra `values_dict`.
             continue
         val = values_dict.get(field.field_key)
-        if field.is_required and not val:
+        missing = val is None or (isinstance(val, str) and not val.strip())
+        if field.is_required and (
+            field.field_key not in values_dict or missing
+        ):
             errors.append(
                 f"O campo '{field.label}' ({field.field_key}) é obrigatório."
             )
@@ -1124,6 +1580,9 @@ async def submit_proposal_form(  # noqa: PLR0914, PLR0915
         t.completed_at = utc_now()
         t.set_update_audit(user_id)
 
+    p_stmt = select(ProcessInstance).where(ProcessInstance.id == process_id)
+    process = (await session.execute(p_stmt)).scalar_one()
+
     doc_name = (
         f'Dossiê de Submissão - {act.name} (Run #{current_run.run_number})'
     )
@@ -1135,15 +1594,15 @@ async def submit_proposal_form(  # noqa: PLR0914, PLR0915
         status='SUBMITTED',
         metadata_payload={
             'form_key': template.key,
-            'values': values_dict,
+            'values': await _serialize_submission_values(
+                session, form_inst.id, fields
+            ),
             'attachments': attachments_manifest,
+            'title': process.title,
         },
     )
     artifact.set_creation_audit(user_id)
     session.add(artifact)
-
-    p_stmt = select(ProcessInstance).where(ProcessInstance.id == process_id)
-    process = (await session.execute(p_stmt)).scalar_one()
 
     assignment_stmt = select(EvaluationAssignment.id).where(
         EvaluationAssignment.form_template_id == template.id,

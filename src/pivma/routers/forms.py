@@ -28,6 +28,7 @@ from pivma.core.process_engine import (
     NotFoundError,
     ValidationError,
     get_current_form_instance,
+    is_artifact_referenced_by_submitted_form,
     save_form_values_draft,
     submit_proposal_form,
 )
@@ -342,7 +343,7 @@ async def _active_form_value(
     response_model=AttachmentUploadResponse,
     status_code=HTTPStatus.OK,
 )
-async def upload_field_attachment(  # noqa: PLR0913, PLR0917
+async def upload_field_attachment(  # noqa: PLR0913, PLR0914, PLR0917
     id: UUID,
     activity_key: str,
     field_key: str,
@@ -415,13 +416,22 @@ async def upload_field_attachment(  # noqa: PLR0913, PLR0917
             previous = await session.get(
                 Artifact, form_value.file_attachment_id
             )
-            if previous is not None and previous.deleted_at is None:
+            preserve_previous = await is_artifact_referenced_by_submitted_form(
+                session, form_value.file_attachment_id
+            )
+            if (
+                previous is not None
+                and previous.deleted_at is None
+                and not preserve_previous
+            ):
                 previous.set_deletion_audit(current_user.id)
                 replaced_previous = True
                 if previous.file_path:
                     previous_abspath = attachment_abspath(
                         settings, previous.file_path
                     )
+            elif previous is not None and previous.deleted_at is None:
+                replaced_previous = True
     form_value.file_attachment_id = artifact.id
 
     session.add(
@@ -486,7 +496,14 @@ async def delete_field_attachment(  # noqa: PLR0913, PLR0917
 
     artifact = await session.get(Artifact, form_value.file_attachment_id)
     removed_abspath = None
-    if artifact is not None and artifact.deleted_at is None:
+    preserve_artifact = await is_artifact_referenced_by_submitted_form(
+        session, form_value.file_attachment_id
+    )
+    if (
+        artifact is not None
+        and artifact.deleted_at is None
+        and not preserve_artifact
+    ):
         artifact.set_deletion_audit(current_user.id)
         if artifact.file_path:
             removed_abspath = attachment_abspath(settings, artifact.file_path)

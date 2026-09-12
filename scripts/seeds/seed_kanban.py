@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select, update
 
+from pivma.core import pre_evaluation_service as presvc
 from pivma.core.database.models import (
     ActivityInstance,
     ActivityRun,
@@ -99,13 +100,25 @@ async def _advance_process(
         await _backdate_current_run(session, process.id, days=10)
         return
 
-    await submit_proposal_form(
+    _, _, _, pending_run = await submit_proposal_form(
         session=session,
         process_id=process.id,
         activity_key='proposal_submission',
         values_dict=values,
         user_id=creator_id,
     )
+
+    if pending_run is not None:
+        await presvc._execute(session, pending_run.id)
+        try:
+            await presvc.request_direct_review(
+                session,
+                process.id,
+                creator_id,
+                'Encaminhado à triagem na demonstração do Kanban.',
+            )
+        except Exception:
+            pass
 
     if stage == 'triage_fresh':
         return

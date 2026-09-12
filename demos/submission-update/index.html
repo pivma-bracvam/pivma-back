@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PIVMA — Atualização de submissão</title>
+  <link rel="stylesheet" href="/demos/assets/base.css">
+  <style>
+    .container { max-width: 1000px; margin: 0 auto; }
+    header { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:24px; }
+    .card { background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius); padding:24px; margin-bottom:20px; }
+    .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+    .field { display:flex; flex-direction:column; gap:6px; }
+    label { font-weight:700; }
+    input, textarea, select { font:inherit; padding:10px; border:1px solid var(--border); border-radius:6px; }
+    .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
+    button { border:0; border-radius:6px; padding:10px 16px; cursor:pointer; font-weight:700; }
+    .primary { background:var(--primary); color:white; }
+    .secondary { background:#475569; color:white; }
+    .inspector { background:#0f172a; color:#7dd3fc; border-radius:6px; padding:16px; overflow:auto; min-height:80px; }
+    .muted { color:var(--text-muted); }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header>
+      <div>
+        <a href="/demos/">&larr; Catálogo</a>
+        <h1>Atualização de submissão</h1>
+        <p class="muted">PUT integral e PATCH parcial sobre o rascunho atual, usando a API real.</p>
+      </div>
+      <span class="api-status" data-api-status><span class="dot"></span><span data-api-status-text>Verificando API...</span></span>
+    </header>
+
+    <section class="card">
+      <div class="actions" style="margin-top:0">
+        <button class="primary" id="login" type="button">Entrar como proponente</button>
+        <button class="secondary" id="reload" type="button">Carregar rascunho da seed</button>
+      </div>
+      <p id="session" class="muted">Sessão não autenticada.</p>
+      <p id="process" class="muted">Nenhum processo carregado.</p>
+    </section>
+
+    <section class="card">
+      <h2>Campos editáveis</h2>
+      <p class="muted">O formulário é descoberto pela definição vinculada à instância; campos de arquivo ficam fora do payload.</p>
+      <div id="fields" class="form-grid"><p class="muted">Faça login para carregar a massa.</p></div>
+      <div class="actions">
+        <button class="primary" id="put" type="button">Executar PUT integral</button>
+        <button class="secondary" id="patch" type="button">Executar PATCH parcial</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Resposta da API</h2>
+      <pre id="inspector" class="inspector">Nenhuma requisição executada.</pre>
+    </section>
+  </main>
+  <script src="/demos/assets/base.js"></script>
+  <script>
+    const DEMO_TITLE = '[DEMO 10] Atualização de submissão';
+    let processId = null;
+    let fields = [];
+
+    function show(method, url, response, payload) {
+      document.getElementById('inspector').textContent = JSON.stringify({ method, url, status: response.status, payload }, null, 2);
+    }
+
+    async function login() {
+      const response = await fetch('/auth/login', {
+        method: 'POST', credentials: 'include', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({identifier: 'proponent_user', password: 'Password123!'})
+      });
+      const payload = await response.json().catch(() => ({}));
+      show('POST', '/auth/login', response, payload);
+      if (!response.ok) { alert('Execute o seed de usuários e da demonstração.'); return; }
+      document.getElementById('session').textContent = 'Sessão ativa: proponent_user';
+      await loadDraft();
+    }
+
+    function defaultValue(field, value) {
+      if (value !== undefined && value !== null) return value;
+      if (field.field_key === 'method_title') return 'Método demonstrativo';
+      if (field.field_type === 'integer') return 3;
+      if (field.field_type === 'float') return 1.5;
+      if (field.field_type === 'boolean') return false;
+      if (field.field_type === 'date') return '2026-09-11';
+      if (field.field_type === 'select' && field.options && field.options.length) {
+        return typeof field.options[0] === 'object' ? field.options[0].value : field.options[0];
+      }
+      return 'Valor de demonstração';
+    }
+
+    function renderForm(values) {
+      const container = document.getElementById('fields');
+      container.innerHTML = '';
+      fields.filter(field => field.field_type !== 'file_upload').forEach(field => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'field';
+        const label = document.createElement('label');
+        label.htmlFor = `field-${field.field_key}`;
+        label.textContent = `${field.label}${field.is_required ? ' *' : ''}`;
+        wrapper.appendChild(label);
+        let input;
+        if (field.field_type === 'textarea') input = document.createElement('textarea');
+        else if (field.field_type === 'select') {
+          input = document.createElement('select');
+          (field.options || []).forEach(option => {
+            const value = typeof option === 'object' ? option.value : option;
+            const item = document.createElement('option'); item.value = value; item.textContent = typeof option === 'object' ? option.label : option; input.appendChild(item);
+          });
+        } else { input = document.createElement('input'); input.type = field.field_type === 'date' ? 'date' : field.field_type === 'boolean' ? 'checkbox' : field.field_type === 'integer' || field.field_type === 'float' ? 'number' : 'text'; }
+        input.id = `field-${field.field_key}`;
+        const current = defaultValue(field, values[field.field_key]);
+        if (input.type === 'checkbox') input.checked = Boolean(current);
+        else input.value = current;
+        wrapper.appendChild(input); container.appendChild(wrapper);
+      });
+    }
+
+    function collectValues() {
+      const values = {};
+      fields.filter(field => field.field_type !== 'file_upload').forEach(field => {
+        const input = document.getElementById(`field-${field.field_key}`);
+        if (!input) return;
+        if (input.type === 'checkbox') values[field.field_key] = input.checked;
+        else if (field.field_type === 'integer') values[field.field_key] = input.value === '' ? null : Number.parseInt(input.value, 10);
+        else if (field.field_type === 'float') values[field.field_key] = input.value === '' ? null : Number.parseFloat(input.value);
+        else values[field.field_key] = input.value;
+      });
+      return values;
+    }
+
+    async function loadDraft() {
+      let process = null;
+      const savedId = window.localStorage.getItem('pivma-demo-021-process');
+      if (savedId) {
+        const savedResponse = await fetch(`/processes/${savedId}`, {credentials: 'include'});
+        if (savedResponse.ok) process = await savedResponse.json();
+        else window.localStorage.removeItem('pivma-demo-021-process');
+      }
+      if (!process) {
+        const listResponse = await fetch('/processes?size=100', {credentials: 'include'});
+        const list = await listResponse.json().catch(() => ({}));
+        process = (list.items || []).find(item => item.title === DEMO_TITLE);
+      }
+      if (!process) { window.showNeedsSeed(document.querySelector('main'), 'O processo da demonstração não foi encontrado.'); return; }
+      processId = process.id;
+      window.localStorage.setItem('pivma-demo-021-process', processId);
+      document.getElementById('process').textContent = `${process.code} — ${process.title} (${process.status})`;
+      const url = `/processes/${processId}/activities/proposal_submission/form`;
+      const response = await fetch(url, {credentials: 'include'});
+      const payload = await response.json().catch(() => ({}));
+      show('GET', url, response, payload);
+      if (!response.ok) return;
+      fields = payload.fields || [];
+      renderForm(payload.values || {});
+    }
+
+    async function update(method, body) {
+      if (!processId) { alert('Carregue o rascunho primeiro.'); return; }
+      const url = `/processes/${processId}`;
+      const response = await fetch(url, {method, credentials: 'include', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+      const payload = await response.json().catch(() => ({}));
+      show(method, url, response, payload);
+      if (response.ok) renderForm(payload.values || {});
+      else alert(`A API retornou HTTP ${response.status}.`);
+    }
+
+    document.getElementById('login').addEventListener('click', login);
+    document.getElementById('reload').addEventListener('click', loadDraft);
+    document.getElementById('put').addEventListener('click', () => update('PUT', {title: 'Título atualizado pela demonstração', values: collectValues()}));
+    document.getElementById('patch').addEventListener('click', () => {
+      const first = fields.find(field => field.field_type !== 'file_upload');
+      if (!first) return;
+      const values = collectValues();
+      update('PATCH', {title: 'Título corrigido pelo PATCH', values: {[first.field_key]: values[first.field_key]}});
+    });
+  </script>
+</body>
+</html>

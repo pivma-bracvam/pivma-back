@@ -1,0 +1,141 @@
+openapi: 3.1.0
+info:
+  title: Process submission update
+  version: 1.0.0
+paths:
+  /processes/{id}:
+    put:
+      summary: Substitui título e todos os valores não-arquivo do rascunho atual
+      parameters: [{$ref: '#/components/parameters/ProcessId'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReplaceSubmissionRequest'}
+      responses:
+        '200': {$ref: '#/components/responses/Submission'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Validation'}
+    patch:
+      summary: Altera título e/ou valores não-arquivo do rascunho atual
+      parameters: [{$ref: '#/components/parameters/ProcessId'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PatchSubmissionRequest'}
+      responses:
+        '200': {$ref: '#/components/responses/Submission'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Validation'}
+  /processes/{id}/submission-versions:
+    get:
+      summary: Lista versões devolvidas visíveis ao solicitante
+      parameters: [{$ref: '#/components/parameters/ProcessId'}]
+      responses:
+        '200':
+          description: Lista ordenada pela versão mais recente
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/SubmissionVersionSummary'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /processes/{id}/submission-versions/{run_number}:
+    get:
+      summary: Consulta somente leitura de um snapshot submetido
+      parameters:
+        - {$ref: '#/components/parameters/ProcessId'}
+        - name: run_number
+          in: path
+          required: true
+          schema: {type: integer, minimum: 1}
+      responses:
+        '200':
+          description: Número, momento do envio, título, valores, anexos e justificativa da devolução quando houver
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SubmissionVersionResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+components:
+  parameters:
+    ProcessId:
+      name: id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+  schemas:
+    ReplaceSubmissionRequest:
+      type: object
+      additionalProperties: false
+      required: [title, values]
+      properties:
+        title: {type: string, minLength: 3, maxLength: 255}
+        values:
+          type: object
+          description: Mapa completo de todos os campos não-arquivo do template histórico.
+          additionalProperties: true
+    PatchSubmissionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title: {type: string, minLength: 3, maxLength: 255}
+        values:
+          type: object
+          description: Subconjunto não vazio de campos não-arquivo do template histórico.
+          additionalProperties: true
+      anyOf:
+        - required: [title]
+        - required: [values]
+          properties:
+            values:
+              type: object
+              minProperties: 1
+    ProcessSubmissionResponse:
+      type: object
+      required: [id, title, status, template_key, version_number, run_number, form_instance_id, is_submitted, values]
+      properties:
+        id: {type: string, format: uuid}
+        title: {type: string}
+        status: {type: string}
+        template_key: {type: string}
+        version_number: {type: integer}
+        run_number: {type: integer}
+        form_instance_id: {type: string, format: uuid}
+        is_submitted: {type: boolean}
+        values: {type: object, additionalProperties: true}
+    SubmissionVersionSummary:
+      type: object
+      required: [run_number, submitted_at, returned_at, title, return_justification]
+      properties:
+        run_number: {type: integer, minimum: 1}
+        submitted_at: {type: string, format: date-time}
+        returned_at: {type: string, format: date-time}
+        title: {type: string}
+        return_justification: {type: string}
+    SubmissionVersionResponse:
+      allOf:
+        - {$ref: '#/components/schemas/SubmissionVersionSummary'}
+        - type: object
+          required: [values, attachments]
+          properties:
+            values: {type: object, additionalProperties: true}
+            attachments:
+              type: array
+              items: {type: object, additionalProperties: true}
+  responses:
+    Submission:
+      description: Rascunho atualizado
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ProcessSubmissionResponse'}
+    Unauthorized: {description: Autenticação ausente ou inválida}
+    NotFound: {description: Processo, versão ou escopo de leitura não encontrado}
+    Conflict: {description: Execução já submetida ou processo não editável}
+    Validation: {description: Payload, completude ou valores de campo inválidos}

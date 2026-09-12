@@ -3,7 +3,7 @@ from http import HTTPStatus
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
@@ -20,22 +20,31 @@ from pivma.core.database.models import (
 )
 from pivma.core.database.models import User as UserModel
 from pivma.core.process_engine import (
+    ConflictError,
     NotFoundError,
     ValidationError,
+    get_returned_submission_version,
     instantiate_process,
+    list_returned_submission_versions,
     process_visibility_clause,
     update_form_template_definition,
+    update_process_submission,
 )
 from pivma.dependencies import CurrentUser, Session
 from pivma.schemas import (
     CreateProcessRequest,
     FormFieldUpdateDefinition,
     FormTemplateDetailResponse,
+    PatchSubmissionRequest,
     ProcessInstanceDetail,
     ProcessInstanceListResponse,
+    ProcessSubmissionResponse,
     ProcessTemplateDetail,
     ProcessTemplateSummary,
     ProcessTimelineResponse,
+    ReplaceSubmissionRequest,
+    SubmissionVersionResponse,
+    SubmissionVersionSummary,
     TimelineEvent,
     UpdateFormTemplateRequest,
 )
@@ -446,6 +455,110 @@ async def get_process(id: UUID, session: Session, current_user: CurrentUser):
         closed_at=p.closed_at,
         closure_reason=p.closure_reason,
     )
+
+
+def _submission_http_error(error: Exception) -> HTTPException:
+    if isinstance(error, NotFoundError):
+        status = HTTPStatus.NOT_FOUND
+    elif isinstance(error, ConflictError):
+        status = HTTPStatus.CONFLICT
+    else:
+        status = HTTPStatus.UNPROCESSABLE_ENTITY
+    detail = (
+        {'code': 'invalid_submission_values', 'errors': error.errors}
+        if isinstance(error, ValidationError) and error.errors
+        else str(error)
+    )
+    return HTTPException(status_code=status, detail=detail)
+
+
+@router.put(
+    '/{id}',
+    response_model=ProcessSubmissionResponse,
+    status_code=HTTPStatus.OK,
+)
+async def replace_process_submission(
+    id: UUID,
+    body: ReplaceSubmissionRequest,
+    session: Session,
+    current_user: CurrentUser,
+):
+    try:
+        return await update_process_submission(
+            session,
+            id,
+            current_user.id,
+            mode='PUT',
+            title=body.title,
+            values_dict=body.values,
+        )
+    except (NotFoundError, ConflictError, ValidationError) as exc:
+        raise _submission_http_error(exc) from exc
+
+
+@router.patch(
+    '/{id}',
+    response_model=ProcessSubmissionResponse,
+    status_code=HTTPStatus.OK,
+)
+async def patch_process_submission(
+    id: UUID,
+    body: PatchSubmissionRequest,
+    session: Session,
+    current_user: CurrentUser,
+):
+    try:
+        return await update_process_submission(
+            session,
+            id,
+            current_user.id,
+            mode='PATCH',
+            title=body.title,
+            values_dict=body.values,
+        )
+    except (NotFoundError, ConflictError, ValidationError) as exc:
+        raise _submission_http_error(exc) from exc
+
+
+@router.get(
+    '/{id}/submission-versions',
+    response_model=list[SubmissionVersionSummary],
+    status_code=HTTPStatus.OK,
+)
+async def list_submission_versions(
+    id: UUID,
+    session: Session,
+    current_user: CurrentUser,
+):
+    try:
+        return await list_returned_submission_versions(
+            session, id, current_user.id
+        )
+    except NotFoundError as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail=str(exc)
+        ) from exc
+
+
+@router.get(
+    '/{id}/submission-versions/{run_number}',
+    response_model=SubmissionVersionResponse,
+    status_code=HTTPStatus.OK,
+)
+async def get_submission_version(
+    id: UUID,
+    session: Session,
+    current_user: CurrentUser,
+    run_number: int = Path(..., ge=1),
+):
+    try:
+        return await get_returned_submission_version(
+            session, id, run_number, current_user.id
+        )
+    except NotFoundError as exc:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail=str(exc)
+        ) from exc
 
 
 @router.get(

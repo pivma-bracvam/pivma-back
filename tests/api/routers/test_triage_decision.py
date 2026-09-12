@@ -3,8 +3,15 @@
 from http import HTTPStatus
 
 import pytest
+from sqlalchemy import select
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
+from pivma.core.database.models import (
+    ActivityInstance,
+    ActivityRun,
+    Artifact,
+    FormInstance,
+)
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
@@ -60,6 +67,26 @@ async def test_triage_decision_needs_revision_and_resubmission(
     assert dec_data['new_process_status'] == 'SUBMISSION'
     assert dec_data['next_activity_run'] == 2
 
+    submission_activity = await session.scalar(
+        select(ActivityInstance).where(
+            ActivityInstance.process_instance_id == process_id,
+            ActivityInstance.key == 'proposal_submission',
+        )
+    )
+    previous_run = await session.scalar(
+        select(ActivityRun).where(
+            ActivityRun.activity_instance_id == submission_activity.id,
+            ActivityRun.run_number == 1,
+        )
+    )
+    previous_form = await session.scalar(
+        select(FormInstance).where(
+            FormInstance.activity_run_id == previous_run.id
+        )
+    )
+    assert previous_run.status == 'COMPLETED'
+    assert previous_form.is_submitted is True
+
     # 3. Proponente accesses form in Run 2 (pre-populated values)
     authenticate(client, proponente)
     form_resp = client.get(
@@ -84,6 +111,22 @@ async def test_triage_decision_needs_revision_and_resubmission(
     )
     assert resubmit_resp.status_code == HTTPStatus.OK
     assert resubmit_resp.json()['run_number'] == 2
+
+    dossiers = list(
+        await session.scalars(
+            select(Artifact).where(
+                Artifact.process_instance_id == process_id,
+                Artifact.key == 'proposal_dossier',
+            )
+        )
+    )
+    dossier = next(
+        item
+        for item in dossiers
+        if item.metadata_payload.get('title') == 'Estudo com Diligência'
+    )
+    assert dossier is not None
+    assert dossier.metadata_payload['values']['method_title'] == 'Título V1'
 
     # Process returns to TRIAGE
     p_resp = client.get(f'/processes/{process_id}')
