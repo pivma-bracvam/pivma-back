@@ -3,6 +3,8 @@
 Spec 015 e 020. Valida o bootstrap dos cinco templates de processo:
 formulários 1-3 mínimos, formulário 4 com campo de IA e formulário 5 (FP)
 cobrindo as nove seções. A triagem foi desacoplada de formulário próprio.
+O formulário de demonstração da Spec 021 (`submission_demo_update_v1`) é
+um sexto template, exclusivo da demo de PUT/PATCH de submissão.
 """
 
 import pytest
@@ -137,4 +139,5 @@ async def test_triage_form_deactivated_and_submission_forms_active(
         'submission_me_too_v1',
         'submission_validated_dossier_v1',
         'submission_proof_of_concept_v1',
+        'submission_demo_update_v1',
     }
