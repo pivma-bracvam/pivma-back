@@ -183,21 +183,23 @@ os perfis globais ativos em `profiles`:
 
 ### 4. Atualizar dados de uma conta
 
-Uma conta com a permissão `users.manage` pode preencher ou substituir o nome
-completo de uma conta existente:
+Uma conta com a permissão `users.manage` pode atualizar os dados editáveis de
+uma conta existente:
 
 ```http
 PATCH /users/{user_id}
 Origin: https://testserver
 Content-Type: application/json
 
-{"full_name":"Maria Silva"}
+{"username":"maria.silva","email":"maria@example.com","full_name":"Maria Silva","password":"UmaSenhaSegura2026"}
 ```
 
-O endpoint retorna HTTP 200 com `id`, `full_name`, `username` e `email`. O
-campo `full_name` é aparado e deve conter de 1 a 255 caracteres. O endpoint
-não altera username, e-mail, senha, perfis, vínculos ou estado da conta.
-Contas antigas podem continuar com `full_name: null` até essa atualização.
+O corpo aceita qualquer combinação não vazia de `username`, `email`,
+`full_name` e `password`; os valores textuais são validados e aparados quando
+aplicável. A senha é armazenada somente como hash. O endpoint retorna HTTP 200
+com `id`, `full_name`, `username` e `email`, e não permite alterar perfis,
+vínculos, auditoria ou estado da conta. Username e e-mail duplicados retornam
+HTTP 409.
 
 ### 5. Designar Papéis Locais em um Processo Específico
 

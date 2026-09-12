@@ -386,7 +386,7 @@
           <td>${u.email}</td>
           <td>${profilesHtml}</td>
           <td>
-            <button class="btn btn-sm btn-secondary" onclick="editUserPrompt('${u.id}', '${u.full_name || ''}')">Editar Nome</button>
+            <button class="btn btn-sm btn-secondary" onclick="editUserPrompt('${u.id}', '${u.full_name || ''}', '${u.username}', '${u.email}')">Editar Usuário</button>
           </td>
         `;
         tbody.appendChild(tr);
@@ -420,16 +420,30 @@
       }
     }
 
-    async function editUserPrompt(userId, currentName) {
-      const newName = prompt('Informe o novo Nome Completo:', currentName);
-      if (!newName || newName.trim() === currentName) return;
+    async function editUserPrompt(userId, currentName, currentUsername, currentEmail) {
+      const newName = prompt('Nome Completo (deixe igual para não alterar):', currentName);
+      if (newName === null) return;
+      const newUsername = prompt('Nome de Usuário (deixe igual para não alterar):', currentUsername);
+      if (newUsername === null) return;
+      const newEmail = prompt('E-mail (deixe igual para não alterar):', currentEmail);
+      if (newEmail === null) return;
+      const newPassword = prompt('Nova Senha (deixe em branco para não alterar):', '');
+      if (newPassword === null) return;
+
+      const payload = {};
+      if (newName.trim() !== currentName) payload.full_name = newName.trim();
+      if (newUsername.trim() !== currentUsername) payload.username = newUsername.trim();
+      if (newEmail.trim() !== currentEmail) payload.email = newEmail.trim();
+      if (newPassword.trim() !== '') payload.password = newPassword;
+
+      if (Object.keys(payload).length === 0) return;
 
       const url = `/users/${userId}`;
       const res = await fetch(url, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ full_name: newName.trim() })
+        body: JSON.stringify(payload)
       });
       const data = await res.json().catch(() => null);
       inspect('PATCH', url, res.status, data);

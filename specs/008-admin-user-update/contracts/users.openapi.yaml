@@ -2,13 +2,13 @@ openapi: 3.1.0
 info:
   title: pi*VMA Administrative User Update API
   version: 1.0.0
-  description: Atualização administrativa limitada ao nome completo de uma conta.
+  description: Atualização administrativa dos dados editáveis de uma conta.
 security:
   - cookieAuth: []
 paths:
   /users/{user_id}:
     patch:
-      summary: Atualiza o nome completo de uma conta
+      summary: Atualiza os dados editáveis de uma conta
       operationId: updateUser
       x-required-permission: users.manage
       parameters:
@@ -37,6 +37,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: Username ou e-mail já pertence a uma conta ativa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '422':
           $ref: '#/components/responses/ValidationError'
 
@@ -84,13 +90,27 @@ components:
     UserUpdate:
       type: object
       additionalProperties: false
-      required: [full_name]
       properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 64
+          pattern: '^[A-Za-z0-9._-]+$'
+          title: Username
+        email:
+          type: string
+          format: email
+          title: Email
         full_name:
           type: string
           minLength: 1
           maxLength: 255
           title: Full Name
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          title: Password
     UserPublic:
       type: object
       additionalProperties: false

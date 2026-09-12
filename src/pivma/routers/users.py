@@ -35,25 +35,37 @@ UserListingReader = Annotated[User, Depends(require_permission(USERS_READ))]
 UserManager = Annotated[User, Depends(require_permission(USERS_MANAGE))]
 
 
-async def find_conflict(session: AsyncSession, user: UserSchema):
-    username_exists = await session.scalar(
-        select(User.id).where(
-            func.lower(User.username) == func.lower(user.username),
+async def find_conflict(
+    session: AsyncSession,
+    user: UserSchema | UserUpdate,
+    *,
+    exclude_user_id: UUID | None = None,
+):
+    for column, value, message in (
+        (User.username, user.username, 'Username already exists'),
+        (User.email, user.email, 'Email already exists'),
+    ):
+        if value is None:
+            continue
+        predicates = [
+            func.lower(column) == func.lower(value),
             User.deleted_at.is_(None),
-        )
-    )
-    if username_exists:
-        return 'Username already exists'
-
-    email_exists = await session.scalar(
-        select(User.id).where(
-            func.lower(User.email) == func.lower(user.email),
-            User.deleted_at.is_(None),
-        )
-    )
-    if email_exists:
-        return 'Email already exists'
+        ]
+        if exclude_user_id is not None:
+            predicates.append(User.id != exclude_user_id)
+        if await session.scalar(select(User.id).where(*predicates)):
+            return message
     return None
+
+
+async def prepare_user_changes(payload: UserUpdate) -> dict[str, str]:
+    changes = payload.model_dump(exclude_unset=True)
+    password = changes.pop('password', None)
+    if password is not None:
+        changes['password_hash'] = await run_in_threadpool(
+            hash_password, password
+        )
+    return changes
 
 
 async def persist_user(
@@ -214,6 +226,9 @@ async def create_user(user: UserSchema, session: Session):
         HTTPStatus.NOT_FOUND: {
             'description': 'O UUID não identifica uma conta existente.',
         },
+        HTTPStatus.CONFLICT: {
+            'description': 'Username ou e-mail já pertence a uma conta ativa.',
+        },
     },
 )
 async def update_user(
@@ -228,8 +243,39 @@ async def update_user(
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail='User not found'
         )
-    item.full_name = payload.full_name
-    item.set_update_audit(actor.id)
-    await session.commit()
-    await session.refresh(item)
+    conflict = await find_conflict(session, payload, exclude_user_id=item.id)
+    if conflict:
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail=conflict,
+        )
+
+    try:
+        changes = await prepare_user_changes(payload)
+        for field, value in changes.items():
+            setattr(item, field, value)
+        item.set_update_audit(actor.id)
+        await session.commit()
+        await session.refresh(item)
+    except IntegrityError:
+        await session.rollback()
+        conflict = await find_conflict(
+            session, payload, exclude_user_id=item.id
+        )
+        if conflict:
+            raise HTTPException(
+                status_code=HTTPStatus.CONFLICT,
+                detail=conflict,
+            ) from None
+        raise HTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+            detail='Internal server error',
+        ) from None
+    except Exception:
+        await session.rollback()
+        raise HTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+            detail='Internal server error',
+        ) from None
+
     return item

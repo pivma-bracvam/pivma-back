@@ -53,6 +53,33 @@ def test_user_update_trims_full_name():
     assert UserUpdate(full_name='  Maria Silva  ').full_name == 'Maria Silva'
 
 
+def test_user_update_accepts_all_editable_fields_and_trims_values():
+    user = UserUpdate(
+        username='  new.user  ',
+        email='  New.User@Example.COM  ',
+        full_name='  New User  ',
+        password='New-Passphrase-2026',
+    )
+
+    assert user.username == 'new.user'
+    assert user.email == 'New.User@Example.COM'
+    assert user.full_name == 'New User'
+    assert user.password == 'New-Passphrase-2026'
+
+
+def test_user_update_requires_at_least_one_field():
+    with pytest.raises(ValidationError):
+        UserUpdate()
+
+
+@pytest.mark.parametrize(
+    'field', ['username', 'email', 'full_name', 'password']
+)
+def test_user_update_rejects_null_fields(field):
+    with pytest.raises(ValidationError):
+        UserUpdate(**{field: None})
+
+
 def test_user_schema_requires_full_name():
     with pytest.raises(ValidationError):
         UserSchema(

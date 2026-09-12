@@ -82,6 +82,14 @@ async def test_form_draft_and_submission_flow(client, session):
     assert submit_data['status'] == 'COMPLETED'
     assert submit_data['artifact_id'] is not None
 
+    dossier = await session.scalar(
+        select(Artifact).where(
+            Artifact.process_instance_id == process_id,
+            Artifact.key == 'proposal_dossier',
+        )
+    )
+    assert dossier.metadata_payload['title'] == 'Estudo de Irritação Cutânea'
+
     # 7. Check process status changed to TRIAGE
     p_resp = client.get(f'/processes/{process_id}')
     assert p_resp.json()['status'] == 'TRIAGE'

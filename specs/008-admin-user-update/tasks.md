@@ -130,7 +130,7 @@ T001 → T002-T004 → T005-T012 → T013-T020 → T021-T026 → T027-T028
 
 ### Scope Guardrails
 
-- Não alterar username, e-mail, senha, perfis, vínculos, designações ou estado ativo.
+- Não alterar perfis, vínculos, designações ou estado ativo por esta rota.
 - Não criar edição pelo próprio usuário, atualização em lote ou `display_name`.
 - Não reutilizar `users.read` para autorizar mutações.
 - Não exigir preenchimento de contas antigas/mockadas.

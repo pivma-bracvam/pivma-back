@@ -13,7 +13,7 @@ from pivma.core.database.models import (
     Permission,
     UserAccessProfile,
 )
-from pivma.core.security import create_access_token
+from pivma.core.security import create_access_token, verify_password
 from pivma.core.settings import Settings
 
 ORIGIN = {'Origin': 'https://testserver'}
@@ -90,6 +90,76 @@ async def test_update_user_replaces_existing_full_name(
 
     assert response.status_code == HTTPStatus.OK
     assert response.json()['full_name'] == 'New Name'
+
+
+@pytest.mark.asyncio
+async def test_update_user_updates_all_editable_fields(
+    client, session, user_manager, other_user
+):
+    authenticate(client, user_manager)
+
+    response = client.patch(
+        f'/users/{other_user.id}',
+        headers=ORIGIN,
+        json={
+            'username': '  updated.user  ',
+            'email': '  updated@example.com  ',
+            'full_name': '  Updated User  ',
+            'password': 'Updated-Passphrase-2026',
+        },
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {
+        'id': str(other_user.id),
+        'username': 'updated.user',
+        'email': 'updated@example.com',
+        'full_name': 'Updated User',
+    }
+    await session.refresh(other_user)
+    assert other_user.username == 'updated.user'
+    assert other_user.email == 'updated@example.com'
+    assert other_user.full_name == 'Updated User'
+    assert verify_password(other_user.password_hash, 'Updated-Passphrase-2026')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'case',
+    [
+        {
+            'field': 'username',
+            'value': 'other.user',
+            'detail': 'Username already exists',
+        },
+        {
+            'field': 'email',
+            'value': 'other@example.com',
+            'detail': 'Email already exists',
+        },
+    ],
+)
+async def test_update_user_rejects_duplicate_identifiers(
+    client, session, user_manager, other_user, case
+):
+    conflicting_user = other_user.__class__(
+        username='other.user',
+        email='other@example.com',
+        password_hash='unused-hash',
+        full_name='Conflicting User',
+    )
+    session.add(conflicting_user)
+    await session.commit()
+    authenticate(client, user_manager)
+
+    response = client.patch(
+        f'/users/{other_user.id}',
+        headers=ORIGIN,
+        json={case['field']: case['value']},
+    )
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json() == {'detail': case['detail']}
 
 
 @pytest.mark.asyncio
@@ -197,19 +267,23 @@ def test_update_user_rejects_invalid_full_name(
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-def test_update_user_requires_full_name(client, user_manager, other_user):
+def test_update_user_requires_at_least_one_field(
+    client, user_manager, other_user
+):
     authenticate(client, user_manager)
     response = client.patch(f'/users/{other_user.id}', headers=ORIGIN, json={})
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-def test_update_user_rejects_extra_fields(client, user_manager, other_user):
+def test_update_user_rejects_internal_extra_fields(
+    client, user_manager, other_user
+):
     authenticate(client, user_manager)
     response = client.patch(
         f'/users/{other_user.id}',
         headers=ORIGIN,
-        json={'full_name': 'Valid Name', 'email': 'changed@example.com'},
+        json={'username': 'valid.user', 'password_hash': 'not-a-password'},
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
@@ -236,14 +310,20 @@ def test_update_user_openapi_matches_contract(client):
     assert generated_operation['requestBody']['content']['application/json'][
         'schema'
     ] == {'$ref': '#/components/schemas/UserUpdate'}
-    assert generated['components']['schemas']['UserUpdate']['required'] == [
-        'full_name'
-    ]
+    user_update_schema = generated['components']['schemas']['UserUpdate']
+    assert 'required' not in user_update_schema
+    assert set(user_update_schema['properties']) == {
+        'username',
+        'email',
+        'full_name',
+        'password',
+    }
     assert set(generated_operation['responses']) == {
         '200',
         '401',
         '403',
         '404',
+        '409',
         '422',
     }
 

@@ -6,6 +6,7 @@ import sys
 from scripts.seeds.seed_ai_evaluations import run_seed_ai_evaluations
 from scripts.seeds.seed_forms import run_seed_forms
 from scripts.seeds.seed_kanban import run_seed_kanban
+from scripts.seeds.seed_submission_update import run_seed_submission_update
 from scripts.seeds.seed_triage import run_seed_triage
 from scripts.seeds.seed_users import run_seed_users
 
@@ -15,24 +16,28 @@ async def run_all_seeds() -> None:
     print('PIVMA-Back: Executando Carga Completa de Dados (Seeds)')
     print('=====================================================\n')
 
-    print('[1/5] Semeando Usuários e Perfis RBAC...')
+    print('[1/6] Semeando Usuários e Perfis RBAC...')
     await run_seed_users()
     print()
 
-    print('[2/5] Semeando Templates de Processo e Formulários...')
+    print('[2/6] Semeando Templates de Processo e Formulários...')
     await run_seed_forms()
     print()
 
-    print('[3/5] Semeando Processos em Triagem e Ciclo de Vida...')
+    print('[3/6] Semeando Processos em Triagem e Ciclo de Vida...')
     await run_seed_triage()
     print()
 
-    print('[4/5] Semeando Avaliação por IA e processo em triagem...')
+    print('[4/6] Semeando Avaliação por IA e processo em triagem...')
     await run_seed_ai_evaluations()
     print()
 
-    print('[5/5] Semeando Kanban de pendências (Spec 018, ~300 métodos)...')
+    print('[5/6] Semeando Kanban de pendências (Spec 018, ~300 métodos)...')
     await run_seed_kanban()
+    print()
+
+    print('[6/6] Semeando atualização de submissão (Spec 021)...')
+    await run_seed_submission_update()
     print()
 
     print('=====================================================')
@@ -57,12 +62,15 @@ async def run_all_seeds() -> None:
     print(
         '  6. Kanban de pendências:       http://localhost:8000/demos/kanban/'
     )
+    print(
+        '  7. Atualização de submissão:   http://localhost:8000/demos/submission-update/'
+    )
     print('Apoio:')
     print(
-        '  7. Usuários e RBAC:            http://localhost:8000/demos/users/'
+        '  8. Usuários e RBAC:            http://localhost:8000/demos/users/'
     )
     print(
-        '  8. Índice operacional:        '
+        '  9. Índice operacional:        '
         'http://localhost:8000/demos/operational-index/'
     )
     print('\nContas pré-configuradas (login: /auth/login):')
