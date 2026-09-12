@@ -69,7 +69,46 @@ class UserPublic(BaseModel):
 class UserUpdate(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
-    full_name: FullNameValue
+    username: Annotated[
+        str,
+        StringConstraints(
+            strip_whitespace=True,
+            min_length=3,
+            max_length=64,
+            pattern=USERNAME_PATTERN,
+        ),
+    ] = None
+    email: Annotated[str, Field(json_schema_extra={'format': 'email'})] = None
+    full_name: FullNameValue = None
+    password: Annotated[
+        str, StringConstraints(min_length=8, max_length=128)
+    ] = None
+
+    @field_validator('email', mode='before')
+    @classmethod
+    def validate_email_preserving_case(cls, value):
+        if not isinstance(value, str):
+            return value
+        trimmed = value.strip()
+        email_adapter.validate_python(trimmed)
+        return trimmed
+
+    @field_validator('password')
+    @classmethod
+    def reject_password_whitespace(cls, value):
+        if any(character.isspace() for character in value):
+            raise ValueError('Invalid password')
+        return value
+
+    @model_validator(mode='after')
+    def require_update_field(self):
+        if not self.model_fields_set:
+            raise ValueError('At least one field is required')
+        if any(
+            getattr(self, field) is None for field in self.model_fields_set
+        ):
+            raise ValueError('Update fields cannot be null')
+        return self
 
 
 class ProfileSummary(BaseModel):

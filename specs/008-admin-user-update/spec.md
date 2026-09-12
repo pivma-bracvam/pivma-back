@@ -18,6 +18,14 @@
 - Novos cadastros deverão informar `full_name`. A coluna continuará anulável para preservar contas antigas e mockadas.
 - O campo omitido no PATCH não representa atualização. O corpo sem `full_name` e o valor `null` serão rejeitados; o valor atual nunca será apagado por esta operação.
 
+### Session 2026-09-11
+
+- **Decisão explícita da equipe**: o escopo do PATCH foi ampliado para aceitar também `username`, `email` e `password`, além de `full_name`, mantendo a exigência de ao menos um campo por requisição e a rejeição de `null` explícito.
+- O corpo aceita qualquer combinação não vazia desses quatro campos; campos omitidos permanecem inalterados.
+- `username` e `email` seguem as mesmas regras de formato e unicidade (case-insensitive, apenas contas ativas) do cadastro (`POST /users`); conflito retorna HTTP 409.
+- `password`, quando enviado, é validado com as mesmas regras do cadastro e armazenado apenas como hash.
+- Perfis, vínculos institucionais, designações, estado ativo e permissões continuam fora do escopo desta rota.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Preencher o nome de uma conta existente (Priority: P1)
@@ -47,7 +55,8 @@ Como responsável pela plataforma, quero que somente uma pessoa autorizada alter
 2. **Given** uma sessão sem `users.manage`, **When** ela tenta atualizar uma conta, **Then** o backend responde HTTP 403 sem alterar o registro.
 3. **Given** uma sessão autorizada e uma origem não confiável, **When** ela tenta atualizar uma conta, **Then** o backend responde HTTP 403 sem alterar o registro.
 4. **Given** uma sessão autorizada e um UUID sem conta correspondente, **When** ela tenta atualizar a conta, **Then** o backend responde HTTP 404.
-5. **Given** uma sessão autorizada, **When** ela envia nome vazio, composto somente por espaços, maior que 255 caracteres ou `null`, **Then** o backend responde HTTP 422 sem alterar o registro.
+5. **Given** uma sessão autorizada, **When** ela envia um dos campos aceitos vazio, inválido ou `null`, ou corpo sem nenhum campo, **Then** o backend responde HTTP 422 sem alterar o registro.
+6. **Given** uma sessão autorizada, **When** ela envia `username` ou `email` já usado por outra conta ativa, **Then** o backend responde HTTP 409 sem alterar o registro.
 
 ### User Story 3 - Preservar identidade e rastreabilidade (Priority: P3)
 
@@ -64,9 +73,10 @@ Como equipe de desenvolvimento, quero manter contas antigas compatíveis e regis
 
 ### Edge Cases
 
-- Corpo vazio ou sem `full_name` não representa uma atualização válida e retorna HTTP 422.
-- Campos adicionais, como `username`, `email`, `password` ou `password_hash`, não fazem parte deste contrato e retornam HTTP 422.
-- A atualização de `full_name` não altera username, e-mail, senha, perfis, vínculos, estado ativo ou permissões.
+- Corpo vazio, sem nenhum dos campos aceitos, ou com algum deles definido como `null`, não representa uma atualização válida e retorna HTTP 422.
+- Campos fora do contrato, como `password_hash`, perfis ou estado ativo, não fazem parte deste contrato e retornam HTTP 422.
+- `username` ou `email` já usados por outra conta ativa retornam HTTP 409 sem alterar o registro.
+- A atualização não altera perfis, vínculos, designações, estado ativo ou permissões.
 - Uma conta antiga pode continuar com `full_name = null` até que alguém a atualize; esta feature não executa preenchimento em massa.
 
 ## Requirements *(mandatory)*
@@ -76,13 +86,14 @@ Como equipe de desenvolvimento, quero manter contas antigas compatíveis e regis
 - **FR-001**: O sistema DEVE disponibilizar `PATCH /users/{user_id}` para atualização administrativa de uma conta existente.
 - **FR-002**: O backend DEVE exigir sessão autenticada, origem confiável e a permissão específica `users.manage` antes de alterar qualquer conta.
 - **FR-003**: A permissão `users.manage` DEVE ser separada de `users.read`, `rbac.read`, `rbac.profiles.manage` e `rbac.assignments.manage`; o perfil oficial Administrador DEVE recebê-la pelo cálculo normal de permissões efetivas.
-- **FR-004**: O PATCH DEVE aceitar somente `full_name` nesta entrega; campos adicionais ou campos de credencial DEVEM ser rejeitados.
-- **FR-005**: O PATCH DEVE exigir `full_name` no corpo; ausência do campo ou valor `null` DEVE retornar HTTP 422.
-- **FR-006**: O sistema DEVE remover espaços externos e aceitar `full_name` com 1 a 255 caracteres após o trim.
-- **FR-007**: O sistema DEVE retornar HTTP 422 para nome vazio, composto somente por espaços ou maior que 255 caracteres, sem persistir alteração parcial.
+- **FR-004**: O PATCH DEVE aceitar `username`, `email`, `full_name` e `password`, rejeitando quaisquer outros campos, incluindo `password_hash`.
+- **FR-005**: O PATCH DEVE exigir ao menos um dos campos aceitos no corpo; corpo vazio ou valor `null` em qualquer campo enviado DEVE retornar HTTP 422.
+- **FR-006**: O sistema DEVE remover espaços externos e aceitar `full_name` com 1 a 255 caracteres após o trim; `username` e `email` seguem as mesmas regras de formato do cadastro (`POST /users`).
+- **FR-007**: O sistema DEVE retornar HTTP 422 para qualquer campo enviado fora do formato exigido, sem persistir alteração parcial.
+- **FR-007a**: O sistema DEVE retornar HTTP 409 quando `username` ou `email` enviados já pertencerem a outra conta ativa, sem persistir alteração parcial.
 - **FR-008**: O sistema DEVE retornar HTTP 404 quando o UUID não identificar uma conta existente.
-- **FR-009**: Uma atualização válida DEVE persistir o nome aparado, atualizar `updated_at` e `updated_by` com a identidade da pessoa administradora e retornar HTTP 200 com a projeção pública da conta.
-- **FR-010**: O PATCH NÃO DEVE alterar username, e-mail, senha, hash de senha, perfis, vínculos institucionais, designações, estado ativo ou permissões.
+- **FR-009**: Uma atualização válida DEVE persistir os campos enviados, atualizar `updated_at` e `updated_by` com a identidade da pessoa administradora e retornar HTTP 200 com a projeção pública da conta.
+- **FR-010**: O PATCH NÃO DEVE alterar perfis, vínculos institucionais, designações, estado ativo ou permissões; campos omitidos no corpo permanecem inalterados.
 - **FR-011**: O `POST /users` DEVE exigir `full_name` para novos cadastros, mantendo a coluna anulável e a leitura de `null` para contas antigas ou mockadas.
 - **FR-012**: As respostas de `POST /users`, `GET /auth/me` e `GET /users` DEVEM continuar expondo o valor persistido de `full_name`, inclusive `null` para contas antigas.
 
@@ -113,14 +124,14 @@ Como equipe de desenvolvimento, quero manter contas antigas compatíveis e regis
 
 ### In Scope
 
-- `PATCH /users/{user_id}` para atualizar `full_name`.
+- `PATCH /users/{user_id}` para atualizar `username`, `email`, `full_name` e/ou `password`.
 - Permissão `users.manage` e composição no perfil Administrador.
-- Validação, auditoria nos campos existentes e preservação das projeções públicas.
+- Validação, verificação de unicidade (username/email) com resposta HTTP 409, auditoria nos campos existentes e preservação das projeções públicas.
 - Obrigatoriedade de `full_name` somente para novos cadastros.
 
 ### Out of Scope
 
-- Alteração de username, e-mail, senha, perfis, vínculos ou estado ativo.
+- Alteração de perfis, vínculos ou estado ativo.
 - Edição de dados pelo próprio usuário.
 - Atualização em lote.
 - Preenchimento obrigatório ou em massa de contas antigas/mockadas.
@@ -132,6 +143,7 @@ Como equipe de desenvolvimento, quero manter contas antigas compatíveis e regis
 |---|---|
 | Operação administrativa de atualização | `docs/planejamento/gestao-de-usuarios.md`, seção Administração de usuários |
 | Rota e campo do PATCH | Decisão explícita da equipe registrada na Session 2026-09-03 |
+| Ampliação do PATCH para username/e-mail/senha | Decisão explícita da equipe registrada na Session 2026-09-11 |
 | Autorização no backend | Constituição, Princípio III, e dependências de autorização existentes |
 | Auditoria de atualização | Constituição, Princípio II, e `AuditMixin` existente em `User` |
 | Compatibilidade com contas mockadas | Decisão explícita da equipe registrada na Session 2026-09-03 |
