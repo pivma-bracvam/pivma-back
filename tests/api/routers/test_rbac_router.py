@@ -142,6 +142,24 @@ def test_get_user_access_lists_active_profiles_and_effective_permissions(
     }
 
 
+@pytest.mark.asyncio
+async def test_administrator_profile_lists_permission_never_composed(
+    client, rbac_administrator, session
+):
+    """Spec 023: Admin cobre toda `Permission`, sem composição explícita."""
+    session.add(Permission(code='future.feature', description='future'))
+    await session.commit()
+    authenticate(client, rbac_administrator)
+
+    response = client.get('/rbac/profiles')
+
+    assert response.status_code == HTTPStatus.OK
+    admin_profile = next(
+        item for item in response.json() if item['name'] == 'Administrador'
+    )
+    assert 'future.feature' in admin_profile['permission_codes']
+
+
 def test_change_history_lists_recorded_actions_ordered_by_occurred_at_desc(
     client, rbac_administrator, other_user
 ):
