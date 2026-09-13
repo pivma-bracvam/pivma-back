@@ -61,7 +61,9 @@ async def profile_public(
         description=profile.description,
         active=profile.deleted_at is None,
         official=profile.system_key is not None,
-        permission_codes=await active_profile_permissions(session, profile.id),
+        permission_codes=await active_profile_permissions(
+            session, profile.id, system_key=profile.system_key
+        ),
         created_by=profile.created_by,
         created_at=profile.created_at,
         updated_by=profile.updated_by,

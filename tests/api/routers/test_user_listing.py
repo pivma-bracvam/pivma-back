@@ -282,6 +282,24 @@ def test_list_users_items_have_only_administrative_fields(
 
 
 @pytest.mark.asyncio
+async def test_list_users_without_profile_is_padrao(
+    client, listing_reader, session
+):
+    """Spec 023: ausência de `AccessProfile` ativo é o estado "Padrão"."""
+    await persist_user(
+        session,
+        username='PadraoTarget',
+        email='padrao.target@example.com',
+    )
+    authenticate(client, listing_reader)
+
+    response = client.get('/users', params={'search': 'PadraoTarget'})
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['items'][0]['profiles'] == []
+
+
+@pytest.mark.asyncio
 async def test_list_users_includes_full_name(client, listing_reader, session):
     await persist_user(
         session,

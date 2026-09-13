@@ -71,9 +71,27 @@ _GLOBAL_CARGO_SYSTEM_KEYS = {
 }
 
 
+async def _all_active_permission_codes(session: AsyncSession) -> list[str]:
+    result = await session.scalars(
+        select(Permission.code)
+        .where(Permission.deleted_at.is_(None))
+        .order_by(Permission.code)
+    )
+    return list(result)
+
+
 async def effective_permission_codes(
     session: AsyncSession, user_id: UUID
 ) -> list[str]:
+    """Permissões efetivas do usuário.
+
+    Administrador e BraCVAM (Spec 023) cobrem toda `Permission` ativa do
+    sistema, presente e futura, calculada aqui em vez de depender de
+    composição (`AccessProfilePermission`) — uma permissão nova nunca
+    precisa de uma migration adicional para alcançá-los.
+    """
+    if await has_platform_wide_access(session, user_id):
+        return await _all_active_permission_codes(session)
     result = await session.scalars(
         select(Permission.code)
         .join(
@@ -109,8 +127,11 @@ async def has_permission(
 
 
 async def active_profile_permissions(
-    session: AsyncSession, profile_id: UUID
+    session: AsyncSession, profile_id: UUID, *, system_key: str | None = None
 ) -> list[str]:
+    """Permissões compostas de um perfil (Spec 023: Admin/BraCVAM = todas)."""
+    if system_key in PLATFORM_WIDE_SYSTEM_KEYS:
+        return await _all_active_permission_codes(session)
     result = await session.scalars(
         select(Permission.code)
         .join(
@@ -599,4 +620,4 @@ async def can_manage_process_templates(
         return True
     if await has_permission(session, user_id, RBAC_READ):
         return True
-    return any(p.name in {'Administrador', 'Grupo Gestor'} for p in profiles)
+    return any(p.name == 'Administrador' for p in profiles)
