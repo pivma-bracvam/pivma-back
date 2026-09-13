@@ -17,7 +17,7 @@ from pivma.core.database.models import (
     User,
     UserAccessProfile,
 )
-from pivma.core.process_engine import ConflictError, cancel_process
+from pivma.core.process_engine import ConflictError, delete_process
 from tests.factories.user_factory import UserFactory
 
 
@@ -25,25 +25,25 @@ from tests.factories.user_factory import UserFactory
 async def test_second_lifecycle_action_has_no_success_audit(
     session, user, bracvam_user, process_retirement_factory
 ):
-    """Duas ações sequenciais sobre o mesmo processo (FR-022), na mesma
-    sessão/transação. Complementa `test_concurrent_cancel_race`
+    """Duas ações sequenciais sobre o mesmo processo (FR-020), na mesma
+    sessão/transação. Complementa `test_concurrent_delete_race`
     (abaixo), que exercita o lock `with_for_update()` de verdade em duas
     conexões reais e concorrentes.
     """
     process = await process_retirement_factory.submitted(
         user, status='AI_PRE_EVALUATION'
     )
-    await cancel_process(session, process.id, bracvam_user.id)
+    await delete_process(session, process.id, bracvam_user.id)
 
     with pytest.raises(ConflictError):
-        await cancel_process(session, process.id, bracvam_user.id)
+        await delete_process(session, process.id, bracvam_user.id)
 
     count = await session.scalar(
         select(func.count())
         .select_from(AuditEvent)
         .where(
             AuditEvent.process_instance_id == process.id,
-            AuditEvent.event_type == 'PROCESS_CANCELLED',
+            AuditEvent.event_type == 'PROCESS_DELETED',
         )
     )
     assert count == 1
@@ -168,30 +168,30 @@ async def _delete_race_fixture(
 
 
 @pytest.mark.asyncio
-async def test_concurrent_cancel_race(engine):
+async def test_concurrent_delete_race(engine):
     """Duas transações reais, em conexões distintas, disputam a mesma linha.
 
     Ao contrário do teste anterior, este não usa a fixture `session`: abre
-    duas conexões de verdade a partir de `engine` e dispara dois `CANCEL`
+    duas conexões de verdade a partir de `engine` e dispara dois `DELETE`
     concorrentes via `asyncio.gather`, validando que o `with_for_update()`
-    de `cancel_process` serializa a disputa em vez de deixar as
-    duas lerem o mesmo estado pré-transição (as duas partem do mesmo status
-    válido para cancelamento, então só a ordem de chegada à linha decide
-    quem vence). Exatamente uma deve vencer; a outra deve ser rejeitada
-    contra o estado `CANCELLED` já confirmado pela vencedora.
+    de `delete_process` serializa a disputa em vez de deixar as duas lerem
+    o mesmo estado pré-transição (as duas partem do mesmo status válido
+    para exclusão, então só a ordem de chegada à linha decide quem vence).
+    Exatamente uma deve vencer; a outra deve ser rejeitada contra o estado
+    `CANCELLED` já confirmado pela vencedora.
     """
     fixture = await _create_race_fixture(engine)
     try:
 
-        async def cancel():
+        async def delete():
             async with AsyncSession(engine, expire_on_commit=False) as sess:
-                return await cancel_process(
+                return await delete_process(
                     sess, fixture.process_id, fixture.user_id
                 )
 
         results = await asyncio.gather(
-            cancel(),
-            cancel(),
+            delete(),
+            delete(),
             return_exceptions=True,
         )
         successes = [r for r in results if not isinstance(r, Exception)]
@@ -204,16 +204,16 @@ async def test_concurrent_cancel_race(engine):
 
         async with AsyncSession(engine, expire_on_commit=False) as check:
             final_status = await check.scalar(
-                select(ProcessInstance.status).where(
-                    ProcessInstance.id == fixture.process_id
-                )
+                select(ProcessInstance.status)
+                .where(ProcessInstance.id == fixture.process_id)
+                .execution_options(skip_soft_delete_filter=True)
             )
             success_audit_count = await check.scalar(
                 select(func.count())
                 .select_from(AuditEvent)
                 .where(
                     AuditEvent.process_instance_id == fixture.process_id,
-                    AuditEvent.event_type == 'PROCESS_CANCELLED',
+                    AuditEvent.event_type == 'PROCESS_DELETED',
                 )
             )
 

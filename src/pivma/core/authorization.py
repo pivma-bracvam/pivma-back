@@ -180,6 +180,13 @@ async def active_profiles_for_users(
 async def active_institutional_affiliations(
     session: AsyncSession, user_id: UUID
 ) -> list[UserInstitutionalAffiliation]:
+    # Ignora o filtro global de soft-delete (Spec 022): o `outerjoin` com
+    # Laboratory já trata a ausência de laboratório (`laboratory_id IS
+    # NULL`) manualmente via `or_`; a injeção automática do filtro global
+    # nessa mesma junção conflita com essa lógica e produz resultado
+    # errado (linhas com laboratório desativado voltam a aparecer e
+    # afiliações somente-institucionais somem). O filtro manual abaixo já
+    # cobre as quatro entidades corretamente.
     result = await session.scalars(
         select(UserInstitutionalAffiliation)
         .join(User, User.id == UserInstitutionalAffiliation.user_id)
@@ -205,6 +212,7 @@ async def active_institutional_affiliations(
             UserInstitutionalAffiliation.created_at.desc(),
             UserInstitutionalAffiliation.id.desc(),
         )
+        .execution_options(skip_soft_delete_filter=True)
     )
     return list(result)
 

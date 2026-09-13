@@ -1,52 +1,23 @@
 openapi: 3.1.0
 info:
   title: Process retirement contract
-  version: 2.0.0
+  version: 3.0.0
 paths:
   /processes/{id}:
     delete:
-      summary: Permanently removes an unsubmitted draft owned by the caller
+      summary: Soft-deletes a process owned by the caller, or any process for a platform-wide admin
+      description: >-
+        Accepted for any non-terminal process. Authorized to the effective
+        proponent of the process, or to a user with a platform-wide profile
+        (administrator/bracvam). Sets status to CANCELLED, fills deleted_at
+        and deleted_by, cascades cancellation to pending subordinate work,
+        and preserves every stored document on disk. No physical removal
+        occurs.
       parameters:
         - $ref: '#/components/parameters/ProcessId'
       responses:
         '204':
-          description: Draft aggregate and stored attachments were removed
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/InvalidTransition'
-  /processes/{id}/withdrawal:
-    patch:
-      summary: Withdraws a revision returned to the effective proponent
-      parameters:
-        - $ref: '#/components/parameters/ProcessId'
-      responses:
-        '200':
-          description: Process was cancelled by the proponent
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProcessRetirementResponse'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/InvalidTransition'
-  /processes/{id}/cancellation:
-    patch:
-      summary: Cancels a submitted process for a reviewer with triage.review
-      parameters:
-        - $ref: '#/components/parameters/ProcessId'
-      responses:
-        '200':
-          description: Process was cancelled and pending work was stopped
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProcessRetirementResponse'
+          description: Process was soft-deleted; aggregate and stored attachments are preserved
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
@@ -56,6 +27,10 @@ paths:
   /processes/{id}/archive:
     patch:
       summary: Archives a closed or cancelled process for a reviewer
+      description: >-
+        Accepted for a process in CLOSED or CANCELLED, including a CANCELLED
+        produced by DELETE. Requires triage.review and no current conflict
+        of interest.
       parameters:
         - $ref: '#/components/parameters/ProcessId'
       responses:
@@ -80,10 +55,10 @@ paths:
           required: false
           schema:
             type: string
-          description: ARCHIVED is returned only to users with review access.
+          description: ARCHIVED is returned only to users with review access. Soft-deleted processes are never returned by this listing.
       responses:
         '200':
-          description: Operational processes by default; archived only explicitly.
+          description: Operational processes by default; archived only explicitly; soft-deleted processes never appear here.
 components:
   parameters:
     ProcessId:
@@ -108,7 +83,7 @@ components:
           type: array
           items:
             type: string
-            enum: [DELETE_DRAFT, WITHDRAW, CANCEL, ARCHIVE]
+            enum: [DELETE, ARCHIVE]
     ErrorResponse:
       type: object
       required: [detail]

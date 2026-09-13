@@ -1,6 +1,7 @@
 from http import HTTPStatus
 
 import pytest
+import pytest_asyncio
 from sqlalchemy import select
 
 from pivma.core.database.models import (
@@ -16,8 +17,42 @@ from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.process_retirement_factory import ProcessRetirementFactory
 
 
+async def _reload(session, process_id):
+    """Relê o processo direto do banco, ignorando o filtro de soft-delete.
+
+    `session.get()` reaproveita o objeto já residente na identity map, cujos
+    campos de auditoria (`deleted_at`) foram setados como `func.now()` (SQL,
+    não um valor Python) por `set_deletion_audit`; acessá-los sem uma volta
+    ao banco dispara uma recarga que não funciona fora de um contexto
+    assíncrono. Uma consulta nova sempre traz o valor real do banco.
+    """
+    return await session.scalar(
+        select(ProcessInstance)
+        .where(ProcessInstance.id == process_id)
+        .execution_options(skip_soft_delete_filter=True)
+    )
+
+
+@pytest_asyncio.fixture
+async def reviewer_only(session):
+    """`triage.review` sem perfil global Admin/BraCVAM (Spec 022, revisão).
+
+    Usado para provar que ter permissão de revisão não basta para excluir o
+    processo de outra pessoa: só o proponente efetivo ou um perfil global
+    (Admin/BraCVAM) pode.
+    """
+    from tests.conftest import _make_rbac_user  # noqa: PLC0415
+
+    return await _make_rbac_user(
+        session,
+        system_key='reviewer',
+        name='Revisor',
+        codes=('triage.review',),
+    )
+
+
 @pytest.mark.asyncio
-async def test_owner_can_delete_unsubmitted_draft(client, session, user):
+async def test_owner_can_delete_never_submitted_draft(client, session, user):
     process = await _create_process(session, user, 'Rascunho para excluir')
     authenticate(client, user)
 
@@ -25,7 +60,10 @@ async def test_owner_can_delete_unsubmitted_draft(client, session, user):
 
     assert response.status_code == HTTPStatus.NO_CONTENT
     assert response.content == b''
-    assert await session.get(ProcessInstance, process) is None
+    saved = await _reload(session, process)
+    assert saved.status == 'CANCELLED'
+    assert saved.deleted_at is not None
+    assert saved.deleted_by == user.id
     assert (
         client.get(f'/processes/{process}').status_code
         == HTTPStatus.NOT_FOUND
@@ -34,28 +72,33 @@ async def test_owner_can_delete_unsubmitted_draft(client, session, user):
         item['id'] != str(process)
         for item in client.get('/processes').json()['items']
     )
-    assert (
-        client.delete(f'/processes/{process}').status_code
-        == HTTPStatus.NOT_FOUND
+    event = await session.scalar(
+        select(AuditEvent).where(
+            AuditEvent.process_instance_id == process,
+            AuditEvent.event_type == 'PROCESS_DELETED',
+        )
     )
+    assert event.user_id == user.id
 
 
 @pytest.mark.asyncio
-async def test_triage_reviewer_cannot_delete_another_users_draft(
-    client, session, user, bracvam_user
-):
-    process = await _create_process(session, user, 'Rascunho protegido')
-    authenticate(client, bracvam_user)
+async def test_owner_can_delete_own_submitted_process(client, session, user):
+    """Submissão formal deixou de bloquear a exclusão (revisão 2026-09-13)."""
+    process = await _create_submitted_process(
+        session, user, status='SUBMISSION'
+    )
+    authenticate(client, user)
 
     response = client.delete(f'/processes/{process}')
 
-    assert response.status_code == HTTPStatus.FORBIDDEN
-    assert response.json()['detail']['code'] == 'forbidden'
-    assert await session.get(ProcessInstance, process) is not None
+    assert response.status_code == HTTPStatus.NO_CONTENT
+    saved = await _reload(session, process)
+    assert saved.status == 'CANCELLED'
+    assert saved.deleted_at is not None
 
 
 @pytest.mark.asyncio
-async def test_unrelated_proponent_cannot_see_or_delete_draft(
+async def test_unrelated_user_cannot_see_or_delete_draft(
     client, session, user, other_user
 ):
     process = await _create_process(session, user, 'Rascunho protegido')
@@ -65,25 +108,26 @@ async def test_unrelated_proponent_cannot_see_or_delete_draft(
 
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert response.json()['detail']['code'] == 'not_found'
+    assert await _reload(session, process) is not None
 
 
 @pytest.mark.asyncio
-async def test_submitted_process_cannot_use_delete_draft(
-    client, session, user
+async def test_reviewer_without_platform_access_cannot_delete_draft(
+    client, session, user, reviewer_only
 ):
-    process = await _create_submitted_process(
-        session, user, status='SUBMISSION'
-    )
-    authenticate(client, user)
+    """`triage.review` sozinho não autoriza excluir de outra pessoa."""
+    process = await _create_process(session, user, 'Rascunho protegido')
+    authenticate(client, reviewer_only)
 
     response = client.delete(f'/processes/{process}')
 
-    assert response.status_code == HTTPStatus.CONFLICT
-    assert response.json()['detail']['code'] == 'invalid_transition'
+    assert response.status_code == HTTPStatus.FORBIDDEN
+    assert response.json()['detail']['code'] == 'forbidden'
+    assert await _reload(session, process) is not None
 
 
 @pytest.mark.asyncio
-async def test_cancel_updates_pending_children_and_audit(
+async def test_admin_deletes_others_process_and_cancels_pending_children(
     client, session, user, bracvam_user
 ):
     process = await _create_submitted_process(session, user, status='TRIAGE')
@@ -117,13 +161,13 @@ async def test_cancel_updates_pending_children_and_audit(
     await session.commit()
     authenticate(client, bracvam_user)
 
-    response = client.patch(f'/processes/{process}/cancellation')
+    response = client.delete(f'/processes/{process}')
 
-    assert response.status_code == HTTPStatus.OK
-    assert response.json()['status'] == 'CANCELLED'
-    saved = await session.get(ProcessInstance, process)
+    assert response.status_code == HTTPStatus.NO_CONTENT
+    saved = await _reload(session, process)
     assert saved.status == 'CANCELLED'
-    assert saved.closed_at is not None
+    assert saved.deleted_at is not None
+    assert saved.deleted_by == bracvam_user.id
     assert saved.closure_reason is None
     phases = list(
         await session.scalars(
@@ -169,7 +213,7 @@ async def test_cancel_updates_pending_children_and_audit(
     event = await session.scalar(
         select(AuditEvent).where(
             AuditEvent.process_instance_id == process,
-            AuditEvent.event_type == 'PROCESS_CANCELLED',
+            AuditEvent.event_type == 'PROCESS_DELETED',
         )
     )
     assert event.user_id == bracvam_user.id
@@ -177,52 +221,41 @@ async def test_cancel_updates_pending_children_and_audit(
     assert event.context_data['cancelled_counts']['tasks'] == sum(
         item.status == 'CANCELLED' for item in tasks
     )
+    assert all(
+        item['id'] != str(process)
+        for item in client.get('/processes').json()['items']
+    )
 
 
 @pytest.mark.asyncio
-async def test_cancel_requires_triage_review_permission(
-    client, session, user, non_triage_user
+async def test_reviewer_without_platform_access_cannot_delete_others_process(
+    client, session, user, reviewer_only
 ):
     process = await _create_submitted_process(session, user, status='TRIAGE')
-    authenticate(client, non_triage_user)
+    authenticate(client, reviewer_only)
 
-    response = client.patch(f'/processes/{process}/cancellation')
-
-    assert response.status_code == HTTPStatus.NOT_FOUND
-    assert response.json()['detail']['code'] == 'not_found'
-
-
-@pytest.mark.asyncio
-async def test_owner_cannot_cancel_submitted_process(
-    client, session, user
-):
-    process = await _create_submitted_process(session, user, status='TRIAGE')
-    authenticate(client, user)
-
-    response = client.patch(f'/processes/{process}/cancellation')
+    response = client.delete(f'/processes/{process}')
 
     assert response.status_code == HTTPStatus.FORBIDDEN
     assert response.json()['detail']['code'] == 'forbidden'
 
 
 @pytest.mark.asyncio
-async def test_proponent_can_withdraw_returned_revision(
-    client, session, user
-):
+async def test_proponent_can_delete_returned_revision(client, session, user):
     process = await _create_returned_revision(session, user)
     authenticate(client, user)
 
-    response = client.patch(f'/processes/{process}/withdrawal')
+    response = client.delete(f'/processes/{process}')
 
-    assert response.status_code == HTTPStatus.OK
-    assert response.json()['status'] == 'CANCELLED'
-    saved = await session.get(ProcessInstance, process)
+    assert response.status_code == HTTPStatus.NO_CONTENT
+    saved = await _reload(session, process)
     assert saved.status == 'CANCELLED'
+    assert saved.deleted_at is not None
     assert saved.closure_reason is None
     event = await session.scalar(
         select(AuditEvent).where(
             AuditEvent.process_instance_id == process,
-            AuditEvent.event_type == 'PROCESS_WITHDRAWN_BY_PROPONENT',
+            AuditEvent.event_type == 'PROCESS_DELETED',
         )
     )
     assert event.user_id == user.id
@@ -230,41 +263,59 @@ async def test_proponent_can_withdraw_returned_revision(
 
 
 @pytest.mark.asyncio
-async def test_proponent_cannot_withdraw_initial_draft(client, session, user):
-    process = await _create_process(session, user, 'Rascunho inicial')
-    authenticate(client, user)
-
-    response = client.patch(f'/processes/{process}/withdrawal')
-
-    assert response.status_code == HTTPStatus.CONFLICT
-    assert response.json()['detail']['code'] == 'invalid_transition'
-
-
-@pytest.mark.asyncio
-async def test_reviewer_cannot_withdraw_proponents_revision(
-    client, session, user, bracvam_user
+async def test_reviewer_without_platform_access_cannot_delete_revision(
+    client, session, user, reviewer_only
 ):
     process = await _create_returned_revision(session, user)
-    authenticate(client, bracvam_user)
+    authenticate(client, reviewer_only)
 
-    response = client.patch(f'/processes/{process}/withdrawal')
+    response = client.delete(f'/processes/{process}')
 
     assert response.status_code == HTTPStatus.FORBIDDEN
     assert response.json()['detail']['code'] == 'forbidden'
 
 
 @pytest.mark.asyncio
-async def test_cancelled_process_cannot_be_cancelled_twice(
+async def test_deleting_already_deleted_process_is_rejected(
     client, session, user, bracvam_user
 ):
     process = await _create_submitted_process(session, user, status='TRIAGE')
     authenticate(client, bracvam_user)
     assert (
-        client.patch(f'/processes/{process}/cancellation').status_code
+        client.delete(f'/processes/{process}').status_code
+        == HTTPStatus.NO_CONTENT
+    )
+
+    response = client.delete(f'/processes/{process}')
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['detail']['code'] == 'invalid_transition'
+
+
+@pytest.mark.asyncio
+async def test_delete_closed_process_is_rejected(client, session, user):
+    process = await _create_terminal_process(session, user, 'Fechado')
+    authenticate(client, user)
+
+    response = client.delete(f'/processes/{process}')
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['detail']['code'] == 'invalid_transition'
+    assert client.get(f'/processes/{process}').status_code == HTTPStatus.OK
+
+
+@pytest.mark.asyncio
+async def test_delete_archived_process_is_rejected(
+    client, session, user, bracvam_user
+):
+    process = await _create_terminal_process(session, user, 'Arquivado')
+    authenticate(client, bracvam_user)
+    assert (
+        client.patch(f'/processes/{process}/archive').status_code
         == HTTPStatus.OK
     )
 
-    response = client.patch(f'/processes/{process}/cancellation')
+    response = client.delete(f'/processes/{process}')
 
     assert response.status_code == HTTPStatus.CONFLICT
     assert response.json()['detail']['code'] == 'invalid_transition'
@@ -318,6 +369,25 @@ async def test_archive_cancelled_process_and_keep_actions_empty(
 
 
 @pytest.mark.asyncio
+async def test_archive_accepts_process_previously_deleted(
+    client, session, user, bracvam_user
+):
+    """`CANCELLED` produzido pelo `DELETE` unificado também é arquivável."""
+    process = await _create_submitted_process(session, user, status='TRIAGE')
+    authenticate(client, user)
+    assert (
+        client.delete(f'/processes/{process}').status_code
+        == HTTPStatus.NO_CONTENT
+    )
+
+    authenticate(client, bracvam_user)
+    response = client.patch(f'/processes/{process}/archive')
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['status'] == 'ARCHIVED'
+
+
+@pytest.mark.asyncio
 async def test_archive_draft_or_active_process_is_rejected(
     client, session, user, bracvam_user
 ):
@@ -358,14 +428,14 @@ async def test_detail_exposes_operations_for_each_actor(
     draft = await _create_process(session, user, 'Ações do rascunho')
     authenticate(client, user)
     assert client.get(f'/processes/{draft}').json()['available_actions'] == [
-        'DELETE_DRAFT'
+        'DELETE'
     ]
 
     returned = await _create_returned_revision(session, user)
     returned_actions = client.get(f'/processes/{returned}').json()[
         'available_actions'
     ]
-    assert returned_actions == ['WITHDRAW']
+    assert returned_actions == ['DELETE']
 
     submitted = await _create_submitted_process(
         session, user, status='TRIAGE'
@@ -374,7 +444,7 @@ async def test_detail_exposes_operations_for_each_actor(
     submitted_actions = client.get(f'/processes/{submitted}').json()[
         'available_actions'
     ]
-    assert submitted_actions == ['CANCEL']
+    assert submitted_actions == ['DELETE']
 
     closed = await _create_terminal_process(session, user, 'Ações do arquivo')
     assert client.get(f'/processes/{closed}').json()['available_actions'] == [
@@ -383,14 +453,30 @@ async def test_detail_exposes_operations_for_each_actor(
 
 
 @pytest.mark.asyncio
-async def test_triage_decision_is_blocked_after_cancellation(
+async def test_available_action_is_revalidated_even_when_absent(
+    client, session, user
+):
+    """`DELETE` é revalidado mesmo ausente de `available_actions`."""
+    process = await _create_terminal_process(session, user, 'Já fechado')
+    authenticate(client, user)
+    detail = client.get(f'/processes/{process}').json()
+    assert detail['available_actions'] == []
+
+    response = client.delete(f'/processes/{process}')
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['detail']['code'] == 'invalid_transition'
+
+
+@pytest.mark.asyncio
+async def test_triage_decision_is_blocked_after_deletion(
     client, session, user, bracvam_user
 ):
     process = await _create_submitted_process(session, user, status='TRIAGE')
     authenticate(client, bracvam_user)
     assert (
-        client.patch(f'/processes/{process}/cancellation').status_code
-        == HTTPStatus.OK
+        client.delete(f'/processes/{process}').status_code
+        == HTTPStatus.NO_CONTENT
     )
 
     response = client.post(

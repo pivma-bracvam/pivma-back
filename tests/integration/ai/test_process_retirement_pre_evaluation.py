@@ -9,7 +9,7 @@ from pivma.core.database.models import (
     FormInstance,
     ProcessInstance,
 )
-from pivma.core.process_engine import ConflictError, cancel_process
+from pivma.core.process_engine import ConflictError, delete_process
 
 
 @pytest.mark.asyncio
@@ -39,7 +39,7 @@ async def test_late_pre_evaluation_does_not_change_cancelled_process(
     session.add(run)
     await session.commit()
 
-    await cancel_process(session, process.id, bracvam_user.id)
+    await delete_process(session, process.id, bracvam_user.id)
     await service._execute(session, run.id)
 
     saved_run = await session.get(EvaluationRun, run.id)
@@ -74,7 +74,7 @@ async def test_retry_pre_evaluation_is_rejected_after_cancellation(
     run.set_creation_audit(user.id)
     session.add(run)
     await session.commit()
-    await cancel_process(session, process.id, bracvam_user.id)
+    await delete_process(session, process.id, bracvam_user.id)
 
     with pytest.raises(ConflictError):
         await service.retry_run(session, run.id, bracvam_user.id)

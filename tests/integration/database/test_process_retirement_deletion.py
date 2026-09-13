@@ -12,24 +12,21 @@ from pivma.core.database.models import (
     AuditEvent,
     ConflictInterestDeclaration,
     Decision,
-    DirectReviewRequest,
-    EvaluationRun,
-    EvaluationRunItem,
     FieldReview,
     FormInstance,
     FormValue,
     Phase,
     ProcessInstance,
-    ReviewerFeedback,
     Task,
 )
-from pivma.core.process_engine import delete_unsubmitted_draft
+from pivma.core.process_engine import delete_process
 
 
 @pytest.mark.asyncio
-async def test_delete_draft_removes_complete_aggregate_and_files(
+async def test_delete_preserves_aggregate_and_files(
     session, user, process_retirement_factory, tmp_path: Path
 ):
+    """Soft-delete (revisão 2026-09-13): nada é removido, só ocultado."""
     process = await process_retirement_factory.draft(user)
     await process_retirement_factory.add_attachment(process, user, tmp_path)
     activity_ids = list(
@@ -53,15 +50,6 @@ async def test_delete_draft_removes_complete_aggregate_and_files(
             )
         )
     )
-    evaluation_run = EvaluationRun(
-        process_instance_id=process.id,
-        activity_run_id=run_ids[0],
-        form_instance_id=form_ids[0],
-        status='in_progress',
-    )
-    evaluation_run.set_creation_audit(user.id)
-    session.add(evaluation_run)
-    await session.commit()
     assignment_ids = list(
         await session.scalars(
             select(Assignment.id).where(
@@ -69,7 +57,6 @@ async def test_delete_draft_removes_complete_aggregate_and_files(
             )
         )
     )
-
     aggregate_ids = {
         Phase: list(
             await session.scalars(
@@ -137,58 +124,48 @@ async def test_delete_draft_removes_complete_aggregate_and_files(
                 )
             )
         ),
-        EvaluationRun: [evaluation_run.id],
-        EvaluationRunItem: [],
-        ReviewerFeedback: [],
-        DirectReviewRequest: list(
-            await session.scalars(
-                select(DirectReviewRequest.id).where(
-                    DirectReviewRequest.process_instance_id == process.id
-                )
-            )
-        ),
     }
-    await delete_unsubmitted_draft(
-        session,
-        process.id,
-        user.id,
-        attachment_root=tmp_path,
-    )
 
-    assert not (tmp_path / str(process.id)).exists()
-    assert await session.get(ProcessInstance, process.id) is None
+    await delete_process(session, process.id, user.id)
+
+    assert (tmp_path / str(process.id)).exists()
+    saved = await session.scalar(
+        select(ProcessInstance)
+        .where(ProcessInstance.id == process.id)
+        .execution_options(skip_soft_delete_filter=True)
+    )
+    assert saved is not None
+    assert saved.status == 'CANCELLED'
+    assert saved.deleted_at is not None
+    assert saved.deleted_by == user.id
     for model, ids in aggregate_ids.items():
         if not ids:
             continue
         count = await session.scalar(
-            select(func.count()).select_from(model).where(model.id.in_(ids))
+            select(func.count(model.id)).where(model.id.in_(ids))
         )
-        assert count == 0, model.__tablename__
+        assert count == len(ids), model.__tablename__
 
 
 @pytest.mark.asyncio
-async def test_file_cleanup_failure_keeps_database_rows(
-    session, user, process_retirement_factory, tmp_path, monkeypatch
+async def test_soft_deleted_process_is_hidden_from_plain_query_but_not_bypass(
+    session, user, process_retirement_factory
 ):
+    """Rede de segurança global de soft-delete (Spec 022, FR-013/FR-024)."""
     process = await process_retirement_factory.draft(user)
-    await process_retirement_factory.add_attachment(process, user, tmp_path)
-    process_id = process.id
 
-    def fail_cleanup(*_args, **_kwargs):
-        raise OSError('disco indisponível')
+    await delete_process(session, process.id, user.id)
 
-    monkeypatch.setattr(
-        'pivma.core.process_engine.remove_process_attachments', fail_cleanup
+    plain_result = await session.scalars(
+        select(ProcessInstance).where(ProcessInstance.id == process.id)
     )
+    assert plain_result.first() is None
 
-    with pytest.raises(OSError, match='disco indisponível'):
-        await delete_unsubmitted_draft(
-            session,
-            process_id,
-            user.id,
-            attachment_root=tmp_path,
-        )
-
-    await session.rollback()
-    assert await session.get(ProcessInstance, process_id) is not None
-    assert (tmp_path / str(process_id)).is_dir()
+    bypass_result = await session.scalars(
+        select(ProcessInstance)
+        .where(ProcessInstance.id == process.id)
+        .execution_options(skip_soft_delete_filter=True)
+    )
+    found = bypass_result.first()
+    assert found is not None
+    assert found.deleted_at is not None

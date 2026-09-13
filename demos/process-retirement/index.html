@@ -11,8 +11,7 @@
     .toolbar select { width:auto; min-width:190px; }
     .status { margin:12px 0; color:var(--text-muted); }
     .action { margin:2px 4px 2px 0; padding:6px 9px; border:0; border-radius:6px; color:white; background:var(--primary); cursor:pointer; font-weight:700; }
-    .action[data-action="DELETE_DRAFT"] { background:var(--danger); }
-    .action[data-action="WITHDRAW"] { background:var(--danger); }
+    .action[data-action="DELETE"] { background:var(--danger); }
     .action[data-action="ARCHIVE"] { background:#475569; }
     .inspector { background:#0f172a; color:#bae6fd; border-radius:6px; padding:16px; overflow:auto; min-height:100px; }
   </style>
@@ -44,7 +43,7 @@
 
     <section class="card">
       <h2>Processos operacionais</h2>
-      <p class="status">O rascunho inicial pode ser removido. Uma revisão devolvida pode ser encerrada pelo proponente; processos submetidos preservam a linha do tempo.</p>
+      <p class="status">Qualquer processo não-terminal pode ser excluído (soft-delete) pelo proponente ou por um administrador da plataforma, preservando histórico e documentos. Processos terminais (concluídos ou excluídos) podem ser arquivados.</p>
       <div id="processes"><p class="status">Entre para carregar os processos.</p></div>
     </section>
 
@@ -83,9 +82,7 @@
       button.className = 'action';
       button.dataset.action = action;
       button.textContent = ({
-        DELETE_DRAFT: 'Excluir rascunho',
-        WITHDRAW: 'Desistir da revisão',
-        CANCEL: 'Cancelar processo',
+        DELETE: 'Excluir processo',
         ARCHIVE: 'Arquivar processo'
       })[action] || action;
       button.onclick = () => executeAction(process, action);
@@ -128,9 +125,7 @@
     async function executeAction(process, action) {
       if (!window.confirm(`Confirmar: ${buttonLabel(action)}?`)) return;
       const methods = {
-        DELETE_DRAFT: ['DELETE', `/processes/${process.id}`],
-        WITHDRAW: ['PATCH', `/processes/${process.id}/withdrawal`],
-        CANCEL: ['PATCH', `/processes/${process.id}/cancellation`],
+        DELETE: ['DELETE', `/processes/${process.id}`],
         ARCHIVE: ['PATCH', `/processes/${process.id}/archive`]
       };
       const [method, url] = methods[action] || [];
@@ -145,9 +140,7 @@
 
     function buttonLabel(action) {
       return ({
-        DELETE_DRAFT: 'excluir este rascunho',
-        WITHDRAW: 'desistir desta revisão',
-        CANCEL: 'cancelar este processo',
+        DELETE: 'excluir este processo',
         ARCHIVE: 'arquivar este processo'
       })[action] || action;
     }

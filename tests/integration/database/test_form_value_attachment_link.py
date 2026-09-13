@@ -26,7 +26,9 @@ async def test_replace_soft_deletes_previous_keeps_one_active(client, session):
 
     artifacts = list(
         await session.scalars(
-            select(Artifact).where(Artifact.key == 'form_attachment')
+            select(Artifact)
+            .where(Artifact.key == 'form_attachment')
+            .execution_options(skip_soft_delete_filter=True)
         )
     )
     assert len(artifacts) == 2
@@ -49,7 +51,9 @@ async def test_delete_soft_deletes_artifact_and_unlinks_value(client, session):
     client.delete(att_url(pid), headers=ORIGIN)
 
     artifact = await session.scalar(
-        select(Artifact).where(Artifact.key == 'form_attachment')
+        select(Artifact)
+        .where(Artifact.key == 'form_attachment')
+        .execution_options(skip_soft_delete_filter=True)
     )
     assert artifact.deleted_at is not None
     form_value = await session.scalar(select(FormValue))

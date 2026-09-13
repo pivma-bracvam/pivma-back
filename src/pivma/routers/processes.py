@@ -28,17 +28,15 @@ from pivma.core.process_engine import (
     ValidationError,
     archive_process,
     available_lifecycle_actions,
-    cancel_process,
-    delete_unsubmitted_draft,
+    delete_process,
     get_returned_submission_version,
     instantiate_process,
     list_returned_submission_versions,
     process_visibility_clause,
     update_form_template_definition,
     update_process_submission,
-    withdraw_process,
 )
-from pivma.dependencies import CurrentUser, Session, SettingsDependency
+from pivma.dependencies import CurrentUser, Session
 from pivma.schemas import (
     CreateProcessRequest,
     FormFieldUpdateDefinition,
@@ -509,53 +507,13 @@ def _retirement_http_error(error: Exception) -> HTTPException:
     '/{id}',
     status_code=HTTPStatus.NO_CONTENT,
 )
-async def delete_process_draft(
-    id: UUID,
-    session: Session,
-    current_user: CurrentUser,
-    settings: SettingsDependency,
-):
-    try:
-        await delete_unsubmitted_draft(
-            session=session,
-            process_id=id,
-            user_id=current_user.id,
-            attachment_root=settings.ATTACHMENTS_DIR,
-        )
-    except (NotFoundError, AuthorizationError, ConflictError) as exc:
-        raise _retirement_http_error(exc) from exc
-
-
-@router.patch(
-    '/{id}/withdrawal',
-    response_model=ProcessLifecycleResponse,
-    response_model_exclude_none=True,
-    status_code=HTTPStatus.OK,
-)
-async def withdraw_process_submission(
+async def delete_process_endpoint(
     id: UUID,
     session: Session,
     current_user: CurrentUser,
 ):
     try:
-        return await withdraw_process(session, id, current_user.id)
-    except (NotFoundError, AuthorizationError, ConflictError) as exc:
-        raise _retirement_http_error(exc) from exc
-
-
-@router.patch(
-    '/{id}/cancellation',
-    response_model=ProcessLifecycleResponse,
-    response_model_exclude_none=True,
-    status_code=HTTPStatus.OK,
-)
-async def cancel_process_endpoint(
-    id: UUID,
-    session: Session,
-    current_user: CurrentUser,
-):
-    try:
-        return await cancel_process(session, id, current_user.id)
+        await delete_process(session, id, current_user.id)
     except (NotFoundError, AuthorizationError, ConflictError) as exc:
         raise _retirement_http_error(exc) from exc
 

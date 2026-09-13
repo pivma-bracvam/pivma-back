@@ -1,57 +1,86 @@
-# Pesquisa: Ciclo de Vida de Processos
+# Pesquisa: Exclusão (Soft-Delete) e Arquivamento de Processos
 
-## Critério de rascunho
+## Critério de exclusão
 
-**Decision**: Considerar rascunho descartável somente o processo sem `AuditEvent` de tipo `SUBMISSION_SUBMITTED`.
+**Decision**: Qualquer processo em estado não-terminal (diferente de `CLOSED`, `CANCELLED`, `ARCHIVED`) pode ser excluído, independentemente de já ter sido formalmente submetido.
 
-**Rationale**: `ProcessInstance.started_at` é preenchido já na instanciação e `SUBMISSION` volta a ocorrer após devolução para correção. O evento de submissão formal é criado em `submit_proposal_form` e preserva o marco necessário sem nova coluna ou migração.
+**Rationale**: A distinção anterior (rascunho nunca submetido vs. processo em pipeline) só existia para justificar dois tratamentos diferentes — remoção física versus preservação de histórico. Com a exclusão passando a ser sempre lógica (soft-delete) e sempre preservando histórico e documentos, essa distinção deixa de ter efeito prático na autorização ou no resultado da operação.
 
-**Alternatives considered**: Usar `status == SUBMISSION` permitiria apagar uma submissão devolvida. Usar `started_at` classificaria todo processo recém-criado como já iniciado no pipeline.
+**Alternatives considered**: Manter a checagem `_has_formal_submission` faria a exclusão continuar recusando processos já submetidos, reproduzindo a fragmentação que a revisão de 2026-09-13 pediu para eliminar.
 
-## Estados e persistência
+## Soft-delete e reaproveitamento da cascata existente
 
-**Decision**: Reutilizar `ProcessInstance.status` e `closed_at`; introduzir apenas os valores de status `CANCELLED` e `ARCHIVED` no código de domínio. Rascunhos nunca submetidos sofrem exclusão física em cascata; uma revisão devolvida pode ser encerrada como `CANCELLED` sem apagar histórico.
+**Decision**: A exclusão reaproveita `_cancel_process_locked` (cascata de cancelamento de fases, atividades, execuções, tarefas e avaliações automáticas ainda não terminais), removendo apenas sua guarda `if not _has_formal_submission: raise ConflictError`. Além de `process.status = CANCELLED` e `closed_at`, a exclusão agora também chama `process.set_deletion_audit(user_id)` (preenchendo `deleted_at`/`deleted_by` via `AuditMixin`).
 
-**Rationale**: As colunas são strings sem enum ou restrição de banco e os filhos já empregam `CANCELLED`. Os eventos guardam status anterior, ator e momento em `AuditEvent.context_data`; não é necessário campo ou tabela adicional. Rascunhos sem submissão não exigem retenção do agregado e seus anexos ocupam armazenamento local.
+**Rationale**: `CANCELLED` não é um status órfão: ele já é o resultado terminal usado por subordinados (`Phase`, `ActivityInstance`, `ActivityRun`, `Task`, `EvaluationRun`) independentemente de quem cancela o processo pai. Reaproveitar essa função existente mantém `ARCHIVE` e `TERMINAL_PROCESS_STATUSES` inalterados e torna a exclusão naturalmente não-idempotente sobre processos já terminais, sem regra nova baseada em `deleted_at`.
 
-**Alternatives considered**: `DELETED` acrescentaria um estado sem valor de negócio. Manter exclusão lógica de rascunhos reteria linhas e anexos descartados. Criar campos de arquivamento e uma tabela de transições aumentaria a migração e a superfície sem requisito adicional.
+**Alternatives considered**: Introduzir um status novo (`DELETED`) foi descartado pela spec desde a versão original. Deixar o `status` congelado no valor anterior (sem transicionar para `CANCELLED`) foi descartado porque duplicaria o significado de "processo encerrado" em dois campos (`status` e `deleted_at`) sem necessidade, e quebraria a pré-condição existente de `ARCHIVE` (`status in {CLOSED, CANCELLED}`).
+
+## Preservação de documentos em disco
+
+**Decision**: A exclusão nunca mais chama `remove_process_attachments`; os binários em `ATTACHMENTS_DIR/{process_id}/` permanecem no disco em qualquer exclusão, independentemente de o processo ter sido submetido ou não.
+
+**Rationale**: Decisão explícita do usuário (Clarification 2026-09-13, Q3): rastreabilidade regulatória uniforme prevalece sobre a economia de armazenamento que motivava a remoção física de rascunhos-lixo na versão anterior desta feature.
+
+**Alternatives considered**: Preservar documentos apenas para processos já submetidos e continuar removendo fisicamente os de rascunhos nunca submetidos foi rejeitado por reintroduzir uma ramificação por histórico de submissão dentro do mesmo endpoint — exatamente a fragmentação que esta revisão elimina.
+
+## Filtro de leitura global (soft-delete)
+
+**Decision**: Registrar um listener `do_orm_execute` na `Session` síncrona subjacente (via `sqlalchemy.event.listens_for(Session, 'do_orm_execute')`) em `core/database/__init__.py`, aplicando `with_loader_criteria(AuditMixin, lambda cls: cls.deleted_at.is_(None), include_aliases=True)` a toda consulta `SELECT` cujo `execution_options` não contenha `skip_soft_delete_filter=True`.
+
+**Rationale**: `AuditMixin` não é uma classe mapeada por si só (é um mixin de dataclass; cada modelo concreto é decorado individualmente com `@table_registry.mapped_as_dataclass`), mas `with_loader_criteria` suporta exatamente esse padrão — aplicar o critério a qualquer classe mapeada que seja subclasse do mixin informado, mesmo que o mixin em si não seja mapeado. O evento dispara mesmo sob `AsyncSession`, pois ela delega a uma `Session` síncrona internamente (padrão documentado do SQLAlchemy 2.0 para `AsyncSession`). Isso cobre toda entidade soft-deletável do sistema, não apenas processos, atendendo à decisão explícita do usuário (Clarification 2026-09-13, Q5) de tratar isso como rede de segurança global.
+
+**Fraquezas conhecidas, aceitas conscientemente**:
+- O listener só intercepta `execution_state.is_select`; um `update(Model)...`/`delete(Model)...` em massa (bulk, sem carregar instâncias) não passa pelo filtro. Nenhum código atual faz isso sobre entidades `AuditMixin`, mas é uma lacuna a documentar para revisões futuras.
+- Os filtros manuais `deleted_at.is_(None)` já existentes em `authorization.py` e outros módulos continuam necessários onde já estão — o listener é uma camada adicional, não uma substituição, e não deve ser usado como justificativa para removê-los.
+- Qualquer consulta que precise enxergar registros soft-deletados (ex.: a futura consulta administrativa mencionada como INFERÊNCIA na spec) precisa passar `execution_options(skip_soft_delete_filter=True)` explicitamente; não há como o SQLAlchemy alertar em tempo de escrita sobre um lugar que esqueceu de fazer isso.
+
+**Alternatives considered**: Restringir o listener a `ProcessInstance` apenas (recomendação original desta revisão) reduziria o raio de impacto, mas foi conscientemente rejeitado pelo usuário, que preferiu a rede de segurança valer para todo o sistema desde já.
 
 ## Comando HTTP e apoio ao front-end
 
-**Decision**: Expor `DELETE /processes/{id}`, `PATCH /processes/{id}/withdrawal`, `PATCH /processes/{id}/cancellation` e `PATCH /processes/{id}/archive`, todos sem corpo de justificativa. As operações de estado devolvem `status` e `available_actions`; a exclusão física devolve `204 No Content`.
+**Decision**: Expor apenas `DELETE /processes/{id}` (soft-delete, `204 No Content`) e `PATCH /processes/{id}/archive` (`200 OK` com `status`/`available_actions`), ambos sem corpo de justificativa. Os endpoints `PATCH /processes/{id}/withdrawal` e `PATCH /processes/{id}/cancellation` são removidos.
 
-**Rationale**: Os verbos HTTP expressam a intenção e impedem que a interface envie estados arbitrários. Cancelamento, desistência e arquivamento usam a mesma transação de domínio, mas possuem autorização e pré-condições explícitas. Os códigos estáveis permitem à interface renderizar apenas comandos aplicáveis, enquanto o backend continua autoritativo.
+**Rationale**: Um único verbo por intenção (excluir vs. arquivar) e autorização unificada (proponente efetivo OU perfil global Admin/BraCVAM) simplificam o contrato do front-end sem perder a distinção de quem pode agir sobre o quê — a distinção de ator agora vive na autorização e na trilha de auditoria (`user_id` vs. proponente efetivo), não em rotas separadas.
 
-**Alternatives considered**: Um endpoint RPC único misturaria exclusão, desistência e mudanças de estado, além de induzir justificativa obrigatória. Alterações diretas de `status` transfeririam a máquina de estados ao cliente.
+**Alternatives considered**: Manter `/withdrawal` e `/cancellation` como aliases finos do mesmo comando foi descartado — a spec pede explicitamente a eliminação desses dois endpoints, não apenas sua reimplementação interna.
 
-## Autorização e visibilidade histórica
+## Autorização
 
-**Decision**: Reutilizar `is_active_effective_proponent` para excluir rascunho próprio ou desistir de revisão, e `triage.review` para cancelar, arquivar e solicitar `status=ARCHIVED`.
+**Decision**: `DELETE` usa `is_active_effective_proponent` (autorização local) OU `has_platform_wide_access` (autorização global, perfis `administrator`/`bracvam`) — ambas já existentes em `authorization.py`, sem alteração de assinatura. `PATCH .../archive` continua usando `has_process_review_access` (`triage.review`), respeitando conflito de interesse via `has_current_conflict`.
 
-**Rationale**: O proponente efetivo já é resolvido pelo vínculo local; `triage.review` já representa a autoridade de decisão da etapa implementada. Nenhuma permissão nova é necessária.
+**Rationale**: Nenhuma das duas funções de autorização precisa de mudança; a feature não cria RBAC novo. Quem hoje detém `triage.review` além de Admin/BraCVAM é uma preocupação da Feature 023, não desta.
 
-**Alternatives considered**: Criar uma permissão específica de ciclo de vida ampliaria RBAC sem necessidade da issue. Usar apenas o perfil global permitiria ações a usuários sem competência de review. Expor arquivados em listagens padrão mistura trabalho operacional e histórico.
+**Alternatives considered**: Fazer `DELETE` também aceitar `triage.review` foi descartado — o usuário especificou explicitamente proponente efetivo OU perfil global, não a permissão de revisão.
+
+## Auditoria
+
+**Decision**: Um único `event_type` novo, `PROCESS_DELETED`, cobre toda exclusão, independentemente do ator. `PROCESS_ARCHIVED` permanece como estava. Os eventos anteriores `PROCESS_CANCELLED` e `PROCESS_WITHDRAWN_BY_PROPONENT` deixam de ser produzidos por este fluxo.
+
+**Rationale**: Decisão explícita do usuário (Clarification 2026-09-13, Q4): a distinção de ator fica implícita comparando `AuditEvent.user_id` com o proponente efetivo do processo, sem precisar de um tipo de evento por ator.
+
+**Alternatives considered**: Manter dois `event_type` (um para o proponente, outro para Admin/BraCVAM) foi a recomendação original desta revisão, mas o usuário optou pela opção mais simples de um único tipo.
 
 ## Cancelamento em cascata e concorrência
 
-**Decision**: Carregar o processo alvo com bloqueio de linha e validar a ação. `DELETE_DRAFT` remove o agregado e o diretório de anexos do rascunho; cancelamento atualiza processo, filhos pendentes e evento de auditoria na mesma transação. Marcar somente `Phase`, `ActivityInstance`, `ActivityRun`, `Task` e `EvaluationRun` ainda não terminais como `CANCELLED`; manter formulários, artefatos, decisões e itens concluídos inalterados.
+**Decision**: Sem mudança em relação à versão anterior: carregar o processo alvo com bloqueio de linha (`with_for_update`), validar a ação, e marcar somente `Phase`, `ActivityInstance`, `ActivityRun`, `Task` e `EvaluationRun` ainda não terminais como `CANCELLED`, preservando itens já concluídos, formulários, artefatos, decisões e eventos.
 
-**Rationale**: O bloqueio serializa comandos concorrentes sobre a mesma instância. A remoção do rascunho inclui as tabelas dependentes e `ATTACHMENTS_DIR/{process_id}/`, evitando linhas órfãs e arquivos sem referência. `FormInstance` não tem estado de ciclo de vida, e preservá-lo evita converter rascunhos em submissões. `EvaluationRun` pendente deve ser cancelada para que o worker reconheça a operação.
+**Rationale**: Essa lógica já existe e é reaproveitada integralmente pela exclusão unificada; o bloqueio de linha continua serializando comandos concorrentes sobre a mesma instância.
 
-**Alternatives considered**: Manter exclusão lógica do agregado deixaria rascunhos e anexos descartados ocupando recursos. Reescrever itens concluídos de processo submetido destruiria o histórico. Uma transação por entidade permitiria estado parcial.
+**Alternatives considered**: Nenhuma — este ponto não mudou com a revisão de 2026-09-13.
 
 ## Guardas para escrita e processamento assíncrono
 
-**Decision**: Centralizar uma guarda de processo operacional nos serviços mutantes de formulário, submissão, triagem, tarefas e pré-avaliação; antes de rotear ou gravar resultado assíncrono, confirmar que o processo ainda existe e está em `AI_PRE_EVALUATION` quando aplicável.
+**Decision**: Sem mudança: guarda de processo operacional nos serviços mutantes de formulário, submissão, triagem, tarefas e pré-avaliação; antes de rotear ou gravar resultado assíncrono, confirmar que o processo ainda existe e está em `AI_PRE_EVALUATION` quando aplicável.
 
-**Rationale**: Algumas rotas atuais chegam ao motor sem uma verificação de terminalidade, e `_execute` da pré-avaliação verifica apenas a execução. A guarda no domínio cobre rotas atuais e chamadas futuras; a condição no worker impede conclusão tardia de avançar um cancelado.
+**Rationale**: A guarda já cobre `CANCELLED` e `ARCHIVED` como estados bloqueadores; como a exclusão continua produzindo `CANCELLED`, nenhuma mudança adicional é necessária aqui.
 
-**Alternatives considered**: Bloquear somente o endpoint de ciclo de vida não evita outras rotas nem callbacks em andamento. Cancelar o job sem conferir seu estado na conclusão ainda deixa uma corrida possível.
+**Alternatives considered**: Nenhuma — este ponto não mudou com a revisão de 2026-09-13.
 
 ## Demonstração e seed
 
-**Decision**: Criar uma página independente em `demos/process-retirement/`, registrada no catálogo, e um seed idempotente que produza um rascunho inicial, um processo ativo, um `CLOSED` e um caso inválido usando templates e usuários existentes.
+**Decision**: Reduzir a demo e o seed de quatro para três cenários: exclusão pelo proponente efetivo, exclusão por Admin/BraCVAM de um processo de terceiro, e arquivamento de um processo terminal — mais uma tentativa bloqueada (excluir um processo já terminal ou arquivar um processo ainda ativo).
 
-**Rationale**: Atende ao `AGENTS.md` sem endpoint auxiliar ou dependência do núcleo. A própria demo usa login e os endpoints de processo reais.
+**Rationale**: Reflete os dois endpoints restantes e as duas vias de autorização de `DELETE`, atendendo ao `AGENTS.md` sem endpoint auxiliar ou dependência do núcleo.
 
-**Alternatives considered**: Reutilizar dados genéricos torna os estados não determinísticos. Um endpoint de preparação violaria a regra de desacoplamento.
+**Alternatives considered**: Manter os quatro cenários antigos (rascunho, devolvida, ativo, terminal) misturaria estados que não afetam mais o resultado da operação, tornando a demo confusa sobre o que de fato mudou.

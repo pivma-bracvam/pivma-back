@@ -146,6 +146,10 @@ async def list_users(  # noqa: PLR0913, PLR0917
             .order_by(func.lower(User.username).asc(), User.id.asc())
             .offset(offset)
             .limit(limit)
+            # `active=false` lista contas inativas por desenho; ignora o
+            # filtro global de soft-delete (Spec 022), que do contrário
+            # esconderia essas mesmas contas por padrão.
+            .execution_options(skip_soft_delete_filter=True)
         )
     )
     profiles_by_user = await active_profiles_for_users(
