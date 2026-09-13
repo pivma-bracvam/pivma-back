@@ -1,0 +1,118 @@
+openapi: 3.1.0
+info:
+  title: Process retirement contract
+  version: 3.0.0
+paths:
+  /processes/{id}:
+    delete:
+      summary: Soft-deletes a process owned by the caller, or any process for a platform-wide admin
+      description: >-
+        Accepted for any non-terminal process. Authorized to the effective
+        proponent of the process, or to a user with a platform-wide profile
+        (administrator/bracvam). Sets status to CANCELLED, fills deleted_at
+        and deleted_by, cascades cancellation to pending subordinate work,
+        and preserves every stored document on disk. No physical removal
+        occurs.
+      parameters:
+        - $ref: '#/components/parameters/ProcessId'
+      responses:
+        '204':
+          description: Process was soft-deleted; aggregate and stored attachments are preserved
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/InvalidTransition'
+  /processes/{id}/archive:
+    patch:
+      summary: Archives a closed or cancelled process for a reviewer
+      description: >-
+        Accepted for a process in CLOSED or CANCELLED, including a CANCELLED
+        produced by DELETE. Requires triage.review and no current conflict
+        of interest.
+      parameters:
+        - $ref: '#/components/parameters/ProcessId'
+      responses:
+        '200':
+          description: Process was moved to the historical archive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessRetirementResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/InvalidTransition'
+  /processes:
+    get:
+      summary: Lists visible processes
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+          description: ARCHIVED is returned only to users with review access. Soft-deleted processes are never returned by this listing.
+      responses:
+        '200':
+          description: Operational processes by default; archived only explicitly; soft-deleted processes never appear here.
+components:
+  parameters:
+    ProcessId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    ProcessRetirementResponse:
+      type: object
+      required: [id, status, available_actions]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [CANCELLED, ARCHIVED]
+        available_actions:
+          type: array
+          items:
+            type: string
+            enum: [DELETE, ARCHIVE]
+    ErrorResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum: [not_found, forbidden, invalid_transition]
+            message:
+              type: string
+  responses:
+    Forbidden:
+      description: Actor lacks permission or current scope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Process does not exist or is outside the actor visibility scope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InvalidTransition:
+      description: Operation is incompatible with the persisted process state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

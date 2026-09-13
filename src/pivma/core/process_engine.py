@@ -15,6 +15,7 @@ from pivma.core.authorization import (
     active_proponent_process_scope,
     has_current_conflict,
     has_platform_wide_access,
+    has_process_review_access,
     is_active_effective_proponent,
 )
 from pivma.core.database.models import (
@@ -67,6 +68,23 @@ class AuthorizationError(ProcessEngineError):
     pass
 
 
+LIFECYCLE_DELETE = 'DELETE'
+LIFECYCLE_ARCHIVE = 'ARCHIVE'
+STATUS_CLOSED = 'CLOSED'
+STATUS_CANCELLED = 'CANCELLED'
+STATUS_ARCHIVED = 'ARCHIVED'
+TERMINAL_PROCESS_STATUSES = frozenset({
+    STATUS_CLOSED,
+    STATUS_CANCELLED,
+    STATUS_ARCHIVED,
+})
+IMMUTABLE_PROCESS_STATUSES = frozenset({
+    STATUS_CLOSED,
+    STATUS_CANCELLED,
+    STATUS_ARCHIVED,
+})
+
+
 # Estados do processo em que a submissão ainda está "sob o proponente" — o
 # formulário fica travado para edição e o processo só é visível ao próprio
 # proponente. `AI_PRE_EVALUATION` é a espera pela pré-avaliação assíncrona por
@@ -80,6 +98,21 @@ PROPONENT_SCOPED_STATUSES = (STATUS_SUBMISSION, STATUS_AI_PRE_EVALUATION)
 FIELD_TARGET_TYPES = frozenset({'field', 'field_set', 'document'})
 
 
+def lifecycle_available_actions(
+    *,
+    status: str,
+    can_delete: bool,
+    can_review: bool,
+) -> list[str]:
+    """Calcula as operações que o ator pode tentar no processo."""
+    actions: list[str] = []
+    if status not in TERMINAL_PROCESS_STATUSES and can_delete:
+        actions.append(LIFECYCLE_DELETE)
+    if status in {STATUS_CLOSED, STATUS_CANCELLED} and can_review:
+        actions.append(LIFECYCLE_ARCHIVE)
+    return actions
+
+
 async def process_visibility_clause(
     session: AsyncSession, user_id: UUID
 ) -> ColumnElement | None:
@@ -88,14 +121,15 @@ async def process_visibility_clause(
     Spec 018, FR-003/FR-004/FR-014.
 
     `None` significa "sem restrição adicional" (usuário com acesso de
-    plataforma — Admin/BraCVAM). Caso contrário, retorna a cláusula a aplicar
-    sobre `ProcessInstance`: nos estados sob o proponente
+    plataforma ou autoridade de revisão). Caso contrário, retorna a cláusula
+    a aplicar sobre `ProcessInstance`: nos estados sob o proponente
     (`PROPONENT_SCOPED_STATUSES`) só o proponente ativo enxerga, preservando
     a trava já existente (Spec 009); nos demais estados, qualquer atribuição
     ativa (`Assignment`, qualquer `role_key`) basta — nunca mais "qualquer
     usuário autenticado", como acontecia antes desta spec.
     """
-    if await has_platform_wide_access(session, user_id):
+    review_access = await has_process_review_access(session, user_id)
+    if await has_platform_wide_access(session, user_id) or review_access:
         return None
     return or_(
         and_(
@@ -116,6 +150,260 @@ async def _guard_against_current_conflict(
         raise AuthorizationError(
             'Usuário com conflito de interesse vigente neste processo.'
         )
+
+
+async def available_lifecycle_actions(
+    session: AsyncSession, process: ProcessInstance, user_id: UUID
+) -> list[str]:
+    """Projeta ações aplicáveis sem substituir a autorização do comando."""
+    can_delete = await is_active_effective_proponent(
+        session, user_id, process.id
+    ) or await has_platform_wide_access(session, user_id)
+    review_access = await has_process_review_access(session, user_id)
+    if review_access and await has_current_conflict(
+        session, user_id, process.id
+    ):
+        review_access = False
+    return lifecycle_available_actions(
+        status=process.status,
+        can_delete=can_delete,
+        can_review=review_access,
+    )
+
+
+async def ensure_process_mutable(
+    session: AsyncSession, process_id: UUID
+) -> ProcessInstance:
+    """Bloqueia mutações sobre processo terminal, excluído ou inexistente.
+
+    Ignora o filtro global de soft-delete (Spec 022) e checa o status
+    diretamente: um processo excluído tem `status=CANCELLED`, já coberto por
+    `IMMUTABLE_PROCESS_STATUSES`, então a tentativa é rejeitada com o mesmo
+    `409 invalid_transition` de qualquer outro processo terminal, em vez de
+    um `404` que quebraria o contrato de erro já coberto por testes.
+    """
+    process = await session.scalar(
+        select(ProcessInstance)
+        .where(ProcessInstance.id == process_id)
+        .execution_options(skip_soft_delete_filter=True)
+    )
+    if process is None:
+        raise NotFoundError('Processo não encontrado.')
+    if process.status in IMMUTABLE_PROCESS_STATUSES:
+        raise ConflictError(
+            f'Processo em status {process.status!r} não permite mutações.'
+        )
+    return process
+
+
+async def _locked_lifecycle_process(
+    session: AsyncSession, process_id: UUID, user_id: UUID
+) -> ProcessInstance:
+    """Carrega e trava o processo alvo de `DELETE`/`ARCHIVE`.
+
+    Ignora o filtro global de soft-delete: `ARCHIVE` precisa alcançar um
+    processo já excluído (seu `CANCELLED` satisfaz a pré-condição de
+    arquivamento), e uma segunda tentativa de `DELETE` sobre ele deve cair
+    na checagem de status terminal em `delete_process` (409), não em um
+    `404` de visibilidade.
+    """
+    visibility = await process_visibility_clause(session, user_id)
+    process_stmt = (
+        select(ProcessInstance)
+        .where(ProcessInstance.id == process_id)
+        .execution_options(skip_soft_delete_filter=True)
+    )
+    if visibility is not None:
+        process_stmt = process_stmt.where(visibility)
+    process = await session.scalar(process_stmt.with_for_update())
+    if process is None:
+        raise NotFoundError('Processo não encontrado.')
+    return process
+
+
+async def _commit_lifecycle_change(
+    session: AsyncSession,
+    process: ProcessInstance,
+    user_id: UUID,
+) -> dict[str, Any]:
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    return {
+        'id': process.id,
+        'status': process.status,
+        'available_actions': await available_lifecycle_actions(
+            session, process, user_id
+        ),
+    }
+
+
+async def delete_process(
+    session: AsyncSession, process_id: UUID, user_id: UUID
+) -> dict[str, Any]:
+    """Exclui logicamente (soft-delete) um processo não-terminal.
+
+    Aceito para o proponente efetivo do processo ou para um usuário com
+    perfil global Admin/BraCVAM, em qualquer estado não-terminal,
+    independentemente de já ter sido formalmente submetido (Spec 022,
+    revisão 2026-09-13). Documentos armazenados nunca são removidos.
+    """
+    process = await _locked_lifecycle_process(session, process_id, user_id)
+    is_proponent = await is_active_effective_proponent(
+        session, user_id, process_id
+    )
+    if not is_proponent and not await has_platform_wide_access(
+        session, user_id
+    ):
+        raise AuthorizationError(
+            'Somente o proponente efetivo ou um usuário com perfil global '
+            'Admin/BraCVAM pode excluir este processo.'
+        )
+    if process.status in TERMINAL_PROCESS_STATUSES:
+        raise ConflictError(
+            f'Processo em status {process.status!r} não pode ser excluído.'
+        )
+    previous_status = process.status
+    counts = await _cancel_pending_children(session, process, user_id)
+    process.status = STATUS_CANCELLED
+    process.closed_at = utc_now()
+    process.set_update_audit(user_id)
+    process.set_deletion_audit(user_id)
+    session.add(
+        AuditEvent(
+            process_instance_id=process.id,
+            user_id=user_id,
+            event_type='PROCESS_DELETED',
+            context_data={
+                'previous_status': previous_status,
+                'result_status': STATUS_CANCELLED,
+                'cancelled_counts': counts,
+            },
+        )
+    )
+    return await _commit_lifecycle_change(session, process, user_id)
+
+
+async def archive_process(
+    session: AsyncSession, process_id: UUID, user_id: UUID
+) -> dict[str, Any]:
+    """Move um processo terminal para o arquivo histórico."""
+    process = await _locked_lifecycle_process(session, process_id, user_id)
+    if not await has_process_review_access(session, user_id):
+        raise AuthorizationError(
+            'Apenas usuários com permissão de revisão podem '
+            'arquivar processos.'
+        )
+    if await has_current_conflict(session, user_id, process_id):
+        raise AuthorizationError(
+            'Usuário com conflito de interesse vigente neste processo.'
+        )
+    if process.status not in {STATUS_CLOSED, STATUS_CANCELLED}:
+        raise ConflictError(
+            f'Processo em status {process.status!r} não pode ser arquivado.'
+        )
+    previous_status = process.status
+    process.status = STATUS_ARCHIVED
+    process.set_update_audit(user_id)
+    session.add(
+        AuditEvent(
+            process_instance_id=process.id,
+            user_id=user_id,
+            event_type='PROCESS_ARCHIVED',
+            context_data={
+                'previous_status': previous_status,
+                'result_status': STATUS_ARCHIVED,
+            },
+        )
+    )
+    return await _commit_lifecycle_change(session, process, user_id)
+
+
+async def _cancel_pending_children(
+    session: AsyncSession, process: ProcessInstance, user_id: UUID
+) -> dict[str, int]:
+    counts = {
+        'phases': 0,
+        'activities': 0,
+        'activity_runs': 0,
+        'tasks': 0,
+        'evaluation_runs': 0,
+    }
+    phases = list(
+        await session.scalars(
+            select(Phase).where(Phase.process_instance_id == process.id)
+        )
+    )
+    for phase in phases:
+        if phase.status not in {'COMPLETED', STATUS_CANCELLED}:
+            phase.status = STATUS_CANCELLED
+            phase.set_update_audit(user_id)
+            counts['phases'] += 1
+
+    activities = list(
+        await session.scalars(
+            select(ActivityInstance).where(
+                ActivityInstance.process_instance_id == process.id
+            )
+        )
+    )
+    for activity in activities:
+        if activity.status not in {'COMPLETED', STATUS_CANCELLED}:
+            activity.status = STATUS_CANCELLED
+            activity.blocked_reason = 'Processo cancelado.'
+            activity.set_update_audit(user_id)
+            counts['activities'] += 1
+
+    activity_ids = [activity.id for activity in activities]
+    runs = list(
+        await session.scalars(
+            select(ActivityRun).where(
+                ActivityRun.activity_instance_id.in_(activity_ids)
+            )
+        )
+    )
+    for run in runs:
+        if run.status not in {'COMPLETED', STATUS_CANCELLED}:
+            run.status = STATUS_CANCELLED
+            run.completed_at = run.completed_at or utc_now()
+            run.set_update_audit(user_id)
+            counts['activity_runs'] += 1
+
+    run_ids = [run.id for run in runs]
+    tasks = list(
+        await session.scalars(
+            select(Task).where(Task.activity_run_id.in_(run_ids))
+        )
+    )
+    for task in tasks:
+        if task.status not in {'COMPLETED', STATUS_CANCELLED}:
+            task.status = STATUS_CANCELLED
+            task.completed_at = task.completed_at or utc_now()
+            task.set_update_audit(user_id)
+            counts['tasks'] += 1
+
+    evaluation_runs = list(
+        await session.scalars(
+            select(EvaluationRun).where(
+                EvaluationRun.process_instance_id == process.id
+            )
+        )
+    )
+    for evaluation_run in evaluation_runs:
+        if evaluation_run.status not in {
+            'completed',
+            'failed',
+            STATUS_CANCELLED,
+        }:
+            evaluation_run.status = STATUS_CANCELLED
+            evaluation_run.finished_at = (
+                evaluation_run.finished_at or utc_now()
+            )
+            evaluation_run.set_update_audit(user_id)
+            counts['evaluation_runs'] += 1
+    return counts
 
 
 @dataclass
@@ -1125,6 +1413,7 @@ async def save_form_values_draft(
     values_dict: dict[str, Any],
     user_id: UUID,
 ) -> FormInstance:
+    await ensure_process_mutable(session, process_id)
     _, current_run, form_instance, _, fields = await get_current_form_instance(
         session, process_id, activity_key, user_id
     )
@@ -1533,6 +1822,7 @@ async def submit_proposal_form(  # noqa: PLR0914, PLR0915
     values_dict: dict[str, Any],
     user_id: UUID,
 ) -> tuple[ActivityInstance, ActivityRun, Artifact, EvaluationRun | None]:
+    await ensure_process_mutable(session, process_id)
     (
         act,
         current_run,
@@ -1676,6 +1966,7 @@ async def save_field_reviews(
     user_id: UUID,
 ) -> None:
     await _guard_against_current_conflict(session, process_id, user_id)
+    await ensure_process_mutable(session, process_id)
 
     _, _, sub_form, _, sub_fields = await get_current_form_instance(
         session, process_id, 'proposal_submission'
@@ -1745,6 +2036,7 @@ async def _open_new_submission_run(
     pré-avaliação por IA. Copia os valores da execução anterior e cria a
     tarefa do proponente. Não altera o estado da triagem nem do processo.
     """
+    await ensure_process_mutable(session, process_id)
     (
         sub_act,
         prev_sub_run,
@@ -1903,8 +2195,10 @@ async def execute_triage_decision(
 ) -> tuple[Decision, str, int | None]:
     await _guard_against_current_conflict(session, process_id, user_id)
 
-    p_stmt = select(ProcessInstance).where(
-        ProcessInstance.id == process_id, ProcessInstance.deleted_at.is_(None)
+    p_stmt = (
+        select(ProcessInstance)
+        .where(ProcessInstance.id == process_id)
+        .execution_options(skip_soft_delete_filter=True)
     )
     process = (await session.execute(p_stmt)).scalar_one_or_none()
     if not process:

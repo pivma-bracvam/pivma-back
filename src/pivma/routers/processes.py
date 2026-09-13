@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from pivma.core.authorization import (
     can_manage_participants,
     can_manage_process_templates,
+    has_process_review_access,
 )
 from pivma.core.database.models import (
     AuditEvent,
@@ -20,9 +21,14 @@ from pivma.core.database.models import (
 )
 from pivma.core.database.models import User as UserModel
 from pivma.core.process_engine import (
+    STATUS_ARCHIVED,
+    AuthorizationError,
     ConflictError,
     NotFoundError,
     ValidationError,
+    archive_process,
+    available_lifecycle_actions,
+    delete_process,
     get_returned_submission_version,
     instantiate_process,
     list_returned_submission_versions,
@@ -38,6 +44,7 @@ from pivma.schemas import (
     PatchSubmissionRequest,
     ProcessInstanceDetail,
     ProcessInstanceListResponse,
+    ProcessLifecycleResponse,
     ProcessSubmissionResponse,
     ProcessTemplateDetail,
     ProcessTemplateSummary,
@@ -360,6 +367,9 @@ async def create_process(
         started_at=process.started_at,
         closed_at=process.closed_at,
         closure_reason=process.closure_reason,
+        available_actions=await available_lifecycle_actions(
+            session, process, current_user.id
+        ),
     )
 
 
@@ -376,6 +386,16 @@ async def list_processes(
     size: int = Query(20, ge=1, le=100),
 ):
     stmt = select(ProcessInstance).where(ProcessInstance.deleted_at.is_(None))
+    if status == STATUS_ARCHIVED and not await has_process_review_access(
+        session, current_user.id
+    ):
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN,
+            detail={
+                'code': 'forbidden',
+                'message': 'Acesso restrito à plataforma.',
+            },
+        )
     visibility = await process_visibility_clause(session, current_user.id)
     if visibility is not None:
         stmt = stmt.where(visibility)
@@ -386,6 +406,8 @@ async def list_processes(
     )
     if status:
         stmt = stmt.where(ProcessInstance.status == status)
+    else:
+        stmt = stmt.where(ProcessInstance.status != STATUS_ARCHIVED)
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await session.execute(count_stmt)).scalar() or 0
@@ -398,20 +420,24 @@ async def list_processes(
     )
     items = (await session.execute(stmt)).scalars().all()
 
-    detail_items = [
-        ProcessInstanceDetail(
-            id=p.id,
-            code=p.code,
-            title=p.title,
-            status=p.status,
-            template_key=p.template_version.template.key,
-            version_number=p.template_version.version_number,
-            started_at=p.started_at,
-            closed_at=p.closed_at,
-            closure_reason=p.closure_reason,
+    detail_items = []
+    for process in items:
+        detail_items.append(
+            ProcessInstanceDetail(
+                id=process.id,
+                code=process.code,
+                title=process.title,
+                status=process.status,
+                template_key=process.template_version.template.key,
+                version_number=process.template_version.version_number,
+                started_at=process.started_at,
+                closed_at=process.closed_at,
+                closure_reason=process.closure_reason,
+                available_actions=await available_lifecycle_actions(
+                    session, process, current_user.id
+                ),
+            )
         )
-        for p in items
-    ]
 
     return ProcessInstanceListResponse(
         items=detail_items,
@@ -454,7 +480,59 @@ async def get_process(id: UUID, session: Session, current_user: CurrentUser):
         started_at=p.started_at,
         closed_at=p.closed_at,
         closure_reason=p.closure_reason,
+        available_actions=await available_lifecycle_actions(
+            session, p, current_user.id
+        ),
     )
+
+
+def _retirement_http_error(error: Exception) -> HTTPException:
+    if isinstance(error, NotFoundError):
+        return HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail={'code': 'not_found', 'message': str(error)},
+        )
+    if isinstance(error, AuthorizationError):
+        return HTTPException(
+            status_code=HTTPStatus.FORBIDDEN,
+            detail={'code': 'forbidden', 'message': str(error)},
+        )
+    return HTTPException(
+        status_code=HTTPStatus.CONFLICT,
+        detail={'code': 'invalid_transition', 'message': str(error)},
+    )
+
+
+@router.delete(
+    '/{id}',
+    status_code=HTTPStatus.NO_CONTENT,
+)
+async def delete_process_endpoint(
+    id: UUID,
+    session: Session,
+    current_user: CurrentUser,
+):
+    try:
+        await delete_process(session, id, current_user.id)
+    except (NotFoundError, AuthorizationError, ConflictError) as exc:
+        raise _retirement_http_error(exc) from exc
+
+
+@router.patch(
+    '/{id}/archive',
+    response_model=ProcessLifecycleResponse,
+    response_model_exclude_none=True,
+    status_code=HTTPStatus.OK,
+)
+async def archive_process_endpoint(
+    id: UUID,
+    session: Session,
+    current_user: CurrentUser,
+):
+    try:
+        return await archive_process(session, id, current_user.id)
+    except (NotFoundError, AuthorizationError, ConflictError) as exc:
+        raise _retirement_http_error(exc) from exc
 
 
 def _submission_http_error(error: Exception) -> HTTPException:
@@ -464,11 +542,14 @@ def _submission_http_error(error: Exception) -> HTTPException:
         status = HTTPStatus.CONFLICT
     else:
         status = HTTPStatus.UNPROCESSABLE_ENTITY
-    detail = (
-        {'code': 'invalid_submission_values', 'errors': error.errors}
-        if isinstance(error, ValidationError) and error.errors
-        else str(error)
-    )
+    if isinstance(error, ValidationError) and error.errors:
+        detail = {'code': 'invalid_submission_values', 'errors': error.errors}
+    elif isinstance(error, ConflictError):
+        detail = {'code': 'invalid_transition', 'message': str(error)}
+    elif isinstance(error, NotFoundError):
+        detail = {'code': 'not_found', 'message': str(error)}
+    else:
+        detail = str(error)
     return HTTPException(status_code=status, detail=detail)
 
 

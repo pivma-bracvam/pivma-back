@@ -57,6 +57,11 @@ async def submit_field_reviews(
         raise HTTPException(
             status_code=HTTPStatus.FORBIDDEN, detail=str(e)
         ) from e
+    except ConflictError as e:
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail={'code': 'invalid_transition', 'message': str(e)},
+        ) from e
 
     return {'message': 'Avaliações de campo registradas com sucesso.'}
 
@@ -91,7 +96,8 @@ async def submit_triage_decision(
         ) from e
     except ConflictError as e:
         raise HTTPException(
-            status_code=HTTPStatus.CONFLICT, detail=str(e)
+            status_code=HTTPStatus.CONFLICT,
+            detail={'code': 'invalid_transition', 'message': str(e)},
         ) from e
     except ValidationError as e:
         raise HTTPException(

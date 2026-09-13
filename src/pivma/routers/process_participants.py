@@ -22,7 +22,7 @@ from pivma.core.database.models import (
     ProcessInstance,
     User,
 )
-from pivma.core.process_engine import utc_now
+from pivma.core.process_engine import IMMUTABLE_PROCESS_STATUSES, utc_now
 from pivma.dependencies import CurrentUser, Session, TrustedOrigin
 from pivma.schemas import (
     ConflictDeclarationCreate,
@@ -156,6 +156,8 @@ async def create_participant(
         raise not_found('Processo não encontrado.')
     if process.deleted_at is not None:
         raise conflict('Processo inativo.')
+    if process.status in IMMUTABLE_PROCESS_STATUSES:
+        raise conflict('Processo encerrado não aceita novos participantes.')
 
     target_user = await session.get(User, payload.user_id)
     if target_user is None:
@@ -236,6 +238,11 @@ async def revoke_participant(
     )
     if assignment is None:
         raise not_found('Designação não encontrada.')
+    process = await session.get(ProcessInstance, process_id)
+    if process is None:
+        raise not_found('Processo não encontrado.')
+    if process.status in IMMUTABLE_PROCESS_STATUSES:
+        raise conflict('Processo encerrado não aceita alterações.')
     if assignment.revoked_at is not None:
         raise conflict('Designação já revogada.')
 
@@ -277,6 +284,11 @@ async def declare_conflict(
     )
     if assignment is None or assignment.user_id != current_user.id:
         raise forbidden()
+    process = await session.get(ProcessInstance, process_id)
+    if process is None:
+        raise not_found('Processo não encontrado.')
+    if process.status in IMMUTABLE_PROCESS_STATUSES:
+        raise conflict('Processo encerrado não aceita conflitos.')
     if assignment.revoked_at is not None:
         raise conflict('Designação revogada.')
 

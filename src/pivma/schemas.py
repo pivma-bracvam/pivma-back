@@ -423,6 +423,9 @@ class ProcessInstanceDetail(BaseModel):
     started_at: datetime | None = None
     closed_at: datetime | None = None
     closure_reason: str | None = None
+    available_actions: list[Literal['DELETE', 'ARCHIVE']] = Field(
+        default_factory=list
+    )
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -431,6 +434,14 @@ class ProcessInstanceListResponse(BaseModel):
     total: int
     page: int
     size: int
+
+
+class ProcessLifecycleResponse(BaseModel):
+    id: UUID
+    status: str | None = None
+    available_actions: list[Literal['DELETE', 'ARCHIVE']] = Field(
+        default_factory=list
+    )
 
 
 # ==========================================

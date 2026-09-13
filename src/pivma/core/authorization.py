@@ -126,6 +126,19 @@ async def has_permission(
     return code in await effective_permission_codes(session, user_id)
 
 
+async def has_process_review_access(
+    session: AsyncSession, user_id: UUID
+) -> bool:
+    """Indica se o usuário pode revisar e encerrar processos.
+
+    A autorização é baseada na permissão de revisão, não no nome do perfil
+    global. Hoje a única etapa decisória implementada é a triagem; fases
+    posteriores poderão trocar o resolvedor por uma permissão da etapa ativa
+    sem alterar os contratos de encerramento.
+    """
+    return await has_permission(session, user_id, TRIAGE_REVIEW)
+
+
 async def active_profile_permissions(
     session: AsyncSession, profile_id: UUID, *, system_key: str | None = None
 ) -> list[str]:
@@ -188,6 +201,13 @@ async def active_profiles_for_users(
 async def active_institutional_affiliations(
     session: AsyncSession, user_id: UUID
 ) -> list[UserInstitutionalAffiliation]:
+    # Ignora o filtro global de soft-delete (Spec 022): o `outerjoin` com
+    # Laboratory já trata a ausência de laboratório (`laboratory_id IS
+    # NULL`) manualmente via `or_`; a injeção automática do filtro global
+    # nessa mesma junção conflita com essa lógica e produz resultado
+    # errado (linhas com laboratório desativado voltam a aparecer e
+    # afiliações somente-institucionais somem). O filtro manual abaixo já
+    # cobre as quatro entidades corretamente.
     result = await session.scalars(
         select(UserInstitutionalAffiliation)
         .join(User, User.id == UserInstitutionalAffiliation.user_id)
@@ -213,6 +233,7 @@ async def active_institutional_affiliations(
             UserInstitutionalAffiliation.created_at.desc(),
             UserInstitutionalAffiliation.id.desc(),
         )
+        .execution_options(skip_soft_delete_filter=True)
     )
     return list(result)
 

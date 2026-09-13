@@ -130,14 +130,24 @@ def record_change(
 async def get_institution(
     session: Session, institution_id: UUID
 ) -> Institution:
-    item = await session.get(Institution, institution_id)
+    # Inativas continuam consultáveis por id (o campo `active` é quem
+    # informa o estado); só listagens padrão as ocultam (Spec 022).
+    item = await session.get(
+        Institution,
+        institution_id,
+        execution_options={'skip_soft_delete_filter': True},
+    )
     if item is None:
         raise not_found('Institution not found')
     return item
 
 
 async def get_laboratory(session: Session, laboratory_id: UUID) -> Laboratory:
-    item = await session.get(Laboratory, laboratory_id)
+    item = await session.get(
+        Laboratory,
+        laboratory_id,
+        execution_options={'skip_soft_delete_filter': True},
+    )
     if item is None:
         raise not_found('Laboratory not found')
     return item
