@@ -1,55 +1,76 @@
 openapi: 3.1.0
 info:
-  title: Process lifecycle contract
-  version: 1.0.0
+  title: Process retirement contract
+  version: 2.0.0
 paths:
-  /processes/{id}/lifecycle:
-    post:
-      summary: Executes an allowed process retirement action; DELETE_DRAFT permanently removes an unsubmitted draft
+  /processes/{id}:
+    delete:
+      summary: Permanently removes an unsubmitted draft owned by the caller
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ProcessLifecycleActionRequest'
+        - $ref: '#/components/parameters/ProcessId'
+      responses:
+        '204':
+          description: Draft aggregate and stored attachments were removed
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/InvalidTransition'
+  /processes/{id}/withdrawal:
+    patch:
+      summary: Withdraws a revision returned to the effective proponent
+      parameters:
+        - $ref: '#/components/parameters/ProcessId'
       responses:
         '200':
-          description: Lifecycle action completed
+          description: Process was cancelled by the proponent
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProcessLifecycleActionResponse'
-        '400':
-          description: Invalid justification
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/ProcessRetirementResponse'
         '403':
-          description: Actor lacks permission
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Forbidden'
         '404':
-          description: Process does not exist or is outside the actor visibility scope
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/NotFound'
         '409':
-          description: Action is incompatible with the persisted lifecycle state
+          $ref: '#/components/responses/InvalidTransition'
+  /processes/{id}/cancellation:
+    patch:
+      summary: Cancels a submitted process for a reviewer with triage.review
+      parameters:
+        - $ref: '#/components/parameters/ProcessId'
+      responses:
+        '200':
+          description: Process was cancelled and pending work was stopped
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/ProcessRetirementResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/InvalidTransition'
+  /processes/{id}/archive:
+    patch:
+      summary: Archives a closed or cancelled process for a reviewer
+      parameters:
+        - $ref: '#/components/parameters/ProcessId'
+      responses:
+        '200':
+          description: Process was moved to the historical archive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessRetirementResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/InvalidTransition'
   /processes:
     get:
       summary: Lists visible processes
@@ -59,66 +80,64 @@ paths:
           required: false
           schema:
             type: string
-          description: ARCHIVED is returned only when explicitly requested by a platform-wide actor.
+          description: ARCHIVED is returned only to users with review access.
       responses:
         '200':
-          description: Operational processes by default; archived only by explicit authorized query.
+          description: Operational processes by default; archived only explicitly.
 components:
+  parameters:
+    ProcessId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   schemas:
-    ProcessLifecycleActionRequest:
+    ProcessRetirementResponse:
       type: object
-      additionalProperties: false
-      required: [action, justification]
-      properties:
-        action:
-          type: string
-          enum: [DELETE_DRAFT, CANCEL, ARCHIVE]
-        justification:
-          type: string
-          minLength: 1
-          maxLength: 2000
-          description: Leading and trailing whitespace are removed before validation.
-    ProcessLifecycleActionResponse:
-      type: object
-      required: [id, action, deleted]
+      required: [id, status, available_actions]
       properties:
         id:
           type: string
           format: uuid
         status:
           type: string
-          description: Present for CANCEL and ARCHIVE; absent after DELETE_DRAFT removes the process.
-        action:
-          type: string
-          enum: [DELETE_DRAFT, CANCEL, ARCHIVE]
-        deleted:
-          type: boolean
-          description: True only when DELETE_DRAFT permanently removed the aggregate.
+          enum: [CANCELLED, ARCHIVED]
         available_actions:
           type: array
           items:
             type: string
-            enum: [DELETE_DRAFT, CANCEL, ARCHIVE]
-    ProcessInstanceDetailExtension:
-      type: object
-      properties:
-        available_actions:
-          type: array
-          items:
-            type: string
-            enum: [DELETE_DRAFT, CANCEL, ARCHIVE]
+            enum: [DELETE_DRAFT, WITHDRAW, CANCEL, ARCHIVE]
     ErrorResponse:
       type: object
       required: [detail]
       properties:
         detail:
-          oneOf:
-            - type: string
-            - type: object
-              required: [code, message]
-              properties:
-                code:
-                  type: string
-                  enum: [not_found, forbidden, invalid_justification, invalid_transition]
-                message:
-                  type: string
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum: [not_found, forbidden, invalid_transition]
+            message:
+              type: string
+  responses:
+    Forbidden:
+      description: Actor lacks permission or current scope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Process does not exist or is outside the actor visibility scope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InvalidTransition:
+      description: Operation is incompatible with the persisted process state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

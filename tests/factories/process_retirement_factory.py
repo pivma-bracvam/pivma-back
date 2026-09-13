@@ -77,6 +77,23 @@ class ProcessRetirementFactory:
         await self.session.commit()
         return process
 
+    async def returned_revision(
+        self,
+        owner: User,
+        title: str = 'Processo devolvido para revisão',
+    ):
+        process = await self.submitted(owner, status='SUBMISSION', title=title)
+        self.session.add(
+            AuditEvent(
+                process_instance_id=process.id,
+                user_id=owner.id,
+                event_type='REVISION_REQUESTED',
+                context_data={'new_run_number': 2},
+            )
+        )
+        await self.session.commit()
+        return process
+
     async def add_attachment(
         self,
         process: ProcessInstance,

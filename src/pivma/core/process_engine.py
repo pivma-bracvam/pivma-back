@@ -17,6 +17,7 @@ from pivma.core.authorization import (
     active_proponent_process_scope,
     has_current_conflict,
     has_platform_wide_access,
+    has_process_review_access,
     is_active_effective_proponent,
 )
 from pivma.core.database.models import (
@@ -74,13 +75,9 @@ class AuthorizationError(ProcessEngineError):
 
 
 LIFECYCLE_DELETE_DRAFT = 'DELETE_DRAFT'
+LIFECYCLE_WITHDRAW = 'WITHDRAW'
 LIFECYCLE_CANCEL = 'CANCEL'
 LIFECYCLE_ARCHIVE = 'ARCHIVE'
-LIFECYCLE_ACTIONS = frozenset({
-    LIFECYCLE_DELETE_DRAFT,
-    LIFECYCLE_CANCEL,
-    LIFECYCLE_ARCHIVE,
-})
 STATUS_CLOSED = 'CLOSED'
 STATUS_CANCELLED = 'CANCELLED'
 STATUS_ARCHIVED = 'ARCHIVED'
@@ -90,10 +87,10 @@ TERMINAL_PROCESS_STATUSES = frozenset({
     STATUS_ARCHIVED,
 })
 IMMUTABLE_PROCESS_STATUSES = frozenset({
+    STATUS_CLOSED,
     STATUS_CANCELLED,
     STATUS_ARCHIVED,
 })
-LIFECYCLE_JUSTIFICATION_MAX_LENGTH = 2000
 
 
 # Estados do processo em que a submissão ainda está "sob o proponente" — o
@@ -109,37 +106,29 @@ PROPONENT_SCOPED_STATUSES = (STATUS_SUBMISSION, STATUS_AI_PRE_EVALUATION)
 FIELD_TARGET_TYPES = frozenset({'field', 'field_set', 'document'})
 
 
-def normalize_lifecycle_justification(value: str) -> str:
-    """Valida e normaliza a justificativa de uma ação de ciclo de vida."""
-    if not isinstance(value, str):
-        raise ValueError('A justificativa deve ser texto.')
-    normalized = value.strip()
-    if not normalized:
-        raise ValueError('A justificativa não pode ser vazia.')
-    if len(normalized) > LIFECYCLE_JUSTIFICATION_MAX_LENGTH:
-        raise ValueError(
-            'A justificativa deve ter no máximo 2.000 caracteres.'
-        )
-    return normalized
-
-
 def lifecycle_available_actions(
     *,
     status: str,
     never_submitted: bool,
     can_delete: bool,
-    can_manage: bool,
+    can_review: bool,
+    revision_pending: bool = False,
 ) -> list[str]:
-    """Calcula os comandos que o ator pode tentar para um processo."""
+    """Calcula as operações que o ator pode tentar no processo."""
+    actions: list[str] = []
     if never_submitted and can_delete:
-        return [LIFECYCLE_DELETE_DRAFT]
+        actions.append(LIFECYCLE_DELETE_DRAFT)
     if status == STATUS_ARCHIVED:
-        return []
+        return actions
+    if revision_pending and status == STATUS_SUBMISSION and can_delete:
+        actions.append(LIFECYCLE_WITHDRAW)
     if status in {STATUS_CLOSED, STATUS_CANCELLED}:
-        return [LIFECYCLE_ARCHIVE] if can_manage else []
-    if can_manage and status not in TERMINAL_PROCESS_STATUSES:
-        return [LIFECYCLE_CANCEL]
-    return []
+        if can_review:
+            actions.append(LIFECYCLE_ARCHIVE)
+        return actions
+    if can_review and not never_submitted:
+        actions.append(LIFECYCLE_CANCEL)
+    return actions
 
 
 async def process_visibility_clause(
@@ -150,14 +139,15 @@ async def process_visibility_clause(
     Spec 018, FR-003/FR-004/FR-014.
 
     `None` significa "sem restrição adicional" (usuário com acesso de
-    plataforma — Admin/BraCVAM). Caso contrário, retorna a cláusula a aplicar
-    sobre `ProcessInstance`: nos estados sob o proponente
+    plataforma ou autoridade de revisão). Caso contrário, retorna a cláusula
+    a aplicar sobre `ProcessInstance`: nos estados sob o proponente
     (`PROPONENT_SCOPED_STATUSES`) só o proponente ativo enxerga, preservando
     a trava já existente (Spec 009); nos demais estados, qualquer atribuição
     ativa (`Assignment`, qualquer `role_key`) basta — nunca mais "qualquer
     usuário autenticado", como acontecia antes desta spec.
     """
-    if await has_platform_wide_access(session, user_id):
+    review_access = await has_process_review_access(session, user_id)
+    if await has_platform_wide_access(session, user_id) or review_access:
         return None
     return or_(
         and_(
@@ -192,6 +182,22 @@ async def _has_formal_submission(
             )
             .limit(1)
         )
+    ) is not None
+
+
+async def _has_pending_revision(
+    session: AsyncSession, process_id: UUID
+) -> bool:
+    """Indica se a triagem devolveu a submissão para uma nova elaboração."""
+    return (
+        await session.scalar(
+            select(AuditEvent.id)
+            .where(
+                AuditEvent.process_instance_id == process_id,
+                AuditEvent.event_type == 'REVISION_REQUESTED',
+            )
+            .limit(1)
+        )
         is not None
     )
 
@@ -200,15 +206,23 @@ async def available_lifecycle_actions(
     session: AsyncSession, process: ProcessInstance, user_id: UUID
 ) -> list[str]:
     """Projeta ações aplicáveis sem substituir a autorização do comando."""
-    platform_access = await has_platform_wide_access(session, user_id)
     proponent_access = await is_active_effective_proponent(
         session, user_id, process.id
     )
+    review_access = await has_process_review_access(session, user_id)
+    if review_access and await has_current_conflict(
+        session, user_id, process.id
+    ):
+        review_access = False
     return lifecycle_available_actions(
         status=process.status,
         never_submitted=not await _has_formal_submission(session, process.id),
-        can_delete=platform_access or proponent_access,
-        can_manage=platform_access,
+        can_delete=proponent_access,
+        can_review=review_access,
+        revision_pending=(
+            process.status == STATUS_SUBMISSION
+            and await _has_pending_revision(session, process.id)
+        ),
     )
 
 
@@ -384,31 +398,10 @@ async def _delete_process_aggregate(
     )
 
 
-async def execute_process_lifecycle(  # noqa: PLR0912, PLR0913, PLR0915
-    session: AsyncSession,
-    process_id: UUID,
-    action: str,
-    justification: str,
-    user_id: UUID,
-    *,
-    attachment_root: Path | str | None = None,
-) -> dict[str, Any]:
-    """Executa uma ação de exclusão, cancelamento ou arquivamento."""
-    try:
-        normalized_justification = normalize_lifecycle_justification(
-            justification
-        )
-    except ValueError as exc:
-        raise ValidationError(str(exc)) from exc
-    if action not in LIFECYCLE_ACTIONS:
-        raise ValidationError(f'Ação de ciclo de vida inválida: {action!r}.')
-
-    platform_access = await has_platform_wide_access(session, user_id)
-    visibility = (
-        None
-        if platform_access
-        else await process_visibility_clause(session, user_id)
-    )
+async def _locked_lifecycle_process(
+    session: AsyncSession, process_id: UUID, user_id: UUID
+) -> ProcessInstance:
+    visibility = await process_visibility_clause(session, user_id)
     process_stmt = select(ProcessInstance).where(
         ProcessInstance.id == process_id,
         ProcessInstance.deleted_at.is_(None),
@@ -418,103 +411,164 @@ async def execute_process_lifecycle(  # noqa: PLR0912, PLR0913, PLR0915
     process = await session.scalar(process_stmt.with_for_update())
     if process is None:
         raise NotFoundError('Processo não encontrado.')
+    return process
 
-    proponent_access = await is_active_effective_proponent(
-        session, user_id, process_id
-    )
-    submitted = await _has_formal_submission(session, process_id)
 
-    if action == LIFECYCLE_DELETE_DRAFT:
-        if not (platform_access or proponent_access):
-            raise AuthorizationError(
-                'Sem permissão para excluir este processo.'
-            )
-        if submitted:
-            raise ConflictError(
-                'Processo submetido não pode ser excluído como rascunho.'
-            )
-        await _delete_process_aggregate(session, process_id, attachment_root)
-        try:
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        return {
-            'id': process_id,
-            'action': action,
-            'deleted': True,
-            'available_actions': [],
-        }
-
-    if not platform_access:
-        raise AuthorizationError(
-            'Apenas Administrador ou BraCVAM pode executar esta ação.'
-        )
-    if action == LIFECYCLE_CANCEL:
-        if not submitted or process.status in TERMINAL_PROCESS_STATUSES:
-            raise ConflictError(
-                f'Processo em status {process.status!r} não pode ser '
-                'cancelado.'
-            )
-        previous_status = process.status
-        counts = await _cancel_pending_children(session, process, user_id)
-        process.status = STATUS_CANCELLED
-        process.closed_at = utc_now()
-        process.closure_reason = normalized_justification
-        process.set_update_audit(user_id)
-        session.add(
-            AuditEvent(
-                process_instance_id=process.id,
-                user_id=user_id,
-                event_type='PROCESS_CANCELLED',
-                context_data={
-                    'action': action,
-                    'previous_status': previous_status,
-                    'result_status': STATUS_CANCELLED,
-                    'justification': normalized_justification,
-                    'cancelled_counts': counts,
-                },
-            )
-        )
-        result_status = STATUS_CANCELLED
-    else:
-        if process.status not in {STATUS_CLOSED, STATUS_CANCELLED}:
-            raise ConflictError(
-                f'Processo em status {process.status!r} não pode ser '
-                'arquivado.'
-            )
-        previous_status = process.status
-        process.status = STATUS_ARCHIVED
-        process.set_update_audit(user_id)
-        session.add(
-            AuditEvent(
-                process_instance_id=process.id,
-                user_id=user_id,
-                event_type='PROCESS_ARCHIVED',
-                context_data={
-                    'action': action,
-                    'previous_status': previous_status,
-                    'result_status': STATUS_ARCHIVED,
-                    'justification': normalized_justification,
-                },
-            )
-        )
-        result_status = STATUS_ARCHIVED
-
+async def _commit_lifecycle_change(
+    session: AsyncSession,
+    process: ProcessInstance,
+    user_id: UUID,
+) -> dict[str, Any]:
     try:
         await session.commit()
     except Exception:
         await session.rollback()
         raise
     return {
-        'id': process_id,
-        'status': result_status,
-        'action': action,
-        'deleted': False,
+        'id': process.id,
+        'status': process.status,
         'available_actions': await available_lifecycle_actions(
             session, process, user_id
         ),
     }
+
+
+async def delete_unsubmitted_draft(
+    session: AsyncSession,
+    process_id: UUID,
+    user_id: UUID,
+    *,
+    attachment_root: Path | str | None = None,
+) -> None:
+    """Remove fisicamente somente um rascunho do próprio proponente."""
+    await _locked_lifecycle_process(session, process_id, user_id)
+    if not await is_active_effective_proponent(session, user_id, process_id):
+        raise AuthorizationError(
+            'Somente o proponente efetivo pode excluir este rascunho.'
+        )
+    if await _has_formal_submission(session, process_id):
+        raise ConflictError(
+            'Processo submetido não pode ser excluído como rascunho.'
+        )
+    await _delete_process_aggregate(session, process_id, attachment_root)
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+
+
+async def _cancel_process_locked(
+    session: AsyncSession,
+    process: ProcessInstance,
+    user_id: UUID,
+    *,
+    event_type: str,
+) -> dict[str, Any]:
+    if process.status in TERMINAL_PROCESS_STATUSES:
+        raise ConflictError(
+            f'Processo em status {process.status!r} não pode ser cancelado.'
+        )
+    if not await _has_formal_submission(session, process.id):
+        raise ConflictError(
+            'Processo sem submissão formal não pode ser cancelado.'
+        )
+    previous_status = process.status
+    counts = await _cancel_pending_children(session, process, user_id)
+    process.status = STATUS_CANCELLED
+    process.closed_at = utc_now()
+    process.set_update_audit(user_id)
+    session.add(
+        AuditEvent(
+            process_instance_id=process.id,
+            user_id=user_id,
+            event_type=event_type,
+            context_data={
+                'previous_status': previous_status,
+                'result_status': STATUS_CANCELLED,
+                'cancelled_counts': counts,
+            },
+        )
+    )
+    return await _commit_lifecycle_change(session, process, user_id)
+
+
+async def withdraw_process(
+    session: AsyncSession, process_id: UUID, user_id: UUID
+) -> dict[str, Any]:
+    """Encerra uma revisão devolvida sem apagar seu histórico."""
+    process = await _locked_lifecycle_process(session, process_id, user_id)
+    if not await is_active_effective_proponent(session, user_id, process_id):
+        raise AuthorizationError(
+            'Somente o proponente efetivo pode desistir desta revisão.'
+        )
+    if process.status != STATUS_SUBMISSION or not await _has_pending_revision(
+        session, process_id
+    ):
+        raise ConflictError(
+            'Somente uma submissão devolvida para revisão pode ser encerrada '
+            'pelo proponente.'
+        )
+    return await _cancel_process_locked(
+        session,
+        process,
+        user_id,
+        event_type='PROCESS_WITHDRAWN_BY_PROPONENT',
+    )
+
+
+async def cancel_process(
+    session: AsyncSession, process_id: UUID, user_id: UUID
+) -> dict[str, Any]:
+    """Interrompe administrativamente um processo submetido."""
+    process = await _locked_lifecycle_process(session, process_id, user_id)
+    if not await has_process_review_access(session, user_id):
+        raise AuthorizationError(
+            'Apenas usuários com permissão de revisão podem '
+            'cancelar processos.'
+        )
+    if await has_current_conflict(session, user_id, process_id):
+        raise AuthorizationError(
+            'Usuário com conflito de interesse vigente neste processo.'
+        )
+    return await _cancel_process_locked(
+        session, process, user_id, event_type='PROCESS_CANCELLED'
+    )
+
+
+async def archive_process(
+    session: AsyncSession, process_id: UUID, user_id: UUID
+) -> dict[str, Any]:
+    """Move um processo terminal para o arquivo histórico."""
+    process = await _locked_lifecycle_process(session, process_id, user_id)
+    if not await has_process_review_access(session, user_id):
+        raise AuthorizationError(
+            'Apenas usuários com permissão de revisão podem '
+            'arquivar processos.'
+        )
+    if await has_current_conflict(session, user_id, process_id):
+        raise AuthorizationError(
+            'Usuário com conflito de interesse vigente neste processo.'
+        )
+    if process.status not in {STATUS_CLOSED, STATUS_CANCELLED}:
+        raise ConflictError(
+            f'Processo em status {process.status!r} não pode ser arquivado.'
+        )
+    previous_status = process.status
+    process.status = STATUS_ARCHIVED
+    process.set_update_audit(user_id)
+    session.add(
+        AuditEvent(
+            process_instance_id=process.id,
+            user_id=user_id,
+            event_type='PROCESS_ARCHIVED',
+            context_data={
+                'previous_status': previous_status,
+                'result_status': STATUS_ARCHIVED,
+            },
+        )
+    )
+    return await _commit_lifecycle_change(session, process, user_id)
 
 
 async def _cancel_pending_children(

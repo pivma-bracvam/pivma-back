@@ -26,6 +26,7 @@ from scripts.seeds.common import get_session
 DEMO_DRAFT = '[DEMO 11] Rascunho descartável'
 DEMO_ACTIVE = '[DEMO 11] Processo em validação'
 DEMO_CLOSED = '[DEMO 11] Processo encerrado'
+DEMO_RETURNED = '[DEMO 11] Revisão devolvida para desistência'
 DEMO_INVALID = '[DEMO 11] Submissão não pode ser excluída'
 
 
@@ -123,6 +124,30 @@ async def _ensure_submission_event(
         )
 
 
+async def _ensure_revision_event(
+    session, process: ProcessInstance, owner: User
+):
+    event = await session.scalar(
+        select(AuditEvent).where(
+            AuditEvent.process_instance_id == process.id,
+            AuditEvent.event_type == 'REVISION_REQUESTED',
+            AuditEvent.deleted_at.is_(None),
+        )
+    )
+    if event is None:
+        session.add(
+            AuditEvent(
+                process_instance_id=process.id,
+                user_id=owner.id,
+                event_type='REVISION_REQUESTED',
+                context_data={
+                    'source': 'seed_process_retirement',
+                    'new_run_number': 2,
+                },
+            )
+        )
+
+
 async def run_seed_process_retirement() -> None:
     async with get_session() as session:
         await bootstrap_all_templates(session)
@@ -146,13 +171,19 @@ async def run_seed_process_retirement() -> None:
             await _ensure_submission_event(session, active, owner)
 
         closed = await _get_or_create(session, DEMO_CLOSED, owner)
-        if closed.status != 'ARCHIVED':
+        if closed.status not in {'CLOSED', 'CANCELLED', 'ARCHIVED'}:
             closed.status = 'CLOSED'
             closed.closed_at = closed.closed_at or utc_now()
             closed.closure_reason = (
                 closed.closure_reason or 'Seed de demonstração'
             )
             await _ensure_submission_event(session, closed, owner)
+
+        returned = await _get_or_create(session, DEMO_RETURNED, owner)
+        if returned.status not in {'CANCELLED', 'ARCHIVED'}:
+            returned.status = 'SUBMISSION'
+            await _ensure_submission_event(session, returned, owner)
+            await _ensure_revision_event(session, returned, owner)
 
         invalid = await _get_or_create(session, DEMO_INVALID, owner)
         invalid.status = 'SUBMISSION'
@@ -162,6 +193,7 @@ async def run_seed_process_retirement() -> None:
         print(f'  Rascunho com anexo: {draft.code}')
         print(f'  Processo ativo: {active.code}')
         print(f'  Processo fechado: {closed.code}')
+        print(f'  Revisão devolvida: {returned.code}')
         print(f'  Caso inválido: {invalid.code}')
 
 

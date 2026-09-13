@@ -8,14 +8,16 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from pivma.core.database.models import (
     AccessProfile,
+    AccessProfilePermission,
     AuditEvent,
+    Permission,
     ProcessInstance,
     ProcessTemplate,
     ProcessTemplateVersion,
     User,
     UserAccessProfile,
 )
-from pivma.core.process_engine import ConflictError, execute_process_lifecycle
+from pivma.core.process_engine import ConflictError, cancel_process
 from tests.factories.user_factory import UserFactory
 
 
@@ -31,18 +33,10 @@ async def test_second_lifecycle_action_has_no_success_audit(
     process = await process_retirement_factory.submitted(
         user, status='AI_PRE_EVALUATION'
     )
-    await execute_process_lifecycle(
-        session, process.id, 'CANCEL', 'Primeiro cancelamento', bracvam_user.id
-    )
+    await cancel_process(session, process.id, bracvam_user.id)
 
     with pytest.raises(ConflictError):
-        await execute_process_lifecycle(
-            session,
-            process.id,
-            'CANCEL',
-            'Segundo cancelamento',
-            bracvam_user.id,
-        )
+        await cancel_process(session, process.id, bracvam_user.id)
 
     count = await session.scalar(
         select(func.count())
@@ -87,6 +81,16 @@ async def _create_race_fixture(engine: AsyncEngine) -> _RaceFixture:
         setup.add_all([owner, profile, template])
         await setup.flush()
         setup.add(UserAccessProfile(user_id=owner.id, profile_id=profile.id))
+        permission = Permission(
+            code='triage.review', description='Triage review'
+        )
+        setup.add(permission)
+        await setup.flush()
+        setup.add(
+            AccessProfilePermission(
+                profile_id=profile.id, permission_id=permission.id
+            )
+        )
         version = ProcessTemplateVersion(
             template_id=template.id, version_number=1, definition_payload={}
         )
@@ -149,6 +153,14 @@ async def _delete_race_fixture(
             )
         )
         await cleanup.execute(
+            delete(AccessProfilePermission).where(
+                AccessProfilePermission.profile_id == fixture.profile_id
+            )
+        )
+        await cleanup.execute(
+            delete(Permission).where(Permission.code == 'triage.review')
+        )
+        await cleanup.execute(
             delete(AccessProfile).where(AccessProfile.id == fixture.profile_id)
         )
         await cleanup.execute(delete(User).where(User.id == fixture.user_id))
@@ -162,7 +174,7 @@ async def test_concurrent_cancel_race(engine):
     Ao contrário do teste anterior, este não usa a fixture `session`: abre
     duas conexões de verdade a partir de `engine` e dispara dois `CANCEL`
     concorrentes via `asyncio.gather`, validando que o `with_for_update()`
-    de `execute_process_lifecycle` serializa a disputa em vez de deixar as
+    de `cancel_process` serializa a disputa em vez de deixar as
     duas lerem o mesmo estado pré-transição (as duas partem do mesmo status
     válido para cancelamento, então só a ordem de chegada à linha decide
     quem vence). Exatamente uma deve vencer; a outra deve ser rejeitada
@@ -171,19 +183,15 @@ async def test_concurrent_cancel_race(engine):
     fixture = await _create_race_fixture(engine)
     try:
 
-        async def cancel(justification: str):
+        async def cancel():
             async with AsyncSession(engine, expire_on_commit=False) as sess:
-                return await execute_process_lifecycle(
-                    sess,
-                    fixture.process_id,
-                    'CANCEL',
-                    justification,
-                    fixture.user_id,
+                return await cancel_process(
+                    sess, fixture.process_id, fixture.user_id
                 )
 
         results = await asyncio.gather(
-            cancel('Cancelamento A'),
-            cancel('Cancelamento B'),
+            cancel(),
+            cancel(),
             return_exceptions=True,
         )
         successes = [r for r in results if not isinstance(r, Exception)]

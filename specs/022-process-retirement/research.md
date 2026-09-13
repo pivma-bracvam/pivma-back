@@ -10,27 +10,27 @@
 
 ## Estados e persistência
 
-**Decision**: Reutilizar `ProcessInstance.status`, `closed_at` e `closure_reason`; introduzir apenas os valores de status `CANCELLED` e `ARCHIVED` no código de domínio. Rascunhos nunca submetidos sofrem exclusão física em cascata.
+**Decision**: Reutilizar `ProcessInstance.status` e `closed_at`; introduzir apenas os valores de status `CANCELLED` e `ARCHIVED` no código de domínio. Rascunhos nunca submetidos sofrem exclusão física em cascata; uma revisão devolvida pode ser encerrada como `CANCELLED` sem apagar histórico.
 
-**Rationale**: As colunas são strings sem enum ou restrição de banco e os filhos já empregam `CANCELLED`. O evento de arquivamento guarda o status terminal anterior, justificativa, ator e momento em `AuditEvent.context_data`; não é necessário campo ou tabela adicional. Rascunhos sem submissão não exigem retenção do agregado e seus anexos ocupam armazenamento local.
+**Rationale**: As colunas são strings sem enum ou restrição de banco e os filhos já empregam `CANCELLED`. Os eventos guardam status anterior, ator e momento em `AuditEvent.context_data`; não é necessário campo ou tabela adicional. Rascunhos sem submissão não exigem retenção do agregado e seus anexos ocupam armazenamento local.
 
 **Alternatives considered**: `DELETED` acrescentaria um estado sem valor de negócio. Manter exclusão lógica de rascunhos reteria linhas e anexos descartados. Criar campos de arquivamento e uma tabela de transições aumentaria a migração e a superfície sem requisito adicional.
 
 ## Comando HTTP e apoio ao front-end
 
-**Decision**: Expor um único comando `POST /processes/{id}/lifecycle` com `action` e `justification`. O resultado de cancelamento ou arquivamento devolve `status` e `available_actions`; a exclusão física devolve `deleted=true`.
+**Decision**: Expor `DELETE /processes/{id}`, `PATCH /processes/{id}/withdrawal`, `PATCH /processes/{id}/cancellation` e `PATCH /processes/{id}/archive`, todos sem corpo de justificativa. As operações de estado devolvem `status` e `available_actions`; a exclusão física devolve `204 No Content`.
 
-**Rationale**: O comando unifica validação e formato de erro, inclusive para exclusão, sem corpo em `DELETE`. Cancelamento e arquivamento também usam a mesma auditoria. Os códigos estáveis permitem à interface renderizar apenas comandos aplicáveis, enquanto o backend continua autoritativo.
+**Rationale**: Os verbos HTTP expressam a intenção e impedem que a interface envie estados arbitrários. Cancelamento, desistência e arquivamento usam a mesma transação de domínio, mas possuem autorização e pré-condições explícitas. Os códigos estáveis permitem à interface renderizar apenas comandos aplicáveis, enquanto o backend continua autoritativo.
 
-**Alternatives considered**: Três endpoints independentes repetiriam schema, mapeamento de erro e lógica de autorização. Alterações diretas de `status` transfeririam a máquina de estados ao cliente.
+**Alternatives considered**: Um endpoint RPC único misturaria exclusão, desistência e mudanças de estado, além de induzir justificativa obrigatória. Alterações diretas de `status` transfeririam a máquina de estados ao cliente.
 
 ## Autorização e visibilidade histórica
 
-**Decision**: Reutilizar `is_active_effective_proponent` para excluir rascunho próprio e `has_platform_wide_access` para cancelar, arquivar e solicitar `status=ARCHIVED`.
+**Decision**: Reutilizar `is_active_effective_proponent` para excluir rascunho próprio ou desistir de revisão, e `triage.review` para cancelar, arquivar e solicitar `status=ARCHIVED`.
 
-**Rationale**: Essas funções já representam proponente efetivo e os perfis Administrador/BraCVAM. Nenhuma permissão nova é necessária.
+**Rationale**: O proponente efetivo já é resolvido pelo vínculo local; `triage.review` já representa a autoridade de decisão da etapa implementada. Nenhuma permissão nova é necessária.
 
-**Alternatives considered**: Criar uma permissão específica de ciclo de vida ampliaria RBAC sem necessidade da issue. Expor arquivados em listagens padrão mistura trabalho operacional e histórico.
+**Alternatives considered**: Criar uma permissão específica de ciclo de vida ampliaria RBAC sem necessidade da issue. Usar apenas o perfil global permitiria ações a usuários sem competência de review. Expor arquivados em listagens padrão mistura trabalho operacional e histórico.
 
 ## Cancelamento em cascata e concorrência
 

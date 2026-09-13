@@ -108,6 +108,19 @@ async def has_permission(
     return code in await effective_permission_codes(session, user_id)
 
 
+async def has_process_review_access(
+    session: AsyncSession, user_id: UUID
+) -> bool:
+    """Indica se o usuário pode revisar e encerrar processos.
+
+    A autorização é baseada na permissão de revisão, não no nome do perfil
+    global. Hoje a única etapa decisória implementada é a triagem; fases
+    posteriores poderão trocar o resolvedor por uma permissão da etapa ativa
+    sem alterar os contratos de encerramento.
+    """
+    return await has_permission(session, user_id, TRIAGE_REVIEW)
+
+
 async def active_profile_permissions(
     session: AsyncSession, profile_id: UUID
 ) -> list[str]:

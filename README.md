@@ -386,6 +386,10 @@ O módulo de processos gerencia instâncias de validação analítica, formulár
 | :--- | :--- | :--- |
 | Criar processo | `POST /processes` | Inicia uma nova instância a partir de um template versionado |
 | Listar processos | `GET /processes` | Lista instâncias ativas com filtros por status e código |
+| Excluir rascunho inicial | `DELETE /processes/{id}` | Remove fisicamente apenas o processo nunca submetido, pelo próprio proponente |
+| Desistir de revisão devolvida | `PATCH /processes/{id}/withdrawal` | Encerra como `CANCELLED` uma nova elaboração do proponente, preservando o histórico |
+| Cancelar processo | `PATCH /processes/{id}/cancellation` | Interrompe processo submetido para usuário com `triage.review` |
+| Arquivar processo | `PATCH /processes/{id}/archive` | Arquiva processo `CLOSED` ou `CANCELLED` para usuário com `triage.review` |
 | Timeline do processo | `GET /processes/{id}/timeline` | Consulta trilha cronológica determinística de auditoria |
 | Obter formulário | `GET /processes/{id}/forms/{form_key}` | Retorna esquema e valores do formulário dinâmico |
 | Preencher rascunho | `PUT /processes/{id}/forms/{form_key}` | Salva valores preliminares sem avançar o fluxo |

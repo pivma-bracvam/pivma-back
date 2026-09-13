@@ -423,9 +423,9 @@ class ProcessInstanceDetail(BaseModel):
     started_at: datetime | None = None
     closed_at: datetime | None = None
     closure_reason: str | None = None
-    available_actions: list[Literal['DELETE_DRAFT', 'CANCEL', 'ARCHIVE']] = (
-        Field(default_factory=list)
-    )
+    available_actions: list[
+        Literal['DELETE_DRAFT', 'WITHDRAW', 'CANCEL', 'ARCHIVE']
+    ] = Field(default_factory=list)
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -436,21 +436,12 @@ class ProcessInstanceListResponse(BaseModel):
     size: int
 
 
-class ProcessLifecycleActionRequest(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-
-    action: Literal['DELETE_DRAFT', 'CANCEL', 'ARCHIVE']
-    justification: str
-
-
-class ProcessLifecycleActionResponse(BaseModel):
+class ProcessLifecycleResponse(BaseModel):
     id: UUID
-    action: Literal['DELETE_DRAFT', 'CANCEL', 'ARCHIVE']
-    deleted: bool
     status: str | None = None
-    available_actions: list[Literal['DELETE_DRAFT', 'CANCEL', 'ARCHIVE']] = (
-        Field(default_factory=list)
-    )
+    available_actions: list[
+        Literal['DELETE_DRAFT', 'WITHDRAW', 'CANCEL', 'ARCHIVE']
+    ] = Field(default_factory=list)
 
 
 # ==========================================

@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 from pivma.core.authorization import (
     can_manage_participants,
     can_manage_process_templates,
-    has_platform_wide_access,
+    has_process_review_access,
 )
 from pivma.core.database.models import (
     AuditEvent,
@@ -26,14 +26,17 @@ from pivma.core.process_engine import (
     ConflictError,
     NotFoundError,
     ValidationError,
+    archive_process,
     available_lifecycle_actions,
-    execute_process_lifecycle,
+    cancel_process,
+    delete_unsubmitted_draft,
     get_returned_submission_version,
     instantiate_process,
     list_returned_submission_versions,
     process_visibility_clause,
     update_form_template_definition,
     update_process_submission,
+    withdraw_process,
 )
 from pivma.dependencies import CurrentUser, Session, SettingsDependency
 from pivma.schemas import (
@@ -43,8 +46,7 @@ from pivma.schemas import (
     PatchSubmissionRequest,
     ProcessInstanceDetail,
     ProcessInstanceListResponse,
-    ProcessLifecycleActionRequest,
-    ProcessLifecycleActionResponse,
+    ProcessLifecycleResponse,
     ProcessSubmissionResponse,
     ProcessTemplateDetail,
     ProcessTemplateSummary,
@@ -386,7 +388,7 @@ async def list_processes(
     size: int = Query(20, ge=1, le=100),
 ):
     stmt = select(ProcessInstance).where(ProcessInstance.deleted_at.is_(None))
-    if status == STATUS_ARCHIVED and not await has_platform_wide_access(
+    if status == STATUS_ARCHIVED and not await has_process_review_access(
         session, current_user.id
     ):
         raise HTTPException(
@@ -486,49 +488,93 @@ async def get_process(id: UUID, session: Session, current_user: CurrentUser):
     )
 
 
-@router.post(
-    '/{id}/lifecycle',
-    response_model=ProcessLifecycleActionResponse,
-    response_model_exclude_none=True,
-    status_code=HTTPStatus.OK,
+def _retirement_http_error(error: Exception) -> HTTPException:
+    if isinstance(error, NotFoundError):
+        return HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail={'code': 'not_found', 'message': str(error)},
+        )
+    if isinstance(error, AuthorizationError):
+        return HTTPException(
+            status_code=HTTPStatus.FORBIDDEN,
+            detail={'code': 'forbidden', 'message': str(error)},
+        )
+    return HTTPException(
+        status_code=HTTPStatus.CONFLICT,
+        detail={'code': 'invalid_transition', 'message': str(error)},
+    )
+
+
+@router.delete(
+    '/{id}',
+    status_code=HTTPStatus.NO_CONTENT,
 )
-async def process_lifecycle(
+async def delete_process_draft(
     id: UUID,
-    body: ProcessLifecycleActionRequest,
     session: Session,
     current_user: CurrentUser,
     settings: SettingsDependency,
 ):
     try:
-        result = await execute_process_lifecycle(
+        await delete_unsubmitted_draft(
             session=session,
             process_id=id,
-            action=body.action,
-            justification=body.justification,
             user_id=current_user.id,
             attachment_root=settings.ATTACHMENTS_DIR,
         )
-    except NotFoundError as exc:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail={'code': 'not_found', 'message': str(exc)},
-        ) from exc
-    except AuthorizationError as exc:
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN,
-            detail={'code': 'forbidden', 'message': str(exc)},
-        ) from exc
-    except ValidationError as exc:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail={'code': 'invalid_justification', 'message': str(exc)},
-        ) from exc
-    except ConflictError as exc:
-        raise HTTPException(
-            status_code=HTTPStatus.CONFLICT,
-            detail={'code': 'invalid_transition', 'message': str(exc)},
-        ) from exc
-    return result
+    except (NotFoundError, AuthorizationError, ConflictError) as exc:
+        raise _retirement_http_error(exc) from exc
+
+
+@router.patch(
+    '/{id}/withdrawal',
+    response_model=ProcessLifecycleResponse,
+    response_model_exclude_none=True,
+    status_code=HTTPStatus.OK,
+)
+async def withdraw_process_submission(
+    id: UUID,
+    session: Session,
+    current_user: CurrentUser,
+):
+    try:
+        return await withdraw_process(session, id, current_user.id)
+    except (NotFoundError, AuthorizationError, ConflictError) as exc:
+        raise _retirement_http_error(exc) from exc
+
+
+@router.patch(
+    '/{id}/cancellation',
+    response_model=ProcessLifecycleResponse,
+    response_model_exclude_none=True,
+    status_code=HTTPStatus.OK,
+)
+async def cancel_process_endpoint(
+    id: UUID,
+    session: Session,
+    current_user: CurrentUser,
+):
+    try:
+        return await cancel_process(session, id, current_user.id)
+    except (NotFoundError, AuthorizationError, ConflictError) as exc:
+        raise _retirement_http_error(exc) from exc
+
+
+@router.patch(
+    '/{id}/archive',
+    response_model=ProcessLifecycleResponse,
+    response_model_exclude_none=True,
+    status_code=HTTPStatus.OK,
+)
+async def archive_process_endpoint(
+    id: UUID,
+    session: Session,
+    current_user: CurrentUser,
+):
+    try:
+        return await archive_process(session, id, current_user.id)
+    except (NotFoundError, AuthorizationError, ConflictError) as exc:
+        raise _retirement_http_error(exc) from exc
 
 
 def _submission_http_error(error: Exception) -> HTTPException:

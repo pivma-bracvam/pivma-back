@@ -12,6 +12,7 @@
     .status { margin:12px 0; color:var(--text-muted); }
     .action { margin:2px 4px 2px 0; padding:6px 9px; border:0; border-radius:6px; color:white; background:var(--primary); cursor:pointer; font-weight:700; }
     .action[data-action="DELETE_DRAFT"] { background:var(--danger); }
+    .action[data-action="WITHDRAW"] { background:var(--danger); }
     .action[data-action="ARCHIVE"] { background:#475569; }
     .inspector { background:#0f172a; color:#bae6fd; border-radius:6px; padding:16px; overflow:auto; min-height:100px; }
   </style>
@@ -22,7 +23,7 @@
       <div>
         <a href="/demos/">&larr; Catálogo</a>
         <h1>Ciclo de vida do processo</h1>
-        <p class="lead">O front-end consulta as ações permitidas e envia o comando único à API real.</p>
+        <p class="lead">O front-end consulta as operações permitidas e usa os endpoints REST reais.</p>
       </div>
       <span class="api-status" data-api-status><span class="dot"></span><span data-api-status-text>Verificando API...</span></span>
     </header>
@@ -43,7 +44,7 @@
 
     <section class="card">
       <h2>Processos operacionais</h2>
-      <p class="status">O rascunho da demo remove o agregado e o diretório de anexos. Processos submetidos preservam a linha do tempo.</p>
+      <p class="status">O rascunho inicial pode ser removido. Uma revisão devolvida pode ser encerrada pelo proponente; processos submetidos preservam a linha do tempo.</p>
       <div id="processes"><p class="status">Entre para carregar os processos.</p></div>
     </section>
 
@@ -81,7 +82,12 @@
       const button = document.createElement('button');
       button.className = 'action';
       button.dataset.action = action;
-      button.textContent = action;
+      button.textContent = ({
+        DELETE_DRAFT: 'Excluir rascunho',
+        WITHDRAW: 'Desistir da revisão',
+        CANCEL: 'Cancelar processo',
+        ARCHIVE: 'Arquivar processo'
+      })[action] || action;
       button.onclick = () => executeAction(process, action);
       return button;
     }
@@ -120,16 +126,30 @@
     }
 
     async function executeAction(process, action) {
-      const justification = window.prompt(`Justificativa para ${action}`, 'Ação executada na demonstração');
-      if (justification === null) return;
-      const url = `/processes/${process.id}/lifecycle`;
+      if (!window.confirm(`Confirmar: ${buttonLabel(action)}?`)) return;
+      const methods = {
+        DELETE_DRAFT: ['DELETE', `/processes/${process.id}`],
+        WITHDRAW: ['PATCH', `/processes/${process.id}/withdrawal`],
+        CANCEL: ['PATCH', `/processes/${process.id}/cancellation`],
+        ARCHIVE: ['PATCH', `/processes/${process.id}/archive`]
+      };
+      const [method, url] = methods[action] || [];
+      if (!method) return;
       const response = await fetch(url, {
-        method: 'POST', credentials: 'include', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({action, justification})
+        method, credentials: 'include', headers: {'Content-Type': 'application/json'}
       });
       const body = await response.json().catch(() => ({}));
-      inspect('POST', url, response, body);
+      inspect(method, url, response, body);
       await loadProcesses();
+    }
+
+    function buttonLabel(action) {
+      return ({
+        DELETE_DRAFT: 'excluir este rascunho',
+        WITHDRAW: 'desistir desta revisão',
+        CANCEL: 'cancelar este processo',
+        ARCHIVE: 'arquivar este processo'
+      })[action] || action;
     }
 
     document.getElementById('login').onclick = login;

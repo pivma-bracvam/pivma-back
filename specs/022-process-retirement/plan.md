@@ -6,7 +6,7 @@
 
 ## Summary
 
-Implementar um comando único de ciclo de vida em `POST /processes/{id}/lifecycle` para receber `DELETE_DRAFT`, `CANCEL` ou `ARCHIVE`, com justificativa obrigatória. O serviço de domínio distinguirá rascunho inicial pela ausência do evento `SUBMISSION_SUBMITTED`, removerá fisicamente seu agregado e anexos, cancelará processos submetidos e arquivará somente processos terminais. A solução reutiliza os campos de auditoria, encerramento e autorização existentes; não cria estado `DELETED`, tabela, perfil ou endpoint exclusivo de demonstração.
+Implementar contratos REST separados para `DELETE /processes/{id}`, `PATCH /processes/{id}/withdrawal`, `PATCH /processes/{id}/cancellation` e `PATCH /processes/{id}/archive`, sem justificativa no ciclo de vida. O serviço distinguirá rascunho inicial pela ausência do evento `SUBMISSION_SUBMITTED`, removerá fisicamente apenas seu agregado e anexos, permitirá desistência do proponente após `REVISION_REQUESTED`, cancelará processos submetidos e arquivará somente processos terminais. A autorização de cancelamento e arquivamento usa `triage.review`; a exclusão física é exclusiva do proponente efetivo.
 
 ## Technical Context
 
@@ -26,21 +26,21 @@ Implementar um comando único de ciclo de vida em `POST /processes/{id}/lifecycl
 
 **Constraints**: Reutilizar RBAC e auditoria existentes; permitir exclusão física somente para rascunho nunca submetido; não introduzir restauração, novos perfis, endpoints de apoio à demo ou uma máquina de estados paralela. Toda mutação e conclusão assíncrona deve respeitar `CANCELLED` e `ARCHIVED`.
 
-**Scale/Scope**: Uma instância de processo por comando; três ações de ciclo de vida; router de processos, motor de processo, pré-avaliação assíncrona, schemas, testes, seed e uma demo.
+**Scale/Scope**: Uma instância de processo por comando; quatro operações de ciclo de vida; router de processos, motor de processo, pré-avaliação assíncrona, schemas, testes, seed e uma demo.
 
 ## Constitution Check
 
 **Pré-design: APROVADO**
 
-- Requisitos e decisão de domínio são classificados na spec: a exclusão física de rascunho é CONFIRMADA pelo responsável da demanda; cancelamento e arquivamento permanecem PROPOSTAS da feature.
-- Cancelamento e arquivamento preservam ator, justificativa, estados e momento em `AuditEvent`; a exclusão física remove somente o agregado que nunca entrou no pipeline.
-- A autorização permanece obrigatória no backend: proponente ativo apenas para o próprio rascunho; acesso de plataforma para cancelar e arquivar. `available_actions` é apenas uma projeção para a interface.
+- Requisitos e decisão de domínio são classificados na spec: a exclusão física de rascunho, a desistência, o cancelamento e o arquivamento foram confirmados pelo responsável da demanda.
+- Cancelamento, desistência e arquivamento preservam ator, estados e momento em `AuditEvent`; a exclusão física remove somente o agregado que nunca entrou no pipeline.
+- A autorização permanece obrigatória no backend: proponente efetivo apenas para o próprio rascunho ou revisão devolvida; `triage.review` para cancelar e arquivar. `available_actions` é apenas uma projeção para a interface.
 - A mudança fica restrita ao ciclo de vida de processo e às guardas necessárias para impedir mutações posteriores e conclusão tardia de IA.
 - Testes de API, domínio e integração assíncrona, além de demo e seed contra a API real, fornecem evidência verificável.
 
 **Pós-design: APROVADO**
 
-O desenho usa status e colunas de auditoria já existentes para cancelamento e arquivamento, sem nova tabela ou permissão. A exclusão de rascunho remove o agregado e o diretório local de anexos. O contrato único reduz superfície da API, e as guardas ficam no domínio e no worker, não somente na interface HTTP.
+O desenho usa status e colunas de auditoria já existentes para cancelamento, desistência e arquivamento, sem nova tabela ou permissão. A exclusão de rascunho remove o agregado e o diretório local de anexos. Os endpoints separados tornam a intenção inequívoca, e as guardas ficam no domínio e no worker, não somente na interface HTTP.
 
 ## Project Structure
 

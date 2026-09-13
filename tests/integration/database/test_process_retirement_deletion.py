@@ -23,7 +23,7 @@ from pivma.core.database.models import (
     ReviewerFeedback,
     Task,
 )
-from pivma.core.process_engine import execute_process_lifecycle
+from pivma.core.process_engine import delete_unsubmitted_draft
 
 
 @pytest.mark.asyncio
@@ -148,16 +148,13 @@ async def test_delete_draft_removes_complete_aggregate_and_files(
             )
         ),
     }
-    result = await execute_process_lifecycle(
+    await delete_unsubmitted_draft(
         session,
         process.id,
-        'DELETE_DRAFT',
-        'Descartar massa de teste',
         user.id,
         attachment_root=tmp_path,
     )
 
-    assert result['deleted'] is True
     assert not (tmp_path / str(process.id)).exists()
     assert await session.get(ProcessInstance, process.id) is None
     for model, ids in aggregate_ids.items():
@@ -185,11 +182,9 @@ async def test_file_cleanup_failure_keeps_database_rows(
     )
 
     with pytest.raises(OSError, match='disco indisponível'):
-        await execute_process_lifecycle(
+        await delete_unsubmitted_draft(
             session,
             process_id,
-            'DELETE_DRAFT',
-            'Não apagar sem limpar arquivos',
             user.id,
             attachment_root=tmp_path,
         )
