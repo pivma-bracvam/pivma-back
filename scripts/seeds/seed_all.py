@@ -2,7 +2,13 @@
 
 import asyncio
 import sys
+from pathlib import Path
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+# ruff: noqa: E402
 from scripts.seeds.seed_ai_evaluations import run_seed_ai_evaluations
 from scripts.seeds.seed_forms import run_seed_forms
 from scripts.seeds.seed_kanban import run_seed_kanban

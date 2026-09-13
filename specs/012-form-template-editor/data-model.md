@@ -70,15 +70,16 @@ class FormFieldUpdateDefinition(BaseModel):
     field_key: str
     label: str
     help_text: str | None = None
-    field_type: str = "text"
+    field_type: str = 'text'
     is_required: bool = False
     order_index: int = 0
-    section: str | None = "Geral"
+    section: str | None = 'Geral'
     options: list[Any] | None = None
     validation_rules: dict[str, Any] | None = None
     ai_evaluation_enabled: bool = False
     ai_context_instructions: str | None = None
     ai_validation_rules: dict[str, Any] | None = None
+
 
 class UpdateFormTemplateRequest(BaseModel):
     name: str | None = None

@@ -65,8 +65,7 @@ async def test_owner_can_delete_never_submitted_draft(client, session, user):
     assert saved.deleted_at is not None
     assert saved.deleted_by == user.id
     assert (
-        client.get(f'/processes/{process}').status_code
-        == HTTPStatus.NOT_FOUND
+        client.get(f'/processes/{process}').status_code == HTTPStatus.NOT_FOUND
     )
     assert all(
         item['id'] != str(process)
@@ -437,9 +436,7 @@ async def test_detail_exposes_operations_for_each_actor(
     ]
     assert returned_actions == ['DELETE']
 
-    submitted = await _create_submitted_process(
-        session, user, status='TRIAGE'
-    )
+    submitted = await _create_submitted_process(session, user, status='TRIAGE')
     authenticate(client, bracvam_user)
     submitted_actions = client.get(f'/processes/{submitted}').json()[
         'available_actions'
