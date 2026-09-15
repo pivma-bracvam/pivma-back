@@ -459,6 +459,51 @@ def classify_kanban_column(
     return KANBAN_EM_ANDAMENTO
 
 
+def _compute_activity_due_date(
+    *, run_started_at: datetime | None, sla_hours: int | None
+) -> datetime | None:
+    """Deriva o prazo (`Task.due_date`) de uma atividade a partir do SLA.
+
+    Mesma fórmula (soma de horas) já usada por `classify_kanban_column` para
+    que as duas nunca divirjam (Spec 024, FR-003) — mas sem a normalização
+    para timezone-aware que aquela função faz: `run_started_at` chega aqui
+    naive (mesmo padrão `datetime.utcnow()` de toda coluna de data deste
+    projeto, sem `DateTime(timezone=True)`), e `Task.due_date` é uma coluna
+    naive — misturar aware/naive nesta soma quebraria a persistência ou a
+    comparação posterior. Sem `sla_hours` declarado, sem prazo — nunca um
+    valor inferido (FR-002).
+    """
+    if sla_hours is None or run_started_at is None:
+        return None
+    return run_started_at + timedelta(hours=sla_hours)
+
+
+async def _template_activity_data(
+    session: AsyncSession, process_id: UUID, activity_key: str
+) -> dict[str, Any]:
+    """Busca a definição declarativa de uma atividade pelo processo.
+
+    Lê da versão de template gravada na instância (nunca "a mais recente"),
+    mesma fonte já usada por `_advance_dependent_activities` — preserva a
+    imutabilidade de versão (Spec 004 FR-001/FR-002; Spec 024 FR-004) para
+    os dois caminhos legados que ainda resolvem uma atividade pela chave
+    (`_unblock_triage_activity`, `_open_new_submission_run`), em vez do
+    motor genérico de dependências.
+    """
+    process = await session.get(ProcessInstance, process_id)
+    if process is None:
+        return {}
+    template_version = await session.get(
+        ProcessTemplateVersion, process.template_version_id
+    )
+    payload = template_version.definition_payload if template_version else {}
+    for phase in payload.get('phases', []):
+        for activity in phase.get('activities', []):
+            if activity.get('key') == activity_key:
+                return activity
+    return {}
+
+
 def _resolve_activity_cargo(a_data: dict[str, Any]) -> str:
     """Cargo declarado por uma atividade do template (Spec 018, FR-016).
 
@@ -551,6 +596,10 @@ async def _init_first_activity(
         # já registra quem criou; múltiplos proponentes podem coexistir.
         assigned_role=_resolve_activity_cargo(a_data),
         status='READY',
+        due_date=_compute_activity_due_date(
+            run_started_at=run.started_at,
+            sla_hours=a_data.get('sla_hours'),
+        ),
     )
     task.set_creation_audit(creator_id)
     session.add(task)
@@ -1647,6 +1696,9 @@ async def _unblock_triage_activity(
         session.add(triage_run)
         await session.flush()
 
+        triage_a_data = await _template_activity_data(
+            session, process_id, 'triage_evaluation'
+        )
         triage_task = Task(
             activity_run_id=triage_run.id,
             title='Realizar Triagem da Proposta',
@@ -1654,6 +1706,10 @@ async def _unblock_triage_activity(
             # BraCVAM/Admin, resolvida via AccessProfile, não por Assignment.
             assigned_role='bracvam',
             status='READY',
+            due_date=_compute_activity_due_date(
+                run_started_at=triage_run.started_at,
+                sla_hours=triage_a_data.get('sla_hours'),
+            ),
         )
         triage_task.set_creation_audit(user_id)
         session.add(triage_task)
@@ -1711,6 +1767,10 @@ async def _activate_activity(
         title=act.name,
         assigned_role=_resolve_activity_cargo(a_data),
         status='READY',
+        due_date=_compute_activity_due_date(
+            run_started_at=run.started_at,
+            sla_hours=a_data.get('sla_hours'),
+        ),
     )
     task.set_creation_audit(user_id)
     session.add(task)
@@ -2086,11 +2146,18 @@ async def _open_new_submission_run(
         nv.set_creation_audit(user_id)
         session.add(nv)
 
+    submission_a_data = await _template_activity_data(
+        session, process_id, 'proposal_submission'
+    )
     prop_task = Task(
         activity_run_id=new_sub_run.id,
         title=task_title,
         assigned_role='proponent',
         status='READY',
+        due_date=_compute_activity_due_date(
+            run_started_at=new_sub_run.started_at,
+            sla_hours=submission_a_data.get('sla_hours'),
+        ),
     )
     prop_task.set_creation_audit(user_id)
     session.add(prop_task)

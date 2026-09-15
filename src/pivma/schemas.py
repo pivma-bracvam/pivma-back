@@ -692,6 +692,7 @@ class TaskDetail(BaseModel):
     status: str
     is_blocked: bool
     blocked_reason: str | None = None
+    due_date: datetime | None = None
 
 
 class TimelineEvent(BaseModel):

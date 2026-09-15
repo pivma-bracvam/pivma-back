@@ -168,7 +168,7 @@
       });
     }
 
-    function showDetail(item) {
+    async function showDetail(item) {
       const panel = document.getElementById('detail-panel');
       panel.style.display = 'block';
       let text = `${item.activity_name} — ${item.process.title} (${item.process.code})\n`;
@@ -180,6 +180,47 @@
       if (item.sla_hours != null) text += `Prazo (SLA): ${item.sla_hours}h desde ${item.run_started_at}\n`;
       if (item.cargo_unassigned) text += `⚠ Nenhuma pessoa ocupa este cargo neste método ainda.\n`;
       panel.textContent = text;
+
+      // Spec 024: due_date real, persistido em Task (antes sempre nulo) —
+      // busca em GET /tasks, endpoint já consumido por esta demo, sem
+      // nenhuma rota nova (AGENTS.md, Regra 4). GET /tasks não devolve
+      // activity_key (só GET /tasks/{id} tem), então o casamento com o card
+      // do kanban é por título — e o motor de processos gera esse título de
+      // formas diferentes conforme o caminho de ativação: o nome da
+      // atividade (`_activate_activity`), "Preencher {nome}" (primeira
+      // atividade, `_init_first_activity`) ou um dos três títulos fixos dos
+      // caminhos legados anteriores à Spec 017
+      // (`_unblock_triage_activity`/`_open_new_submission_run`), que não
+      // usam o nome da atividade. Lista exaustiva desses títulos fixos —
+      // conferida em `process_engine.py` — para não deixar de exibir o
+      // prazo justamente no card mais comum (`triage_evaluation`).
+      const LEGACY_TASK_TITLES = {
+        triage_evaluation: ['Realizar Triagem da Proposta'],
+        proposal_submission: [
+          'Revisar e Ajustar Submissão da Proposta (Diligência)',
+          'Revisar submissão após a pré-avaliação por IA',
+        ],
+      };
+      try {
+        const res = await fetch(`/tasks?process_id=${item.process.id}`, { credentials: 'include' });
+        if (res.ok) {
+          const tasks = await res.json();
+          const candidateTitles = [
+            item.activity_name,
+            `Preencher ${item.activity_name}`,
+            ...(LEGACY_TASK_TITLES[item.activity_key] || []),
+          ];
+          const task = tasks.find(t => candidateTitles.includes(t.title));
+          if (task) {
+            text += task.due_date
+              ? `Prazo real (due_date): ${task.due_date}\n`
+              : `Prazo real (due_date): sem prazo declarado para esta atividade.\n`;
+            panel.textContent = text;
+          }
+        }
+      } catch (err) {
+        // Silencioso — o painel já mostra o SLA declarado acima mesmo se isto falhar.
+      }
     }
 
     function renderBoard() {

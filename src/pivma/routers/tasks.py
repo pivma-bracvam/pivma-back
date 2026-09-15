@@ -113,4 +113,5 @@ async def get_task_detail(
         status=t.status,
         is_blocked=is_blocked,
         blocked_reason=act.blocked_reason,
+        due_date=t.due_date,
     )
