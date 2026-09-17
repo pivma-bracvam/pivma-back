@@ -32,23 +32,6 @@ async def test_institutional_migration_seeds_only_administrator_and_downgrades(
                 )
             )
         )
-        permissions = set(
-            await connection.scalars(
-                sa.text(
-                    'SELECT code FROM permissions '
-                    "WHERE code LIKE 'institutional.%'"
-                )
-            )
-        )
-        non_admin_compositions = await connection.scalar(
-            sa.text(
-                'SELECT count(*) FROM access_profile_permissions app '
-                'JOIN access_profiles ap ON ap.id = app.profile_id '
-                'JOIN permissions p ON p.id = app.permission_id '
-                "WHERE p.code LIKE 'institutional.%' "
-                "AND ap.system_key <> 'administrator'"
-            )
-        )
         affiliations = await connection.scalar(
             sa.text('SELECT count(*) FROM user_institutional_affiliations')
         )
@@ -59,12 +42,7 @@ async def test_institutional_migration_seeds_only_administrator_and_downgrades(
         'user_institutional_affiliations',
         'institutional_changes',
     } <= tables
-    assert permissions == {
-        'institutional.read',
-        'institutional.catalogs.manage',
-        'institutional.affiliations.manage',
-    }
-    assert (non_admin_compositions, affiliations) == (0, 0)
+    assert affiliations == 0
 
     await run_downgrade('1bd1b3d5ddad')
     async with migration_database.connect() as connection:
@@ -86,6 +64,7 @@ async def test_institutional_migration_preserves_user_and_rbac_assignment(
 ):
     await run_migration('1bd1b3d5ddad')
     user_id = uuid4()
+    profile_id = uuid4()
     assignment_id = uuid4()
     async with migration_database.begin() as connection:
         await connection.execute(
@@ -102,13 +81,25 @@ async def test_institutional_migration_preserves_user_and_rbac_assignment(
         )
         await connection.execute(
             sa.text(
+                'INSERT INTO access_profiles (id, system_key, name, description) '
+                'VALUES (:id, :system_key, :name, :description)'
+            ),
+            {
+                'id': profile_id,
+                'system_key': 'administrator',
+                'name': 'Administrador',
+                'description': 'Administrador de teste',
+            },
+        )
+        await connection.execute(
+            sa.text(
                 'INSERT INTO user_access_profiles (id, user_id, profile_id) '
                 'VALUES (:id, :user_id, :profile_id)'
             ),
             {
                 'id': assignment_id,
                 'user_id': user_id,
-                'profile_id': '00000000-0000-0000-0000-000000000009',
+                'profile_id': profile_id,
             },
         )
 
@@ -133,20 +124,8 @@ async def test_institutional_migration_preserves_user_and_rbac_assignment(
             {
                 'assignment_id': assignment_id,
                 'user_id': user_id,
-                'profile_id': '00000000-0000-0000-0000-000000000009',
+                'profile_id': profile_id,
             },
-        )
-        institutional_permissions = set(
-            await connection.scalars(
-                sa.text(
-                    'SELECT p.code FROM permissions p '
-                    'JOIN access_profile_permissions app '
-                    'ON app.permission_id = p.id '
-                    'WHERE app.profile_id = :profile_id '
-                    "AND p.code LIKE 'institutional.%'"
-                ),
-                {'profile_id': '00000000-0000-0000-0000-000000000009'},
-            )
         )
 
     assert dict(preserved_user) == {
@@ -155,8 +134,3 @@ async def test_institutional_migration_preserves_user_and_rbac_assignment(
         'password_hash': 'existing-hash',
     }
     assert preserved_assignment == 1
-    assert institutional_permissions == {
-        'institutional.read',
-        'institutional.catalogs.manage',
-        'institutional.affiliations.manage',
-    }

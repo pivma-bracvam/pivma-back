@@ -2,7 +2,7 @@
 
 import asyncio
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.core.database.models import (
@@ -55,19 +55,7 @@ async def run_seed_forms() -> None:
             )
             return
 
-        valid_titles = [item['title'] for item in OFFICIAL_DEMO_PROCESSES]
-
-        # 3. Inativar processos antigos não pertencentes à lista oficial
-        await session.execute(
-            update(ProcessInstance)
-            .where(
-                ProcessInstance.title.not_in(valid_titles),
-                ProcessInstance.deleted_at.is_(None),
-            )
-            .values(deleted_at=func.now())
-        )
-
-        # 4. Instanciar cada um dos 5 processos oficiais caso não existam
+        # 3. Instanciar cada um dos 5 processos oficiais caso não existam
         for item in OFFICIAL_DEMO_PROCESSES:
             key = item['key']
             title = item['title']

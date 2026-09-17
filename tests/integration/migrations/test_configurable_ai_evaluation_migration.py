@@ -91,34 +91,7 @@ async def test_upgrade_enforces_single_draft_per_definition(
 
 
 @pytest.mark.asyncio
-async def test_upgrade_seeds_ai_evaluation_permissions(migration_database):
-    await run_migration('head')
-
-    async with migration_database.connect() as connection:
-        codes = await connection.execute(
-            sa.text(
-                'SELECT code FROM permissions WHERE id IN (:r, :m) '
-                'ORDER BY code'
-            ),
-            {'r': READ_PERMISSION_ID, 'm': MANAGE_PERMISSION_ID},
-        )
-        grants = await connection.scalar(
-            sa.text(
-                'SELECT COUNT(*) FROM access_profile_permissions '
-                'WHERE permission_id IN (:r, :m)'
-            ),
-            {'r': READ_PERMISSION_ID, 'm': MANAGE_PERMISSION_ID},
-        )
-
-    assert [row[0] for row in codes] == [
-        'ai_evaluations.manage',
-        'ai_evaluations.read',
-    ]
-    assert grants == EXPECTED_PERMISSION_GRANTS
-
-
-@pytest.mark.asyncio
-async def test_downgrade_removes_tables_and_permissions(migration_database):
+async def test_downgrade_removes_tables(migration_database):
     await run_migration('head')
     await run_downgrade('62eee61a6ad3')
 
@@ -128,9 +101,3 @@ async def test_downgrade_removes_tables_and_permissions(migration_database):
                 sa.text('SELECT to_regclass(:name)'), {'name': table}
             )
             assert exists is None
-        permissions = await connection.scalar(
-            sa.text('SELECT COUNT(*) FROM permissions WHERE id IN (:r, :m)'),
-            {'r': READ_PERMISSION_ID, 'm': MANAGE_PERMISSION_ID},
-        )
-
-    assert permissions == 0

@@ -165,57 +165,8 @@ def upgrade() -> None:
         [sa.text('created_at DESC'), sa.text('id DESC')],
     )
 
-    permissions = sa.table(
-        'permissions',
-        sa.column('id', sa.UUID()),
-        sa.column('code'),
-        sa.column('description'),
-    )
-    composition = sa.table(
-        'access_profile_permissions',
-        sa.column('id', sa.UUID()),
-        sa.column('profile_id', sa.UUID()),
-        sa.column('permission_id', sa.UUID()),
-    )
-    op.bulk_insert(
-        permissions,
-        [
-            dict(id=permission_id, code=code, description=description)
-            for permission_id, code, description in PERMISSIONS
-        ],
-    )
-    op.bulk_insert(
-        composition,
-        [
-            dict(
-                id=UUID(f'00000000-0000-0000-0000-00000000020{i}'),
-                profile_id=ADMIN_PROFILE_ID,
-                permission_id=permission_id,
-            )
-            for i, (permission_id, _, _) in enumerate(PERMISSIONS, 4)
-        ],
-    )
-
 
 def downgrade() -> None:
-    permission_ids = tuple(
-        str(permission_id) for permission_id, _, _ in PERMISSIONS
-    )
-    op.execute(
-        sa
-        .text(
-            'DELETE FROM access_profile_permissions '
-            'WHERE permission_id IN :permission_ids'
-        )
-        .bindparams(sa.bindparam('permission_ids', expanding=True))
-        .bindparams(permission_ids=permission_ids)
-    )
-    op.execute(
-        sa
-        .text('DELETE FROM permissions WHERE id IN :permission_ids')
-        .bindparams(sa.bindparam('permission_ids', expanding=True))
-        .bindparams(permission_ids=permission_ids)
-    )
     op.drop_index(
         'ix_institutional_changes_created_at_id_desc',
         table_name='institutional_changes',

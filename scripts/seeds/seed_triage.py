@@ -2,7 +2,7 @@
 
 import asyncio
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 
 from pivma.core.database.models import (
     ProcessInstance,
@@ -15,7 +15,6 @@ from pivma.core.process_engine import (
     submit_proposal_form,
 )
 from scripts.seeds.common import get_session
-from scripts.seeds.seed_forms import OFFICIAL_DEMO_PROCESSES
 
 TRIAGE_DEMO_TITLE = '[DEMO 1] Método Pré-Validado'
 
@@ -57,19 +56,7 @@ async def run_seed_triage() -> None:
             print('! Template não encontrado. Execute seed_forms.py primeiro.')
             return
 
-        valid_titles = [item['title'] for item in OFFICIAL_DEMO_PROCESSES]
-
-        # 1. Inativar processos que não pertencem aos demos oficiais
-        await session.execute(
-            update(ProcessInstance)
-            .where(
-                ProcessInstance.title.not_in(valid_titles),
-                ProcessInstance.deleted_at.is_(None),
-            )
-            .values(deleted_at=func.now())
-        )
-
-        # 2. Localizar ou criar o processo de demonstração de triagem
+        # 1. Localizar ou criar o processo de demonstração de triagem
         proc = (
             await session.execute(
                 select(ProcessInstance).where(
