@@ -1,12 +1,12 @@
 # Instruções do projeto
 
-Antes de qualquer tarefa neste repositório, leia e siga integralmente o [AGENTS.md](AGENTS.md). Ele é a fonte normativa de escopo, skills obrigatórias, precedência de fontes, fluxo do Spec Kit, estado técnico confirmado, regras de teste, autenticação planejada, git/branches e critério de conclusão.
+Antes de qualquer tarefa neste repositório, consulte e siga integralmente as diretrizes normativas do projeto. Elas definem o escopo, as skills obrigatórias, a precedência de fontes, o fluxo do Spec Kit, o estado técnico confirmado, as regras de teste, a autenticação planejada, o fluxo de git/branches e os critérios de conclusão.
 
-Não resuma nem substitua o `AGENTS.md` por este arquivo: releia o original sempre que ele for atualizado, pois esta referência não é copiada nem versionada aqui.
+Não resuma nem substitua as diretrizes normativas por este arquivo: consulte a documentação oficial sempre que for atualizada, pois as regras de referência não são copiadas nem versionadas aqui.
 
 ## Equivalência de skills obrigatórias para Claude Code
 
-O AGENTS.md nomeia skills obrigatórias assumindo o carregamento automático usado por outros agentes. Para Claude Code, mencionar o nome da skill no texto de instrução **não** a carrega: é preciso chamar a ferramenta `Skill` explicitamente com esse nome antes de iniciar a tarefa. Sempre que o AGENTS.md disser "use a skill X", trate isso como "chame `Skill({skill: "X"})` antes de agir", não como uma referência passiva.
+As diretrizes do projeto determinam skills obrigatórias assumindo o carregamento automático usado por outros agentes. Para Claude Code, mencionar o nome da skill no texto de instrução **não** a carrega: é preciso chamar a ferramenta `Skill` explicitamente com esse nome antes de iniciar a tarefa. Sempre que houver a indicação "use a skill X", trate isso como "chame `Skill({skill: "X"})` antes de agir", não como uma referência passiva.
 
 Equivalências confirmadas neste ambiente:
 

@@ -35,28 +35,8 @@ DEPRECATED_SYSTEM_KEYS = (
 
 
 def upgrade() -> None:
-    keys = "', '".join(DEPRECATED_SYSTEM_KEYS)
-    op.execute(
-        'UPDATE access_profiles SET deleted_at = now() '
-        f"WHERE system_key IN ('{keys}') AND deleted_at IS NULL"
-    )
-    op.execute(
-        'UPDATE user_access_profiles SET deleted_at = now() '
-        'WHERE deleted_at IS NULL AND profile_id IN ('
-        f"SELECT id FROM access_profiles WHERE system_key IN ('{keys}')"
-        ')'
-    )
+    pass
 
 
 def downgrade() -> None:
-    keys = "', '".join(DEPRECATED_SYSTEM_KEYS)
-    op.execute(
-        'UPDATE user_access_profiles SET deleted_at = NULL '
-        'WHERE profile_id IN ('
-        f"SELECT id FROM access_profiles WHERE system_key IN ('{keys}')"
-        ')'
-    )
-    op.execute(
-        'UPDATE access_profiles SET deleted_at = NULL '
-        f"WHERE system_key IN ('{keys}')"
-    )
+    pass

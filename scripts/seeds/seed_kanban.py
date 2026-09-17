@@ -7,6 +7,7 @@ método — sem nenhum endpoint criado exclusivamente para viabilizar a demo
 (Constituição, Princípio II).
 """
 
+import argparse
 import asyncio
 from datetime import UTC, datetime, timedelta
 
@@ -33,7 +34,7 @@ from scripts.seeds.common import (
 )
 
 DEMO_MARKER = '[DEMO KANBAN]'
-TARGET_PROCESS_COUNT = 300
+TARGET_PROCESS_COUNT = 6
 
 TEMPLATE_KEYS = [
     'pre_validated_method',
@@ -150,14 +151,14 @@ async def _advance_process(
 # 10% triagem atrasada, 10% aprovado, 10% rejeitado.
 STAGE_BY_BUCKET = (
     'submission_fresh',
+    'triage_fresh',
     'submission_fresh',
-    'submission_fresh',
-    'submission_fresh',
+    'triage_fresh',
     'submission_overdue',
-    'triage_fresh',
-    'triage_fresh',
-    'triage_overdue',
     'approved',
+    'submission_fresh',
+    'submission_fresh',
+    'triage_overdue',
     'rejected',
 )
 
@@ -357,7 +358,20 @@ async def run_seed_kanban(
 
 
 def main() -> None:
-    asyncio.run(run_seed_kanban())
+    parser = argparse.ArgumentParser(
+        description='Seed de demonstração do Kanban'
+    )
+    parser.add_argument(
+        '--count',
+        type=int,
+        default=TARGET_PROCESS_COUNT,
+        help=(
+            f'Quantidade de processos a gerar '
+            f'(padrão: {TARGET_PROCESS_COUNT})'
+        ),
+    )
+    args = parser.parse_args()
+    asyncio.run(run_seed_kanban(target_count=args.count))
 
 
 if __name__ == '__main__':

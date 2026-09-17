@@ -184,51 +184,6 @@ def upgrade() -> None:
         [sa.text('created_at DESC'), sa.text('id DESC')],
     )
 
-    profiles = sa.table(
-        'access_profiles',
-        sa.column('id', sa.UUID()),
-        sa.column('system_key'),
-        sa.column('name'),
-        sa.column('description'),
-    )
-    permissions = sa.table(
-        'permissions',
-        sa.column('id', sa.UUID()),
-        sa.column('code'),
-        sa.column('description'),
-    )
-    composition = sa.table(
-        'access_profile_permissions',
-        sa.column('id', sa.UUID()),
-        sa.column('profile_id', sa.UUID()),
-        sa.column('permission_id', sa.UUID()),
-    )
-    op.bulk_insert(
-        profiles,
-        [
-            dict(id=profile_id, system_key=key, name=name, description=name)
-            for profile_id, key, name in PROFILES
-        ],
-    )
-    op.bulk_insert(
-        permissions,
-        [
-            dict(id=permission_id, code=code, description=description)
-            for permission_id, code, description in PERMISSIONS
-        ],
-    )
-    op.bulk_insert(
-        composition,
-        [
-            dict(
-                id=UUID(f'00000000-0000-0000-0000-00000000020{i}'),
-                profile_id=ADMIN_PROFILE_ID,
-                permission_id=permission_id,
-            )
-            for i, (permission_id, _, _) in enumerate(PERMISSIONS, 1)
-        ],
-    )
-
 
 def downgrade() -> None:
     op.drop_index(

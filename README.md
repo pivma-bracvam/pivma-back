@@ -2,511 +2,221 @@
 
 API Backend desenvolvida em Python 3.14 utilizando FastAPI, SQLAlchemy 2.0 (Async), Pydantic v2, Alembic, Argon2id e banco de dados PostgreSQL com extensão `pgvector`.
 
+A documentação interativa das rotas, esquemas de entrada/saída e testes de requisição está disponível em:
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+
 ---
 
 ## Sumário
 
 - [Pré-requisitos](#pré-requisitos)
-- [Requisitos Mínimos do `.env`](#requisitos-mínimos-do-env)
+- [Requisitos do `.env`](#requisitos-do-env)
 - [Instalação e Configuração](#instalação-e-configuração)
-- [Promoção de Usuários e Gestão de Cargos](#promoção-de-usuários-e-gestão-de-cargos)
-- [Guia de Integração para o Frontend](#guia-de-integração-para-o-frontend)
-- [Cadastro de Usuários](#cadastro-de-usuários)
-- [Autorização RBAC](#autorização-rbac)
-- [Vinculação Institucional](#vinculação-institucional)
-- [Processos, Submissão e Triagem](#processos-submissão-e-triagem)
-- [Participantes de Processo e Conflito de Interesse](#participantes-de-processo-e-conflito-de-interesse)
+- [Arquitetura de Permissões e Acesso](#arquitetura-de-permissões-e-acesso)
+- [Diretrizes de Integração (Frontend)](#diretrizes-de-integração-frontend)
+- [Módulos e Regras de Negócio](#módulos-e-regras-de-negócio)
+  - [Usuários e Autenticação](#usuários-e-autenticação)
+  - [Controle de Acesso (RBAC Global)](#controle-de-acesso-rbac-global)
+  - [Catálogo Institucional](#catálogo-institucional)
+  - [Processos, Formulários e Triagem](#processos-formulários-e-triagem)
+  - [Participantes e Conflito de Interesses](#participantes-e-conflito-de-interesses)
+  - [Avaliação Configurável por IA](#avaliação-configurável-por-ia)
 - [Comandos Úteis (`poetry` e `uv`)](#comandos-úteis-poetry-e-uv)
 - [Práticas de Desenvolvimento e Testes](#práticas-de-desenvolvimento-e-testes)
-  - [Estrutura da Suíte de Testes](#estrutura-da-suíte-de-testes)
-  - [Padrão para Criação de Testes](#padrão-para-criação-de-testes)
-- [Execução com Docker e Docker Compose](#execução-com-docker-e-docker-compose)
-- [Diretrizes de Desenvolvimento](#diretrizes-de-desenvolvimento)
+- [Execução com Docker](#execução-com-docker)
+- [Diretrizes de Contribuição](#diretrizes-de-contribuição)
 
 ---
 
 ## Pré-requisitos
 
-Para executar e desenvolver o projeto localmente, são necessários:
-
-- **Python 3.14** ou superior
-- **Poetry** ou **uv** (gerenciador de dependências e ambientes virtuais)
-- **Docker** e **Docker Compose** (para PostgreSQL local com `pgvector` e execução de testes isolados)
+- **Python 3.14+**
+- **Poetry** ou **uv**
+- **Docker** e **Docker Compose**
 
 ---
 
-## Requisitos Mínimos do `.env`
+## Requisitos do `.env`
 
-As configurações da aplicação são gerenciadas centralmente pela classe `Settings` em [`src/pivma/core/settings.py`](src/pivma/core/settings.py) via `pydantic-settings`.
+As configurações são validadas pela classe `Settings` em `src/pivma/core/settings.py` via `pydantic-settings`.
 
-### Variáveis Obrigatórias
+### Variáveis Principais
 
 | Variável | Descrição | Exemplo |
 | :--- | :--- | :--- |
 | `DATABASE_URL` | String de conexão assíncrona PostgreSQL via `psycopg` | `postgresql+psycopg://db_user:db_password@localhost:5432/db` |
 | `APP_ENV` | Ambiente de execução (`development`, `staging`, `production`) | `development` |
-| `SECRET_KEY` | Chave secreta para assinatura de tokens e integridade de sessão | `sua-chave-secreta-de-producao` |
+| `SECRET_KEY` | Chave secreta para assinatura de tokens e sessões | `sua-chave-secreta` |
+| `AI_PROVIDER` | Provedor de IA para pré-avaliação (`openai` ou `fake` em CI/testes) | `fake` |
+| `OPENAI_API_KEY` | Chave de API da OpenAI (necessária se `AI_PROVIDER=openai`) | `sk-...` |
 
-Crie o arquivo `.env` a partir do modelo:
+Gere o arquivo local:
 
 ```bash
 cp .env.example .env
+
 ```
 
 > [!NOTE]
-> Ao executar a aplicação dentro da rede de contêineres via Docker Compose, o host do banco de dados deve ser o nome do serviço (ex.: `@db:5432/db`). Em desenvolvimento local direto no host, utilize `@localhost:5432/db`.
+> Dentro da rede do Docker Compose, utilize o host do serviço de banco (`@db:5432/db`). No host local, aponte para `@localhost:5432/db`.
 
 ---
 
 ## Instalação e Configuração
 
-Você pode utilizar tanto **Poetry** quanto **uv** para gerenciar o ambiente:
-
-### Com Poetry:
+### Com Poetry
 
 ```bash
-# 1. Instalar dependências
 poetry install
-
-# 2. Iniciar o banco de dados local
 docker compose up db -d
-
-# 3. Aplicar migrações do banco de dados
 poetry run alembic upgrade head
-
-# 4. Carregar templates declarativos de processos
 poetry run python -m pivma.bootstrap_process_templates
-
-# 5. Iniciar o servidor de desenvolvimento
 poetry run poe serve
+
 ```
 
-### Com uv:
+### Com uv
 
 ```bash
-# 1. Sincronizar dependências
 uv sync
-
-# 2. Iniciar o banco de dados local
 docker compose up db -d
-
-# 3. Aplicar migrações do banco de dados
 uv run alembic upgrade head
-
-# 4. Carregar templates declarativos de processos
 uv run python -m pivma.bootstrap_process_templates
-
-# 5. Iniciar o servidor de desenvolvimento
 uv run fastapi dev src/pivma/__init__.py
+
 ```
 
 ---
 
-## Promoção de Usuários e Gestão de Cargos
+## Arquitetura de Permissões e Acesso
 
-A aplicação divide permissões e papéis em dois níveis distintos: **Perfis Globais (RBAC)** e **Papéis Locais de Processo (Designações)**.
+A aplicação divide autorização em dois níveis:
 
-### 1. Criar e Promover o Primeiro Administrador (Bootstrap CLI)
+1. **Perfis Globais (RBAC):** Definem permissões transversais no sistema (ex.: `Administrador`, `BraCVAM`, `Grupo Gestor`).
+2. **Papéis Locais de Processo:** Definem atribuições dentro de instâncias específicas de processo (`ProcessInstance`).
 
-Para o primeiro acesso administrativo ao sistema:
+### Bootstrap do Administrador Inicial
 
-1. Registre uma conta comum via `POST /users` (ou use uma conta criada previamente) e copie o `id` (UUID) retornado.
-2. Execute o script de bootstrap no terminal:
+O primeiro administrador deve ser promovido via script CLI:
 
 ```bash
-# Com Poetry:
+# Poetry
 poetry run python -m pivma.bootstrap_rbac --user-id <UUID_DO_USUARIO>
 
-# Com uv:
+# uv
 uv run python -m pivma.bootstrap_rbac --user-id <UUID_DO_USUARIO>
+
 ```
 
-> [!IMPORTANT]
-> Esse comando atribui o perfil global `Administrador` (que contém permissões para gerenciar outros perfis, catálogos institucionais e participantes). O comando é idempotente para o mesmo usuário e falha caso outra conta já possua o perfil `Administrador`.
-
-### 2. Atribuir Outros Cargos/Perfis Globais (via API)
-
-Com uma conta de Administrador autenticada:
-
-1. **Listar perfis disponíveis:**
-   ```http
-   GET /rbac/profiles
-   ```
-   *Perfis pré-semeados na migração:* `Administrador`, `BraCVAM`, `Grupo Gestor`, `Gerente do Estudo`, `Laboratório Participante`, `Avaliador Ad Hoc`, `Revisor`, `Especialista`, `Analista Estatístico`.
-
-2. **Atribuir perfil a um usuário:**
-   ```http
-   POST /rbac/users/{user_id}/profiles/{profile_id}
-   ```
-
-3. **Revogar perfil de um usuário:**
-   ```http
-   DELETE /rbac/users/{user_id}/profiles/{profile_id}
-   ```
-
-### 3. Consultar Contas para Administração
-
-Uma conta com a permissão `users.read` pode consultar a listagem administrativa:
-
-```http
-GET /users?search=joao&active=true&profile_id=<UUID>&offset=0&limit=20
-```
-
-Os parâmetros são opcionais. A consulta usa contas ativas por padrão, remove
-espaços externos de `search`, procura por substring literal sem distinção de
-caixa em username ou e-mail e aceita `active=false` para contas inativas.
-`profile_id` considera somente atribuições ativas a perfis ativos. `offset`
-começa em zero e `limit` aceita valores entre 1 e 100, com padrão 100.
-
-A resposta ordena por username sem distinção de caixa e usa o UUID como
-desempate. Cada item contém `id`, `full_name`, `username`, `email`, `active` e
-os perfis globais ativos em `profiles`:
-
-```json
-{
-  "offset": 0,
-  "limit": 20,
-  "items": [
-    {
-      "id": "00000000-0000-0000-0000-000000000001",
-      "full_name": "João da Silva",
-      "username": "joao",
-      "email": "joao@example.com",
-      "active": true,
-      "profiles": [
-        {"id": "00000000-0000-0000-0000-000000000002", "name": "Grupo Gestor", "active": true}
-      ]
-    }
-  ]
-}
-```
-
-### 4. Atualizar dados de uma conta
-
-Uma conta com a permissão `users.manage` pode atualizar os dados editáveis de
-uma conta existente:
-
-```http
-PATCH /users/{user_id}
-Origin: https://testserver
-Content-Type: application/json
-
-{"username":"maria.silva","email":"maria@example.com","full_name":"Maria Silva","password":"UmaSenhaSegura2026"}
-```
-
-O corpo aceita qualquer combinação não vazia de `username`, `email`,
-`full_name` e `password`; os valores textuais são validados e aparados quando
-aplicável. A senha é armazenada somente como hash. O endpoint retorna HTTP 200
-com `id`, `full_name`, `username` e `email`, e não permite alterar perfis,
-vínculos, auditoria ou estado da conta. Username e e-mail duplicados retornam
-HTTP 409.
-
-### 5. Designar Papéis Locais em um Processo Específico
-
-A designação local vincula um usuário a uma instância de processo (`ProcessInstance`):
-
-```http
-POST /processes/{process_id}/participants
-Content-Type: application/json
-
-{
-  "user_id": "00000000-0000-0000-0000-000000000001",
-  "role_key": "ad_hoc_evaluator",
-  "laboratory_id": null
-}
-```
-
-- **Papéis gerais:** `group_manager`, `study_manager`, `statistician`, `adhoc_evaluator`, `peer_reviewer`, `proponent`.
-- **Papéis laboratoriais:** `lead_laboratory`, `participating_laboratory` (campo `laboratory_id` é obrigatório e o usuário deve ter vínculo institucional ativo com aquele laboratório).
+O comando atribui o perfil global `Administrador`, é idempotente para o mesmo identificador e rejeita a execução se outra conta ativa já for administradora.
 
 ---
 
-## Guia de Integração para o Frontend
+## Diretrizes de Integração (Frontend)
 
-Esta seção sintetiza os pontos fundamentais para o desenvolvimento e integração da interface com a API.
+* **Transporte de Sessão:** A autenticação opera via cookie seguro `access_token` (`HttpOnly`, `SameSite=Lax`). Requisições no cliente HTTP devem utilizar `credentials: 'include'` (ou `withCredentials: true`).
+* **Validação de Origem (CSRF):** Mutações de estado (`POST`, `PUT`, `PATCH`, `DELETE`) validam a procedência contra a lista de origens confiáveis da aplicação. Certifique-se de configurar o endereço do frontend em desenvolvimento no arquivo `.env`.
+* **Avaliação Dinâmica de Permissões:** Perfis e papéis são validados a cada requisição no banco de dados, sem persistência de permissões dentro do token.
+* **Convenções de Erro:**
+* `401 Unauthorized`: Sessão inexistente ou expirada.
+* `403 Forbidden`: Falta de permissão global ou restrição por conflito de interesse ativo.
+* `409 Conflict`: Violação de unicidade ou regra de negócio (ex.: cadastro duplicado, duplicidade de papel no processo).
+* `422 Unprocessable Entity`: Erro de validação de payload/schema.
 
-### 1. Autenticação e Transporte de Sessão por Cookies
 
-- **Login (`POST /auth/token`):** A autenticação bem-sucedida envia um cookie `access_token` seguro (`HttpOnly`, `SameSite=Lax`).
-- **Requisições autenticadas:** O navegador envia o cookie automaticamente. No cliente HTTP do frontend (como `axios` ou `fetch`), configure `credentials: 'include'` (ou `withCredentials: true`).
-- **Logout (`POST /auth/logout`):** Invalida a sessão e limpa o cookie.
-
-Após o login, `GET /auth/me` retorna a identidade autenticada e o estado de
-acesso necessário para inicializar a interface. O campo `access` contém as
-permissões globais efetivas e os escopos ativos por processo:
-
-```json
-{
-  "id": "...",
-  "username": "maria",
-  "email": "maria@exemplo.org",
-  "user": {
-    "id": "...",
-    "username": "maria",
-    "email": "maria@exemplo.org"
-  },
-  "access": {
-    "profiles": [
-      {"id": "...", "name": "Grupo Gestor", "active": true}
-    ],
-    "global_permissions": ["rbac.read"],
-    "scopes": [
-      {
-        "process_id": "...",
-        "institution_id": null,
-        "laboratory_id": null,
-        "roles": ["proponent"]
-      }
-    ]
-  }
-}
-```
-
-Esses dados apoiam a renderização da interface. As rotas protegidas continuam
-reavaliando a autorização no banco a cada requisição.
-
-### 2. Proteção CSRF e Cabeçalho `Origin`
-
-Todas as requisições de mutação protegidas (`POST`, `PUT`, `PATCH`, `DELETE`) validam a procedência da requisição:
-- O navegador inclui o cabeçalho `Origin` automaticamente em chamadas CORS/Fetch.
-- Em desenvolvimento, certifique-se de que a URL do frontend (ex.: `http://localhost:3000` ou `http://localhost:5173`) esteja na lista de origens confiáveis da configuração.
-
-### 3. Consultas Úteis para o Estado da Interface
-
-| Finalidade | Endpoint | Como a UI deve usar |
-| :--- | :--- | :--- |
-| **Vínculos e Laboratórios do Usuário** | `GET /institutional/me/affiliations` | Carrega os laboratórios ativos aos quais o usuário logado pertence para seleção em formulários |
-| **Permissões Globais Efetivas** | `GET /rbac/users/{id}/access` | Define permissões administrativas e menus visíveis |
-| **Participantes e Conflitos no Processo** | `GET /processes/{process_id}/participants` | Mostra quem está atuando no processo e se há bandeira de conflito ativo (`has_conflict: true`) |
-| **Formulários Dinâmicos da Fase** | `GET /processes/{id}/forms/{form_key}` | Renderiza os campos de entrada, validações e rascunhos da proposta/triagem |
-| **Minhas Tarefas Pendentes** | `GET /tasks` | Lista as ações que exigem atuação do usuário logado |
-
-### 4. Tratamento de Erros e Códigos de Status
-
-- `HTTP 200 / 201 / 204`: Sucesso na consulta / criação / exclusão.
-- `HTTP 401 Unauthorized`: Sessão expirada ou ausente. Redirecionar para tela de login.
-- `HTTP 403 Forbidden`: Usuário sem permissão **OU usuário com conflito de interesse vigente** tentando avaliar/decidir no processo. Exibir mensagem explicativa.
-- `HTTP 404 Not Found`: Entidade (processo, formulário, usuário, laboratório) inexistente.
-- `HTTP 409 Conflict`: Conflito de regra de negócio (ex.: e-mail já cadastrado, usuário já designado com aquele papel, processo ou usuário inativo).
-- `HTTP 422 Unprocessable Entity`: Validação de schema do payload (campos obrigatórios ausentes, tipos incorretos).
 
 ---
 
-## Cadastro de Usuários
+## Módulos e Regras de Negócio
 
-O endpoint `POST /users` registra uma nova conta e retorna HTTP 201 com `id`, `full_name`, `username` e `email`. `full_name` é obrigatório em novos cadastros. Contas antigas podem retornar `null`; a resposta não expõe a senha nem seu hash.
+### Usuários e Autenticação
 
-| Campo | Regra de Validação |
-| :--- | :--- |
-| `username` | 3 a 64 caracteres; aceita letras ASCII, números, ponto, hífen e sublinhado. Espaços externos são removidos e a caixa original é preservada. |
-| `email` | Formato de e-mail RFC válido. Espaços externos são removidos e a caixa original é preservada. |
-| `full_name` | Obrigatório em novos cadastros; 1 a 255 caracteres. Espaços externos são removidos. |
-| `password` | 8 a 128 caracteres Unicode, sem espaços em branco. O hash é gerado com Argon2id. |
+* **Validações de Conta:**
+* `username`: 3 a 64 caracteres (ASCII alfanumérico, `.`, `-`, `_`), único (case-insensitive).
+* `email`: Formato RFC válido, único (case-insensitive).
+* `full_name`: 1 a 255 caracteres, obrigatório para novas contas.
+* `password`: 8 a 128 caracteres, sem espaços em branco. O hash é gerado com Argon2id.
 
-Identificadores `username` e `email` são únicos entre contas ativas com comparação case-insensitive. Contas com exclusão lógica liberam os identificadores para novos cadastros.
 
-```bash
-curl -X POST http://localhost:8000/users \
-  -H 'Content-Type: application/json' \
-  -d '{"full_name":"Alice Example","username":"alice","email":"alice@example.com","password":"UmaSenhaSegura2026"}'
-```
+* **Exclusão Lógica:** Contas inativadas liberam seus identificadores (`username` e `email`) para novos cadastros.
 
-- Conflito de unicidade retorna HTTP 409 (`Username already exists` ou `Email already exists`).
-- Senhas fora da política retornam HTTP 422 (`{"detail":"Invalid password"}`).
-- Falhas de infraestrutura retornam HTTP 500 sem vazamento de detalhes internos.
+### Controle de Acesso (RBAC Global)
 
-## 🔐 Autorização RBAC
+* Catálogo de permissões gerenciado estritamente por migrações.
+* Permissões divididas em escopos operacionais: leitura de auditoria e perfis (`rbac.read`), gerenciamento de perfis (`rbac.profiles.manage`), atribuição a usuários (`rbac.assignments.manage`) e gestão de contas (`users.manage`).
+* Atribuições utilizam exclusão lógica (`deleted_at`) para manter histórico imutável.
 
-Após aplicar as migrações, o backend disponibiliza autorização global por
-perfis. O catálogo inicial também contém `users.read` para consulta e
-`users.manage` para atualização administrativa de contas; somente as
-migrações criam essas permissões.
+### Catálogo Institucional
 
-| Rota | Permissão necessária |
-| --- | --- |
-| `GET /rbac/permissions`, `GET /rbac/profiles`, `GET /rbac/users/{user_id}/access`, `GET /rbac/changes` | `rbac.read` |
-| `POST /rbac/profiles`, `PATCH/DELETE /rbac/profiles/{profile_id}` | `rbac.profiles.manage` |
-| `POST/DELETE /rbac/users/{user_id}/profiles/{profile_id}` | `rbac.assignments.manage` |
-| `PATCH /users/{user_id}` | `users.manage` |
+* Gerenciamento de instituições, laboratórios e vínculos institucionais de usuários.
+* Acesso administrativo restrito a contas com permissões do catálogo institucional (`institutional.catalogs.manage` e `institutional.affiliations.manage`).
+* Alterações estruturais são auditadas na entidade `InstitutionalChange`.
 
-As mutações exigem cookie de sessão e o cabeçalho `Origin` configurado. O
-backend consulta o estado atual das atribuições a cada pedido; não há cache de
-permissões no token. Perfis e atribuições são encerrados por exclusão lógica,
-preservando o histórico de concessões.
+### Processos, Formulários e Triagem
 
-Em uma instalação nova, crie a conta inicial, aplique as migrações e execute
-uma única vez o bootstrap para atribuir o perfil `Administrador`:
+* Ciclo de validação analítica orientado por instâncias de templates versionados.
+* Suporte a formulários dinâmicos com ciclos de rascunho e submissão estrita (bloqueio de alterações após envio).
+* Fase 1 (Triagem) inclui pareceres técnicos por campo e decisão final (aprovação, rejeição ou retorno para ajustes), restritos a usuários com permissão de triagem (`triage.review`).
+* Exclusão lógica permitida apenas para processos em estados não-terminais.
 
-```bash
-poetry run python -m pivma.bootstrap_rbac --user-id <UUID_DA_CONTA_ATIVA>
-```
+### Participantes e Conflito de Interesses
 
-O comando é idempotente para a mesma conta e falha se outra conta já recebeu o
-perfil. Ele não cria contas nem deve ser executado no startup da aplicação.
+* **Papéis Locais Suportados:**
+* Técnicos: `group_manager`, `study_manager`, `statistician`, `adhoc_evaluator`, `peer_reviewer`.
+* Proponente: `proponent` (atribuído ao criador do processo).
+* Laboratoriais: `lead_laboratory`, `participating_laboratory` (exigem vínculo institucional ativo do usuário com o respectivo laboratório).
 
----
 
-## Autorização RBAC
+* **Regras de Conflito de Interesse:**
+* Histórico *append-only* em `ConflictInterestDeclaration`.
+* Se um usuário possuir declaração de conflito ativa em qualquer papel do processo, qualquer tentativa de registrar parecer de triagem ou decisão regulatória é bloqueada imediatamente com status `403 Forbidden`.
+* O conteúdo da justificativa do conflito é visível apenas ao declarante e aos gestores do processo.
 
-Após as migrações, a aplicação disponibiliza controle de acesso baseado em papéis (RBAC). O catálogo de permissões é estrito e inclui:
 
-| Rota | Permissão Necessária |
-| :--- | :--- |
-| `GET /rbac/permissions`, `GET /rbac/profiles`, `GET /rbac/users/{user_id}/access`, `GET /rbac/changes` | `rbac.read` |
-| `POST /rbac/profiles`, `PATCH/DELETE /rbac/profiles/{profile_id}` | `rbac.profiles.manage` |
-| `POST/DELETE /rbac/users/{user_id}/profiles/{profile_id}` | `rbac.assignments.manage` |
-| `PATCH /users/{user_id}` | `users.manage` |
 
-Operações de mutação exigem cookie de autenticação e validação do cabeçalho `Origin`. O backend verifica as atribuições diretamente no banco a cada requisição, sem cache em token. Perfis e atribuições utilizam exclusão lógica (`deleted_at`), mantendo histórico completo de concessões.
+### Avaliação Configurável por IA
 
----
+* O BraCVAM configura critérios em linguagem natural vinculados a campos de formulário.
+* A pré-avaliação opera de forma assíncrona na submissão através de modelos via LangChain.
+* **Regra de Consolidação:** A presença de 1 ou mais não-conformidades de severidade alta ou crítica consolida o resultado como negativo.
+* Resultado positivo: segue para a fila de triagem.
+* Resultado negativo/falha: retorna ao proponente para retificação ou solicitação de intervenção direta.
 
-## Vinculação Institucional
 
-A API gerencia o catálogo de instituições, laboratórios e vínculos institucionais de usuários. A migração inicial concede permissões institucionais exclusivamente ao perfil `Administrador`.
-
-| Operação | Rota | Permissão Necessária |
-| :--- | :--- | :--- |
-| Listar instituições e laboratórios | `GET /institutional/institutions`, `GET /institutional/laboratories` | `institutional.read` |
-| Consultar vínculos de terceiros | `GET /institutional/users/{user_id}/affiliations` | `institutional.read` |
-| Trilha de alterações institucionais | `GET /institutional/changes` | `institutional.read` |
-| Gerenciar instituições e laboratórios | `POST`, `PATCH`, `DELETE /institutional/institutions/{id}`, `/institutional/laboratories/{id}` | `institutional.catalogs.manage` |
-| Gerenciar vínculos de usuários | `POST`, `DELETE /institutional/users/{user_id}/affiliations` | `institutional.affiliations.manage` |
-| Consultar próprios vínculos ativos | `GET /institutional/me/affiliations` | Conta autenticada |
-
-Mutações exigem cabeçalho `Origin` confiável. Instituições, laboratórios e vínculos inativos utilizam exclusão lógica e são auditados em `InstitutionalChange`.
-
----
-
-## Processos, Submissão e Triagem
-
-O módulo de processos gerencia instâncias de validação analítica, formulários dinâmicos e o ciclo de triagem da Fase 1.
-
-| Operação | Rota | Descrição |
-| :--- | :--- | :--- |
-| Criar processo | `POST /processes` | Inicia uma nova instância a partir de um template versionado |
-| Listar processos | `GET /processes` | Lista instâncias ativas com filtros por status e código |
-| Excluir processo | `DELETE /processes/{id}` | Exclusão lógica de processo não-terminal, pelo proponente efetivo ou por um usuário com perfil global Admin/BraCVAM; preserva registros e documentos |
-| Arquivar processo | `PATCH /processes/{id}/archive` | Arquiva processo `CLOSED` ou `CANCELLED` para usuário com `triage.review` |
-| Timeline do processo | `GET /processes/{id}/timeline` | Consulta trilha cronológica determinística de auditoria |
-| Obter formulário | `GET /processes/{id}/forms/{form_key}` | Retorna esquema e valores do formulário dinâmico |
-| Preencher rascunho | `PUT /processes/{id}/forms/{form_key}` | Salva valores preliminares sem avançar o fluxo |
-| Submeter formulário | `POST /processes/{id}/forms/{form_key}/submit` | Valida campos obrigatórios, bloqueia edição e avança etapa |
-| Avaliar campos na triagem | `POST /processes/{id}/triage/reviews` | Registra pareceres técnicos por campo (permissão `triage.review`) |
-| Decisão de triagem | `POST /processes/{id}/triage/decision` | Registra aprovação, rejeição ou pedido de ajuste (permissão `triage.review`) |
-| Listar tarefas | `GET /tasks` | Lista e filtra tarefas pendentes por processo, papel ou executor |
-
----
-
-## Avaliação Configurável por IA (Spec 013)
-
-O BraCVAM configura **avaliações** em linguagem natural (objetivo → critérios →
-evidência → severidade), versionadas de forma imutável e associadas a alvos de
-um formulário. Na submissão, uma **pré-avaliação assíncrona** roda por critério
-usando modelos reais da OpenAI via LangChain (camadas `extraction` / `fast` /
-`reasoning` atrás de um provedor injetável). O resultado é consolidado por
-regra fixa — **negativo quando há ≥1 não conformidade de severidade alta ou
-crítica** — e roteado: **positivo → triagem**, **negativo/falha → volta ao
-proponente**, que pode corrigir e reenviar ou solicitar intervenção direta do
-BraCVAM. A IA nunca registra a decisão regulatória; a triagem permanece humana.
-
-Leitura de documento, OCR e análise de imagem permanecem **mockadas**
-(resultado "não foi possível determinar").
-
-Perfis: `ai_evaluations.read`/`manage` e `triage.review` são detidos pelo perfil
-**`bracvam`** e pelo **Administrador** (Spec 014). A triagem — parecer de campo,
-decisão, consulta e feedback da pré-avaliação — exige `triage.review`; o
-proponente só lê a pré-avaliação do próprio processo.
-
-| Operação | Rota | Permissão |
-| :--- | :--- | :--- |
-| Biblioteca / versões / publicação | `GET/POST /ai-evaluations`, `.../versions/**` | `ai_evaluations.manage` (leitura: `ai_evaluations.read`) |
-| Assistente de critérios | `POST /ai-evaluations/suggest-criteria` | `ai_evaluations.manage` |
-| Modo de teste | `POST /ai-evaluations/{id}/versions/{n}/test` | `ai_evaluations.manage` |
-| Referências normativas | `GET/POST /ai-evaluations/references` | `ai_evaluations.manage` |
-| Associação a um formulário | `GET/PUT /form-templates/{key}/evaluation-assignments` | `ai_evaluations.manage` |
-| Métricas de concordância | `GET /ai-evaluations/agreement-metrics` | `ai_evaluations.read` |
-| Consultar pré-avaliação | `GET /processes/{id}/pre-evaluation` | proponente do processo **ou** `triage.review` |
-| Solicitar intervenção direta | `POST /processes/{id}/submission/direct-review` | proponente do processo |
-| Feedback do triador por critério | `POST /processes/{id}/pre-evaluation/{run_id}/feedback` | `triage.review` (bloqueado por conflito de interesse) |
-| Reprocessar execução (admin) | `POST /admin/pre-evaluations/{run_id}/retry` | Administrador |
-
-Config: `AI_PROVIDER`, `OPENAI_API_KEY`, `AI_MODEL_{EXTRACTION,FAST,REASONING}`
-(ver `.env.example`). Em testes e CI, `AI_PROVIDER=fake` — nenhum token é
-gasto. Seed: `uv run python -m scripts.seeds.seed_ai_evaluations` (incluído em
-`seed_all`). A configuração por campo é feita no editor de formulário
-(`demos/forms/`), botão **Configurar Avaliação por IA →**, que abre
-`demos/forms/ai-config.html`; a submissão e a triagem com pré-avaliação estão em
-`demos/submission/` e `demos/triage/`.
-
----
-
-## Participantes de Processo e Conflito de Interesse
-
-A API permite designar, revogar e consultar participantes de um `ProcessInstance` e registrar declarações imutáveis de conflito de interesse.
-
-### Papéis Locais Suportados
-
-- **Gestão e avaliação técnica:** `group_manager`, `study_manager`, `statistician`, `adhoc_evaluator`, `peer_reviewer`
-- **Proponente:** `proponent` (atribuído ao criador do processo)
-- **Papéis laboratoriais:** `lead_laboratory`, `participating_laboratory` (exigem `laboratory_id` e vínculo institucional ativo entre usuário e laboratório)
-
-### Matriz de Endpoints
-
-| Operação | Rota | Autorização |
-| :--- | :--- | :--- |
-| Listar participantes atuais | `GET /processes/{process_id}/participants` | Gestor (global ou local) vê todos; participante vê apenas seus ciclos |
-| Designar participante | `POST /processes/{process_id}/participants` | `process.participants.manage` ou `group_manager` ativo do processo |
-| Revogar designação | `DELETE /processes/{process_id}/participants/{assignment_id}` | `process.participants.manage` ou `group_manager` ativo do processo |
-| Declarar conflito de interesse | `POST /processes/{process_id}/participants/{assignment_id}/conflicts` | Titular ativo da designação |
-| Consultar histórico paginado | `GET /processes/{process_id}/participants/history` | Mesmo escopo de leitura da listagem |
-
-### Regras de Conflito de Interesse
-
-- **Append-only:** cada submissão cria um novo registro imutável em `ConflictInterestDeclaration`. A declaração mais recente define o estado vigente do ciclo.
-- **Bloqueio abrangente:** se o usuário possuir conflito vigente em qualquer ciclo ativo no processo, o backend bloqueia a submissão de revisões de campo (`POST /processes/{id}/triage/reviews`) e decisões de triagem (`POST /processes/{id}/triage/decision`) com HTTP 403 Forbidden, mesmo que possua outro papel sem conflito.
-- **Isolamento de justificativa:** o texto da justificativa de conflito é restrito ao declarante e aos gestores do processo, não sendo exposto na listagem geral.
-- **Filtragem de auditoria:** eventos `PARTICIPANT_ASSIGNED`, `PARTICIPANT_REVOKED` e `CONFLICT_DECLARED` na timeline respeitam o escopo de leitura do usuário solicitante.
+* A IA não emite decisões regulatórias finais; o processo decisório permanece sob responsabilidade de triadores humanos.
 
 ---
 
 ## Comandos Úteis (`poetry` e `uv`)
 
-Tabela comparativa de comandos rápidos para o dia a dia de desenvolvimento:
-
 | Ação | Com Poetry | Com uv |
-| :--- | :--- | :--- |
+| --- | --- | --- |
 | **Instalar dependências** | `poetry install` | `uv sync` |
-| **Servidor com hot-reload** | `poetry run poe serve` | `uv run fastapi dev src/pivma/__init__.py` |
-| **Verificar Lints** | `poetry run poe lint` | `uv run ruff check` |
-| **Formatar Código** | `poetry run poe format` | `uv run ruff format` |
-| **Executar Testes** | `poetry run poe test` | `uv run pytest` |
-| **Aplicar Migrações** | `poetry run alembic upgrade head` | `uv run alembic upgrade head` |
-| **Bootstrap Templates** | `poetry run python -m pivma.bootstrap_process_templates` | `uv run python -m pivma.bootstrap_process_templates` |
-| **Bootstrap Admin** | `poetry run python -m pivma.bootstrap_rbac --user-id <UUID>` | `uv run python -m pivma.bootstrap_rbac --user-id <UUID>` |
+| **Servidor de desenvolvimento** | `poetry run poe serve` | `uv run fastapi dev src/pivma/__init__.py` |
+| **Verificar Linter** | `poetry run poe lint` | `uv run ruff check` |
+| **Formatar código** | `poetry run poe format` | `uv run ruff format` |
+| **Executar testes** | `poetry run poe test` | `uv run pytest` |
+| **Aplicar migrações** | `poetry run alembic upgrade head` | `uv run alembic upgrade head` |
+| **Carregar templates** | `poetry run python -m pivma.bootstrap_process_templates` | `uv run python -m pivma.bootstrap_process_templates` |
+| **Bootstrap Administrador** | `poetry run python -m pivma.bootstrap_rbac --user-id <UUID>` | `uv run python -m pivma.bootstrap_rbac --user-id <UUID>` |
 
 ---
 
 ## Práticas de Desenvolvimento e Testes
 
-### Estrutura da Suíte de Testes
+### Estrutura da Suíte
 
-A suíte de testes é organizada em níveis de granularidade:
+* `tests/unit/`: Testes unitários de schemas, segurança e regras isoladas.
+* `tests/api/routers/`: Testes de contrato HTTP, autorização e respostas via `TestClient`.
+* `tests/integration/database/`: Testes de integridade de dados e constraints no PostgreSQL.
+* `tests/integration/migrations/`: Testes de upgrade e downgrade do Alembic.
 
-- `tests/unit/`: testes unitários isolados de schemas, segurança e regras de validação.
-- `tests/api/routers/`: testes de contrato HTTP, autorização e códigos de status via `TestClient`.
-- `tests/integration/database/`: testes de integridade relacional, concorrência e constraints no PostgreSQL.
-- `tests/integration/migrations/`: testes de aplicação e downgrade de migrações Alembic.
+### Padrões Adotados
 
-### Padrão para Criação de Testes
-
-1. **Isolamento com Testcontainers:**
-   A fixture `engine` em [`tests/conftest.py`](tests/conftest.py) inicializa um contêiner PostgreSQL descartável com imagem `pgvector/pgvector:pg17` fora do Windows, destruído ao final da execução.
-
-2. **Geração de Entidades com Factory Boy:**
-   Utilize as factories disponíveis em [`tests/factories/`](tests/factories/) (`UserFactory`, `InstitutionFactory`, `LaboratoryFactory`, `AssignmentFactory`, `ConflictInterestDeclarationFactory`) em vez de inserções SQL manuais.
-
-3. **Padrão AAA (Arrange, Act, Assert):**
+1. **Testcontainers:** Inicialização de contêiner descartável PostgreSQL com extensão `pgvector` gerenciado na fixture de sessão do pytest.
+2. **Factories:** Utilização de `Factory Boy` (`tests/factories/`) para geração declarativa de entidades nos testes.
+3. **Padrão AAA:** Estruturação explícita de testes em *Arrange*, *Act* e *Assert*.
 
 ```python
 from http import HTTPStatus
@@ -517,47 +227,41 @@ from tests.api.routers.test_rbac_router import authenticate
 
 @pytest.mark.asyncio
 async def test_example_participant_listing(client, session):
-    # Arrange
     user = UserFactory()
     session.add(user)
     await session.commit()
     authenticate(client, user)
 
-    # Act
     response = client.get('/processes')
 
-    # Assert
     assert response.status_code == HTTPStatus.OK
     assert 'items' in response.json()
 ```
 
 ---
 
-## Execução com Docker e Docker Compose
+## Execução com Docker
 
-### Executar Ambiente Completo
-
-O arquivo [`compose.yaml`](compose.yaml) orquestra a API e o banco de dados PostgreSQL:
+Execução dos serviços orquestrados via `compose.yaml`:
 
 ```bash
 docker compose up --build -d
+
 ```
 
-O contêiner executa automaticamente [`entrypoint.sh`](entrypoint.sh), aplicando as migrações do Alembic antes de iniciar o Uvicorn.
+O contêiner executa automaticamente as migrações pendentes do Alembic via `entrypoint.sh` antes de inicializar o servidor.
 
-- Documentação Swagger Interativa: `http://localhost:8000/docs`
-- Logs da API: `docker compose logs -f api`
-- Encerrar serviços: `docker compose down`
+* Documentação Interativa: `http://localhost:8000/docs`
+* Logs da API: `docker compose logs -f api`
+* Encerrar serviços: `docker compose down`
 
 ---
 
-## Diretrizes de Desenvolvimento
+## Diretrizes de Contribuição
 
-1. **Verificação Prévia:** execute `poetry run poe format`, `poetry run poe lint` e `poetry run pytest` (ou os equivalentes `uv`) antes de submeter alterações.
-2. **Migrações de Banco de Dados:** ao alterar modelos em [`src/pivma/core/database/models.py`](src/pivma/core/database/models.py), gere uma revisão com nome descritivo:
-   ```bash
-   poetry run alembic revision --autogenerate -m "descricao_da_migracao"
-   poetry run alembic upgrade head
-   ```
-3. **AuditMixin:** novos modelos relacionais devem herdar de `AuditMixin` para rastreamento de criação, atualização e exclusão lógica.
-4. **Proteção de Origem e Cookies:** rotas de mutação protegidas devem validar `CurrentUser` e `TrustedOrigin`.
+1. **Validação Local:** Execute linting, checagem de tipos e testes antes de submeter alterações (`ruff check`, `ruff format`, `pytest`).
+2. **Modelos e Migrações:** Toda alteração nos modelos em `src/pivma/core/database/models.py` exige uma revisão Alembic descritiva gerada via `--autogenerate`.
+3. **Rastreabilidade:** Novos modelos de dados relacionais devem herdar de `AuditMixin`.
+4. **Segurança em Mutações:** Rotas de escrita devem aplicar validação de identidade autenticada (`CurrentUser`) e checagem de procedência segura (`TrustedOrigin`).
+
+```

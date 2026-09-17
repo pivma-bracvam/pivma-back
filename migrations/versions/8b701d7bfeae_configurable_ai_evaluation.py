@@ -367,63 +367,8 @@ def upgrade() -> None:
         unique=False,
     )
 
-    _seed_permissions()
-
-
-def _seed_permissions() -> None:
-    permissions = sa.table(
-        'permissions',
-        sa.column('id', sa.Uuid()),
-        sa.column('code'),
-        sa.column('description'),
-    )
-    composition = sa.table(
-        'access_profile_permissions',
-        sa.column('id', sa.Uuid()),
-        sa.column('profile_id', sa.Uuid()),
-        sa.column('permission_id', sa.Uuid()),
-    )
-    op.bulk_insert(
-        permissions,
-        [
-            dict(
-                id=READ_PERMISSION_ID,
-                code='ai_evaluations.read',
-                description='Consultar avaliações por IA e seus resultados.',
-            ),
-            dict(
-                id=MANAGE_PERMISSION_ID,
-                code='ai_evaluations.manage',
-                description='Configurar e publicar avaliações por IA.',
-            ),
-        ],
-    )
-    op.bulk_insert(
-        composition,
-        [
-            dict(
-                id=COMPOSITION_ADMIN_READ_ID,
-                profile_id=ADMIN_PROFILE_ID,
-                permission_id=READ_PERMISSION_ID,
-            ),
-            dict(
-                id=COMPOSITION_ADMIN_MANAGE_ID,
-                profile_id=ADMIN_PROFILE_ID,
-                permission_id=MANAGE_PERMISSION_ID,
-            ),
-        ],
-    )
-
 
 def downgrade() -> None:
-    op.execute(
-        'DELETE FROM access_profile_permissions WHERE permission_id IN '
-        f"('{READ_PERMISSION_ID}', '{MANAGE_PERMISSION_ID}')"
-    )
-    op.execute(
-        'DELETE FROM permissions WHERE id IN '
-        f"('{READ_PERMISSION_ID}', '{MANAGE_PERMISSION_ID}')"
-    )
     for table in (
         'evaluation_test_runs',
         'reviewer_feedback',

@@ -289,36 +289,29 @@ async def test_upgrade_does_not_create_implicit_backfill(migration_database):
 
 
 @pytest.mark.asyncio
-async def test_upgrade_grants_new_permission_only_to_administrator(
+async def test_upgrade_creates_participant_structures(
     migration_database,
 ):
     await run_migration('5e31a8c7d204')
     await run_migration('head')
     async with migration_database.connect() as connection:
-        permission_code = await connection.scalar(
-            sa.text('SELECT code FROM permissions WHERE id = :id'),
-            {'id': PERMISSION_ID},
+        columns = set(
+            await connection.scalars(
+                sa.text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'assignments'"
+                )
+            )
         )
-        non_admin_compositions = await connection.scalar(
-            sa.text(
-                'SELECT count(*) FROM access_profile_permissions app '
-                'JOIN access_profiles ap ON ap.id = app.profile_id '
-                'WHERE app.permission_id = :permission_id '
-                "AND ap.system_key <> 'administrator'"
-            ),
-            {'permission_id': PERMISSION_ID},
+        tables = set(
+            await connection.scalars(
+                sa.text(
+                    "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
+                )
+            )
         )
-        admin_composition = await connection.scalar(
-            sa.text(
-                'SELECT count(*) FROM access_profile_permissions '
-                'WHERE permission_id = :permission_id '
-                'AND profile_id = :profile_id'
-            ),
-            {'permission_id': PERMISSION_ID, 'profile_id': ADMIN_PROFILE_ID},
-        )
-    assert permission_code == 'process.participants.manage'
-    assert non_admin_compositions == 0
-    assert admin_composition == 1
+    assert 'laboratory_id' in columns
+    assert 'conflict_interest_declarations' in tables
 
 
 @pytest.mark.asyncio
