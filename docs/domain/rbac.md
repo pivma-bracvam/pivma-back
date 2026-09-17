@@ -56,3 +56,4 @@ As permissões ativas que controlam as rotas do backend são:
 - `process.participants.manage`: Designar participantes e laboratórios em processos.
 - `triage.review`: Conduzir a triagem de métodos e registrar pareceres técnicos.
 - `ai.evaluations.configure`: Configurar prompts, critérios e modelos das esteiras de IA.
+- `form_templates.manage`: Editar a definição de formulários de processo (campos, nome, descrição) — concedida ao BraCVAM além do Administrador (Issue #39).

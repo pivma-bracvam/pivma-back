@@ -128,17 +128,32 @@ CANONICAL_PERMISSIONS = [
             'a pré-avaliação por IA.'
         ),
     },
+    {
+        # Mesmo UUID já usado pela migration `fa506675d3f9` (Issue #39,
+        # PR #47) para esta mesma permissão — evita divergência de id caso
+        # as duas branches coexistam antes de convergir para este script
+        # como fonte única do catálogo canônico.
+        'id': UUID('00000000-0000-0000-0000-00000000010d'),
+        'code': 'form_templates.manage',
+        'description': (
+            'Gerir a definição de formulários de processo (campos, nome, '
+            'descrição).'
+        ),
+    },
 ]
 
 # Regras de associação perfil -> códigos de permissão
 PROFILE_PERMISSION_MAPPINGS: dict[str, list[str]] = {
     # Administrador tem acesso a todas as permissões
     ADMINISTRATOR_SYSTEM_KEY: [p['code'] for p in CANONICAL_PERMISSIONS],
-    # BraCVAM tem acesso às permissões operacionais de triagem e IA
+    # BraCVAM tem acesso às permissões operacionais de triagem, IA e edição
+    # de formulários (Issue #39, PR #47) — não a `rbac.read` nem a nomes de
+    # perfil, os dois critérios indevidos fechados por essa correção.
     'bracvam': [
         'triage.review',
         'ai_evaluations.read',
         'ai_evaluations.manage',
+        'form_templates.manage',
     ],
 }
 
