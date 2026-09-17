@@ -44,11 +44,12 @@ from pivma.core.process_engine import (
     STATUS_AI_PRE_EVALUATION,
     STATUS_ARCHIVED,
     STATUS_CANCELLED,
+    TRIAGE_TASK_TITLE,
     AuthorizationError,
     ConflictError,
     NotFoundError,
+    _advance_dependent_activities,  # noqa: PLC2701
     _open_new_submission_run,  # noqa: PLC2701
-    _unblock_triage_activity,  # noqa: PLC2701
     ensure_process_mutable,
 )
 from pivma.core.settings import Settings
@@ -203,9 +204,17 @@ async def _execute(session: AsyncSession, run_id: UUID) -> None:  # noqa: PLR091
     )
 
     if consolidation.result == 'positive':
-        await _unblock_triage_activity(
-            session, run.process_instance_id, run.created_by
+        submission_act = await _submission_activity(
+            session, run.process_instance_id
         )
+        if submission_act is not None:
+            await _advance_dependent_activities(
+                session,
+                process,
+                submission_act,
+                run.created_by,
+                task_titles={'triage_evaluation': TRIAGE_TASK_TITLE},
+            )
         await _set_process_status(session, run.process_instance_id, 'TRIAGE')
     else:
         await _return_to_proponent(session, run, failed=False)
@@ -313,7 +322,16 @@ async def request_direct_review(
     session.add(request)
 
     await _close_open_submission_run(session, process_id, user_id)
-    await _unblock_triage_activity(session, process_id, user_id)
+    process = await session.get(ProcessInstance, process_id)
+    submission_act = await _submission_activity(session, process_id)
+    if process is not None and submission_act is not None:
+        await _advance_dependent_activities(
+            session,
+            process,
+            submission_act,
+            user_id,
+            task_titles={'triage_evaluation': TRIAGE_TASK_TITLE},
+        )
     await _set_process_status(session, process_id, 'TRIAGE')
     session.add(
         AuditEvent(
@@ -854,6 +872,18 @@ async def _triage_activity(
     )
 
 
+async def _submission_activity(
+    session: AsyncSession, process_id: UUID
+) -> ActivityInstance | None:
+    return await session.scalar(
+        select(ActivityInstance).where(
+            ActivityInstance.process_instance_id == process_id,
+            ActivityInstance.key == 'proposal_submission',
+            ActivityInstance.deleted_at.is_(None),
+        )
+    )
+
+
 async def _set_process_status(
     session: AsyncSession, process_id: UUID, status: str
 ) -> None:
@@ -889,6 +919,16 @@ async def _close_open_submission_run(
     if open_run is not None:
         open_run.status = 'CANCELLED'
         open_run.set_update_audit(user_id)
+
+        # A revisão direta (Issue #22) força a submissão a ser tratada como
+        # satisfeita mesmo com uma rodada aberta cancelada — sem isto, o
+        # motor genérico de dependências (`_advance_dependent_activities`)
+        # nunca destravaria a triagem, porque `proposal_submission`
+        # continuaria `IN_PROGRESS`.
+        submission_act = await _submission_activity(session, process_id)
+        if submission_act is not None:
+            submission_act.status = 'COMPLETED'
+            submission_act.set_update_audit(user_id)
 
 
 def _audit(

@@ -97,6 +97,13 @@ PROPONENT_SCOPED_STATUSES = (STATUS_SUBMISSION, STATUS_AI_PRE_EVALUATION)
 # Alvos de avaliação por IA que se prendem a `field_keys` do formulário.
 FIELD_TARGET_TYPES = frozenset({'field', 'field_set', 'document'})
 
+# Título de tarefa da triagem preservado do antigo caminho bespoke
+# (`_unblock_triage_activity`, removido na Issue #22) — o motor genérico
+# usaria `act.name` ("Triagem e Decisão BraCVAM") por padrão; este texto é
+# passado explicitamente a `_advance_dependent_activities` para não mudar o
+# que já é exibido a quem faz a triagem hoje.
+TRIAGE_TASK_TITLE = 'Realizar Triagem da Proposta'
+
 
 def lifecycle_available_actions(
     *,
@@ -486,9 +493,9 @@ async def _template_activity_data(
     Lê da versão de template gravada na instância (nunca "a mais recente"),
     mesma fonte já usada por `_advance_dependent_activities` — preserva a
     imutabilidade de versão (Spec 004 FR-001/FR-002; Spec 024 FR-004) para
-    os dois caminhos legados que ainda resolvem uma atividade pela chave
-    (`_unblock_triage_activity`, `_open_new_submission_run`), em vez do
-    motor genérico de dependências.
+    `_open_new_submission_run`, único caminho restante que ainda resolve uma
+    atividade pela chave em vez do motor genérico de dependências (a triagem
+    passou a usar o motor genérico na Issue #22).
     """
     process = await session.get(ProcessInstance, process_id)
     if process is None:
@@ -1663,58 +1670,6 @@ async def _save_submitted_values(
         _set_value_on_field(fv, field.field_type, val)
 
 
-async def _unblock_triage_activity(
-    session: AsyncSession, process_id: UUID, user_id: UUID
-) -> None:
-    triage_stmt = select(ActivityInstance).where(
-        ActivityInstance.process_instance_id == process_id,
-        ActivityInstance.key == 'triage_evaluation',
-        ActivityInstance.deleted_at.is_(None),
-    )
-    triage_act = (await session.execute(triage_stmt)).scalar_one_or_none()
-    if not triage_act:
-        return
-
-    triage_act.status = 'READY'
-    triage_act.blocked_reason = None
-    triage_act.set_update_audit(user_id)
-
-    tr_stmt = select(ActivityRun).where(
-        ActivityRun.activity_instance_id == triage_act.id,
-        ActivityRun.deleted_at.is_(None),
-    )
-    triage_run = (await session.execute(tr_stmt)).scalar_one_or_none()
-
-    if not triage_run:
-        triage_run = ActivityRun(
-            activity_instance_id=triage_act.id,
-            run_number=1,
-            status='IN_PROGRESS',
-            execution_reason='Triagem inicial da proposta submetida',
-        )
-        triage_run.set_creation_audit(user_id)
-        session.add(triage_run)
-        await session.flush()
-
-        triage_a_data = await _template_activity_data(
-            session, process_id, 'triage_evaluation'
-        )
-        triage_task = Task(
-            activity_run_id=triage_run.id,
-            title='Realizar Triagem da Proposta',
-            # Cargo global (Spec 018): triagem é responsabilidade da equipe
-            # BraCVAM/Admin, resolvida via AccessProfile, não por Assignment.
-            assigned_role='bracvam',
-            status='READY',
-            due_date=_compute_activity_due_date(
-                run_started_at=triage_run.started_at,
-                sla_hours=triage_a_data.get('sla_hours'),
-            ),
-        )
-        triage_task.set_creation_audit(user_id)
-        session.add(triage_task)
-
-
 async def _dependency_satisfied(
     session: AsyncSession, dependency: ActivityDependency
 ) -> bool:
@@ -1729,19 +1684,27 @@ async def _dependency_satisfied(
     )
 
 
-async def _activate_activity(
+async def _activate_activity(  # noqa: PLR0913, PLR0917
     session: AsyncSession,
     act: ActivityInstance,
     a_data: dict[str, Any],
     user_id: UUID,
     reason: str,
+    task_title: str | None = None,
 ) -> ActivityRun:
     """Ativa uma atividade BLOCKED cuja(s) dependência(s) já foram satisfeitas.
 
     Generaliza o que ``_init_first_activity`` faz para a primeira atividade
     (sem dependências), permitindo qualquer ``activity_type`` — cria
     ``FormInstance`` apenas quando a atividade declara ``form_template_key``
-    (Spec 017, FR-005).
+    (Spec 017, FR-005). ``run_number`` é derivado do máximo já existente para
+    a atividade (não fixo em 1): diferente da ativação inicial, uma atividade
+    dependente pode ser bloqueada e desbloqueada mais de uma vez (ex.
+    diligência de triagem, Issue #22) — cada ciclo precisa da sua própria
+    execução, nunca reaproveitando a anterior. ``task_title`` permite ao
+    chamador preservar um texto de tarefa já em uso (em vez de ``act.name``)
+    quando a atividade tinha, antes da Issue #22, um caminho de ativação
+    bespoke com um título próprio.
     """
     act.status = 'IN_PROGRESS'
     act.blocked_reason = None
@@ -1752,9 +1715,16 @@ async def _activate_activity(
         phase.status = 'IN_PROGRESS'
         phase.set_update_audit(user_id)
 
+    prev_runs_stmt = select(ActivityRun.run_number).where(
+        ActivityRun.activity_instance_id == act.id,
+        ActivityRun.deleted_at.is_(None),
+    )
+    prev_run_numbers = (await session.execute(prev_runs_stmt)).scalars().all()
+    next_run_number = max(prev_run_numbers, default=0) + 1
+
     run = ActivityRun(
         activity_instance_id=act.id,
-        run_number=1,
+        run_number=next_run_number,
         status='IN_PROGRESS',
         execution_reason=reason,
     )
@@ -1764,7 +1734,7 @@ async def _activate_activity(
 
     task = Task(
         activity_run_id=run.id,
-        title=act.name,
+        title=task_title or act.name,
         assigned_role=_resolve_activity_cargo(a_data),
         status='READY',
         due_date=_compute_activity_due_date(
@@ -1798,6 +1768,7 @@ async def _advance_dependent_activities(
     process: ProcessInstance,
     completed_act: ActivityInstance,
     user_id: UUID,
+    task_titles: dict[str, str] | None = None,
 ) -> None:
     """Desbloqueia atividades cuja dependência acabou de ser satisfeita.
 
@@ -1806,6 +1777,11 @@ async def _advance_dependent_activities(
     atividade hardcoded — mecanismo mínimo exigido pela Spec 017 (FR-005,
     User Story 2) para que fases futuras não precisem de uma função dedicada
     no motor a cada nova atividade declarada.
+
+    ``task_titles`` (chave = ``activity_key``) permite preservar um título de
+    tarefa específico para uma atividade cujo caminho de ativação era, antes
+    da Issue #22, bespoke (ex. ``triage_evaluation``) — sem isso, toda
+    atividade destravada por aqui usa ``act.name`` como título (Spec 017).
     """
     dep_stmt = select(ActivityDependency).where(
         ActivityDependency.required_activity_id == completed_act.id,
@@ -1858,6 +1834,7 @@ async def _advance_dependent_activities(
                 'Fase liberada automaticamente após conclusão da '
                 f'dependência {completed_act.key!r}.'
             ),
+            task_title=(task_titles or {}).get(dependent_act.key),
         )
 
         session.add(
@@ -1873,6 +1850,36 @@ async def _advance_dependent_activities(
                 },
             )
         )
+
+
+async def _complete_activity_run(
+    session: AsyncSession,
+    run: ActivityRun,
+    act: ActivityInstance,
+    user_id: UUID,
+) -> None:
+    """Conclui a execução atual de uma atividade e suas tarefas.
+
+    Ponto único para o efeito hoje duplicado em ``submit_proposal_form`` e
+    ``execute_triage_decision`` (Issue #22): marcar a execução, a atividade e
+    todas as suas tarefas como ``COMPLETED``. Não destrava dependentes — isso
+    fica a cargo do chamador, via ``_advance_dependent_activities``, porque
+    nem toda conclusão avança algo no mesmo instante (ex. triagem rejeitada).
+    """
+    run.status = 'COMPLETED'
+    run.completed_at = utc_now()
+    run.set_update_audit(user_id)
+
+    act.status = 'COMPLETED'
+    act.set_update_audit(user_id)
+
+    t_stmt = select(Task).where(
+        Task.activity_run_id == run.id, Task.deleted_at.is_(None)
+    )
+    for t in (await session.execute(t_stmt)).scalars().all():
+        t.status = 'COMPLETED'
+        t.completed_at = utc_now()
+        t.set_update_audit(user_id)
 
 
 async def submit_proposal_form(  # noqa: PLR0914, PLR0915
@@ -1915,20 +1922,7 @@ async def submit_proposal_form(  # noqa: PLR0914, PLR0915
     form_inst.submitted_at = utc_now()
     form_inst.set_update_audit(user_id)
 
-    current_run.status = 'COMPLETED'
-    current_run.completed_at = utc_now()
-    current_run.set_update_audit(user_id)
-
-    act.status = 'COMPLETED'
-    act.set_update_audit(user_id)
-
-    t_stmt = select(Task).where(
-        Task.activity_run_id == current_run.id, Task.deleted_at.is_(None)
-    )
-    for t in (await session.execute(t_stmt)).scalars().all():
-        t.status = 'COMPLETED'
-        t.completed_at = utc_now()
-        t.set_update_audit(user_id)
+    await _complete_activity_run(session, current_run, act, user_id)
 
     p_stmt = select(ProcessInstance).where(ProcessInstance.id == process_id)
     process = (await session.execute(p_stmt)).scalar_one()
@@ -1962,6 +1956,16 @@ async def submit_proposal_form(  # noqa: PLR0914, PLR0915
     has_assignments = (
         await session.execute(assignment_stmt)
     ).first() is not None
+
+    session.add(
+        AuditEvent(
+            process_instance_id=process_id,
+            activity_run_id=current_run.id,
+            user_id=user_id,
+            event_type='SUBMISSION_SUBMITTED',
+            context_data={'run_number': current_run.run_number},
+        )
+    )
 
     pending_run: EvaluationRun | None = None
     if has_assignments:
@@ -2002,19 +2006,16 @@ async def submit_proposal_form(  # noqa: PLR0914, PLR0915
     else:
         # Sem avaliações por IA associadas: segue direto para a triagem com
         # relatório de pré-avaliação vazio (Spec 013 FR-027).
-        await _unblock_triage_activity(session, process_id, user_id)
+        await _advance_dependent_activities(
+            session,
+            process,
+            act,
+            user_id,
+            task_titles={'triage_evaluation': TRIAGE_TASK_TITLE},
+        )
         process.status = 'TRIAGE'
         process.set_update_audit(user_id)
 
-    session.add(
-        AuditEvent(
-            process_instance_id=process_id,
-            activity_run_id=current_run.id,
-            user_id=user_id,
-            event_type='SUBMISSION_SUBMITTED',
-            context_data={'run_number': current_run.run_number},
-        )
-    )
     await session.commit()
     return act, current_run, artifact, pending_run
 
@@ -2204,9 +2205,6 @@ async def _handle_needs_revision(
 async def _handle_approved_decision(
     session: AsyncSession, ctx: TriageContext
 ) -> None:
-    ctx.triage_act.status = 'COMPLETED'
-    ctx.triage_act.set_update_audit(ctx.user_id)
-
     phase_stmt = select(Phase).where(Phase.id == ctx.triage_act.phase_id)
     phase = (await session.execute(phase_stmt)).scalar_one_or_none()
     if phase:
@@ -2234,9 +2232,6 @@ async def _handle_approved_decision(
 async def _handle_rejected_decision(
     session: AsyncSession, ctx: TriageContext
 ) -> None:
-    ctx.triage_act.status = 'COMPLETED'
-    ctx.triage_act.set_update_audit(ctx.user_id)
-
     ctx.process.status = 'CLOSED'
     ctx.process.closed_at = utc_now()
     ctx.process.closure_reason = f'Rejeitado na triagem: {ctx.justification}'
@@ -2289,17 +2284,7 @@ async def execute_triage_decision(
     decision.set_creation_audit(user_id)
     session.add(decision)
 
-    triage_run.status = 'COMPLETED'
-    triage_run.completed_at = utc_now()
-    triage_run.set_update_audit(user_id)
-
-    t_stmt = select(Task).where(
-        Task.activity_run_id == triage_run.id, Task.deleted_at.is_(None)
-    )
-    for t in (await session.execute(t_stmt)).scalars().all():
-        t.status = 'COMPLETED'
-        t.completed_at = utc_now()
-        t.set_update_audit(user_id)
+    await _complete_activity_run(session, triage_run, triage_act, user_id)
 
     ctx = TriageContext(
         process=process,
