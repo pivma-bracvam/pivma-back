@@ -63,6 +63,40 @@ async def test_admin_logs_forbidden_for_regular_user(client, session):
 
 
 @pytest.mark.asyncio
+async def test_admin_logs_forbidden_for_rbac_read_only_user(client, session):
+    """Issue #39: `rbac.read` é permissão de leitura do RBAC, não prova de
+
+    administrador — não deve autorizar acesso a logs administrativos.
+    """
+    user = UserFactory()
+    session.add(user)
+    profile = AccessProfile(
+        system_key=None,
+        name='Consulta RBAC',
+        description='Perfil de teste com rbac.read apenas',
+    )
+    session.add(profile)
+    await session.flush()
+    permission = Permission(code='rbac.read', description='Read RBAC')
+    session.add(permission)
+    await session.flush()
+    session.add(
+        AccessProfilePermission(
+            profile_id=profile.id, permission_id=permission.id
+        )
+    )
+    session.add(UserAccessProfile(user_id=user.id, profile_id=profile.id))
+    await session.commit()
+    authenticate(client, user)
+
+    res = client.get('/admin/logs/operational', headers=TRUSTED_ORIGIN)
+    assert res.status_code == HTTPStatus.FORBIDDEN
+
+    res_ai = client.get('/admin/logs/ai', headers=TRUSTED_ORIGIN)
+    assert res_ai.status_code == HTTPStatus.FORBIDDEN
+
+
+@pytest.mark.asyncio
 async def test_admin_logs_allowed_for_administrator(client, session):
     admin = await make_admin_user(session)
     authenticate(client, admin)

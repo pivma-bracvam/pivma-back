@@ -3,9 +3,46 @@ from http import HTTPStatus
 import pytest
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
-from pivma.core.database.models import AccessProfile, UserAccessProfile
+from pivma.core.database.models import (
+    AccessProfile,
+    AccessProfilePermission,
+    Permission,
+    UserAccessProfile,
+)
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
+
+
+async def _user_with_profile(
+    session, *, system_key=None, name='Perfil de Teste', permission_code=None
+):
+    """Cria um usuário com um perfil de acesso customizado (Issue #39).
+
+    `permission_code`, quando informado, concede essa única permissão ao
+    perfil — usado para reproduzir cenários de escalada de privilégio
+    (`rbac.read`) e o caminho legítimo novo (`form_templates.manage`).
+    """
+    user = UserFactory()
+    session.add(user)
+    profile = AccessProfile(
+        system_key=system_key, name=name, description='Perfil de teste'
+    )
+    session.add(profile)
+    await session.flush()
+    if permission_code is not None:
+        permission = Permission(
+            code=permission_code, description=f'Permissão {permission_code}'
+        )
+        session.add(permission)
+        await session.flush()
+        session.add(
+            AccessProfilePermission(
+                profile_id=profile.id, permission_id=permission.id
+            )
+        )
+    session.add(UserAccessProfile(user_id=user.id, profile_id=profile.id))
+    await session.commit()
+    return user
 
 
 @pytest.mark.asyncio
@@ -137,3 +174,77 @@ async def test_get_and_update_form_template_definition(  # noqa: PLR0914, PLR091
         '/processes/templates/inexistente/forms/submission_pre_validated_v1'
     )
     assert res_404.status_code == HTTPStatus.NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_rbac_read_only_cannot_update_form_template(client, session):
+    """Issue #39: `rbac.read` é permissão de leitura do RBAC, não prova de
+
+    administrador — não deve autorizar edição de template.
+    """
+    await bootstrap_all_templates(session)
+    user = await _user_with_profile(
+        session, name='Consulta RBAC', permission_code='rbac.read'
+    )
+    authenticate(client, user)
+
+    res = client.put(
+        '/processes/templates/pre_validated_method/forms/submission_pre_validated_v1',
+        json={'fields': []},
+    )
+    assert res.status_code == HTTPStatus.FORBIDDEN
+
+
+@pytest.mark.asyncio
+async def test_profile_named_administrador_without_system_key_cannot_update(
+    client, session
+):
+    """Issue #39: o nome de exibição do perfil é texto livre — só
+
+    `system_key == 'administrator'` prova que o perfil é o Administrador
+    oficial.
+    """
+    await bootstrap_all_templates(session)
+    user = await _user_with_profile(
+        session, system_key=None, name='Administrador'
+    )
+    authenticate(client, user)
+
+    res = client.put(
+        '/processes/templates/pre_validated_method/forms/submission_pre_validated_v1',
+        json={'fields': []},
+    )
+    assert res.status_code == HTTPStatus.FORBIDDEN
+
+
+@pytest.mark.asyncio
+async def test_form_templates_manage_permission_can_update(client, session):
+    """Issue #39 (pós-clarify): a permissão discreta `form_templates.manage`
+
+    é o caminho legítimo para o BraCVAM editar formulários — precisa
+    autorizar mesmo sem `system_key == 'administrator'`.
+    """
+    await bootstrap_all_templates(session)
+    user = await _user_with_profile(
+        session,
+        name='Equipe BraCVAM (teste)',
+        permission_code='form_templates.manage',
+    )
+    authenticate(client, user)
+
+    res = client.put(
+        '/processes/templates/pre_validated_method/forms/submission_pre_validated_v1',
+        json={
+            'name': 'Formulário Editado pelo BraCVAM',
+            'fields': [
+                {
+                    'field_key': 'method_title',
+                    'label': 'Título do Método',
+                    'field_type': 'text',
+                    'is_required': True,
+                }
+            ],
+        },
+    )
+    assert res.status_code == HTTPStatus.OK
+    assert res.json()['name'] == 'Formulário Editado pelo BraCVAM'
