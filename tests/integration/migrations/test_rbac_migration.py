@@ -57,8 +57,12 @@ async def test_rbac_migration_seeds_catalog_and_downgrades(
     }
     # Antes da Spec 014: (11, 11, 0). A migração 014 acrescenta a permissão
     # `triage.review` e 4 composições; 3 delas no perfil bracvam (não-admin).
+    # A Issue #39 acrescenta a permissão `form_templates.manage` sem nenhuma
+    # composição nova (Administrador/BraCVAM já a cobrem dinamicamente via
+    # `effective_permission_codes`, Spec 023 — ver a migração
+    # `fa506675d3f9_form_templates_manage_permission.py`).
     assert (permission_count, composition_count, non_admin_compositions) == (
-        12,
+        13,
         15,
         3,
     )

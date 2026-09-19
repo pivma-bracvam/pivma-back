@@ -93,8 +93,13 @@ async def test_administrator_profile_permission_listing_includes_uncomposed(
 async def test_bracvam_user_can_manage_process_templates(
     session, bracvam_user
 ):
-    """`rbac.read` precisa existir para "toda permissão" incluí-la."""
-    await _new_permission(session, 'rbac.read')
+    """`form_templates.manage` (Issue #39) precisa existir para "toda
+
+    permissão" incluí-la — BraCVAM cobre dinamicamente (Spec 023), sem
+    composição explícita. `rbac.read` não é mais o critério (era a brecha
+    de segurança fechada pela Issue #39).
+    """
+    await _new_permission(session, 'form_templates.manage')
 
     assert await can_manage_process_templates(session, bracvam_user.id) is True
 
