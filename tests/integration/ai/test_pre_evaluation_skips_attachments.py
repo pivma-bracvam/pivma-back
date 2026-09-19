@@ -120,7 +120,7 @@ async def test_attachment_only_assignment_is_recorded_not_evaluated(
             ActivityInstance.key == 'triage_evaluation',
         )
     )
-    assert triage.status == 'READY'
+    assert triage.status == 'IN_PROGRESS'
 
 
 @pytest.mark.asyncio

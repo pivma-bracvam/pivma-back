@@ -10,7 +10,9 @@ from pivma.core.database.models import (
     ActivityInstance,
     ActivityRun,
     Artifact,
+    AuditEvent,
     FormInstance,
+    Task,
 )
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
@@ -131,6 +133,60 @@ async def test_triage_decision_needs_revision_and_resubmission(
     # Process returns to TRIAGE
     p_resp = client.get(f'/processes/{process_id}')
     assert p_resp.json()['status'] == 'TRIAGE'
+
+    # 4b. Rodada 2 da triagem tem sua própria run/task (Issue #22: antes, a
+    # rodada 1 (já concluída) era reaproveitada e nenhuma pendência nova
+    # aparecia para o triador).
+    triage_activity = await session.scalar(
+        select(ActivityInstance).where(
+            ActivityInstance.process_instance_id == process_id,
+            ActivityInstance.key == 'triage_evaluation',
+        )
+    )
+    triage_runs = (
+        await session.scalars(
+            select(ActivityRun)
+            .where(ActivityRun.activity_instance_id == triage_activity.id)
+            .order_by(ActivityRun.run_number)
+        )
+    ).all()
+    assert [r.run_number for r in triage_runs] == [1, 2]
+    first_triage_run, second_triage_run = triage_runs
+    assert first_triage_run.status == 'COMPLETED'
+    assert second_triage_run.status == 'IN_PROGRESS'
+    assert second_triage_run.started_at != first_triage_run.started_at
+
+    first_triage_task = await session.scalar(
+        select(Task).where(Task.activity_run_id == first_triage_run.id)
+    )
+    second_triage_task = await session.scalar(
+        select(Task).where(Task.activity_run_id == second_triage_run.id)
+    )
+    assert first_triage_task.status == 'COMPLETED'
+    assert second_triage_task.id != first_triage_task.id
+    assert second_triage_task.status == 'READY'
+    assert second_triage_task.title == first_triage_task.title
+
+    # 4c. Evento de auditoria do desbloqueio (Issue #22, US3) — antes,
+    # `_unblock_triage_activity` não emitia nenhum evento.
+    unblock_event = await session.scalar(
+        select(AuditEvent).where(
+            AuditEvent.process_instance_id == process_id,
+            AuditEvent.event_type == 'ACTIVITY_UNBLOCKED',
+            AuditEvent.activity_run_id == second_triage_run.id,
+        )
+    )
+    assert unblock_event is not None
+    assert unblock_event.context_data['activity_key'] == 'triage_evaluation'
+
+    # 4d. Triador vê a pendência da nova rodada (Issue #22, US1) — antes,
+    # esta chamada não retornava a tarefa da rodada 2.
+    authenticate(client, triador)
+    tasks_resp = client.get(f'/tasks?process_id={process_id}&status=READY')
+    assert tasks_resp.status_code == HTTPStatus.OK
+    assert any(
+        t['id'] == str(second_triage_task.id) for t in tasks_resp.json()
+    )
 
     # 5. Triador approves
     authenticate(client, triador)
