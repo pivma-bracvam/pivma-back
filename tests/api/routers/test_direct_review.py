@@ -9,7 +9,13 @@ from sqlalchemy import select
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.core import pre_evaluation_service as svc
-from pivma.core.database.models import Artifact, ProcessInstance
+from pivma.core.database.models import (
+    ActivityInstance,
+    ActivityRun,
+    Artifact,
+    AuditEvent,
+    ProcessInstance,
+)
 from tests.ai_eval_helpers import (
     COMPLIANT_STATEMENT,
     NON_COMPLIANT_STATEMENT,
@@ -60,6 +66,30 @@ async def test_direct_review_after_negative_moves_to_triage(
         select(ProcessInstance).where(ProcessInstance.id == process_id)
     )
     assert process.status == 'TRIAGE'
+
+    # Issue #22 (US3): revisão direta também passa a destravar a triagem
+    # pelo motor genérico, registrando o mesmo evento de auditoria já usado
+    # para qualquer outra atividade dependente.
+    triage_act = await session.scalar(
+        select(ActivityInstance).where(
+            ActivityInstance.process_instance_id == process_id,
+            ActivityInstance.key == 'triage_evaluation',
+        )
+    )
+    triage_run = await session.scalar(
+        select(ActivityRun).where(
+            ActivityRun.activity_instance_id == triage_act.id
+        )
+    )
+    unblock_event = await session.scalar(
+        select(AuditEvent).where(
+            AuditEvent.process_instance_id == process_id,
+            AuditEvent.event_type == 'ACTIVITY_UNBLOCKED',
+            AuditEvent.activity_run_id == triage_run.id,
+        )
+    )
+    assert unblock_event is not None
+    assert unblock_event.context_data['activity_key'] == 'triage_evaluation'
 
     report = await session.scalar(
         select(Artifact).where(

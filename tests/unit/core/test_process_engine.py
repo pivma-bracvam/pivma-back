@@ -6,13 +6,16 @@ from sqlalchemy import select
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.core.database.models import (
     ActivityInstance,
+    ActivityRun,
     FormValue,
     ProcessInstance,
     ProcessTemplate,
     ProcessTemplateVersion,
+    Task,
 )
 from pivma.core.process_engine import (
     ValidationError,
+    _complete_activity_run,  # noqa: PLC2701
     execute_triage_decision,
     get_current_form_instance,
     instantiate_process,
@@ -99,7 +102,7 @@ async def test_full_process_engine_flow_approved(session):
             )
         )
     ).scalar_one()
-    assert triage_act.status == 'READY'
+    assert triage_act.status == 'IN_PROGRESS'
 
     # 6. Review fields
     reviews = [
@@ -237,3 +240,57 @@ async def test_process_engine_flow_rejected(session):
     ).scalar_one()
     assert p_refreshed.status == 'CLOSED'
     assert p_refreshed.closed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_complete_activity_run_marks_run_activity_and_tasks_completed(
+    session,
+):
+    """Teste unitário isolado do helper `_complete_activity_run` (Issue #22,
+
+    FR-009) — chama o helper diretamente, sem passar por
+    `submit_proposal_form`/`execute_triage_decision` (cobertos em outros
+    testes), só para provar o efeito do helper em si.
+    """
+    await bootstrap_all_templates(session)
+    user = UserFactory()
+    session.add(user)
+    await session.commit()
+
+    pt_stmt = (
+        select(ProcessTemplateVersion)
+        .join(ProcessTemplate)
+        .where(ProcessTemplate.key == 'pre_validated_method')
+    )
+    ptv = (await session.execute(pt_stmt)).scalar_one()
+    process = await instantiate_process(
+        session, ptv, 'Helper de conclusão isolado', user.id
+    )
+
+    act = await session.scalar(
+        select(ActivityInstance).where(
+            ActivityInstance.process_instance_id == process.id,
+            ActivityInstance.key == 'proposal_submission',
+        )
+    )
+    run = await session.scalar(
+        select(ActivityRun).where(ActivityRun.activity_instance_id == act.id)
+    )
+    tasks = (
+        await session.scalars(
+            select(Task).where(Task.activity_run_id == run.id)
+        )
+    ).all()
+    assert run.status == 'IN_PROGRESS'
+    assert act.status == 'IN_PROGRESS'
+    assert tasks
+    assert all(t.status == 'READY' for t in tasks)
+
+    await _complete_activity_run(session, run, act, user.id)
+
+    assert run.status == 'COMPLETED'
+    assert run.completed_at is not None
+    assert act.status == 'COMPLETED'
+    for task in tasks:
+        assert task.status == 'COMPLETED'
+        assert task.completed_at is not None

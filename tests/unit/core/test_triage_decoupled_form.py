@@ -64,7 +64,7 @@ async def test_triage_activity_has_no_form_instance(session):
     triage_act, triage_run = await get_current_activity_run(
         session, process.id, 'triage_evaluation'
     )
-    assert triage_act.status == 'READY'
+    assert triage_act.status == 'IN_PROGRESS'
     assert triage_run.status == 'IN_PROGRESS'
 
     # 2. Verificar que NÃO existe FormInstance vinculada à execução de triagem

@@ -80,6 +80,10 @@ async def test_process_timeline_events_recorded_and_ordered(
         'PROCESS_CREATED',
         'FORM_DRAFT_SAVED',
         'SUBMISSION_SUBMITTED',
+        # Issue #22 (US3): desbloqueio da triagem pelo motor genérico
+        # passa a registrar evento, como qualquer outra atividade
+        # dependente — antes, `_unblock_triage_activity` não emitia nada.
+        'ACTIVITY_UNBLOCKED',
         'FIELD_REVIEWED',
         'TRIAGE_APPROVED',
     ]

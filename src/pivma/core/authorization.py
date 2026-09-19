@@ -29,6 +29,7 @@ PROCESS_PARTICIPANTS_MANAGE = 'process.participants.manage'
 AI_EVALUATIONS_READ = 'ai_evaluations.read'
 AI_EVALUATIONS_MANAGE = 'ai_evaluations.manage'
 TRIAGE_REVIEW = 'triage.review'
+FORM_TEMPLATES_MANAGE = 'form_templates.manage'
 ADMINISTRATIVE_PERMISSIONS = frozenset({
     RBAC_READ,
     RBAC_PROFILES_MANAGE,
@@ -635,10 +636,13 @@ async def can_manage_process_templates(
     """Verifica se o usuário possui autorização para gerenciar
 
     e editar templates de processos e formulários.
+
+    Administrador (`system_key`) sempre pode; do contrário, exige a
+    permissão discreta `FORM_TEMPLATES_MANAGE` (Issue #39) — nunca
+    `rbac.read` (permissão de leitura do RBAC) nem o nome de exibição do
+    perfil, os dois critérios indevidos que esta função aceitava antes.
     """
     profiles = await active_profiles_for_user(session, user_id)
     if any(p.system_key == ADMINISTRATOR_SYSTEM_KEY for p in profiles):
         return True
-    if await has_permission(session, user_id, RBAC_READ):
-        return True
-    return any(p.name == 'Administrador' for p in profiles)
+    return await has_permission(session, user_id, FORM_TEMPLATES_MANAGE)

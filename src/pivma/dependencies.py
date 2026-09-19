@@ -108,15 +108,11 @@ async def require_admin(
 ) -> User:
     from pivma.core.authorization import (  # noqa: PLC0415
         ADMINISTRATOR_SYSTEM_KEY,
-        RBAC_READ,
         active_profiles_for_user,
-        has_permission,
     )
 
     profiles = await active_profiles_for_user(session, user.id)
     if any(p.system_key == ADMINISTRATOR_SYSTEM_KEY for p in profiles):
-        return user
-    if await has_permission(session, user.id, RBAC_READ):
         return user
     raise HTTPException(
         status_code=HTTPStatus.FORBIDDEN,

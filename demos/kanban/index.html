@@ -188,12 +188,14 @@
       // do kanban é por título — e o motor de processos gera esse título de
       // formas diferentes conforme o caminho de ativação: o nome da
       // atividade (`_activate_activity`), "Preencher {nome}" (primeira
-      // atividade, `_init_first_activity`) ou um dos três títulos fixos dos
-      // caminhos legados anteriores à Spec 017
-      // (`_unblock_triage_activity`/`_open_new_submission_run`), que não
-      // usam o nome da atividade. Lista exaustiva desses títulos fixos —
-      // conferida em `process_engine.py` — para não deixar de exibir o
-      // prazo justamente no card mais comum (`triage_evaluation`).
+      // atividade, `_init_first_activity`) ou um título fixo passado
+      // explicitamente a `_activate_activity` para preservar o texto de um
+      // caminho pré-existente (`triage_evaluation`, via
+      // `TRIAGE_TASK_TITLE`/`_advance_dependent_activities`, Issue #22) ou
+      // gerado por `_open_new_submission_run` (`proposal_submission`, ainda
+      // por chave fixa). Lista exaustiva desses títulos fixos — conferida em
+      // `process_engine.py` — para não deixar de exibir o prazo justamente
+      // no card mais comum (`triage_evaluation`).
       const LEGACY_TASK_TITLES = {
         triage_evaluation: ['Realizar Triagem da Proposta'],
         proposal_submission: [

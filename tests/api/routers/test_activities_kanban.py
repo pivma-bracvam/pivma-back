@@ -142,3 +142,78 @@ async def test_kanban_column_filter(client, session):
     body = resp.json()
     assert body['items']
     assert all(item['column'] == 'NAO_INICIADO' for item in body['items'])
+
+
+@pytest.mark.asyncio
+async def test_kanban_triage_run_started_at_resets_after_diligencia(
+    client, session, bracvam_user
+):
+    """Issue #22: antes, a rodada 2 da triagem reaproveitava `run_started_at`
+
+    da rodada 1 (já concluída), travando o cálculo de SLA/atraso no início do
+    processo em vez do início da rodada corrente.
+    """
+    await bootstrap_all_templates(session)
+    proponent = UserFactory()
+    triador = bracvam_user
+    session.add(proponent)
+    await session.commit()
+
+    authenticate(client, proponent)
+    resp = client.post(
+        '/processes',
+        json={
+            'template_key': 'pre_validated_method',
+            'title': 'Kanban - reinício de SLA da triagem',
+        },
+    )
+    process_id = resp.json()['id']
+    submission_values = {
+        'method_title': 'Título V1',
+        'endpoint_target': 'corrosivity',
+        'scientific_justification': 'Justificativa inicial.',
+        'pre_validation_evidence': 'Evidências prévias de repetibilidade.',
+        'study_protocol_file': 'protocolo_v1.pdf',
+    }
+    client.post(
+        f'/processes/{process_id}/activities/proposal_submission/form',
+        json={'values': submission_values},
+    )
+
+    kanban_round_1 = client.get(
+        '/activities/kanban', params={'process_id': process_id}
+    )
+    triage_card_1 = next(
+        item
+        for item in kanban_round_1.json()['items']
+        if item['activity_key'] == 'triage_evaluation'
+    )
+    run_started_at_round_1 = triage_card_1['run_started_at']
+    assert run_started_at_round_1 is not None
+
+    authenticate(client, triador)
+    client.post(
+        f'/processes/{process_id}/triage/decision',
+        json={
+            'outcome': 'NEEDS_REVISION',
+            'justification': 'Ajustar evidências.',
+        },
+        headers={'Origin': 'https://testserver'},
+    )
+
+    authenticate(client, proponent)
+    client.post(
+        f'/processes/{process_id}/activities/proposal_submission/form',
+        json={'values': {**submission_values, 'method_title': 'Título V2'}},
+    )
+
+    kanban_round_2 = client.get(
+        '/activities/kanban', params={'process_id': process_id}
+    )
+    triage_card_2 = next(
+        item
+        for item in kanban_round_2.json()['items']
+        if item['activity_key'] == 'triage_evaluation'
+    )
+    assert triage_card_2['run_started_at'] != run_started_at_round_1
+    assert triage_card_2['column'] == 'EM_ANDAMENTO'

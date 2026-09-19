@@ -10,7 +10,9 @@ from sqlalchemy import select
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.core import pre_evaluation_service as svc
 from pivma.core.database.models import (
+    ActivityRun,
     Artifact,
+    AuditEvent,
     EvaluationRun,
     EvaluationRunItem,
     ProcessInstance,
@@ -111,7 +113,25 @@ async def test_execute_positive_result_unblocks_triage(
             ActivityInstance.key == 'triage_evaluation',
         )
     )
-    assert triage.status == 'READY'
+    assert triage.status == 'IN_PROGRESS'
+
+    # Issue #22 (US3): desbloqueio pelo motor genérico passa a registrar
+    # evento de auditoria, consistente com qualquer outra atividade
+    # dependente — antes, este caminho não emitia nada.
+    triage_run = await session.scalar(
+        select(ActivityRun).where(
+            ActivityRun.activity_instance_id == triage.id
+        )
+    )
+    unblock_event = await session.scalar(
+        select(AuditEvent).where(
+            AuditEvent.process_instance_id == run.process_instance_id,
+            AuditEvent.event_type == 'ACTIVITY_UNBLOCKED',
+            AuditEvent.activity_run_id == triage_run.id,
+        )
+    )
+    assert unblock_event is not None
+    assert unblock_event.context_data['activity_key'] == 'triage_evaluation'
 
 
 @pytest.mark.asyncio

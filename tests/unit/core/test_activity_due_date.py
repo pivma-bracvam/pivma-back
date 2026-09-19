@@ -1,12 +1,12 @@
 """Spec 024 - Task.due_date derivado do SLA declarado da atividade.
 
-Cobre FR-001/FR-002/FR-003 no motor de processos, nos quatro pontos que
-criam uma `Task` hoje: `_init_first_activity` (primeira atividade),
-`_unblock_triage_activity` e `_open_new_submission_run` (caminhos legados,
-anteriores à Spec 017, que resolvem `proposal_submission`/`triage_evaluation`
-pela chave em vez do motor genérico de dependências) e `_activate_activity`
-(motor genérico, hoje só acionado após aprovação de triagem). Usa o método
-oficial `validated_method_dossier` (Spec 011/017), que já declara
+Cobre FR-001/FR-002/FR-003 no motor de processos, nos pontos que criam uma
+`Task` hoje: `_init_first_activity` (primeira atividade),
+`_open_new_submission_run` (caminho legado, anterior à Spec 017, que resolve
+`proposal_submission` pela chave em vez do motor genérico de dependências) e
+`_activate_activity` (motor genérico — desde a Issue #22, também usado para
+`triage_evaluation`, que antes tinha um caminho bespoke próprio). Usa o
+método oficial `validated_method_dossier` (Spec 011/017), que já declara
 `sla_hours` em `proposal_submission` (168h) e `triage_evaluation` (72h) e tem
 uma Fase 2 de exemplo (`planning_preview`) sem `sla_hours`.
 """
@@ -96,14 +96,13 @@ async def test_first_activity_due_date_uses_run_start_plus_sla(session):
 
 
 @pytest.mark.asyncio
-async def test_triage_evaluation_gets_own_due_date_via_legacy_unblock(
+async def test_triage_evaluation_gets_own_due_date(
     session,
 ):
-    """`triage_evaluation` é desbloqueada por `_unblock_triage_activity`
+    """`triage_evaluation` é desbloqueada por `_activate_activity` (motor
 
-    (caminho legado hardcoded, anterior ao motor genérico de dependências da
-    Spec 017) — não por `_activate_activity`. `due_date` precisa valer nos
-    dois caminhos.
+    genérico de dependências) desde a Issue #22 — `due_date` precisa valer
+    aqui como em qualquer outra atividade dependente.
     """
     await bootstrap_all_templates(session)
     process, user, _triador = await _instantiate(
