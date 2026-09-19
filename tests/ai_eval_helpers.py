@@ -22,7 +22,11 @@ NON_COMPLIANT_STATEMENT = 'Deve conter cronograma financeiro aprovado'
 
 
 def publish_evaluation_and_assign(
-    client, *, severity: str, statement: str = COMPLIANT_STATEMENT
+    client,
+    *,
+    severity: str,
+    statement: str = COMPLIANT_STATEMENT,
+    target_type: str = 'field',
 ) -> str:
     """Cria/publica uma avaliação e a associa ao campo de IA do template."""
     created = client.post(
@@ -59,7 +63,7 @@ def publish_evaluation_and_assign(
             'assignments': [
                 {
                     'definition_id': definition_id,
-                    'target_type': 'field',
+                    'target_type': target_type,
                     'field_keys': [AI_FIELD],
                 }
             ]

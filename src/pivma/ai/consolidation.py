@@ -1,14 +1,15 @@
-"""Regra fixa e embutida de consolidação da pré-avaliação (Spec 013).
+"""Regra fixa e embutida de consolidação da pré-avaliação (Spec 026).
 
 Converte os resultados por critério num resultado da pré-avaliação:
 
-- **negative** se existe pelo menos uma não conformidade de severidade
-  ``high`` ou ``critical``;
-- **positive** caso contrário.
+- **positive** somente se **todos** os critérios concluírem como
+  ``compliant``;
+- **negative** se existir ao menos um critério ``non_compliant``,
+  ``partial`` ou ``indeterminate`` — independentemente da severidade.
 
-Não conformidades de menor severidade, resultados parciais e indeterminados
-não barram o proponente — viram *alertas* exibidos na triagem. Um critério
-apenas ``indeterminate`` nunca torna o resultado negativo.
+Substitui a regra anterior da Spec 013 (que só bloqueava com não
+conformidade de severidade ``high``/``critical``). Severidade permanece
+registrada nos itens, mas deixa de ser insumo desta decisão.
 """
 
 from collections.abc import Sequence
@@ -21,7 +22,6 @@ SEVERITY_ORDER = {
     'high': 3,
     'critical': 4,
 }
-BLOCKING_SEVERITIES = frozenset({'high', 'critical'})
 
 POSITIVE = 'positive'
 NEGATIVE = 'negative'
@@ -43,10 +43,7 @@ class Consolidation:
 
 
 def _is_blocking(item: EvaluatedCriterion) -> bool:
-    return (
-        item.conclusion == 'non_compliant'
-        and item.severity in BLOCKING_SEVERITIES
-    )
+    return item.conclusion != 'compliant'
 
 
 def consolidate(items: Sequence[EvaluatedCriterion]) -> Consolidation:
@@ -57,15 +54,15 @@ def consolidate(items: Sequence[EvaluatedCriterion]) -> Consolidation:
         'partial': 0,
         'indeterminate': 0,
     }
-    alerts: list[bool] = []
     has_blocking = False
 
     for item in items:
         if item.conclusion in summary:
             summary[item.conclusion] += 1
-        blocking = _is_blocking(item)
-        has_blocking = has_blocking or blocking
-        alerts.append(item.conclusion != 'compliant' and not blocking)
+        has_blocking = has_blocking or _is_blocking(item)
 
+    # Toda não conformidade bloqueia agora, então nada é "alerta apenas";
+    # o campo é mantido por compatibilidade de schema/API (ver research.md).
+    alerts = [False] * len(items)
     result = NEGATIVE if has_blocking else POSITIVE
     return Consolidation(result=result, alerts=alerts, summary=summary)

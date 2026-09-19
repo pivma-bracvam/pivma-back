@@ -20,11 +20,13 @@ from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
 
-async def _completed_run(client, session, ai_eval_admin, *, statement):
+async def _completed_run(
+    client, session, ai_eval_admin, *, statement, severity='critical'
+):
     await bootstrap_all_templates(session)
     authenticate(client, ai_eval_admin)
     publish_evaluation_and_assign(
-        client, severity='critical', statement=statement
+        client, severity=severity, statement=statement
     )
     proponent = UserFactory()
     session.add(proponent)
@@ -69,6 +71,39 @@ async def test_direct_review_after_negative_moves_to_triage(
 
     view = client.get(f'/processes/{process_id}/pre-evaluation').json()
     assert view['direct_review_request'] is not None
+
+
+@pytest.mark.asyncio
+async def test_direct_review_after_low_severity_negative_moves_to_triage(
+    client, ai_eval_admin, session, fake_provider
+):
+    """Spec 026: intervenção direta sobrevive a uma nova causa de negativo."""
+    del fake_provider
+    proponent, process_id, _ = await _completed_run(
+        client,
+        session,
+        ai_eval_admin,
+        statement=NON_COMPLIANT_STATEMENT,
+        severity='low',
+    )
+
+    authenticate(client, proponent)
+    resp = client.post(
+        f'/processes/{process_id}/submission/direct-review',
+        json={'justification': 'Discordo mesmo em severidade baixa.'},
+        headers={'Origin': 'https://testserver'},
+    )
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json()['process_status'] == 'TRIAGE'
+
+    report = await session.scalar(
+        select(Artifact).where(
+            Artifact.process_instance_id == process_id,
+            Artifact.key == 'ai_pre_evaluation_report',
+        )
+    )
+    assert report is not None
+    assert report.metadata_payload['consolidated_result'] == 'negative'
 
 
 @pytest.mark.asyncio

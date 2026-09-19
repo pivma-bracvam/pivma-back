@@ -22,14 +22,17 @@ from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
 
-async def _scenario(client, session, ai_eval_admin, *, severity):
+async def _scenario(
+    client, session, ai_eval_admin, *, severity, statement=None
+):
     await bootstrap_all_templates(session)
     authenticate(client, ai_eval_admin)
-    statement = (
-        NON_COMPLIANT_STATEMENT
-        if severity in {'critical', 'high'}
-        else COMPLIANT_STATEMENT
-    )
+    if statement is None:
+        statement = (
+            NON_COMPLIANT_STATEMENT
+            if severity in {'critical', 'high'}
+            else COMPLIANT_STATEMENT
+        )
     publish_evaluation_and_assign(
         client, severity=severity, statement=statement
     )
@@ -89,6 +92,35 @@ async def test_completed_positive_advances_to_triage(
         select(ProcessInstance).where(ProcessInstance.id == process_id)
     )
     assert process.status == 'TRIAGE'
+
+
+@pytest.mark.asyncio
+async def test_attention_points_include_low_severity_blocking_reason(
+    client, ai_eval_admin, session, fake_provider
+):
+    """Spec 026, FR-008: motivo do bloqueio aparece mesmo em severidade
+    baixa.
+    """
+    del fake_provider
+    proponent, process_id, run_id = await _scenario(
+        client,
+        session,
+        ai_eval_admin,
+        severity='low',
+        statement=NON_COMPLIANT_STATEMENT,
+    )
+
+    await svc._execute(session, run_id)
+
+    authenticate(client, proponent)
+    done = client.get(f'/processes/{process_id}/pre-evaluation').json()
+    assert done['consolidated_result'] == 'negative'
+    assert len(done['attention_points']) == 1
+
+    point = done['attention_points'][0]
+    assert point['severity'] == 'low'
+    assert point['conclusion'] == 'non_compliant'
+    assert point['justification']
 
 
 @pytest.mark.asyncio

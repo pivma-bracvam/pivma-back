@@ -1,5 +1,8 @@
 # ruff: noqa: PLR2004
-"""Pipeline — alvo documento/OCR/imagem sempre indeterminado (Spec 013)."""
+"""Pipeline — alvo documento/OCR/imagem sempre indeterminado (Spec 013).
+
+Spec 026: indeterminado agora bloqueia o avanço à triagem (FR-003).
+"""
 
 import pytest
 
@@ -35,7 +38,7 @@ async def test_document_target_is_indeterminate_without_model_call():
 
     assert outcome.items[0].conclusion == 'indeterminate'
     assert outcome.items[0].model_layer == 'none'
-    assert outcome.consolidated_result == 'positive'
+    assert outcome.consolidated_result == 'negative'
 
 
 @pytest.mark.asyncio

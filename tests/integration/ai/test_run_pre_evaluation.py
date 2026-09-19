@@ -13,6 +13,7 @@ from pivma.core.database.models import (
     Artifact,
     EvaluationRun,
     EvaluationRunItem,
+    ProcessInstance,
 )
 from tests.ai_eval_helpers import (
     COMPLIANT_STATEMENT,
@@ -24,14 +25,17 @@ from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
 
-async def _submitted_run(client, session, ai_eval_admin, *, severity):
+async def _submitted_run(
+    client, session, ai_eval_admin, *, severity, statement=None
+):
     await bootstrap_all_templates(session)
     authenticate(client, ai_eval_admin)
-    statement = (
-        NON_COMPLIANT_STATEMENT
-        if severity in {'critical', 'high'}
-        else COMPLIANT_STATEMENT
-    )
+    if statement is None:
+        statement = (
+            NON_COMPLIANT_STATEMENT
+            if severity in {'critical', 'high'}
+            else COMPLIANT_STATEMENT
+        )
     publish_evaluation_and_assign(
         client, severity=severity, statement=statement
     )
@@ -108,6 +112,65 @@ async def test_execute_positive_result_unblocks_triage(
         )
     )
     assert triage.status == 'READY'
+
+
+@pytest.mark.asyncio
+async def test_low_severity_non_compliant_now_routes_negative(
+    client, ai_eval_admin, session, fake_provider
+):
+    """Spec 026, FR-001: severidade deixa de decidir o roteamento."""
+    del fake_provider
+    run_id = await _submitted_run(
+        client,
+        session,
+        ai_eval_admin,
+        severity='low',
+        statement=NON_COMPLIANT_STATEMENT,
+    )
+
+    await svc._execute(session, run_id)
+
+    run = await session.get(EvaluationRun, run_id)
+    assert run.consolidated_result == 'negative'
+
+    process = await session.get(ProcessInstance, run.process_instance_id)
+    assert process.status == 'SUBMISSION'
+
+
+@pytest.mark.asyncio
+async def test_document_target_indeterminate_routes_negative(
+    client, ai_eval_admin, session, fake_provider
+):
+    """Spec 026, FR-003: indeterminado bloqueia como não conforme/parcial."""
+    del fake_provider
+    await bootstrap_all_templates(session)
+    authenticate(client, ai_eval_admin)
+    publish_evaluation_and_assign(
+        client,
+        severity='low',
+        statement=COMPLIANT_STATEMENT,
+        target_type='document',
+    )
+    proponent = UserFactory()
+    session.add(proponent)
+    await session.commit()
+    authenticate(client, proponent)
+    result = create_and_submit_process(client)
+    assert result['status_code'] == HTTPStatus.OK
+    run_id = UUID(result['body']['pre_evaluation']['run_id'])
+
+    await svc._execute(session, run_id)
+
+    run = await session.get(EvaluationRun, run_id)
+    assert run.consolidated_result == 'negative'
+
+    items = list(
+        await session.scalars(
+            select(EvaluationRunItem).where(EvaluationRunItem.run_id == run_id)
+        )
+    )
+    assert len(items) == 1
+    assert items[0].conclusion == 'indeterminate'
 
 
 @pytest.mark.asyncio

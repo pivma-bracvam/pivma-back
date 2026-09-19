@@ -255,7 +255,11 @@ Como Avaliador técnico ou Administrador, quero **dois módulos** de demonstraç
 #### Roteamento e decisão
 
 - **FR-030**: O sistema MUST consolidar os resultados de critério em um **resultado da pré-avaliação** por regra fixa e embutida: **negativo** quando houver **pelo menos uma não conformidade de severidade alta ou crítica**; **positivo** caso contrário. Não conformidades de severidade baixa/média, resultados parciais e indeterminados NÃO tornam o resultado negativo — são registrados como **alertas** exibidos na triagem. Não há editor de regras nesta versão.
-- **FR-030a** (roteamento fixo, canônico): resultado **positivo** encaminha a submissão para a triagem do BraCVAM; resultado **negativo** retorna a submissão ao proponente com o relatório. FR-021c fixa o timing (ao final do processamento em background); FR-034–038 detalham as opções do proponente no retorno negativo.
+  **Superseded pela Spec 026**: a regra de consolidação baseada em severidade foi
+  substituída por "positivo somente se todos os critérios forem conformes"
+  (qualquer não conforme, parcial ou indeterminado bloqueia, independentemente da
+  severidade). Ver `specs/026-all-fields-compliant-routing/spec.md`.
+- **FR-030a** (roteamento fixo, canônico): resultado **positivo** encaminha a submissão para a triagem do BraCVAM; resultado **negativo** retorna a submissão ao proponente com o relatório. FR-021c fixa o timing (ao final do processamento em background); FR-034–038 detalham as opções do proponente no retorno negativo. O mecanismo de roteamento em si permanece inalterado pela Spec 026 — apenas a condição de FR-030 mudou.
 - **FR-031**: O sistema MUST NOT permitir que a IA registre por si uma aprovação, rejeição, diligência ou qualquer consequência regulatória; a IA apenas produz os resultados de critério que alimentam a regra de consolidação.
 - **FR-032**: O sistema MUST atribuir toda decisão de triagem a um **usuário humano** e registrá-la como final, com a transição de processo conforme a Spec 004.
 - **FR-033**: O sistema MUST manter o ramo "resultado positivo → triagem" implementado e testável desde esta versão, exercitado sempre que nenhuma não conformidade alta/crítica for encontrada.
