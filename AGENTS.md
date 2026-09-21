@@ -52,11 +52,34 @@ cirúrgicas, sem abstrações preventivas, refatorações não relacionadas ou
 mudanças fora do escopo. Execute os testes e verificações proporcionais à
 alteração e informe somente resultados que foram realmente executados.
 
+## Testes
+
+- Use `$fastapi-testing-methodology` como regra obrigatória ao planejar,
+  especificar, gerar, implementar, revisar ou refatorar testes. Leia o
+  `SKILL.md` e consulte suas referências aplicáveis. Ao definir cobertura e
+  tarefas de teste, use especialmente a matriz de risco e os critérios de
+  parada da metodologia.
+- Em features e mudanças de comportamento, inclua no `tasks.md` tarefas de
+  teste para os critérios de aceitação e riscos aplicáveis, salvo quando o
+  usuário dispensar testes explicitamente. No fluxo Spec Kit, aplique
+  `$fastapi-testing-methodology` durante `$speckit-tasks`; a geração de testes
+  não depende de um pedido separado de TDD.
+- Granularize cada tarefa de teste por um comportamento observável ou critério
+  da matriz de risco. Separe sucesso, cada erro/status, limite de autorização,
+  isolamento de dados, auditoria, ordenação, paginação e concorrência quando
+  forem aplicáveis. Não agrupe resultados distintos em uma única tarefa.
+- Organize as tarefas de teste pela história de usuário correspondente e
+  coloque-as antes das tarefas de implementação daquela história. Cada tarefa
+  deve indicar um resultado verificável e o caminho do arquivo de teste.
+
 ## Skills obrigatórias
 
-- Use `andrej-karpathy-skills:karpathy-guidelines` em trabalho de código,
-  revisão ou refatoração. Explicite suposições relevantes, prefira a solução
-  mais simples e mantenha cada mudança ligada ao pedido.
+- Use `$andrej-karpathy-skills:karpathy-guidelines` ao gerar, implementar,
+  modificar, revisar ou refatorar código. Durante `$speckit-implement`, aplique
+  a skill a cada tarefa de código: explicite suposições e critérios verificáveis,
+  escolha a solução mais simples que atende ao pedido e mantenha as mudanças
+  cirúrgicas e dentro do escopo. Se uma ambiguidade puder alterar o resultado,
+  peça esclarecimento antes de implementar.
 - Use `stop-slop` somente ao redigir, editar ou revisar texto de documentação,
   como `README.md` e arquivos em `docs/`. Não a aplique ao código.
 
