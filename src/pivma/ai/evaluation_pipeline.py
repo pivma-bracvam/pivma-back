@@ -16,7 +16,6 @@ from pivma.ai.consolidation import EvaluatedCriterion, consolidate
 from pivma.ai.contracts import AIStepExecutionLog, OperationalEventIndex
 from pivma.ai.provider import EvaluationInput, ModelProvider
 from pivma.core.logging import get_ai_logger, get_operational_logger
-from pivma.core.sse_broadcaster import broadcaster
 
 PIPELINE_NAME = 'form_ai_pre_evaluation'
 OPERATION_TYPE = 'FORM_AI_PRE_EVALUATION'
@@ -127,7 +126,6 @@ async def run_evaluation_pipeline(
             output_payload={'conclusion': verdict.conclusion},
         )
         ai_logger.info('ai_step_executed', **step_log.model_dump(mode='json'))
-        broadcaster.broadcast_ai_step(step_log.model_dump(mode='json'))
 
     consolidation = consolidate([
         EvaluatedCriterion(i.conclusion, i.criterion.severity) for i in items
@@ -155,7 +153,6 @@ async def run_evaluation_pipeline(
         },
     )
     app_logger.info('operational_event', **op_event.model_dump(mode='json'))
-    broadcaster.broadcast_operational(op_event.model_dump(mode='json'))
 
     return PipelineOutcome(
         consolidated_result=consolidation.result,

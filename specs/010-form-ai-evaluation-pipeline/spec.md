@@ -6,6 +6,13 @@
 
 **Status**: Draft
 
+**Current implementation note (Issue #40)**: The two administrative SSE routes
+were removed. Administrators use `GET /admin/logs/operational` and
+`GET /admin/logs/ai`. The operational demo supports manual queries and optional
+five-second polling; the AI demo queries history on demand. The SSE transport
+scenarios below describe the original implementation and are superseded by
+this note.
+
 **Input**: User description: "Implementar a arquitetura inicial para avaliação automatizada de campos de formulários via IA. Nesta etapa, o objetivo é construir o fluxo de execução com respostas simuladas (mock), estruturar o pipeline de dados e viabilizar a observabilidade do processo. Essa spec é uma derivação do que já existe na spec 004. O índice operacional de eventos registra em JSONL o que acontece de relevante na plataforma (visão cronológica e consultável com duração total da execução). Os detalhes de IA ficam no log granular de etapas (independente de qual pipeline ou processo, registrando entradas, saídas, resultado, latência individual da etapa, custo simulado e correlation ID com o índice geral). Interface padrão: logging da biblioteca padrão do Python com structlog para serialização JSON. Sem OpenTelemetry nesta fase. Organização de arquivos em logs/ fora de src (logs/application/ para o índice geral e logs/ai/ para pipelines de IA), com retenção de 7 dias. Para validação conforme AGENTS.md: dois módulos de demonstração (um para visualização geral e outro para visualização da IA). Endpoints de observabilidade acessíveis para administradores com output em tempo real; no caso da IA, agrupados pela pipeline que puxou os registros."
 
 ---

@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PIVMA - Índice Operacional da Plataforma (Logs SSE)</title>
+  <title>PIVMA - Índice Operacional da Plataforma</title>
   <link rel="stylesheet" href="/demos/assets/base.css">
   <style>
     .container {
@@ -208,7 +208,7 @@
       opacity: 0.95;
     }
 
-    .stream-status-box {
+    .refresh-status-box {
       display: flex;
       align-items: center;
       gap: 8px;
@@ -341,7 +341,7 @@
       <div>
         <a href="/demos/" class="back-link">&larr; Voltar ao Catálogo de Demonstrações</a>
         <h1 style="margin-top: 4px;">Índice Operacional da Plataforma</h1>
-        <p class="subtitle">Monitoramento cronológico e auditoria técnica de eventos da API em tempo real (SSE)</p>
+        <p class="subtitle">Consulta cronológica e auditoria técnica de eventos da API</p>
       </div>
       <div class="session-bar">
         <span>Sessão:</span>
@@ -357,8 +357,8 @@
       <h3>🔑 Credenciais Sugeridas para Desenvolvimento (Acesso de Administrador)</h3>
       <p>
         Os endpoints administrativos de observabilidade e logs (<code>/admin/logs/*</code>) exigem perfil com a chave
-        <code>administrator</code> ou permissão <code>rbac:read</code>.
-        Utilize a conta padrão abaixo para liberar o stream em tempo real e consultar o histórico completo:
+        <code>administrator</code>.
+        Utilize a conta padrão abaixo para consultar o histórico ou ativar a atualização automática:
       </p>
       <div class="creds-tags">
         <span class="cred-tag">Usuário: <strong>admin</strong></span>
@@ -373,20 +373,20 @@
       </div>
     </div>
 
-    <!-- Card 2: Painel de Controle e Conexão SSE -->
+    <!-- Card 2: Consulta e atualização do histórico -->
     <div class="card">
       <div
         style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
-        <h2>1. Conexão do Stream SSE & Histórico</h2>
-        <div id="stream-status" class="stream-status-box">
-          <span id="stream-status-dot" class="status-dot disconnected"></span>
-          <span id="stream-status-text">Stream Desconectado</span>
+        <h2>1. Consulta do histórico</h2>
+        <div id="refresh-status" class="refresh-status-box">
+          <span id="refresh-status-dot" class="status-dot disconnected"></span>
+          <span id="refresh-status-text">Atualização automática pausada</span>
         </div>
       </div>
 
       <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
-        <button id="btn-toggle-stream" class="btn btn-primary" onclick="toggleStream()">
-          <span>▶ Conectar Stream SSE</span>
+        <button id="btn-toggle-refresh" class="btn btn-primary" onclick="toggleAutoRefresh()">
+          <span>▶ Atualizar a cada 5 segundos</span>
         </button>
         <button class="btn btn-secondary" onclick="loadInitialHistory()">
           <span>🔄 Consultar Histórico (GET /admin/logs/operational)</span>
@@ -447,7 +447,7 @@
           <tbody id="events-table-body">
             <tr>
               <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">
-                Nenhum evento carregado ainda. Conecte ao stream SSE ou clique em "Consultar Histórico".
+                Nenhum evento carregado ainda. Clique em "Consultar Histórico".
               </td>
             </tr>
           </tbody>
