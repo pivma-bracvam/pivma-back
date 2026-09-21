@@ -1,0 +1,38 @@
+openapi: 3.1.0
+info:
+  title: pi*VMA User Deactivation Contract
+  version: 1.0.0
+paths:
+  /users/{user_id}:
+    delete:
+      operationId: deactivateUser
+      tags: [users]
+      summary: Desativar logicamente uma conta de usuário
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Conta desativada; a resposta não possui corpo.
+        '401':
+          description: Sessão ausente, inválida, vencida ou ligada a conta inativa.
+        '403':
+          description: A conta não possui users.manage ou a origem não é confiável.
+        '404':
+          description: O UUID não identifica uma conta ativa.
+        '409':
+          description: A pessoa tentou desativar a própria conta ou a operação removeria a última conta administrativa ativa.
+      security:
+        - AccessTokenCookie: []
+      x-required-permission: users.manage
+      x-trusted-origin-required: true
+components:
+  securitySchemes:
+    AccessTokenCookie:
+      type: apiKey
+      in: cookie
+      name: access_token
