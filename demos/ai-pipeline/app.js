@@ -1,4 +1,3 @@
-let eventSource = null;
 const pipelines = new Map(); // correlation_id -> group data
 
 function inspect(method, url, status, data) {
@@ -98,9 +97,6 @@ async function testForbiddenUser() {
 }
 
 async function logout() {
-  if (eventSource) {
-    disconnectStream();
-  }
   const res = await fetch('/auth/logout', {
     method: 'POST',
     credentials: 'include',
@@ -111,136 +107,29 @@ async function logout() {
   await checkSession();
 }
 
-function updateStreamBadge(state, text) {
-  const dot = document.getElementById('stream-status-dot');
-  const label = document.getElementById('stream-status-text');
-  const btn = document.getElementById('btn-toggle-stream');
-
-  if (dot) dot.className = 'status-dot ' + state;
-  if (label) label.textContent = text;
-
-  if (btn) {
-    if (state === 'connected') {
-      btn.className = 'btn btn-danger';
-      btn.innerHTML = '<span>⏹ Desconectar Stream</span>';
-    } else {
-      btn.className = 'btn btn-primary';
-      btn.innerHTML = '<span>▶ Conectar Stream SSE de IA</span>';
-    }
-  }
-}
-
-function toggleStream() {
-  if (eventSource) {
-    disconnectStream();
-  } else {
-    connectStream();
-  }
-}
-
-function connectStream() {
-  updateStreamBadge('connecting', 'Conectando ao Stream SSE de IA...');
-
-  eventSource = new EventSource('/admin/logs/ai/stream', {
-    withCredentials: true,
-  });
-
-  eventSource.onopen = () => {
-    updateStreamBadge('connected', 'Stream Conectado (Observabilidade de IA Ativa)');
-    inspect('GET', '/admin/logs/ai/stream', 200, {
-      message: 'Conexão SSE de IA aberta com sucesso.',
-    });
-  };
-
-  eventSource.onmessage = (e) => {
-    if (!e.data || e.data.startsWith(':')) return;
-    try {
-      const step = JSON.parse(e.data);
-      handleIncomingStep(step);
-    } catch (err) {
-      console.error('Erro ao interpretar etapa SSE de IA:', err);
-    }
-  };
-
-  eventSource.onerror = (err) => {
-    console.warn('Erro na conexão SSE de IA:', err);
-    updateStreamBadge('error', 'Stream com Erro (Verifique se está logado como Admin)');
-    disconnectStream(true);
-  };
-}
-
-function disconnectStream(isError = false) {
-  if (eventSource) {
-    eventSource.close();
-    eventSource = null;
-  }
-  if (!isError) {
-    updateStreamBadge('disconnected', 'Stream Desconectado');
-  }
-}
-
 async function loadInitialHistory() {
+  const url = '/admin/logs/ai?limit=20';
   try {
-    const res = await fetch('/admin/logs/ai?limit=20', {
+    const res = await fetch(url, {
       credentials: 'include',
     });
     const groups = await res.json().catch(() => null);
-    inspect('GET', '/admin/logs/ai?limit=20', res.status, groups);
+    inspect('GET', url, res.status, groups);
 
     if (res.ok && Array.isArray(groups)) {
+      pipelines.clear();
       groups.forEach((g) => {
         pipelines.set(g.correlation_id, g);
       });
       renderAllPipelines();
     } else if (res.status === 403) {
-      alert(
-        'Acesso negado (403): O usuário conectado não possui perfil de Administrador.'
-      );
+      alert('Acesso negado (403): é necessário o perfil Administrador.');
     } else if (res.status === 401) {
-      alert(
-        'Não autenticado (401): Faça login como Administrador para consultar os logs de IA.'
-      );
+      alert('Não autenticado (401): faça login como Administrador.');
     }
   } catch (err) {
-    console.warn('Erro ao carregar histórico inicial de IA:', err);
+    console.warn('Erro ao carregar histórico de IA:', err);
   }
-}
-
-function handleIncomingStep(step) {
-  const cid = step.correlation_id;
-  if (!pipelines.has(cid)) {
-    pipelines.set(cid, {
-      correlation_id: cid,
-      field_key: step.field_key,
-      pipeline_name: step.pipeline_name,
-      status: 'IN_PROGRESS',
-      total_duration_ms: 0,
-      total_cost: 0,
-      steps: [],
-    });
-  }
-
-  const group = pipelines.get(cid);
-  const existingIndex = group.steps.findIndex(
-    (s) => s.step_order === step.step_order
-  );
-  if (existingIndex >= 0) {
-    group.steps[existingIndex] = step;
-  } else {
-    group.steps.push(step);
-  }
-
-  group.steps.sort((a, b) => a.step_order - b.step_order);
-  group.total_duration_ms = group.steps.reduce(
-    (acc, s) => acc + (s.step_duration_ms || 0),
-    0
-  );
-  group.total_cost = group.steps.reduce(
-    (acc, s) => acc + (s.real_cost || s.simulated_cost || 0),
-    0
-  );
-
-  renderAllPipelines();
 }
 
 function renderAllPipelines() {
@@ -253,7 +142,7 @@ function renderAllPipelines() {
   if (pipelines.size === 0) {
     container.innerHTML = `
       <div id="empty-message" style="text-align: center; color: var(--text-muted); padding: 32px; border: 1px dashed var(--border); border-radius: 8px;">
-        Nenhum pipeline recebido ainda. Conecte ao stream SSE e dispare uma avaliação interativa acima.
+        Nenhuma execução encontrada. Clique em "Consultar Histórico" para atualizar a lista.
       </div>
     `;
     return;
@@ -355,4 +244,3 @@ window.addEventListener('DOMContentLoaded', async () => {
     await loadInitialHistory();
   }
 });
-

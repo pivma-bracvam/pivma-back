@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PIVMA - Observabilidade de Pipelines de IA (Tempo Real)</title>
+  <title>PIVMA - Histórico de Pipelines de IA</title>
   <link rel="stylesheet" href="/demos/assets/base.css">
   <style>
     .container {
@@ -201,58 +201,6 @@
       opacity: 0.95;
     }
 
-    .stream-status-box {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 14px;
-      border-radius: 999px;
-      font-size: 14px;
-      font-weight: 700;
-      border: 1px solid var(--border);
-      background: #f1f5f9;
-    }
-
-    .status-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #94a3b8;
-    }
-
-    .status-dot.connected {
-      background: #16a34a;
-      box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.25);
-      animation: pulse 1.8s infinite;
-    }
-
-    .status-dot.connecting {
-      background: #eab308;
-      box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.25);
-    }
-
-    .status-dot.disconnected {
-      background: #94a3b8;
-    }
-
-    .status-dot.error {
-      background: #dc2626;
-    }
-
-    @keyframes pulse {
-
-      0%,
-      100% {
-        transform: scale(1);
-        opacity: 1;
-      }
-
-      50% {
-        transform: scale(1.15);
-        opacity: 0.8;
-      }
-    }
-
     .pipeline-card {
       background: #ffffff;
       border: 1px solid var(--border);
@@ -354,8 +302,7 @@
       <div>
         <a href="/demos/" class="back-link">&larr; Voltar ao Catálogo de Demonstrações</a>
         <h1 style="margin-top: 4px;">Observabilidade de Pipelines de IA</h1>
-        <p class="subtitle">Monitoramento cronológico em tempo real de execuções de IA, custos simulados e síntese de
-          vereditos</p>
+        <p class="subtitle">Histórico de execuções de IA, custos e síntese de vereditos</p>
       </div>
       <div class="session-bar">
         <span>Sessão:</span>
@@ -371,8 +318,8 @@
       <h3>🔑 Credenciais Sugeridas para Desenvolvimento (Acesso de Administrador)</h3>
       <p>
         Os endpoints administrativos de observabilidade de IA (<code>/admin/logs/ai*</code>) exigem perfil com a chave
-        <code>administrator</code> ou permissão <code>rbac:read</code>.
-        Utilize a conta de Administrador abaixo para liberar o monitoramento de pipelines em tempo real:
+        <code>administrator</code>.
+        Utilize a conta de Administrador abaixo para consultar o histórico de pipelines:
       </p>
       <div class="creds-tags">
         <span class="cred-tag">Usuário: <strong>admin</strong></span>
@@ -391,17 +338,10 @@
     <div class="card">
       <div
         style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
-        <h2>1. Conexão do Stream SSE & Simulação de Avaliação</h2>
-        <div id="stream-status" class="stream-status-box">
-          <span id="stream-status-dot" class="status-dot disconnected"></span>
-          <span id="stream-status-text">Stream Desconectado</span>
-        </div>
+        <h2>1. Consulta do histórico & Simulação de Avaliação</h2>
       </div>
 
       <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 18px;">
-        <button id="btn-toggle-stream" class="btn btn-primary" onclick="toggleStream()">
-          <span>▶ Conectar Stream SSE de IA</span>
-        </button>
         <button class="btn btn-secondary" onclick="loadInitialHistory()">
           <span>🔄 Consultar Histórico (GET /admin/logs/ai)</span>
         </button>
@@ -416,8 +356,8 @@
           As execuções de pré-avaliação são geradas pela <strong>submissão real</strong>
           de um formulário com avaliações por IA associadas. Abra
           <a href="/demos/submission/" target="_self">Submissão de Proposta</a>,
-          submeta a proposta e volte aqui com o stream ligado para acompanhar as
-          etapas agrupadas por <code>correlation_id</code>.
+          submeta a proposta e volte aqui para consultar o histórico e acompanhar as etapas agrupadas por
+          <code>correlation_id</code>.
         </p>
       </div>
     </div>
@@ -437,7 +377,7 @@
       <div id="pipelines-container">
         <div id="empty-message"
           style="text-align: center; color: var(--text-muted); padding: 32px; border: 1px dashed var(--border); border-radius: 8px;">
-          Nenhum pipeline recebido ainda. Conecte ao stream SSE e dispare uma avaliação interativa acima.
+          Nenhuma execução encontrada. Clique em "Consultar Histórico" para atualizar a lista.
         </div>
       </div>
     </div>

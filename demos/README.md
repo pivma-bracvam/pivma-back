@@ -34,7 +34,7 @@ Contrato completo: [`../specs/015-first-deploy-baseline/contracts/demo-standard.
 | 3 | `triage/` | Triagem técnica &amp; decisão |
 | 4 | `ai-pipeline/` | Observabilidade de IA |
 | 5 | `users/` | Usuários e RBAC |
-| 6 | `operational-index/` | Índice operacional (logs SSE) |
+| 6 | `operational-index/` | Índice operacional (consulta periódica de logs) |
 | 7 | `attachments/` | Anexos de formulário |
 | 8 | `roadmap/` | Roteiro em duas fases (prévia) |
 | 9 | `kanban/` | Kanban de pendências |

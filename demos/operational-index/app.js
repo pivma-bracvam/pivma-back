@@ -1,4 +1,5 @@
-let eventSource = null;
+let refreshInterval = null;
+let refreshStarting = false;
 let eventsList = [];
 
 function inspect(method, url, status, data) {
@@ -96,9 +97,7 @@ async function testForbiddenUser() {
 }
 
 async function logout() {
-  if (eventSource) {
-    disconnectStream();
-  }
+  stopAutoRefresh();
   const res = await fetch('/auth/logout', {
     method: 'POST',
     credentials: 'include',
@@ -109,75 +108,61 @@ async function logout() {
   await checkSession();
 }
 
-function updateStreamBadge(state, text) {
-  const dot = document.getElementById('stream-status-dot');
-  const label = document.getElementById('stream-status-text');
-  const btn = document.getElementById('btn-toggle-stream');
+function updateRefreshBadge(state, text) {
+  const dot = document.getElementById('refresh-status-dot');
+  const label = document.getElementById('refresh-status-text');
+  const btn = document.getElementById('btn-toggle-refresh');
 
   if (dot) dot.className = 'status-dot ' + state;
   if (label) label.textContent = text;
 
   if (btn) {
-    if (state === 'connected') {
+    btn.disabled = state === 'connecting';
+    if (refreshInterval !== null) {
       btn.className = 'btn btn-danger';
-      btn.innerHTML = '<span>⏹ Desconectar Stream</span>';
+      btn.innerHTML = '<span>⏹ Parar atualização automática</span>';
     } else {
       btn.className = 'btn btn-primary';
-      btn.innerHTML = '<span>▶ Conectar Stream SSE</span>';
+      btn.innerHTML = '<span>▶ Atualizar a cada 5 segundos</span>';
     }
   }
 }
 
-function toggleStream() {
-  if (eventSource) {
-    disconnectStream();
+function toggleAutoRefresh() {
+  if (refreshStarting) return;
+  if (refreshInterval !== null) {
+    stopAutoRefresh();
   } else {
-    connectStream();
+    startAutoRefresh();
   }
 }
 
-function connectStream() {
-  updateStreamBadge('connecting', 'Conectando ao Stream SSE...');
+async function startAutoRefresh() {
+  if (refreshStarting || refreshInterval !== null) return;
+  refreshStarting = true;
+  updateRefreshBadge('connecting', 'Consultando histórico...');
+  const loaded = await loadInitialHistory(false);
+  if (!refreshStarting) return;
+  refreshStarting = false;
+  if (!loaded) return;
 
-  eventSource = new EventSource('/admin/logs/operational/stream', {
-    withCredentials: true,
-  });
-
-  eventSource.onopen = () => {
-    updateStreamBadge('connected', 'Stream Conectado (Tempo Real Ativo)');
-    inspect('GET', '/admin/logs/operational/stream', 200, {
-      message: 'Conexão SSE aberta com sucesso.',
-    });
-  };
-
-  eventSource.onmessage = (e) => {
-    if (!e.data || e.data.startsWith(':')) return;
-    try {
-      const eventData = JSON.parse(e.data);
-      appendEvent(eventData);
-    } catch (err) {
-      console.error('Erro ao interpretar evento SSE:', err);
-    }
-  };
-
-  eventSource.onerror = (err) => {
-    console.warn('Erro na conexão SSE:', err);
-    updateStreamBadge('error', 'Stream com Erro (Verifique se está logado como Admin)');
-    disconnectStream(true);
-  };
+  refreshInterval = window.setInterval(() => loadInitialHistory(false), 5000);
+  updateRefreshBadge('connected', 'Atualização automática ativa (5 s)');
 }
 
-function disconnectStream(isError = false) {
-  if (eventSource) {
-    eventSource.close();
-    eventSource = null;
+function stopAutoRefresh(errorMessage = null) {
+  refreshStarting = false;
+  if (refreshInterval !== null) {
+    window.clearInterval(refreshInterval);
+    refreshInterval = null;
   }
-  if (!isError) {
-    updateStreamBadge('disconnected', 'Stream Desconectado');
-  }
+  updateRefreshBadge(
+    errorMessage ? 'error' : 'disconnected',
+    errorMessage || 'Atualização automática pausada'
+  );
 }
 
-async function loadInitialHistory() {
+async function loadInitialHistory(showAlerts = true) {
   const limit = document.getElementById('query-limit')?.value || 50;
   const status = document.getElementById('filter-status')?.value;
   const op = document.getElementById('filter-op')?.value.trim();
@@ -194,23 +179,24 @@ async function loadInitialHistory() {
     if (res.ok && Array.isArray(data)) {
       eventsList = data;
       renderEventsTable();
+      if (refreshInterval === null && !refreshStarting) {
+        updateRefreshBadge('disconnected', 'Atualização automática pausada');
+      }
+      return true;
     } else if (res.status === 403) {
-      alert(
-        'Acesso negado (403): O usuário conectado não possui perfil de Administrador.'
-      );
+      if (showAlerts) alert('Acesso negado (403): é necessário o perfil Administrador.');
+      stopAutoRefresh('Acesso negado (403)');
     } else if (res.status === 401) {
-      alert(
-        'Não autenticado (401): Faça login como Administrador para consultar os logs.'
-      );
+      if (showAlerts) alert('Não autenticado (401): faça login como Administrador.');
+      stopAutoRefresh('Sessão não autenticada (401)');
+    } else {
+      stopAutoRefresh(`Falha ao consultar histórico (HTTP ${res.status})`);
     }
   } catch (err) {
     inspect('GET', url, 0, { error: err.message });
+    stopAutoRefresh('Falha ao consultar histórico');
   }
-}
-
-function appendEvent(ev) {
-  eventsList.unshift(ev);
-  renderEventsTable();
+  return false;
 }
 
 function clearEvents() {
@@ -307,4 +293,3 @@ window.addEventListener('DOMContentLoaded', async () => {
     await loadInitialHistory();
   }
 });
-

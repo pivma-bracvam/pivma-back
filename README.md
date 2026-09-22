@@ -22,6 +22,7 @@ A documentação interativa das rotas, esquemas de entrada/saída e testes de re
   - [Processos, Formulários e Triagem](#processos-formulários-e-triagem)
   - [Participantes e Conflito de Interesses](#participantes-e-conflito-de-interesses)
   - [Avaliação Configurável por IA](#avaliação-configurável-por-ia)
+  - [Observabilidade de Logs](#observabilidade-de-logs)
 - [Comandos Úteis (`poetry` e `uv`)](#comandos-úteis-poetry-e-uv)
 - [Práticas de Desenvolvimento e Testes](#práticas-de-desenvolvimento-e-testes)
 - [Execução com Docker](#execução-com-docker)
@@ -140,6 +141,7 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
 
 
 * **Exclusão Lógica:** Contas inativadas liberam seus identificadores (`username` e `email`) para novos cadastros.
+* **Desativação de contas:** `DELETE /users/{user_id}` exige sessão ativa, origem confiável e `users.manage`. A API preserva o registro, preenche `deleted_at` e `deleted_by` e responde `204`. Autodesativação e remoção da última conta administradora ativa respondem `409`. Contas inativas não iniciam sessões nem reutilizam tokens existentes. `GET /users` lista contas ativas; `GET /users?active=false` lista contas inativas.
 
 ### Controle de Acesso (RBAC Global)
 
@@ -185,6 +187,17 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
 
 
 * A IA não emite decisões regulatórias finais; o processo decisório permanece sob responsabilidade de triadores humanos.
+
+### Observabilidade de Logs
+
+Administradores podem consultar os registros recentes pelos endpoints
+`GET /admin/logs/operational` e `GET /admin/logs/ai`. O primeiro aceita filtros
+por status e tipo de operação; o segundo aceita `correlation_id` para consultar
+etapas de uma execução.
+
+`demos/operational-index/` consulta o histórico sob demanda ou a cada cinco
+segundos, quando a atualização automática está ativa. `demos/ai-pipeline/`
+consulta o histórico quando o usuário solicita.
 
 ---
 
