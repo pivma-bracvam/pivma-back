@@ -2,7 +2,7 @@ from http import HTTPStatus
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -12,6 +12,7 @@ from pivma.core.authorization import (
     USERS_MANAGE,
     USERS_READ,
     active_profiles_for_users,
+    ensure_administrator_remains,
 )
 from pivma.core.database import get_session
 from pivma.core.database.models import AccessProfile, User, UserAccessProfile
@@ -283,3 +284,63 @@ async def update_user(
         ) from None
 
     return item
+
+
+@router.delete(
+    '/{user_id}',
+    operation_id='deactivateUser',
+    status_code=HTTPStatus.NO_CONTENT,
+    openapi_extra={'x-required-permission': USERS_MANAGE},
+    responses={
+        HTTPStatus.UNAUTHORIZED: {
+            'description': (
+                'Sessão ausente, inválida, vencida ou ligada a conta inativa.'
+            ),
+        },
+        HTTPStatus.FORBIDDEN: {
+            'description': (
+                'A conta não possui users.manage ou a origem não é confiável.'
+            ),
+        },
+        HTTPStatus.NOT_FOUND: {
+            'description': 'O UUID não identifica uma conta ativa.',
+        },
+        HTTPStatus.CONFLICT: {
+            'description': (
+                'A pessoa tentou desativar a própria conta ou a operação '
+                'removeria a última conta administrativa ativa.'
+            ),
+        },
+    },
+)
+async def deactivate_user(
+    user_id: UUID,
+    session: Session,
+    actor: UserManager,
+    _: TrustedOrigin,
+) -> Response:
+    item = await session.scalar(
+        select(User).where(User.id == user_id).with_for_update()
+    )
+    if item is None:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail='User not found'
+        )
+    if item.id == actor.id:
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail='Cannot deactivate yourself',
+        )
+
+    item.set_deletion_audit(actor.id)
+    await session.flush()
+    try:
+        await ensure_administrator_remains(session)
+    except ValueError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT, detail=str(exc)
+        ) from exc
+
+    await session.commit()
+    return Response(status_code=HTTPStatus.NO_CONTENT)

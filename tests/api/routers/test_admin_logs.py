@@ -1,5 +1,4 @@
 from http import HTTPStatus
-from uuid import uuid4
 
 import pytest
 
@@ -13,7 +12,6 @@ from pivma.core.database.models import (
     Permission,
     UserAccessProfile,
 )
-from pivma.core.sse_broadcaster import broadcaster
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
@@ -110,33 +108,11 @@ async def test_admin_logs_allowed_for_administrator(client, session):
     assert isinstance(res_ai.json(), list)
 
 
-@pytest.mark.asyncio
-async def test_sse_operational_and_ai_broadcaster():
-    broadcaster.broadcast_operational({
-        'event_id': str(uuid4()),
-        'operation_type': 'TEST_OP',
-        'status': 'SUCCESS',
-    })
-    broadcaster.broadcast_ai_step({
-        'step_name': 'context_extraction',
-        'step_order': 1,
-        'status': 'SUCCESS',
-    })
+@pytest.mark.parametrize(
+    'path',
+    ['/admin/logs/operational/stream', '/admin/logs/ai/stream'],
+)
+def test_removed_log_stream_endpoints_return_not_found(client, path):
+    response = client.get(path, headers=TRUSTED_ORIGIN)
 
-    gen_op = broadcaster.subscribe_operational()
-    first_op = await anext(gen_op)
-    assert ': connected' in first_op
-
-    broadcaster.broadcast_operational({'msg': 'hello_op'})
-    msg_op = await anext(gen_op)
-    assert msg_op.startswith('data: ')
-    assert 'hello_op' in msg_op
-
-    gen_ai = broadcaster.subscribe_ai()
-    first_ai = await anext(gen_ai)
-    assert ': connected' in first_ai
-
-    broadcaster.broadcast_ai_step({'msg': 'hello_ai'})
-    msg_ai = await anext(gen_ai)
-    assert msg_ai.startswith('data: ')
-    assert 'hello_ai' in msg_ai
+    assert response.status_code == HTTPStatus.NOT_FOUND
