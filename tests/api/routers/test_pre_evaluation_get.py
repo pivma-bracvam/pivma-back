@@ -5,11 +5,14 @@ from http import HTTPStatus
 from uuid import UUID
 
 import pytest
-from sqlalchemy import select
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.core import pre_evaluation_service as svc
-from pivma.core.database.models import ProcessInstance
+from tests.activity_state import (
+    activity_status,
+    back_with_proponent,
+    in_triage,
+)
 from tests.ai_eval_helpers import (
     AI_FIELD,
     COMPLIANT_STATEMENT,
@@ -67,10 +70,7 @@ async def test_in_progress_then_completed_negative_returns_to_proponent(
     assert done['summary']['total'] == 1
     assert done['attention_points']
 
-    process = await session.scalar(
-        select(ProcessInstance).where(ProcessInstance.id == process_id)
-    )
-    assert process.status == 'SUBMISSION'
+    assert await back_with_proponent(session, process_id)
 
 
 @pytest.mark.asyncio
@@ -88,10 +88,7 @@ async def test_completed_positive_advances_to_triage(
     done = client.get(f'/processes/{process_id}/pre-evaluation').json()
     assert done['consolidated_result'] == 'positive'
 
-    process = await session.scalar(
-        select(ProcessInstance).where(ProcessInstance.id == process_id)
-    )
-    assert process.status == 'TRIAGE'
+    assert await in_triage(session, process_id)
 
 
 @pytest.mark.asyncio
@@ -139,10 +136,7 @@ async def test_failed_run_returns_to_proponent(
     assert done['status'] == 'failed'
     assert done['error_summary']
 
-    process = await session.scalar(
-        select(ProcessInstance).where(ProcessInstance.id == process_id)
-    )
-    assert process.status == 'SUBMISSION'
+    assert await back_with_proponent(session, process_id)
 
 
 @pytest.mark.asyncio
@@ -179,7 +173,8 @@ async def test_outsider_cannot_read_pre_evaluation(
     authenticate(client, outsider)
 
     resp = client.get(f'/processes/{process_id}/pre-evaluation')
-    assert resp.status_code == HTTPStatus.FORBIDDEN
+    # Spec 030 (FR-017): sem concessão de ver na submissão → 404.
+    assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
 @pytest.mark.asyncio
@@ -192,10 +187,15 @@ async def test_status_is_ai_pre_evaluation_and_form_locked_while_pending(
     )
     authenticate(client, proponent)
 
-    # Antes de a IA concluir: AI_PRE_EVALUATION e formulário travado.
+    # Antes de a IA concluir: processo OPEN, triagem fechada e formulário
+    # travado (Spec 030: a espera pela IA é da execução, não do processo).
     detail = client.get(f'/processes/{process_id}')
     assert detail.status_code == HTTPStatus.OK
-    assert detail.json()['status'] == 'AI_PRE_EVALUATION'
+    assert detail.json()['status'] == 'OPEN'
+    assert (
+        await activity_status(session, process_id, 'triage_evaluation')
+        != 'IN_PROGRESS'
+    )
 
     resubmit = client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',

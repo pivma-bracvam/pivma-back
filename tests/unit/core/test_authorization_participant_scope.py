@@ -21,7 +21,7 @@ from tests.factories.process_factory import (
 from tests.factories.user_factory import UserFactory
 
 
-async def _make_process(session, *, status='TRIAGE'):
+async def _make_process(session, *, status='OPEN'):
     template = ProcessTemplateFactory()
     session.add(template)
     await session.commit()

@@ -14,6 +14,7 @@ from pivma.core.database.models import (
     FormInstance,
     Task,
 )
+from tests.activity_state import back_with_proponent, in_triage
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
@@ -66,7 +67,8 @@ async def test_triage_decision_needs_revision_and_resubmission(
     )
     assert dec_resp.status_code == HTTPStatus.OK
     dec_data = dec_resp.json()
-    assert dec_data['new_process_status'] == 'SUBMISSION'
+    assert dec_data['process_status'] == 'OPEN'
+    assert await back_with_proponent(session, process_id)
     assert dec_data['next_activity_run'] == 2
 
     submission_activity = await session.scalar(
@@ -130,9 +132,10 @@ async def test_triage_decision_needs_revision_and_resubmission(
     assert dossier is not None
     assert dossier.metadata_payload['values']['method_title'] == 'Título V1'
 
-    # Process returns to TRIAGE
+    # A triagem reabre; o processo segue OPEN (Spec 030)
     p_resp = client.get(f'/processes/{process_id}')
-    assert p_resp.json()['status'] == 'TRIAGE'
+    assert p_resp.json()['status'] == 'OPEN'
+    assert await in_triage(session, process_id)
 
     # 4b. Rodada 2 da triagem tem sua própria run/task (Issue #22: antes, a
     # rodada 1 (já concluída) era reaproveitada e nenhuma pendência nova
@@ -199,4 +202,4 @@ async def test_triage_decision_needs_revision_and_resubmission(
         headers={'Origin': 'https://testserver'},
     )
     assert approve_resp.status_code == HTTPStatus.OK
-    assert approve_resp.json()['new_process_status'] == 'PLANNING'
+    assert approve_resp.json()['process_status'] == 'OPEN'

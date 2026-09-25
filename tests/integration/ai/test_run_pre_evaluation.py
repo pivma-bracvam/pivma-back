@@ -17,6 +17,7 @@ from pivma.core.database.models import (
     EvaluationRunItem,
     ProcessInstance,
 )
+from tests.activity_state import back_with_proponent
 from tests.ai_eval_helpers import (
     COMPLIANT_STATEMENT,
     NON_COMPLIANT_STATEMENT,
@@ -153,8 +154,7 @@ async def test_low_severity_non_compliant_now_routes_negative(
     run = await session.get(EvaluationRun, run_id)
     assert run.consolidated_result == 'negative'
 
-    process = await session.get(ProcessInstance, run.process_instance_id)
-    assert process.status == 'SUBMISSION'
+    assert await back_with_proponent(session, run.process_instance_id)
 
 
 @pytest.mark.asyncio
@@ -210,3 +210,28 @@ async def test_execute_is_idempotent_on_non_pending_run(
         )
     )
     assert len(items) == 1
+
+
+@pytest.mark.asyncio
+async def test_execute_skips_when_run_no_longer_in_progress(
+    client, ai_eval_admin, session, fake_provider
+):
+    """Spec 030 (R8): o guarda do `_execute` é a própria `EvaluationRun`."""
+    del fake_provider
+    run_id = await _submitted_run(
+        client, session, ai_eval_admin, severity='critical'
+    )
+    run = await session.get(EvaluationRun, run_id)
+    run.status = 'completed'
+    await session.commit()
+
+    await svc._execute(session, run_id)
+
+    items = list(
+        await session.scalars(
+            select(EvaluationRunItem).where(EvaluationRunItem.run_id == run_id)
+        )
+    )
+    assert items == []
+    process = await session.get(ProcessInstance, run.process_instance_id)
+    assert process.status == 'OPEN'

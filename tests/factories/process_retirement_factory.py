@@ -48,7 +48,7 @@ class ProcessRetirementFactory:
         self,
         owner: User,
         *,
-        status: str = 'AI_PRE_EVALUATION',
+        status: str = 'OPEN',
         title: str = 'Processo submetido',
     ):
         process = await self._new_process(owner, title)
@@ -82,7 +82,7 @@ class ProcessRetirementFactory:
         owner: User,
         title: str = 'Processo devolvido para revisão',
     ):
-        process = await self.submitted(owner, status='SUBMISSION', title=title)
+        process = await self.submitted(owner, status='OPEN', title=title)
         self.session.add(
             AuditEvent(
                 process_instance_id=process.id,

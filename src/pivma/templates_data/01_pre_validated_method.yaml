@@ -14,6 +14,9 @@ phases:
         name: "Submissão da Proposta"
         order_index: 1
         assigned_role: "proponent"
+        access:
+          edit: ["proponent"]
+          view: []
         sla_hours: 168  # 7 dias corridos para preencher e submeter (Spec 018)
         form_template_key: "submission_pre_validated_v1"
         dependencies: []
@@ -22,6 +25,9 @@ phases:
         name: "Triagem e Decisão BraCVAM"
         order_index: 2
         assigned_role: "bracvam"
+        access:
+          edit: ["bracvam"]
+          view: []
         sla_hours: 72  # 3 dias corridos para a triagem decidir (Spec 018)
         dependencies:
           - required_activity_key: "proposal_submission"

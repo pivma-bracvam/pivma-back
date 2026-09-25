@@ -7,10 +7,9 @@ Matriz em `contracts/triage-authorization.md` da feature.
 from http import HTTPStatus
 
 import pytest
-from sqlalchemy import select
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
-from pivma.core.database.models import ProcessInstance
+from tests.activity_state import in_triage
 from tests.ai_eval_helpers import (
     NON_COMPLIANT_STATEMENT,
     create_and_submit_process,
@@ -47,10 +46,7 @@ async def _process_in_triage(client, session) -> str:
         f'/processes/{pid}/activities/proposal_submission/form',
         json={'values': SUBMISSION},
     )
-    process = await session.scalar(
-        select(ProcessInstance).where(ProcessInstance.id == pid)
-    )
-    assert process.status == 'TRIAGE'
+    assert await in_triage(session, pid)
     return pid
 
 
@@ -71,10 +67,18 @@ def _decision(client, pid):
 
 
 @pytest.mark.asyncio
-async def test_bracvam_and_admin_can_triage(
+async def test_bracvam_can_triage_and_admin_only_reads(
     client, session, bracvam_user, ai_eval_admin
 ):
+    """Spec 030 (FR-026): só o cargo `bracvam` edita a triagem; o Admin
+
+    tem `triage.review` mas só a concessão de ver.
+    """
     pid = await _process_in_triage(client, session)
+
+    authenticate(client, ai_eval_admin)
+    assert _reviews(client, pid).status_code == HTTPStatus.FORBIDDEN
+    assert _decision(client, pid).status_code == HTTPStatus.FORBIDDEN
 
     authenticate(client, bracvam_user)
     assert _reviews(client, pid).status_code == HTTPStatus.OK
@@ -82,9 +86,6 @@ async def test_bracvam_and_admin_can_triage(
         HTTPStatus.OK,
         HTTPStatus.NOT_FOUND,
     }
-
-    authenticate(client, ai_eval_admin)
-    assert _reviews(client, pid).status_code == HTTPStatus.OK
     assert _decision(client, pid).status_code == HTTPStatus.OK
 
 
@@ -97,9 +98,10 @@ async def test_group_manager_and_reviewer_cannot_triage(
     authenticate(client, non_triage_user)
     assert _reviews(client, pid).status_code == HTTPStatus.FORBIDDEN
     assert _decision(client, pid).status_code == HTTPStatus.FORBIDDEN
+    # Spec 030: sem concessão de ver na submissão → 404.
     assert (
         client.get(f'/processes/{pid}/pre-evaluation').status_code
-        == HTTPStatus.FORBIDDEN
+        == HTTPStatus.NOT_FOUND
     )
 
     reviewer = await _rbac_user(session, 'reviewer', 'Revisor', ())
@@ -136,7 +138,7 @@ async def test_proponent_reads_own_pre_evaluation_only(
     authenticate(client, other)
     assert (
         client.get(f'/processes/{pid}/pre-evaluation').status_code
-        == HTTPStatus.FORBIDDEN
+        == HTTPStatus.NOT_FOUND
     )
 
 

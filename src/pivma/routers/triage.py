@@ -106,7 +106,7 @@ async def submit_triage_decision(
 
     return TriageDecisionResponse(
         process_id=id,
-        new_process_status=new_status,
+        process_status=new_status,
         decision_id=decision.id,
         outcome=decision.outcome,
         next_activity_run=next_run,

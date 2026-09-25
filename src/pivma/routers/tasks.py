@@ -10,7 +10,12 @@ from pivma.core.database.models import (
     ActivityRun,
     Task,
 )
-from pivma.core.process_engine import process_visibility_clause
+from pivma.core.process_engine import (
+    NotFoundError,
+    activity_view_clause,
+    process_visibility_clause,
+    require_activity_access,
+)
 from pivma.dependencies import CurrentUser, Session
 from pivma.schemas import TaskDetail, TaskSummary
 
@@ -46,6 +51,9 @@ async def list_tasks(
     visibility = await process_visibility_clause(session, current_user.id)
     if visibility is not None:
         stmt = stmt.where(visibility)
+    activity_visibility = await activity_view_clause(session, current_user.id)
+    if activity_visibility is not None:
+        stmt = stmt.where(activity_visibility)
     if status:
         stmt = stmt.where(Task.status == status)
     if role:
@@ -102,6 +110,12 @@ async def get_task_detail(
         )
 
     act = t.activity_run.activity_instance
+    try:
+        await require_activity_access(session, current_user.id, act, 'view')
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail='Tarefa não encontrada.'
+        ) from e
     is_blocked = act.status == 'BLOCKED'
 
     return TaskDetail(

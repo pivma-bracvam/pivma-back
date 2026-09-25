@@ -30,7 +30,16 @@ from pivma.core.process_engine import (
     instantiate_process,
     submit_proposal_form,
 )
+from tests.conftest import _make_rbac_user
 from tests.factories.user_factory import UserFactory
+
+
+async def _make_bracvam(session):
+    """Triador com perfil BraCVAM: só ele edita a triagem (Spec 030)."""
+    return await _make_rbac_user(
+        session, system_key='bracvam', name='BraCVAM', codes=()
+    )
+
 
 SUBMISSION_VALUES = {
     'method_title': 'Método com roteiro de duas fases',
@@ -51,16 +60,15 @@ async def _instantiate(session, title):
     ).scalar_one()
     user = UserFactory()
     session.add(user)
-    triador = UserFactory()
-    session.add(triador)
     await session.commit()
+    triador = await _make_bracvam(session)
     process = await instantiate_process(session, ptv, title, user.id)
     return process, user, triador
 
 
-async def _task_for(session, process_id, activity_key) -> tuple[
-    ActivityRun, Task
-]:
+async def _task_for(
+    session, process_id, activity_key
+) -> tuple[ActivityRun, Task]:
     act = (
         await session.execute(
             select(ActivityInstance).where(
@@ -70,12 +78,16 @@ async def _task_for(session, process_id, activity_key) -> tuple[
         )
     ).scalar_one()
     run = (
-        await session.execute(
-            select(ActivityRun)
-            .where(ActivityRun.activity_instance_id == act.id)
-            .order_by(ActivityRun.run_number.desc())
+        (
+            await session.execute(
+                select(ActivityRun)
+                .where(ActivityRun.activity_instance_id == act.id)
+                .order_by(ActivityRun.run_number.desc())
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     task = (
         await session.execute(
             select(Task).where(Task.activity_run_id == run.id)
@@ -111,7 +123,10 @@ async def test_triage_evaluation_gets_own_due_date(
     )
 
     await submit_proposal_form(
-        session, process.id, 'proposal_submission', SUBMISSION_VALUES,
+        session,
+        process.id,
+        'proposal_submission',
+        SUBMISSION_VALUES,
         user.id,
     )
 
@@ -122,9 +137,7 @@ async def test_triage_evaluation_gets_own_due_date(
         session, process.id, 'triage_evaluation'
     )
 
-    assert triage_task.due_date == triage_run.started_at + timedelta(
-        hours=72
-    )
+    assert triage_task.due_date == triage_run.started_at + timedelta(hours=72)
     assert triage_run.started_at != submission_run.started_at
     assert triage_task.due_date != submission_task.due_date
 
@@ -144,7 +157,10 @@ async def test_role_assignment_activity_activated_by_triage_has_no_due_date(
     )
 
     await submit_proposal_form(
-        session, process.id, 'proposal_submission', SUBMISSION_VALUES,
+        session,
+        process.id,
+        'proposal_submission',
+        SUBMISSION_VALUES,
         user.id,
     )
     await execute_triage_decision(
@@ -170,7 +186,10 @@ async def test_reopened_submission_run_gets_its_own_due_date(session):
     )
 
     await submit_proposal_form(
-        session, process.id, 'proposal_submission', SUBMISSION_VALUES,
+        session,
+        process.id,
+        'proposal_submission',
+        SUBMISSION_VALUES,
         user.id,
     )
     first_run, first_task = await _task_for(
@@ -185,8 +204,6 @@ async def test_reopened_submission_run_gets_its_own_due_date(session):
     )
 
     assert second_run.run_number == first_run.run_number + 1
-    assert second_task.due_date == second_run.started_at + timedelta(
-        hours=168
-    )
+    assert second_task.due_date == second_run.started_at + timedelta(hours=168)
     assert second_run.started_at != first_run.started_at
     assert second_task.due_date != first_task.due_date

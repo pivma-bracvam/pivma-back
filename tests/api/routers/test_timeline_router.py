@@ -87,3 +87,53 @@ async def test_process_timeline_events_recorded_and_ordered(
         'FIELD_REVIEWED',
         'TRIAGE_APPROVED',
     ]
+
+
+@pytest.mark.asyncio
+async def test_timeline_hides_events_of_activities_without_view(
+    client, session, bracvam_user
+):
+    """Spec 030 (FR-021): eventos da triagem não chegam ao proponente."""
+    await bootstrap_all_templates(session)
+    proponente = UserFactory()
+    session.add(proponente)
+    await session.commit()
+    origin = {'Origin': 'https://testserver'}
+
+    authenticate(client, proponente)
+    process_id = client.post(
+        '/processes',
+        json={'template_key': 'pre_validated_method', 'title': 'Timeline'},
+    ).json()['id']
+    client.post(
+        f'/processes/{process_id}/activities/proposal_submission/form',
+        json={'values': {'method_title': 'Método'}},
+    )
+    authenticate(client, bracvam_user)
+    decision = client.post(
+        f'/processes/{process_id}/triage/decision',
+        json={'outcome': 'APPROVED', 'justification': 'Aprovado.'},
+        headers=origin,
+    )
+    assert decision.status_code == HTTPStatus.OK, decision.text
+
+    bracvam_events = client.get(f'/processes/{process_id}/timeline').json()[
+        'events'
+    ]
+    triage_run_ids = {
+        e['activity_run_id']
+        for e in bracvam_events
+        if e['event_type'] == 'TRIAGE_APPROVED'
+    }
+    assert triage_run_ids
+
+    authenticate(client, proponente)
+    proponent_events = client.get(f'/processes/{process_id}/timeline').json()[
+        'events'
+    ]
+    assert not {e['activity_run_id'] for e in proponent_events} & (
+        triage_run_ids
+    )
+    assert any(
+        e['event_type'] == 'SUBMISSION_SUBMITTED' for e in (proponent_events)
+    )

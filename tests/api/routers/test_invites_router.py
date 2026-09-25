@@ -345,6 +345,8 @@ async def test_accept_and_revoke_pending_sibling_closes_activity(
     )
     assert accept_resp.status_code == HTTPStatus.OK
 
+    # Spec 030: a atividade é do cargo `bracvam`; o convidado não a vê.
+    authenticate(client, bracvam_user)
     tasks_before = client.get(
         '/tasks', params={'process_id': process_id}
     ).json()
@@ -353,7 +355,6 @@ async def test_accept_and_revoke_pending_sibling_closes_activity(
     assert before
     assert before[0]['status'] != 'COMPLETED'
 
-    authenticate(client, bracvam_user)
     revoke_resp = revoke_invite_req(client, process_id, second.json()['id'])
     assert revoke_resp.status_code == HTTPStatus.OK
 

@@ -57,3 +57,22 @@ class ConflictInterestDeclarationFactory(factory.Factory):
     justification = factory.Sequence(
         lambda n: f'Justificativa de declaração {n}'
     )
+
+
+async def grant_cargo(session, *, process_id, user, role_key):
+    """Dá ao usuário um cargo de processo por atribuição ativa (Spec 030).
+
+    Jeito padrão desta feature de colocar um usuário num cargo nos testes:
+    as concessões de atividade são dadas a cargos, e o cargo de processo vem
+    de uma `Assignment` ativa.
+    """
+    assignment = Assignment(
+        process_instance_id=process_id,
+        user_id=user.id,
+        assigned_by=user.id,
+        role_key=role_key,
+    )
+    session.add(assignment)
+    await session.commit()
+    await session.refresh(assignment)
+    return assignment

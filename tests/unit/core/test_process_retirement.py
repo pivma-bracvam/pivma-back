@@ -7,9 +7,7 @@ from pivma.core.process_engine import (
 )
 
 
-@pytest.mark.parametrize(
-    'status', ['SUBMISSION', 'TRIAGE', 'AI_PRE_EVALUATION']
-)
+@pytest.mark.parametrize('status', ['OPEN'])
 def test_non_terminal_process_is_deletable_by_authorized_actor(status):
     assert lifecycle_available_actions(
         status=status, can_delete=True, can_review=False

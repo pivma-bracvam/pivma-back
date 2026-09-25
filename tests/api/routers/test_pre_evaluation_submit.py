@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.core.database.models import ActivityInstance, ProcessInstance
+from tests.activity_state import in_triage
 from tests.ai_eval_helpers import (
     NON_COMPLIANT_STATEMENT,
     create_and_submit_process,
@@ -45,7 +46,7 @@ async def test_submit_with_assignment_holds_triage_and_returns_in_progress(
             ProcessInstance.id == result['process_id']
         )
     )
-    assert process.status == 'AI_PRE_EVALUATION'
+    assert process.status == 'OPEN'
     triage = await session.scalar(
         select(ActivityInstance).where(
             ActivityInstance.process_instance_id == result['process_id'],
@@ -68,9 +69,4 @@ async def test_submit_without_assignment_advances_to_triage(client, session):
     assert result['status_code'] == HTTPStatus.OK
     assert result['body']['pre_evaluation'] is None
 
-    process = await session.scalar(
-        select(ProcessInstance).where(
-            ProcessInstance.id == result['process_id']
-        )
-    )
-    assert process.status == 'TRIAGE'
+    assert await in_triage(session, result['process_id'])

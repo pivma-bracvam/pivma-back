@@ -14,8 +14,8 @@ from pivma.core.database.models import (
     ActivityRun,
     Artifact,
     AuditEvent,
-    ProcessInstance,
 )
+from tests.activity_state import in_triage
 from tests.ai_eval_helpers import (
     COMPLIANT_STATEMENT,
     NON_COMPLIANT_STATEMENT,
@@ -60,12 +60,9 @@ async def test_direct_review_after_negative_moves_to_triage(
         headers={'Origin': 'https://testserver'},
     )
     assert resp.status_code == HTTPStatus.OK
-    assert resp.json()['process_status'] == 'TRIAGE'
+    assert resp.json()['process_status'] == 'OPEN'
 
-    process = await session.scalar(
-        select(ProcessInstance).where(ProcessInstance.id == process_id)
-    )
-    assert process.status == 'TRIAGE'
+    assert await in_triage(session, process_id)
 
     # Issue #22 (US3): revisão direta também passa a destravar a triagem
     # pelo motor genérico, registrando o mesmo evento de auditoria já usado
@@ -124,7 +121,7 @@ async def test_direct_review_after_low_severity_negative_moves_to_triage(
         headers={'Origin': 'https://testserver'},
     )
     assert resp.status_code == HTTPStatus.OK
-    assert resp.json()['process_status'] == 'TRIAGE'
+    assert resp.json()['process_status'] == 'OPEN'
 
     report = await session.scalar(
         select(Artifact).where(
@@ -226,9 +223,6 @@ async def test_direct_review_after_failed_run_moves_to_triage(
         headers={'Origin': 'https://testserver'},
     )
     assert resp.status_code == HTTPStatus.OK
-    assert resp.json()['process_status'] == 'TRIAGE'
+    assert resp.json()['process_status'] == 'OPEN'
 
-    process = await session.scalar(
-        select(ProcessInstance).where(ProcessInstance.id == process_id)
-    )
-    assert process.status == 'TRIAGE'
+    assert await in_triage(session, process_id)

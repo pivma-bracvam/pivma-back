@@ -96,6 +96,10 @@ async def test_manager_sees_all_new_participant_events(session, client):
 async def test_non_proponent_participant_cannot_read_submission_timeline(
     session, client
 ):
+    """Spec 030: o participante vê o cabeçalho e a timeline do processo,
+
+    mas nenhum evento da submissão, cuja atividade só o proponente vê.
+    """
     (
         manager,
         _outsider,
@@ -105,7 +109,10 @@ async def test_non_proponent_participant_cannot_read_submission_timeline(
 
     authenticate(client, participant)
     timeline = client.get(f'/processes/{process_id}/timeline')
-    assert timeline.status_code == HTTPStatus.NOT_FOUND
+    assert timeline.status_code == HTTPStatus.OK
+    assert all(
+        event['activity_run_id'] is None for event in timeline.json()['events']
+    )
 
 
 @pytest.mark.asyncio

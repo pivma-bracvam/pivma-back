@@ -1,22 +1,25 @@
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import any_, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import ColumnElement
 
 from pivma.core.authorization import (
     ACTIVITY_CARGOS,
+    GLOBAL_ACTIVITY_CARGOS,
     active_participant_process_scope,
-    active_proponent_process_scope,
+    global_cargos,
     has_current_conflict,
     has_platform_wide_access,
     has_process_review_access,
     is_active_effective_proponent,
+    process_cargos_scope,
+    user_cargos,
 )
 from pivma.core.database.models import (
     ActivityDependency,
@@ -71,6 +74,10 @@ class AuthorizationError(ProcessEngineError):
 
 LIFECYCLE_DELETE = 'DELETE'
 LIFECYCLE_ARCHIVE = 'ARCHIVE'
+# Ciclo de vida do processo (Spec 030): é tudo o que o processo guarda. A
+# posição no fluxo (submissão, pré-avaliação, triagem...) vem das fases e
+# atividades.
+STATUS_OPEN = 'OPEN'
 STATUS_CLOSED = 'CLOSED'
 STATUS_CANCELLED = 'CANCELLED'
 STATUS_ARCHIVED = 'ARCHIVED'
@@ -84,16 +91,6 @@ IMMUTABLE_PROCESS_STATUSES = frozenset({
     STATUS_CANCELLED,
     STATUS_ARCHIVED,
 })
-
-
-# Estados do processo em que a submissão ainda está "sob o proponente" — o
-# formulário fica travado para edição e o processo só é visível ao próprio
-# proponente. `AI_PRE_EVALUATION` é a espera pela pré-avaliação assíncrona por
-# IA (Spec 013, FR-021a): a submissão foi confirmada, mas o roteamento
-# (positivo → triagem / negativo → proponente) só ocorre quando a IA conclui.
-STATUS_SUBMISSION = 'SUBMISSION'
-STATUS_AI_PRE_EVALUATION = 'AI_PRE_EVALUATION'
-PROPONENT_SCOPED_STATUSES = (STATUS_SUBMISSION, STATUS_AI_PRE_EVALUATION)
 
 # Alvos de avaliação por IA que se prendem a `field_keys` do formulário.
 FIELD_TARGET_TYPES = frozenset({'field', 'field_set', 'document'})
@@ -124,30 +121,35 @@ def lifecycle_available_actions(
 async def process_visibility_clause(
     session: AsyncSession, user_id: UUID
 ) -> ColumnElement | None:
-    """Regra de visibilidade de processo unificada.
+    """Quem vê o cabeçalho de um processo (Spec 018; Spec 030, FR-015).
 
-    Spec 018, FR-003/FR-004/FR-014.
-
-    `None` significa "sem restrição adicional" (usuário com acesso de
-    plataforma ou autoridade de revisão). Caso contrário, retorna a cláusula
-    a aplicar sobre `ProcessInstance`: nos estados sob o proponente
-    (`PROPONENT_SCOPED_STATUSES`) só o proponente ativo enxerga, preservando
-    a trava já existente (Spec 009); nos demais estados, qualquer atribuição
-    ativa (`Assignment`, qualquer `role_key`) basta — nunca mais "qualquer
-    usuário autenticado", como acontecia antes desta spec.
+    `None` significa "sem restrição" — Admin e BraCVAM, que têm concessão de
+    ver em toda atividade. Os demais veem os processos em que têm atribuição
+    ativa, em qualquer cargo; o conteúdo de cada atividade segue as
+    concessões (`require_activity_access`), não esta cláusula.
     """
-    review_access = await has_process_review_access(session, user_id)
-    if await has_platform_wide_access(session, user_id) or review_access:
+    if await has_platform_wide_access(session, user_id):
         return None
-    return or_(
-        and_(
-            ProcessInstance.status.notin_(PROPONENT_SCOPED_STATUSES),
-            ProcessInstance.id.in_(active_participant_process_scope(user_id)),
-        ),
-        and_(
-            ProcessInstance.status.in_(PROPONENT_SCOPED_STATUSES),
-            ProcessInstance.id.in_(active_proponent_process_scope(user_id)),
-        ),
+    return ProcessInstance.id.in_(active_participant_process_scope(user_id))
+
+
+async def activity_view_clause(
+    session: AsyncSession, user_id: UUID
+) -> ColumnElement | None:
+    """Filtro SQL das atividades que o usuário vê (Spec 030, R12).
+
+    `None` para Admin/BraCVAM: toda atividade concede ver a `admin` e
+    `bracvam`. Os demais veem a atividade quando algum cargo ativo no
+    processo dela está em `view_roles`.
+    """
+    if await global_cargos(session, user_id):
+        return None
+    return exists(
+        process_cargos_scope(user_id).where(
+            Assignment.process_instance_id
+            == ActivityInstance.process_instance_id,
+            Assignment.role_key == any_(ActivityInstance.view_roles),
+        )
     )
 
 
@@ -488,6 +490,36 @@ def _resolve_activity_cargo(a_data: dict[str, Any]) -> str:
     return cargo
 
 
+def resolve_activity_access(
+    a_data: dict[str, Any],
+) -> tuple[list[str], list[str]]:
+    """Concessões de ver e editar de uma atividade do template (Spec 030).
+
+    Sem `access`, o cargo responsável edita. Editar implica ver, e os cargos
+    globais `admin` e `bracvam` sempre veem (FR-009, FR-012, FR-016). Falha
+    alto quando não há cargo de edição ou quando um cargo está fora do
+    vocabulário (FR-013).
+    """
+    key = a_data.get('key')
+    access = a_data.get('access') or {}
+    if 'edit' in access:
+        edit = set(access['edit'] or [])
+    else:
+        edit = {_resolve_activity_cargo(a_data)}
+    if not edit:
+        raise ValidationError(
+            f'Atividade {key!r} não concede edição a nenhum cargo.'
+        )
+    view = edit | set(access.get('view') or []) | GLOBAL_ACTIVITY_CARGOS
+    unknown = sorted(view - ACTIVITY_CARGOS)
+    if unknown:
+        raise ValidationError(
+            f'Atividade {key!r} concede acesso a cargo inválido: '
+            f'{", ".join(unknown)}.'
+        )
+    return sorted(view), sorted(edit)
+
+
 async def generate_process_code(session: AsyncSession) -> str:
     year = datetime.now(UTC).year
     return f'VAL-{year}-{secrets.token_hex(8)}'
@@ -527,6 +559,7 @@ async def _create_phases_and_activities(
                 blocked_reason=None,
                 activity_type=a_data.get('activity_type', 'form'),
             )
+            act.view_roles, act.edit_roles = resolve_activity_access(a_data)
             act.set_creation_audit(creator_id)
             session.add(act)
             await session.flush()
@@ -600,7 +633,7 @@ async def instantiate_process(
         template_version_id=template_version.id,
         code=code,
         title=title,
-        status='SUBMISSION',
+        status=STATUS_OPEN,
         started_at=utc_now(),
     )
     process.set_creation_audit(creator_user_id)
@@ -682,11 +715,44 @@ async def instantiate_process(
     return process
 
 
+AccessLevel = Literal['view', 'edit']
+
+
+async def require_activity_access(
+    session: AsyncSession,
+    user_id: UUID,
+    activity: ActivityInstance,
+    level: AccessLevel,
+) -> None:
+    """Exige concessão do cargo do usuário na atividade (Spec 030, R6).
+
+    Sem ver → "não encontrado", sem revelar a atividade (FR-017). Vê mas não
+    edita → proibido (FR-018). Conflito de interesse vigente bloqueia a
+    edição acima de qualquer concessão (FR-022).
+    """
+    cargos = await user_cargos(session, user_id, activity.process_instance_id)
+    if not cargos & set(activity.view_roles):
+        raise NotFoundError(f'Atividade {activity.key!r} não encontrada.')
+    if level == 'view':
+        return
+    if await has_current_conflict(
+        session, user_id, activity.process_instance_id
+    ):
+        raise AuthorizationError(
+            'Usuário com conflito de interesse vigente neste processo.'
+        )
+    if not cargos & set(activity.edit_roles):
+        raise AuthorizationError(
+            f'Sem permissão para editar a atividade {activity.key!r}.'
+        )
+
+
 async def get_current_form_instance(
     session: AsyncSession,
     process_id: UUID,
     activity_key: str,
     user_id: UUID | None = None,
+    access: AccessLevel = 'view',
 ) -> tuple[
     ActivityInstance,
     ActivityRun,
@@ -695,20 +761,13 @@ async def get_current_form_instance(
     list[FormField],
 ]:
     if user_id is not None:
-        process_status = await session.scalar(
-            select(ProcessInstance.status).where(
+        process_exists = await session.scalar(
+            select(ProcessInstance.id).where(
                 ProcessInstance.id == process_id,
                 ProcessInstance.deleted_at.is_(None),
             )
         )
-        if process_status is None:
-            raise NotFoundError('Processo não encontrado.')
-        if (
-            process_status in PROPONENT_SCOPED_STATUSES
-            and not await is_active_effective_proponent(
-                session, user_id, process_id
-            )
-        ):
+        if process_exists is None:
             raise NotFoundError('Processo não encontrado.')
 
     stmt = (
@@ -730,6 +789,8 @@ async def get_current_form_instance(
     act = (await session.execute(stmt)).scalar_one_or_none()
     if not act:
         raise NotFoundError(f'Atividade {activity_key!r} não encontrada.')
+    if user_id is not None:
+        await require_activity_access(session, user_id, act, access)
 
     runs = sorted(
         [r for r in act.runs if r.deleted_at is None],
@@ -772,26 +833,20 @@ async def get_current_activity_run(
     process_id: UUID,
     activity_key: str,
     user_id: UUID | None = None,
+    access: AccessLevel = 'view',
 ) -> tuple[ActivityInstance, ActivityRun]:
     """Obtém a ActivityInstance e sua execução mais recente ativa.
 
     Não exige a presença de FormInstance.
     """
     if user_id is not None:
-        process_status = await session.scalar(
-            select(ProcessInstance.status).where(
+        process_exists = await session.scalar(
+            select(ProcessInstance.id).where(
                 ProcessInstance.id == process_id,
                 ProcessInstance.deleted_at.is_(None),
             )
         )
-        if process_status is None:
-            raise NotFoundError('Processo não encontrado.')
-        if (
-            process_status in PROPONENT_SCOPED_STATUSES
-            and not await is_active_effective_proponent(
-                session, user_id, process_id
-            )
-        ):
+        if process_exists is None:
             raise NotFoundError('Processo não encontrado.')
 
     stmt = (
@@ -808,6 +863,8 @@ async def get_current_activity_run(
     act = (await session.execute(stmt)).scalar_one_or_none()
     if not act:
         raise NotFoundError(f'Atividade {activity_key!r} não encontrada.')
+    if user_id is not None:
+        await require_activity_access(session, user_id, act, access)
 
     runs = sorted(
         [r for r in act.runs if r.deleted_at is None],
@@ -1077,14 +1134,17 @@ async def _load_editable_submission(
     if process is None:
         raise NotFoundError('Processo não encontrado.')
 
-    authorized = await has_platform_wide_access(session, user_id)
-    if not authorized:
-        authorized = await is_active_effective_proponent(
-            session, user_id, process_id
+    submission_act = await session.scalar(
+        select(ActivityInstance).where(
+            ActivityInstance.process_instance_id == process_id,
+            ActivityInstance.key == 'proposal_submission',
+            ActivityInstance.deleted_at.is_(None),
         )
-    if not authorized:
+    )
+    if submission_act is None:
         raise NotFoundError('Processo não encontrado.')
-    if process.status != STATUS_SUBMISSION:
+    await require_activity_access(session, user_id, submission_act, 'edit')
+    if process.status != STATUS_OPEN:
         raise ConflictError(
             f'Processo em status {process.status!r} não permite edição.'
         )
@@ -1263,11 +1323,28 @@ async def _visible_process(
     return process
 
 
+async def _visible_submission(
+    session: AsyncSession, process_id: UUID, user_id: UUID
+) -> None:
+    """Exige ver a submissão, além do cabeçalho do processo (Spec 030)."""
+    await _visible_process(session, process_id, user_id)
+    submission_act = await session.scalar(
+        select(ActivityInstance).where(
+            ActivityInstance.process_instance_id == process_id,
+            ActivityInstance.key == 'proposal_submission',
+            ActivityInstance.deleted_at.is_(None),
+        )
+    )
+    if submission_act is None:
+        raise NotFoundError('Processo não encontrado.')
+    await require_activity_access(session, user_id, submission_act, 'view')
+
+
 async def list_returned_submission_versions(
     session: AsyncSession, process_id: UUID, user_id: UUID
 ) -> list[dict[str, Any]]:
     """Projeta versões submetidas que foram devolvidas para revisão."""
-    await _visible_process(session, process_id, user_id)
+    await _visible_submission(session, process_id, user_id)
     revision_events = list(
         await session.scalars(
             select(AuditEvent)
@@ -1302,7 +1379,7 @@ async def get_returned_submission_version(
     run_number: int,
     user_id: UUID,
 ) -> dict[str, Any]:
-    await _visible_process(session, process_id, user_id)
+    await _visible_submission(session, process_id, user_id)
     revision_events = list(
         await session.scalars(
             select(AuditEvent)
@@ -1431,7 +1508,7 @@ async def save_form_values_draft(
 ) -> FormInstance:
     await ensure_process_mutable(session, process_id)
     _, current_run, form_instance, _, fields = await get_current_form_instance(
-        session, process_id, activity_key, user_id
+        session, process_id, activity_key, user_id, 'edit'
     )
 
     if form_instance.is_submitted:
@@ -1942,7 +2019,7 @@ async def submit_proposal_form(  # noqa: PLR0914, PLR0915
         template,
         fields,
     ) = await get_current_form_instance(
-        session, process_id, activity_key, user_id
+        session, process_id, activity_key, user_id, 'edit'
     )
 
     if form_inst.is_submitted:
@@ -2022,9 +2099,9 @@ async def submit_proposal_form(  # noqa: PLR0914, PLR0915
         pending_run.set_creation_audit(user_id)
         session.add(pending_run)
 
-        # A submissão fica travada aguardando a pré-avaliação assíncrona; o
-        # roteamento definitivo ocorre em `pre_evaluation_service._execute`.
-        process.status = STATUS_AI_PRE_EVALUATION
+        # A submissão fica travada (formulário enviado) aguardando a
+        # pré-avaliação assíncrona; o roteamento definitivo ocorre em
+        # `pre_evaluation_service._execute`.
         process.set_update_audit(user_id)
 
         triage_stmt = select(ActivityInstance).where(
@@ -2058,11 +2135,43 @@ async def submit_proposal_form(  # noqa: PLR0914, PLR0915
             user_id,
             task_titles={'triage_evaluation': TRIAGE_TASK_TITLE},
         )
-        process.status = 'TRIAGE'
         process.set_update_audit(user_id)
 
     await session.commit()
     return act, current_run, artifact, pending_run
+
+
+async def _open_triage_run(
+    session: AsyncSession, process_id: UUID, user_id: UUID
+) -> tuple[ActivityInstance, ActivityRun]:
+    """Execução aberta da triagem, com concessão de edição (Spec 030, R7).
+
+    Substitui o antigo status de processo `TRIAGE`: a triagem só aceita
+    avaliação e decisão enquanto a atividade tem execução em andamento.
+    """
+    act = await session.scalar(
+        select(ActivityInstance)
+        .where(
+            ActivityInstance.process_instance_id == process_id,
+            ActivityInstance.key == 'triage_evaluation',
+            ActivityInstance.deleted_at.is_(None),
+        )
+        .options(selectinload(ActivityInstance.runs))
+    )
+    if act is None:
+        raise NotFoundError("Atividade 'triage_evaluation' não encontrada.")
+    await require_activity_access(session, user_id, act, 'edit')
+    runs = sorted(
+        (r for r in act.runs if r.deleted_at is None),
+        key=lambda r: r.run_number,
+    )
+    if (
+        act.status != 'IN_PROGRESS'
+        or not runs
+        or runs[-1].status != 'IN_PROGRESS'
+    ):
+        raise ConflictError('A triagem não está aberta para decisão.')
+    return act, runs[-1]
 
 
 async def save_field_reviews(
@@ -2077,9 +2186,7 @@ async def save_field_reviews(
     _, _, sub_form, _, sub_fields = await get_current_form_instance(
         session, process_id, 'proposal_submission'
     )
-    _, triage_run = await get_current_activity_run(
-        session, process_id, 'triage_evaluation'
-    )
+    _, triage_run = await _open_triage_run(session, process_id, user_id)
 
     field_map = {f.field_key: f for f in sub_fields}
 
@@ -2229,7 +2336,6 @@ async def _handle_needs_revision(
     ctx.triage_act.blocked_reason = 'Aguardando reenvio pelo proponente.'
     ctx.triage_act.set_update_audit(ctx.user_id)
 
-    ctx.process.status = 'SUBMISSION'
     ctx.process.set_update_audit(ctx.user_id)
 
     session.add(
@@ -2256,7 +2362,6 @@ async def _handle_approved_decision(
         phase.status = 'COMPLETED'
         phase.set_update_audit(ctx.user_id)
 
-    ctx.process.status = 'PLANNING'
     ctx.process.set_update_audit(ctx.user_id)
 
     session.add(
@@ -2277,7 +2382,7 @@ async def _handle_approved_decision(
 async def _handle_rejected_decision(
     session: AsyncSession, ctx: TriageContext
 ) -> None:
-    ctx.process.status = 'CLOSED'
+    ctx.process.status = STATUS_CLOSED
     ctx.process.closed_at = utc_now()
     ctx.process.closure_reason = f'Rejeitado na triagem: {ctx.justification}'
     ctx.process.set_update_audit(ctx.user_id)
@@ -2311,12 +2416,11 @@ async def execute_triage_decision(
     if not process:
         raise NotFoundError('Processo não encontrado.')
 
-    if process.status != 'TRIAGE':
-        raise ConflictError(f'Processo em status {process.status!r}.')
-
-    triage_act, triage_run = await get_current_activity_run(
-        session, process_id, 'triage_evaluation'
+    triage_act, triage_run = await _open_triage_run(
+        session, process_id, user_id
     )
+    if process.status != STATUS_OPEN:
+        raise ConflictError(f'Processo em status {process.status!r}.')
 
     decision = Decision(
         process_instance_id=process_id,

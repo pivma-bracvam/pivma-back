@@ -1033,9 +1033,12 @@ async def test_direct_designation_closes_role_assignment_activity(
     session.add(target)
     await session.commit()
 
-    assert _task_by_title(
-        client, process_id, 'Definir os integrantes do Grupo Gestor'
-    )['status'] == 'READY'
+    assert (
+        _task_by_title(
+            client, process_id, 'Definir os integrantes do Grupo Gestor'
+        )['status']
+        == 'READY'
+    )
     assert _task_by_title(client, process_id, 'Definir o Estatístico') is None
 
     authenticate(client, proponente)
@@ -1046,6 +1049,8 @@ async def test_direct_designation_closes_role_assignment_activity(
         client, process_id, 'Definir os integrantes do Grupo Gestor'
     )
     assert gestor_task['status'] == 'COMPLETED'
+    # Spec 030: a etapa do Estatístico é do cargo `group_manager`.
+    authenticate(client, target)
     statistician_task = _task_by_title(
         client, process_id, 'Definir o Estatístico'
     )
@@ -1132,9 +1137,7 @@ async def test_multiple_active_designations_for_same_role_are_accepted(
 
     authenticate(client, proponente)
     resp1 = create_participant(client, process_id, first_target.id, 'sponsor')
-    resp2 = create_participant(
-        client, process_id, second_target.id, 'sponsor'
-    )
+    resp2 = create_participant(client, process_id, second_target.id, 'sponsor')
     assert resp1.status_code == HTTPStatus.CREATED
     assert resp2.status_code == HTTPStatus.CREATED
 

@@ -16,6 +16,7 @@ from pivma.core.process_engine import (
     AuthorizationError,
     ConflictError,
     NotFoundError,
+    get_current_activity_run,
 )
 from pivma.dependencies import AdminUser, CurrentUser, Session, TrustedOrigin
 from pivma.schemas import (
@@ -37,14 +38,15 @@ STALE_MINUTES = svc.STALE_MINUTES
 async def _ensure_can_read(
     session: Session, process_id: UUID, user_id: UUID
 ) -> None:
-    if await is_active_effective_proponent(session, user_id, process_id):
-        return
-    if await has_permission(session, user_id, TRIAGE_REVIEW):
-        return
-    raise HTTPException(
-        status_code=HTTPStatus.FORBIDDEN,
-        detail='Sem acesso à pré-avaliação deste processo.',
-    )
+    """Ler a pré-avaliação exige ver a submissão (Spec 030, FR-017)."""
+    try:
+        await get_current_activity_run(
+            session, process_id, 'proposal_submission', user_id, 'view'
+        )
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail=str(e)
+        ) from e
 
 
 @router.get('/{id}/pre-evaluation', response_model=PreEvaluationResponse)
@@ -89,7 +91,9 @@ async def request_direct_review(
         ) from e
 
     return DirectReviewResponse(
-        process_status='TRIAGE', direct_review_request_id=request.id
+        # Spec 030 (FR-006): só o ciclo de vida, nunca a posição no fluxo.
+        process_status='OPEN',
+        direct_review_request_id=request.id,
     )
 
 

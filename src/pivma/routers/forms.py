@@ -24,6 +24,8 @@ from pivma.core.database.models import (
 )
 from pivma.core.pre_evaluation_service import run_pre_evaluation
 from pivma.core.process_engine import (
+    AccessLevel,
+    AuthorizationError,
     ConflictError,
     NotFoundError,
     ValidationError,
@@ -220,6 +222,10 @@ async def save_form_draft(
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail=str(e)
         ) from e
+    except AuthorizationError as e:
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN, detail=str(e)
+        ) from e
     except ConflictError as e:
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,
@@ -262,6 +268,10 @@ async def submit_form(  # noqa: PLR0913, PLR0917
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail=str(e)
         ) from e
+    except AuthorizationError as e:
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN, detail=str(e)
+        ) from e
     except ValidationError as e:
         raise HTTPException(
             status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
@@ -297,20 +307,26 @@ async def submit_form(  # noqa: PLR0913, PLR0917
 # ---------------------------------------------------------------------------
 
 
-async def _load_file_field(
+async def _load_file_field(  # noqa: PLR0913
     session: Any,
     process_id: UUID,
     activity_key: str,
     field_key: str,
     user_id: UUID,
+    *,
+    access: AccessLevel = 'view',
 ) -> tuple[Any, Any, FormField]:
     try:
         _, run, form_inst, _, fields = await get_current_form_instance(
-            session, process_id, activity_key, user_id
+            session, process_id, activity_key, user_id, access
         )
     except NotFoundError as e:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail=str(e)
+        ) from e
+    except AuthorizationError as e:
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN, detail=str(e)
         ) from e
 
     field = next((f for f in fields if f.field_key == field_key), None)
@@ -357,7 +373,7 @@ async def upload_field_attachment(  # noqa: PLR0913, PLR0914, PLR0915, PLR0917
     _: TrustedOrigin,
 ):
     run, form_inst, field = await _load_file_field(
-        session, id, activity_key, field_key, current_user.id
+        session, id, activity_key, field_key, current_user.id, access='edit'
     )
     try:
         await ensure_process_mutable(session, id)
@@ -486,7 +502,7 @@ async def delete_field_attachment(  # noqa: PLR0913, PLR0917
     _: TrustedOrigin,
 ):
     _run, form_inst, field = await _load_file_field(
-        session, id, activity_key, field_key, current_user.id
+        session, id, activity_key, field_key, current_user.id, access='edit'
     )
     try:
         await ensure_process_mutable(session, id)

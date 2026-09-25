@@ -24,7 +24,10 @@ phases:
       - key: "atividade_submissao"
         name: "Submissão da Proposta"
         order_index: 1
-        assigned_role: "PROPONENT"
+        assigned_role: "proponent"
+        access:              # Quem vê e quem edita a atividade (ver seção 1.1)
+          edit: ["proponent"]
+          view: []
         form_template_key: "chave_do_formulario_v1" # Opcional: vincula ao bloco 'forms' (atividades deliberativas/periciais como triagem não utilizam formulário)
         dependencies: []
 
@@ -42,6 +45,18 @@ forms:
 ```
 
 O script `bootstrap_process_templates.py` lê esses arquivos, registra as entidades `FormTemplate` e mapeia cada elemento da lista `fields` para instâncias de `FormField`. Atividades que não declaram `form_template_key` (como a triagem e etapas sem formulário) criam execuções e tarefas diretamente, sem gerar `FormInstance`.
+
+### 1.1 Acesso por atividade (`access`)
+
+Cada atividade declara quais cargos podem vê-la e editá-la. As concessões valem para cargos, nunca para usuários: um usuário ganha acesso quando tem o cargo no processo (atribuição ativa) ou um cargo global (`admin`, `bracvam`) pelo perfil.
+
+- `edit`: cargos que editam a atividade (preencher e enviar formulário, anexar, decidir). Editar implica ver.
+- `view`: cargos que só leem a atividade.
+- Sem `access`, o cargo de `assigned_role` edita.
+- `admin` e `bracvam` sempre veem todas as atividades. O sistema acrescenta os dois a `view`, e o template não tem como removê-los. Para editar, precisam estar em `edit`.
+- As concessões são copiadas para a atividade na criação do processo. Mudar o YAML não altera processos que já existem.
+
+A carga dos templates falha, indicando template, atividade e cargo, quando uma atividade não tem nenhum cargo em `edit` ou quando um cargo está fora do vocabulário de cargos (`ACTIVITY_CARGOS` em `pivma.core.authorization`).
 
 ---
 

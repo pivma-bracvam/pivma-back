@@ -21,7 +21,15 @@ from pivma.core.process_engine import (
     save_field_reviews,
     submit_proposal_form,
 )
+from tests.conftest import _make_rbac_user
 from tests.factories.user_factory import UserFactory
+
+
+async def _make_bracvam(session):
+    """Triador com perfil BraCVAM: só ele edita a triagem (Spec 030)."""
+    return await _make_rbac_user(
+        session, system_key='bracvam', name='BraCVAM', codes=()
+    )
 
 
 @pytest.mark.asyncio
@@ -30,9 +38,9 @@ async def test_triage_activity_has_no_form_instance(session):
     await bootstrap_all_templates(session)
 
     proponent = UserFactory()
-    triador = UserFactory()
-    session.add_all([proponent, triador])
+    session.add(proponent)
     await session.commit()
+    triador = await _make_bracvam(session)
 
     # Obter template pré-validado
     ptv = (
@@ -112,5 +120,5 @@ async def test_triage_activity_has_no_form_instance(session):
     )
 
     assert decision.outcome == 'APPROVED'
-    assert status == 'PLANNING'
+    assert status == 'OPEN'
     assert triage_run.status == 'COMPLETED'

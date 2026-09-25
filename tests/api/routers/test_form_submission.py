@@ -16,6 +16,7 @@ from pivma.core.database.models import (
     FormValue,
     ProcessInstance,
 )
+from tests.activity_state import in_triage
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.participant_factory import AssignmentFactory
 from tests.factories.user_factory import UserFactory
@@ -90,9 +91,10 @@ async def test_form_draft_and_submission_flow(client, session):
     )
     assert dossier.metadata_payload['title'] == 'Estudo de Irritação Cutânea'
 
-    # 7. Check process status changed to TRIAGE
+    # 7. A triagem abre; o processo segue OPEN (Spec 030)
     p_resp = client.get(f'/processes/{process_id}')
-    assert p_resp.json()['status'] == 'TRIAGE'
+    assert p_resp.json()['status'] == 'OPEN'
+    assert await in_triage(session, process_id)
 
     # 8. Check timeline
     tl_resp = client.get(f'/processes/{process_id}/timeline')

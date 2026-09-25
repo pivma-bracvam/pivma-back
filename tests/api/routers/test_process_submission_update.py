@@ -354,7 +354,11 @@ async def test_patch_rejects_empty_payload_and_numeric_limit_atomically(
 
 
 @pytest.mark.asyncio
-async def test_bracvam_can_patch_draft(client, session, bracvam_user):
+async def test_bracvam_cannot_patch_draft(client, session, bracvam_user):
+    """Spec 030 (FR-016/FR-018): o BraCVAM vê o rascunho, mas só o cargo
+
+    `proponent` edita a submissão.
+    """
     _, process_id = await _draft_context(client, session)
     authenticate(client, bracvam_user)
 
@@ -362,8 +366,7 @@ async def test_bracvam_can_patch_draft(client, session, bracvam_user):
         f'/processes/{process_id}', json={'title': 'Gestão corrigiu o título'}
     )
 
-    assert response.status_code == HTTPStatus.OK
-    assert response.json()['title'] == 'Gestão corrigiu o título'
+    assert response.status_code == HTTPStatus.FORBIDDEN
 
 
 @pytest.mark.asyncio
@@ -457,7 +460,7 @@ async def test_draft_update_does_not_create_history_or_change_flow(
 
     assert response.status_code == HTTPStatus.OK
     process_after = await session.get(ProcessInstance, process_id)
-    assert process_after.status == process_before.status == 'SUBMISSION'
+    assert process_after.status == process_before.status == 'OPEN'
     assert response.json()['form_instance_id'] == run_before
     assert (
         client.get(f'/processes/{process_id}/submission-versions').json() == []
@@ -490,7 +493,7 @@ async def test_patch_draft_does_not_change_status_or_run(client, session):
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json()['status'] == 'SUBMISSION'
+    assert response.json()['status'] == 'OPEN'
     assert response.json()['run_number'] == 1
     assert response.json()['form_instance_id'] == before['form_instance_id']
 

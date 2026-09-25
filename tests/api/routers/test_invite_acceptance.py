@@ -86,9 +86,7 @@ async def test_accept_with_matching_email_creates_assignment(
         client, session, bracvam_user
     )
     authenticate(client, proponente)
-    created = create_invite(
-        client, process_id, 'novo@exemplo.org', 'sponsor'
-    )
+    created = create_invite(client, process_id, 'novo@exemplo.org', 'sponsor')
     token = created.json()['token']
 
     new_user = UserFactory(email='novo@exemplo.org')
@@ -103,9 +101,7 @@ async def test_accept_with_matching_email_creates_assignment(
     assert body['assignment_id'] is not None
     assert body['invite']['status'] == 'accepted'
 
-    participants = client.get(
-        f'/processes/{process_id}/participants'
-    ).json()
+    participants = client.get(f'/processes/{process_id}/participants').json()
     assert any(
         p['user_id'] == str(new_user.id) and p['role_key'] == 'sponsor'
         for p in participants
@@ -144,9 +140,7 @@ async def test_accept_with_mismatched_email_is_forbidden(
         client, session, bracvam_user
     )
     authenticate(client, proponente)
-    created = create_invite(
-        client, process_id, 'alvo@exemplo.org', 'sponsor'
-    )
+    created = create_invite(client, process_id, 'alvo@exemplo.org', 'sponsor')
     token = created.json()['token']
     invite_id = created.json()['id']
 
@@ -220,8 +214,7 @@ async def test_accept_already_resolved_invite_is_conflict(
     else:
         authenticate(client, proponente)
         client.post(
-            f'/processes/{process_id}/participants/invites/'
-            f'{invite_id}/revoke',
+            f'/processes/{process_id}/participants/invites/{invite_id}/revoke',
             headers=ORIGIN,
         )
 
@@ -376,9 +369,7 @@ async def test_accept_closes_activity_when_last_pending_invite(
         client, session, bracvam_user
     )
     authenticate(client, proponente)
-    created = create_invite(
-        client, process_id, 'unico@exemplo.org', 'sponsor'
-    )
+    created = create_invite(client, process_id, 'unico@exemplo.org', 'sponsor')
     token = created.json()['token']
 
     new_user = UserFactory(email='unico@exemplo.org')
@@ -387,6 +378,8 @@ async def test_accept_closes_activity_when_last_pending_invite(
     authenticate(client, new_user)
     accept_invite_req(client, token)
 
+    # Spec 030: a tarefa é do cargo `proponent`; só ele (e Admin/BraCVAM) a vê.
+    authenticate(client, proponente)
     tasks = client.get('/tasks', params={'process_id': process_id}).json()
     sponsor_task = next(
         t for t in tasks if t['title'] == 'Definir o Patrocinador'
