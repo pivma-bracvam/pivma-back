@@ -1,10 +1,10 @@
 """Script de carga para o Kanban de pendências (Spec 018).
 
-Cria uma massa de processos suficiente para provar, na demonstração
-(`demos/kanban/`), que um usuário BraCVAM consegue abrir o Kanban e ver
-todas as pendências de centenas de métodos associados sem abrir método por
-método — sem nenhum endpoint criado exclusivamente para viabilizar a demo
-(Constituição, Princípio II).
+Cria uma massa de processos suficiente para provar, pela API, que um
+usuário BraCVAM consegue abrir o Kanban e ver todas as pendências de
+centenas de métodos associados sem abrir método por método — sem nenhum
+endpoint criado exclusivamente para viabilizar a carga (Constituição,
+Princípio II).
 """
 
 import argparse

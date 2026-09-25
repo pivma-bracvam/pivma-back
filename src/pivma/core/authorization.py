@@ -63,6 +63,11 @@ ACTIVITY_CARGOS = (
         'lead_laboratory',
         'participating_laboratory',
         'proponent',
+        # Issue #41 — mesma adição de ParticipantRole em schemas.py.
+        'sponsor',
+        'sample_selection_group',
+        'regulatory_observer',
+        'collaborator',
     })
     | GLOBAL_ACTIVITY_CARGOS
 )
@@ -465,6 +470,31 @@ async def can_manage_participants(
     if await has_permission(session, user_id, PROCESS_PARTICIPANTS_MANAGE):
         return True
     return await is_effective_group_manager(session, user_id, process_id)
+
+
+# Papéis cuja gestão (designar/convidar/reenviar/revogar) o Proponente
+# efetivo do processo ganha mesmo sem a autorização genérica de
+# `can_manage_participants` — a única autorização nova da Spec 028 (FR-003).
+# Quem já tem a autorização genérica continua podendo gerir qualquer um dos
+# 8 papéis desta feature, como já valia antes dela (FR-002).
+PROPONENT_MANAGEABLE_ROLE_KEYS = frozenset({'sponsor', GROUP_MANAGER_ROLE_KEY})
+
+
+async def can_manage_role_assignment(
+    session: AsyncSession, user_id: UUID, process_id: UUID, role_key: str
+) -> bool:
+    """Autorização por papel-alvo para a Spec 028 (FR-001/FR-002/FR-003).
+
+    Composição pura de três funções já existentes — nenhuma decisão de
+    autorização nova além da cláusula do Proponente (research.md R3).
+    """
+    if await can_manage_participants(session, user_id, process_id):
+        return True
+    if role_key in PROPONENT_MANAGEABLE_ROLE_KEYS:
+        return await is_active_effective_proponent(
+            session, user_id, process_id
+        )
+    return False
 
 
 async def participant_read_scope(

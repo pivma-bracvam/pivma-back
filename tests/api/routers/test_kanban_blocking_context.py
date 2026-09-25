@@ -45,11 +45,11 @@ async def test_blocked_item_exposes_predecessor_status_and_cargo(
     assert by_key['proposal_submission']['actionable_now'] is True
     assert by_key['proposal_submission']['column'] == 'EM_ANDAMENTO'
 
-    planning_preview = by_key['planning_preview']
-    assert planning_preview['column'] == 'NAO_INICIADO'
-    assert planning_preview['blocking_activity_key'] == 'triage_evaluation'
-    assert planning_preview['blocking_activity_status'] == 'BLOCKED'
-    assert planning_preview['blocking_activity_cargo'] == 'bracvam'
+    assign_sponsor = by_key['assign_sponsor']
+    assert assign_sponsor['column'] == 'NAO_INICIADO'
+    assert assign_sponsor['blocking_activity_key'] == 'triage_evaluation'
+    assert assign_sponsor['blocking_activity_status'] == 'BLOCKED'
+    assert assign_sponsor['blocking_activity_cargo'] == 'bracvam'
 
     # Submeter a proposta libera a triagem: o predecessor muda de status.
     client.post(
@@ -68,7 +68,7 @@ async def test_blocked_item_exposes_predecessor_status_and_cargo(
         '/activities/kanban', params={'process_id': process_id}
     ).json()
     by_key_after = {i['activity_key']: i for i in kanban_after['items']}
-    assert by_key_after['planning_preview']['blocking_activity_status'] in {
+    assert by_key_after['assign_sponsor']['blocking_activity_status'] in {
         'READY',
         'IN_PROGRESS',
     }

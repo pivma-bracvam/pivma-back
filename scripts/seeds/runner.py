@@ -41,6 +41,9 @@ from scripts.seeds.seed_ai_evaluations import run_seed_ai_evaluations
 from scripts.seeds.seed_forms import run_seed_forms
 from scripts.seeds.seed_kanban import run_seed_kanban
 from scripts.seeds.seed_process_retirement import run_seed_process_retirement
+from scripts.seeds.seed_role_assignment_invites import (
+    run_seed_role_assignment_invites,
+)
 from scripts.seeds.seed_submission_update import run_seed_submission_update
 from scripts.seeds.seed_triage import run_seed_triage
 from scripts.seeds.seed_users import run_seed_users
@@ -280,16 +283,20 @@ async def run_seeds(
         await run_seed_ai_evaluations()
         print()
 
-    print(f'[6] Semeando Kanban de pendências ({count} processos)...')
+        print('[6] Semeando Atribuição de Cargo por Convite (Spec 028)...')
+        await run_seed_role_assignment_invites()
+        print()
+
+    print(f'[7] Semeando Kanban de pendências ({count} processos)...')
     await run_seed_kanban(target_count=count)
     print()
 
     if profile == 'all':
-        print('[7] Semeando atualização de submissão (Spec 021)...')
+        print('[8] Semeando atualização de submissão (Spec 021)...')
         await run_seed_submission_update()
         print()
 
-        print('[8] Semeando ciclo de vida de processo (Spec 022)...')
+        print('[9] Semeando ciclo de vida de processo (Spec 022)...')
         await run_seed_process_retirement()
         print()
 
@@ -297,7 +304,6 @@ async def run_seeds(
     print('Seed de demonstração concluído com sucesso!')
     print('=====================================================')
     print(f'Perfil: {profile} | Processos no Kanban: {count}')
-    print('Hub de demonstrações: http://localhost:8000/demos/')
     print('=====================================================\n')
 
 

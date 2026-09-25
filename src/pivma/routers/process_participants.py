@@ -3,14 +3,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 
 from pivma.core.authorization import (
-    LABORATORY_ROLE_KEYS,
     can_manage_participants,
+    can_manage_role_assignment,
     compute_effectiveness_map,
     declarations_by_assignment,
-    has_active_laboratory_affiliation,
     latest_declarations_map,
     participant_read_scope,
 )
@@ -18,15 +16,35 @@ from pivma.core.database.models import (
     Assignment,
     AuditEvent,
     ConflictInterestDeclaration,
-    Laboratory,
     ProcessInstance,
-    User,
+    RoleAssignmentInvite,
 )
-from pivma.core.process_engine import IMMUTABLE_PROCESS_STATUSES, utc_now
-from pivma.dependencies import CurrentUser, Session, TrustedOrigin
+from pivma.core.invite_service import (
+    create_invite,
+    invite_public_kwargs,
+    resend_invite,
+    revoke_invite,
+)
+from pivma.core.participant_service import create_assignment
+from pivma.core.process_engine import (
+    IMMUTABLE_PROCESS_STATUSES,
+    ConflictError,
+    NotFoundError,
+    _maybe_close_role_assignment_activity,  # noqa: PLC2701
+    utc_now,
+)
+from pivma.dependencies import (
+    CurrentUser,
+    Session,
+    SettingsDependency,
+    TrustedOrigin,
+)
 from pivma.schemas import (
     ConflictDeclarationCreate,
     ConflictDeclarationPublic,
+    InviteCreate,
+    InviteCreatedResponse,
+    InvitePublic,
     ParticipantAssignmentCreate,
     ParticipantAssignmentPublic,
     ParticipantHistoryItem,
@@ -148,7 +166,9 @@ async def create_participant(
     current_user: CurrentUser,
     _origin: TrustedOrigin,
 ):
-    if not await can_manage_participants(session, current_user.id, process_id):
+    if not await can_manage_role_assignment(
+        session, current_user.id, process_id, payload.role_key
+    ):
         raise forbidden()
 
     process = await _get_active_process(session, process_id)
@@ -159,54 +179,21 @@ async def create_participant(
     if process.status in IMMUTABLE_PROCESS_STATUSES:
         raise conflict('Processo encerrado não aceita novos participantes.')
 
-    target_user = await session.get(User, payload.user_id)
-    if target_user is None:
-        raise not_found('Usuário não encontrado.')
-    if target_user.deleted_at is not None:
-        raise conflict('Usuário inativo.')
-
-    laboratory = None
-    if payload.role_key in LABORATORY_ROLE_KEYS:
-        laboratory = await session.get(Laboratory, payload.laboratory_id)
-        if laboratory is None:
-            raise not_found('Laboratório não encontrado.')
-        if laboratory.deleted_at is not None:
-            raise conflict('Laboratório inativo.')
-        if not await has_active_laboratory_affiliation(
-            session, payload.user_id, payload.laboratory_id
-        ):
-            raise conflict(
-                'Usuário sem vínculo laboratorial vigente com o laboratório.'
-            )
-
-    assignment = Assignment(
-        process_instance_id=process_id,
-        user_id=payload.user_id,
-        role_key=payload.role_key,
-        assigned_by=current_user.id,
-        laboratory_id=payload.laboratory_id,
-    )
-    assignment.set_creation_audit(current_user.id)
-    session.add(assignment)
     try:
-        await session.flush()
-    except IntegrityError:
-        await session.rollback()
-        raise conflict(
-            'Já existe uma designação ativa para este processo, '
-            'usuário e papel.'
-        ) from None
-
-    session.add(
-        AuditEvent(
-            process_instance_id=process_id,
-            user_id=current_user.id,
-            event_type='PARTICIPANT_ASSIGNED',
-            context_data=_assignment_event_context(
-                assignment, result='success', source='api'
-            ),
+        assignment = await create_assignment(
+            session,
+            process,
+            user_id=payload.user_id,
+            role_key=payload.role_key,
+            laboratory_id=payload.laboratory_id,
+            actor_id=current_user.id,
+            source='api',
         )
-    )
+    except NotFoundError as e:
+        raise not_found(str(e)) from e
+    except ConflictError as e:
+        raise conflict(str(e)) from e
+
     await session.commit()
     await session.refresh(assignment)
 
@@ -227,15 +214,28 @@ async def revoke_participant(
     current_user: CurrentUser,
     _origin: TrustedOrigin,
 ) -> Response:
-    if not await can_manage_participants(session, current_user.id, process_id):
-        raise forbidden()
-
+    # A autorização depende do papel da designação (FR-001/FR-003), que só
+    # é conhecido depois de buscá-la; para quem não tem a autorização
+    # genérica (Spec 006), a busca acontece de qualquer forma (mesmo custo
+    # de uma consulta indexada por PK) sem expor a existência da designação
+    # antes de decidir 403 — quando não encontrada, cai de volta na regra
+    # genérica, preservando o comportamento anterior a esta feature.
     assignment = await session.scalar(
         select(Assignment).where(
             Assignment.id == assignment_id,
             Assignment.process_instance_id == process_id,
         )
     )
+    if assignment is not None:
+        authorized = await can_manage_role_assignment(
+            session, current_user.id, process_id, assignment.role_key
+        )
+    else:
+        authorized = await can_manage_participants(
+            session, current_user.id, process_id
+        )
+    if not authorized:
+        raise forbidden()
     if assignment is None:
         raise not_found('Designação não encontrada.')
     process = await session.get(ProcessInstance, process_id)
@@ -386,3 +386,178 @@ async def get_participant_history(
     ]
 
     return ParticipantHistoryPage(offset=offset, limit=limit, items=items)
+
+
+# ==========================================
+# ROLE ASSIGNMENT INVITES (Spec 028)
+# ==========================================
+
+
+def _invite_public(
+    invite: RoleAssignmentInvite, *, token: str | None = None
+) -> InvitePublic:
+    kwargs = invite_public_kwargs(invite)
+    if token is not None:
+        return InviteCreatedResponse(**kwargs, token=token)
+    return InvitePublic(**kwargs)
+
+
+async def _get_invite_or_404(
+    session: Session, process_id: UUID, invite_id: UUID
+) -> RoleAssignmentInvite:
+    invite = await session.scalar(
+        select(RoleAssignmentInvite).where(
+            RoleAssignmentInvite.id == invite_id,
+            RoleAssignmentInvite.process_instance_id == process_id,
+            RoleAssignmentInvite.deleted_at.is_(None),
+        )
+    )
+    if invite is None:
+        raise not_found('Convite não encontrado.')
+    return invite
+
+
+@router.post(
+    '/{process_id}/participants/invites',
+    response_model=InviteCreatedResponse,
+    status_code=HTTPStatus.CREATED,
+)
+async def create_participant_invite(
+    process_id: UUID,
+    payload: InviteCreate,
+    session: Session,
+    current_user: CurrentUser,
+    settings: SettingsDependency,
+    _origin: TrustedOrigin,
+):
+    if not await can_manage_role_assignment(
+        session, current_user.id, process_id, payload.role_key
+    ):
+        raise forbidden()
+
+    process = await _get_active_process(session, process_id)
+    if process is None:
+        raise not_found('Processo não encontrado.')
+    if process.deleted_at is not None:
+        raise conflict('Processo inativo.')
+    if process.status in IMMUTABLE_PROCESS_STATUSES:
+        raise conflict('Processo encerrado não aceita novos convites.')
+
+    try:
+        invite, token = await create_invite(
+            session,
+            process,
+            email=payload.email,
+            role_key=payload.role_key,
+            laboratory_id=payload.laboratory_id,
+            channel=payload.channel,
+            actor_id=current_user.id,
+            expiration_hours=settings.INVITE_EXPIRATION_HOURS,
+        )
+    except NotFoundError as e:
+        raise not_found(str(e)) from e
+    except ConflictError as e:
+        raise conflict(str(e)) from e
+
+    await session.commit()
+    await session.refresh(invite)
+    return _invite_public(invite, token=token)
+
+
+@router.get(
+    '/{process_id}/participants/invites',
+    response_model=list[InvitePublic],
+    status_code=HTTPStatus.OK,
+)
+async def list_participant_invites(
+    process_id: UUID, session: Session, current_user: CurrentUser
+):
+    process = await _get_active_process(session, process_id)
+    if process is None:
+        raise not_found('Processo não encontrado.')
+
+    stmt = (
+        select(RoleAssignmentInvite)
+        .where(
+            RoleAssignmentInvite.process_instance_id == process_id,
+            RoleAssignmentInvite.deleted_at.is_(None),
+        )
+        .order_by(RoleAssignmentInvite.created_at.desc())
+    )
+    invites = list(await session.scalars(stmt))
+
+    visible = []
+    for invite in invites:
+        if await can_manage_role_assignment(
+            session, current_user.id, process_id, invite.role_key
+        ):
+            visible.append(_invite_public(invite))
+    return visible
+
+
+@router.post(
+    '/{process_id}/participants/invites/{invite_id}/resend',
+    response_model=InviteCreatedResponse,
+    status_code=HTTPStatus.OK,
+)
+async def resend_participant_invite(
+    process_id: UUID,
+    invite_id: UUID,
+    session: Session,
+    current_user: CurrentUser,
+    settings: SettingsDependency,
+    _origin: TrustedOrigin,
+):
+    invite = await _get_invite_or_404(session, process_id, invite_id)
+    if not await can_manage_role_assignment(
+        session, current_user.id, process_id, invite.role_key
+    ):
+        raise forbidden()
+
+    try:
+        invite, token = await resend_invite(
+            session,
+            invite,
+            actor_id=current_user.id,
+            expiration_hours=settings.INVITE_EXPIRATION_HOURS,
+        )
+    except ConflictError as e:
+        raise conflict(str(e)) from e
+
+    await session.commit()
+    await session.refresh(invite)
+    return _invite_public(invite, token=token)
+
+
+@router.post(
+    '/{process_id}/participants/invites/{invite_id}/revoke',
+    response_model=InvitePublic,
+    status_code=HTTPStatus.OK,
+)
+async def revoke_participant_invite(
+    process_id: UUID,
+    invite_id: UUID,
+    session: Session,
+    current_user: CurrentUser,
+    _origin: TrustedOrigin,
+):
+    invite = await _get_invite_or_404(session, process_id, invite_id)
+    if not await can_manage_role_assignment(
+        session, current_user.id, process_id, invite.role_key
+    ):
+        raise forbidden()
+
+    try:
+        invite = await revoke_invite(session, invite, actor_id=current_user.id)
+    except ConflictError as e:
+        raise conflict(str(e)) from e
+
+    process = await session.get(ProcessInstance, process_id)
+    if process is not None:
+        await _maybe_close_role_assignment_activity(
+            session, process, invite.role_key, current_user.id
+        )
+
+    await session.commit()
+    await session.refresh(invite)
+    return _invite_public(invite)

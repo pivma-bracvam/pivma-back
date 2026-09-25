@@ -725,6 +725,15 @@ ParticipantRole = Literal[
     'lead_laboratory',
     'participating_laboratory',
     'proponent',
+    # Issue #41 — papéis novos da Etapa 2 (Spec 028: matriz de atribuição de
+    # cargo). `sponsor` e `sample_selection_group` são exigidos pela esteira
+    # completa da Etapa 2; `regulatory_observer` (ANVISA/MAPA) é reservado
+    # embora esta feature não o utilize; `collaborator` é o papel amplo de
+    # "Colaboradores e Observadores", distinto de `regulatory_observer`.
+    'sponsor',
+    'sample_selection_group',
+    'regulatory_observer',
+    'collaborator',
 ]
 
 # Cargo declarado por uma atividade de processo (`Task.assigned_role` / YAML do
@@ -740,6 +749,10 @@ ActivityCargo = Literal[
     'lead_laboratory',
     'participating_laboratory',
     'proponent',
+    'sponsor',
+    'sample_selection_group',
+    'regulatory_observer',
+    'collaborator',
     'admin',
     'bracvam',
 ]
@@ -822,6 +835,87 @@ class ParticipantHistoryPage(BaseModel):
     offset: int
     limit: int
     items: list[ParticipantHistoryItem]
+
+
+# ==========================================
+# ROLE ASSIGNMENT INVITES (Spec 028)
+# ==========================================
+
+InviteChannel = Literal['link']
+
+
+class InviteCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid', validate_default=True)
+
+    email: Annotated[str, Field(json_schema_extra={'format': 'email'})]
+    role_key: ParticipantRole
+    laboratory_id: UUID | None = None
+    channel: InviteChannel = 'link'
+
+    @field_validator('email', mode='before')
+    @classmethod
+    def validate_email_preserving_case(cls, value):
+        if not isinstance(value, str):
+            return value
+        trimmed = value.strip()
+        email_adapter.validate_python(trimmed)
+        return trimmed
+
+    @field_validator('laboratory_id')
+    @classmethod
+    def validate_laboratory_requirement(cls, value, info):
+        role = info.data.get('role_key')
+        if role is None:
+            return value
+        if role in LABORATORY_ROLE_KEYS and value is None:
+            raise ValueError('laboratory_id is required for laboratory roles')
+        if role not in LABORATORY_ROLE_KEYS and value is not None:
+            raise ValueError('laboratory_id is not allowed for this role')
+        return value
+
+
+class InvitePublic(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    id: UUID
+    process_id: UUID
+    role_key: str
+    laboratory_id: UUID | None
+    email: str
+    channel: str
+    status: Literal['pending', 'accepted', 'revoked']
+    expired: bool
+    expires_at: datetime
+    created_by: UUID
+    created_at: datetime
+    accepted_at: datetime | None
+    accepted_by: UUID | None
+    revoked_at: datetime | None
+    revoked_by: UUID | None
+
+
+class InviteCreatedResponse(InvitePublic):
+    token: str
+
+
+class InvitePreview(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    role_key: str
+    process_code: str
+    process_title: str
+    masked_email: str
+    expires_at: datetime
+    expired: bool
+
+
+class InviteAcceptResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    invite: InvitePublic
+    assignment_id: UUID
+    process_id: UUID
+    role_key: str
 
 
 # ---------------------------------------------------------------------------

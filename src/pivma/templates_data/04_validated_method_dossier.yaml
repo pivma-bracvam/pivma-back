@@ -2,7 +2,7 @@ process_template:
   key: "validated_method_dossier"
   name: "Método Validado – Dossiê Submetido"
   description: "Método 100% novo já desenvolvido, protocolo estabelecido e toda validação já concluída – dossiê pronto para revisão por pares e adoção regulatória (Peer-Review Ready)."
-  version: 3
+  version: 4
   is_active: true
 
 phases:
@@ -29,22 +29,102 @@ phases:
             required_status: "COMPLETED"
             condition_type: "ACTIVITY_COMPLETED"
 
-  # Fase 2 de exemplo (Spec 017): não representa nenhuma regra de negócio real
-  # de Planejamento. Existe apenas para validar, com a API real, que o motor
-  # de processos e o frontend conseguem avançar o roteiro para uma atividade
-  # que não é formulário. Instâncias criadas a partir da versão 1 deste
-  # template não são afetadas (Spec 004 FR-001/SC-002).
-  - key: "phase_2_planning_preview"
-    name: "Fase 2: Planejamento (prévia)"
+  # Fase 2 (Spec 028): as 8 atividades de atribuição de cargo da Etapa 2,
+  # substituindo a prévia placeholder da Spec 017 nesta nova versão (v4) —
+  # instâncias presas à v3 continuam vendo "planning_preview" intacta
+  # (Spec 004 FR-001/SC-002). Ordem e dependências decididas com o usuário
+  # (ver "Sequência de Preenchimento" em specs/028-role-assignment-invites/
+  # spec.md): 1-2 (Proponente) sem dependência entre si; 3-8 dependem só da
+  # conclusão de group_manager (2), não umas das outras.
+  - key: "phase_2_role_assignment"
+    name: "Fase 2: Composição da Governança"
     order_index: 2
     activities:
-      - key: "planning_preview"
-        name: "Prévia do Planejamento"
+      - key: "assign_sponsor"
+        name: "Definir o Patrocinador"
         order_index: 1
-        assigned_role: "bracvam"
-        activity_type: "placeholder"
+        assigned_role: "proponent"
+        activity_type: "role_assignment"
+        target_role_key: "sponsor"
         dependencies:
           - required_activity_key: "triage_evaluation"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_group_manager"
+        name: "Definir os integrantes do Grupo Gestor"
+        order_index: 2
+        assigned_role: "proponent"
+        activity_type: "role_assignment"
+        target_role_key: "group_manager"
+        dependencies:
+          - required_activity_key: "triage_evaluation"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_sample_selection_group"
+        name: "Definir o Grupo de Seleção de Amostras"
+        order_index: 3
+        assigned_role: "group_manager"
+        activity_type: "role_assignment"
+        target_role_key: "sample_selection_group"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_lead_laboratory"
+        name: "Definir o Laboratório Líder"
+        order_index: 4
+        assigned_role: "group_manager"
+        activity_type: "role_assignment"
+        target_role_key: "lead_laboratory"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_participating_laboratory"
+        name: "Definir os Laboratórios Participantes"
+        order_index: 5
+        assigned_role: "group_manager"
+        activity_type: "role_assignment"
+        target_role_key: "participating_laboratory"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_statistician"
+        name: "Definir o Estatístico"
+        order_index: 6
+        assigned_role: "group_manager"
+        activity_type: "role_assignment"
+        target_role_key: "statistician"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_collaborator"
+        name: "Definir Colaboradores e Observadores"
+        order_index: 7
+        assigned_role: "bracvam"
+        activity_type: "role_assignment"
+        target_role_key: "collaborator"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_adhoc_evaluator"
+        name: "Definir Especialistas Temáticos (Comitê ADHOC)"
+        order_index: 8
+        assigned_role: "bracvam"
+        activity_type: "role_assignment"
+        target_role_key: "adhoc_evaluator"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
             required_status: "COMPLETED"
             condition_type: "ACTIVITY_COMPLETED"
 

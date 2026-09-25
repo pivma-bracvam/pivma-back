@@ -37,6 +37,7 @@ from pivma.core.database.models import (
     ProcessInstance,
     ProcessTemplate,
     ProcessTemplateVersion,
+    RoleAssignmentInvite,
     Task,
 )
 
@@ -1880,6 +1881,91 @@ async def _complete_activity_run(
         t.status = 'COMPLETED'
         t.completed_at = utc_now()
         t.set_update_audit(user_id)
+
+
+async def _find_role_assignment_activity(
+    session: AsyncSession, process: ProcessInstance, role_key: str
+) -> ActivityInstance | None:
+    """Resolve a `ActivityInstance` de `role_assignment` do papel, se houver.
+
+    Extraído de `_maybe_close_role_assignment_activity` para ser reaproveitado
+    também por `invite_service.resend_invite`/`revoke_invite` (FR-012/FR-013:
+    ambos precisam saber se a etapa já se encerrou, não só o estado do
+    próprio convite).
+    """
+    version = await session.get(
+        ProcessTemplateVersion, process.template_version_id
+    )
+    payload = version.definition_payload if version else {}
+    activity_key = next(
+        (
+            a['key']
+            for p in payload.get('phases', [])
+            for a in p.get('activities', [])
+            if a.get('activity_type') == 'role_assignment'
+            and a.get('target_role_key') == role_key
+        ),
+        None,
+    )
+    if activity_key is None:
+        return None
+
+    return await session.scalar(
+        select(ActivityInstance).where(
+            ActivityInstance.process_instance_id == process.id,
+            ActivityInstance.key == activity_key,
+            ActivityInstance.deleted_at.is_(None),
+        )
+    )
+
+
+async def _maybe_close_role_assignment_activity(
+    session: AsyncSession,
+    process: ProcessInstance,
+    role_key: str,
+    user_id: UUID,
+) -> None:
+    """Fecha a etapa de atribuição de cargo do papel, se aplicável (Spec 028).
+
+    Chamado ao final de toda designação criada (direta, Spec 006, ou por
+    aceite de convite). Reaproveita ``_complete_activity_run`` +
+    ``_advance_dependent_activities`` (Spec 026) — não existe um endpoint
+    "concluir atividade" dedicado (research.md R4). Sempre no-op silencioso
+    quando não há nada a fechar: papel sem etapa ``role_assignment``
+    declarada na versão do template desta instância, etapa já ``COMPLETED``,
+    etapa ainda ``BLOCKED`` (sem execução), ou convite ``pending`` restante
+    para o papel (FR-017) — nesse último caso a etapa só fecha quando o
+    último convite pendente for aceito ou revogado.
+    """
+    act = await _find_role_assignment_activity(session, process, role_key)
+    if act is None or act.status == 'COMPLETED':
+        return
+
+    run = await session.scalar(
+        select(ActivityRun)
+        .where(
+            ActivityRun.activity_instance_id == act.id,
+            ActivityRun.deleted_at.is_(None),
+        )
+        .order_by(ActivityRun.run_number.desc())
+        .limit(1)
+    )
+    if run is None:
+        return
+
+    pending_invite = await session.scalar(
+        select(RoleAssignmentInvite.id).where(
+            RoleAssignmentInvite.process_instance_id == process.id,
+            RoleAssignmentInvite.role_key == role_key,
+            RoleAssignmentInvite.status == 'pending',
+            RoleAssignmentInvite.deleted_at.is_(None),
+        )
+    )
+    if pending_invite is not None:
+        return
+
+    await _complete_activity_run(session, run, act, user_id)
+    await _advance_dependent_activities(session, process, act, user_id)
 
 
 async def submit_proposal_form(  # noqa: PLR0914, PLR0915

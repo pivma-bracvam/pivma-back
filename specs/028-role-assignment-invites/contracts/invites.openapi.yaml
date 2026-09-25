@@ -1,0 +1,376 @@
+openapi: 3.1.0
+info:
+  title: pi*VMA Role Assignment Invites API
+  version: 1.0.0
+  description: >-
+    Convite de designação por link (feature 028). Reaproveita ParticipantRole e o
+    contrato de designação da feature 006; não substitui nenhuma rota existente.
+security:
+  - cookieAuth: []
+paths:
+  /processes/{process_id}/participants/invites:
+    parameters:
+      - $ref: '#/components/parameters/ProcessId'
+    get:
+      summary: Lista convites do processo (pendentes e resolvidos)
+      x-access: role-assignment-manager
+      description: >-
+        Visível para quem tem autorização para pelo menos um role_key com convite no
+        processo (can_manage_participants OU Proponente efetivo para sponsor/group_manager).
+        Cada item só é retornado se o usuário tiver autorização para o role_key daquele
+        convite especificamente.
+      responses:
+        '200':
+          description: Convites visíveis ao usuário autenticado, mais recentes primeiro.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InvitePublic'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '404':
+          description: Processo inexistente ou logicamente excluído.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: Cria um convite para um papel do processo
+      x-access: can_manage_role_assignment(role_key)
+      parameters:
+        - $ref: '#/components/parameters/TrustedOrigin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteCreate'
+      responses:
+        '201':
+          description: >-
+            Convite e evento INVITE_CREATED persistidos na mesma transação. O campo
+            `token` só aparece nesta resposta (e na de reenvio) — nunca em GET.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteCreatedResponse'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/ForbiddenOrInvalidOrigin'
+        '404':
+          description: Processo ou laboratório inexistente para quem tem autorização de convidar.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: >-
+            Processo inativo/imutável, laboratório inativo, vínculo institucional
+            incompatível, ou já existe convite pendente para este processo/papel/e-mail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /processes/{process_id}/participants/invites/{invite_id}/resend:
+    parameters:
+      - $ref: '#/components/parameters/ProcessId'
+      - $ref: '#/components/parameters/InviteId'
+    post:
+      summary: Renova o prazo e o link de um convite pendente
+      x-access: can_manage_role_assignment(invite.role_key)
+      parameters:
+        - $ref: '#/components/parameters/TrustedOrigin'
+      responses:
+        '200':
+          description: >-
+            Novo token e novo prazo gravados na mesma linha; evento INVITE_RESENT
+            persistido. O token anterior deixa de ser aceito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteCreatedResponse'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/ForbiddenOrInvalidOrigin'
+        '404':
+          description: Convite inexistente no processo para quem tem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: >-
+            Convite não está mais pendente (já aceito/revogado), ou a etapa de
+            atribuição de cargo correspondente já se encerrou.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /processes/{process_id}/participants/invites/{invite_id}/revoke:
+    parameters:
+      - $ref: '#/components/parameters/ProcessId'
+      - $ref: '#/components/parameters/InviteId'
+    post:
+      summary: Revoga um convite pendente
+      x-access: can_manage_role_assignment(invite.role_key)
+      parameters:
+        - $ref: '#/components/parameters/TrustedOrigin'
+      responses:
+        '200':
+          description: Convite marcado como revogado; evento INVITE_REVOKED persistido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitePublic'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/ForbiddenOrInvalidOrigin'
+        '404':
+          description: Convite inexistente no processo para quem tem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Convite não está mais pendente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /invites/{token}:
+    parameters:
+      - $ref: '#/components/parameters/InviteToken'
+    get:
+      summary: Pré-visualiza um convite pelo link (público, sem autenticação)
+      security: []
+      x-access: public
+      description: >-
+        Não concede nada; só permite ao frontend mostrar "você foi convidado" antes do
+        login/cadastro. E-mail retornado mascarado (ex. "j***@exemplo.com").
+      responses:
+        '200':
+          description: Convite ainda pendente (expirado ou não).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitePreview'
+        '404':
+          description: Token inexistente, ou convite já aceito/revogado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /invites/{token}/accept:
+    parameters:
+      - $ref: '#/components/parameters/InviteToken'
+    post:
+      summary: Aceita o convite e concede o papel à pessoa autenticada
+      x-access: authenticated-email-must-match-invite
+      parameters:
+        - $ref: '#/components/parameters/TrustedOrigin'
+      responses:
+        '200':
+          description: >-
+            Assignment criada pelo mesmo mecanismo da feature 006; evento
+            INVITE_ACCEPTED persistido; a etapa de atribuição de cargo correspondente
+            fecha automaticamente se as condições de FR-016/FR-017 forem satisfeitas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteAcceptResponse'
+        '401':
+          $ref: '#/components/responses/NotAuthenticated'
+        '403':
+          description: >-
+            E-mail da sessão autenticada difere do e-mail do convite (FR-010) —
+            convite não é alterado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Token inexistente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: >-
+            Convite expirado, já aceito/revogado, processo inativo/imutável, ou
+            designação ativa idêntica já existe (mesma regra da feature 006).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  parameters:
+    ProcessId:
+      name: process_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    InviteId:
+      name: invite_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    InviteToken:
+      name: token
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Valor bruto do token (não o hash); vem do link compartilhado.
+    TrustedOrigin:
+      name: Origin
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Origem presente em AUTH_ALLOWED_ORIGINS.
+
+  schemas:
+    InviteChannel:
+      type: string
+      enum: [link]
+      description: >-
+        Único valor aceito nesta entrega. Modelado como string livre no banco (não enum
+        de banco) para aceitar 'email'/'whatsapp'/'telegram' em entregas futuras sem
+        migração — ver Issues #49/#50/#51.
+
+    InviteCreate:
+      type: object
+      additionalProperties: false
+      required: [email, role_key]
+      properties:
+        email:
+          type: string
+          format: email
+        role_key:
+          $ref: '#/components/schemas/ParticipantRole'
+        laboratory_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Obrigatório para lead_laboratory/participating_laboratory; proibido nos demais.
+        channel:
+          $ref: '#/components/schemas/InviteChannel'
+          default: link
+
+    InvitePublic:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string, format: uuid }
+        process_id: { type: string, format: uuid }
+        role_key: { type: string }
+        laboratory_id: { type: string, format: uuid, nullable: true }
+        email: { type: string }
+        channel: { type: string }
+        status: { type: string, enum: [pending, accepted, revoked] }
+        expired: { type: boolean, description: 'Derivado: status=pending E expires_at < agora.' }
+        expires_at: { type: string, format: date-time }
+        created_by: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+        accepted_at: { type: string, format: date-time, nullable: true }
+        accepted_by: { type: string, format: uuid, nullable: true }
+        revoked_at: { type: string, format: date-time, nullable: true }
+        revoked_by: { type: string, format: uuid, nullable: true }
+
+    InviteCreatedResponse:
+      allOf:
+        - $ref: '#/components/schemas/InvitePublic'
+        - type: object
+          required: [token]
+          properties:
+            token:
+              type: string
+              description: Valor bruto de uso único — só aparece aqui e na resposta de reenvio.
+
+    InvitePreview:
+      type: object
+      additionalProperties: false
+      description: Resposta pública de GET /invites/{token} — nunca inclui process_id interno bruto sem contexto nem dados de outros participantes.
+      properties:
+        role_key: { type: string }
+        process_code: { type: string }
+        process_title: { type: string }
+        masked_email: { type: string }
+        expires_at: { type: string, format: date-time }
+        expired: { type: boolean }
+
+    InviteAcceptResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        invite: { $ref: '#/components/schemas/InvitePublic' }
+        assignment_id: { type: string, format: uuid }
+        process_id: { type: string, format: uuid }
+        role_key: { type: string }
+
+    ParticipantRole:
+      type: string
+      description: Mesmo enum da feature 006, estendido pela Issue #41.
+      enum:
+        - group_manager
+        - study_manager
+        - statistician
+        - adhoc_evaluator
+        - peer_reviewer
+        - lead_laboratory
+        - participating_laboratory
+        - proponent
+        - sponsor
+        - sample_selection_group
+        - regulatory_observer
+        - collaborator
+
+    Error:
+      type: object
+      properties:
+        detail:
+          oneOf:
+            - type: string
+            - type: object
+
+  responses:
+    NotAuthenticated:
+      description: Sessão ausente ou inválida.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ForbiddenOrInvalidOrigin:
+      description: Sem autorização para o role_key do convite, ou Origin não confiável.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationError:
+      description: Corpo inválido (ex. channel fora de 'link', e-mail malformado, laboratory_id incompatível com o papel).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

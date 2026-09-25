@@ -30,22 +30,14 @@ from tests.factories.user_factory import UserFactory
 
 @pytest.fixture(scope='session')
 def engine():
-    # Caso do windows + Docker no CI
-    import sys  # noqa: PLC0415
-
-    if sys.platform == 'win32':
-        yield create_async_engine(Settings().DATABASE_URL)
-    else:
-        with PostgresContainer(
-            'pgvector/pgvector:pg17', driver='psycopg'
-        ) as postgres:
-            _engine = create_async_engine(postgres.get_connection_url())
-            yield _engine
+    image = 'pgvector/pgvector:pg17'
+    with PostgresContainer(image, driver='psycopg') as postgres:
+        _engine = create_async_engine(postgres.get_connection_url())
+        yield _engine
 
 
 @pytest_asyncio.fixture(scope='session', autouse=True)
 async def setup_database(engine):
-    """Cria as tabelas uma única vez no início da sessão de testes."""
     async with engine.begin() as conn:
         await conn.run_sync(table_registry.metadata.create_all)
     yield
@@ -55,7 +47,6 @@ async def setup_database(engine):
 
 @pytest_asyncio.fixture
 async def session(engine):
-    """Sessão isolada via transação e savepoint (nested transaction)."""
     connection = await engine.connect()
     transaction = await connection.begin()
     nested = await connection.begin_nested()

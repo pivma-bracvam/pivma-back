@@ -8,7 +8,8 @@ Cobre FR-001/FR-002/FR-003 no motor de processos, nos pontos que criam uma
 `triage_evaluation`, que antes tinha um caminho bespoke próprio). Usa o
 método oficial `validated_method_dossier` (Spec 011/017), que já declara
 `sla_hours` em `proposal_submission` (168h) e `triage_evaluation` (72h) e tem
-uma Fase 2 de exemplo (`planning_preview`) sem `sla_hours`.
+uma Fase 2 de atribuição de cargo (Spec 028, ex. `assign_sponsor`) sem
+`sla_hours`.
 """
 
 from datetime import timedelta
@@ -129,10 +130,10 @@ async def test_triage_evaluation_gets_own_due_date(
 
 
 @pytest.mark.asyncio
-async def test_planning_preview_activated_by_triage_approval_has_no_due_date(
+async def test_role_assignment_activity_activated_by_triage_has_no_due_date(
     session,
 ):
-    """`planning_preview` não declara `sla_hours` — sem prazo, mesmo
+    """`assign_sponsor` não declara `sla_hours` — sem prazo, mesmo
 
     desbloqueada pelo motor genérico (`_activate_activity`, via aprovação de
     triagem) (FR-002).
@@ -150,7 +151,7 @@ async def test_planning_preview_activated_by_triage_approval_has_no_due_date(
         session, process.id, 'APPROVED', 'Aprovado.', triador.id
     )
 
-    _run, task = await _task_for(session, process.id, 'planning_preview')
+    _run, task = await _task_for(session, process.id, 'assign_sponsor')
 
     assert task.due_date is None
 

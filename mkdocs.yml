@@ -66,4 +66,3 @@ nav:
       - Formulários Dinâmicos: features/dynamic-forms.md
   - Guia de Integração (Frontend):
       - Autenticação e Sessão: frontend-recipes/auth-session.md
-      - Demos como Referência: frontend-recipes/demos-as-reference.md

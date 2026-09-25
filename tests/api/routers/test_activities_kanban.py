@@ -2,7 +2,8 @@
 """Spec 018 - `GET /activities/kanban` (User Story 1).
 
 Cobre a classificação em 4 colunas, incluindo atividades `BLOCKED` sem
-nenhuma `Task`/`ActivityRun` (ex.: a Fase 2 de exemplo da Spec 017), a
+nenhuma `Task`/`ActivityRun` (ex.: as 8 atividades de atribuição de cargo da
+Fase 2 — Spec 028, sucessora da prévia de exemplo da Spec 017), a
 paginação, `counts_by_column` sobre o total visível e o estado vazio.
 """
 
@@ -47,21 +48,28 @@ async def test_kanban_includes_not_started_activity_without_any_task(
     assert set(by_key) == {
         'proposal_submission',
         'triage_evaluation',
-        'planning_preview',
+        'assign_sponsor',
+        'assign_group_manager',
+        'assign_sample_selection_group',
+        'assign_lead_laboratory',
+        'assign_participating_laboratory',
+        'assign_statistician',
+        'assign_collaborator',
+        'assign_adhoc_evaluator',
     }
 
     # A submissão acabou de ser liberada: em andamento.
     assert by_key['proposal_submission']['column'] == 'EM_ANDAMENTO'
     assert by_key['proposal_submission']['cargo'] == 'proponent'
 
-    # As duas atividades seguintes nunca tiveram Task/ActivityRun ainda,
-    # mas aparecem mesmo assim, bloqueadas.
+    # As demais atividades nunca tiveram Task/ActivityRun ainda, mas
+    # aparecem mesmo assim, bloqueadas.
     assert by_key['triage_evaluation']['column'] == 'NAO_INICIADO'
     assert by_key['triage_evaluation']['run_started_at'] is None
-    assert by_key['planning_preview']['column'] == 'NAO_INICIADO'
-    assert by_key['planning_preview']['run_started_at'] is None
-    # `planning_preview` não declara `sla_hours` no template (Spec 018).
-    assert by_key['planning_preview']['sla_hours'] is None
+    assert by_key['assign_sponsor']['column'] == 'NAO_INICIADO'
+    assert by_key['assign_sponsor']['run_started_at'] is None
+    # As 8 atividades de atribuição de cargo não declaram `sla_hours`.
+    assert by_key['assign_sponsor']['sla_hours'] is None
 
     assert body['counts_by_column']['NAO_INICIADO'] >= 2
     assert body['counts_by_column']['EM_ANDAMENTO'] >= 1
