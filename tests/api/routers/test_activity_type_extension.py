@@ -3,9 +3,16 @@
 """Spec 017 - roteiro de duas fases e atividade sem formulário.
 
 Cobre a User Story 1 (roteiro completo declarado, incluindo a Fase 2 que
-ainda não começou) e a User Story 2 (atividade classificada como
-``placeholder`` avança sem gerar ``FormInstance``) usando o método oficial
-``validated_method_dossier`` (Spec 011), agora na versão 2 do template.
+ainda não começou) e a User Story 2 (atividade classificada como algo além
+de formulário avança sem gerar ``FormInstance``) usando o método oficial
+``validated_method_dossier`` (Spec 011).
+
+A Fase 2 era, até a Spec 017/018 (v3), uma prévia ``placeholder`` sem regra
+de negócio real — documentada como estando ali só para provar que o motor
+suporta um ``activity_type`` além de ``form``. A Spec 028 (v4) substitui essa
+prévia pelo conteúdo real da Etapa 2 (8 atividades ``role_assignment``);
+estes testes foram atualizados para a v4 sem perder a cobertura original do
+mecanismo genérico de avanço (Spec 017 FR-005).
 """
 
 from http import HTTPStatus
@@ -40,7 +47,7 @@ async def test_template_detail_declares_both_phases_with_activity_type(
     phases_by_key = {p['key']: p for p in definition['phases']}
     assert set(phases_by_key) == {
         'phase_1_submission_triage',
-        'phase_2_planning_preview',
+        'phase_2_role_assignment',
     }
 
     phase_1_activities = {
@@ -54,9 +61,18 @@ async def test_template_detail_declares_both_phases_with_activity_type(
 
     phase_2_activities = {
         a['key']: a['activity_type']
-        for a in phases_by_key['phase_2_planning_preview']['activities']
+        for a in phases_by_key['phase_2_role_assignment']['activities']
     }
-    assert phase_2_activities == {'planning_preview': 'placeholder'}
+    assert phase_2_activities == {
+        'assign_sponsor': 'role_assignment',
+        'assign_group_manager': 'role_assignment',
+        'assign_sample_selection_group': 'role_assignment',
+        'assign_lead_laboratory': 'role_assignment',
+        'assign_participating_laboratory': 'role_assignment',
+        'assign_statistician': 'role_assignment',
+        'assign_collaborator': 'role_assignment',
+        'assign_adhoc_evaluator': 'role_assignment',
+    }
 
 
 @pytest.mark.asyncio
@@ -90,7 +106,7 @@ async def test_template_detail_defaults_activity_type_for_legacy_templates(
 
 
 @pytest.mark.asyncio
-async def test_placeholder_activity_unlocks_on_triage_approval(
+async def test_role_assignment_activities_unlock_on_triage_approval(
     client, session, bracvam_user
 ):
     await bootstrap_all_templates(session)
@@ -105,14 +121,12 @@ async def test_placeholder_activity_unlocks_on_triage_approval(
         '/processes',
         json={
             'template_key': 'validated_method_dossier',
-            'title': 'Dossiê com Fase 2 de exemplo',
+            'title': 'Dossiê com Fase 2 de atribuição de cargo',
         },
     )
     assert resp.status_code == HTTPStatus.CREATED
     process_id = resp.json()['id']
-    # Spec 018 bumpou a versão publicada ao normalizar `assigned_role`
-    # ('BRACVAM_ADMIN' -> 'bracvam') no mesmo payload desta Fase 2 exemplo.
-    assert resp.json()['version_number'] == 3
+    assert resp.json()['version_number'] == 4
 
     client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
@@ -128,14 +142,11 @@ async def test_placeholder_activity_unlocks_on_triage_approval(
     )
 
     # 2. A Fase 2 ainda não existe como tarefa (dependência não satisfeita).
-    #    Filtra por título, não por `assigned_role`: a normalização da
-    #    Spec 018 faz a tarefa de triagem também usar o cargo global
-    #    'bracvam', então o cargo sozinho não distingue mais as duas.
     tasks_before = client.get(
         '/tasks', params={'process_id': process_id}
     ).json()
     assert not [
-        t for t in tasks_before if t['title'] == 'Prévia do Planejamento'
+        t for t in tasks_before if t['title'] == 'Definir o Patrocinador'
     ]
 
     # 3. Triador aprova a triagem
@@ -148,31 +159,42 @@ async def test_placeholder_activity_unlocks_on_triage_approval(
     assert approve_resp.status_code == HTTPStatus.OK
     assert approve_resp.json()['new_process_status'] == 'PLANNING'
 
-    # 4. A atividade de exemplo aparece pronta, sem exigir formulário
+    # 4. As duas atividades sem dependência extra (Patrocinador e Grupo
+    #    Gestor, executadas pelo Proponente) aparecem prontas, sem exigir
+    #    formulário; as demais 6 continuam bloqueadas (dependem de
+    #    group_manager COMPLETED).
     tasks_after = client.get(
         '/tasks', params={'process_id': process_id}
     ).json()
-    preview_tasks = [
-        t for t in tasks_after if t['title'] == 'Prévia do Planejamento'
-    ]
-    assert len(preview_tasks) == 1
-    assert preview_tasks[0]['status'] == 'READY'
-    assert preview_tasks[0]['assigned_role'] == 'bracvam'
+    ready_titles = {
+        t['title']
+        for t in tasks_after
+        if t['title']
+        in {'Definir o Patrocinador', 'Definir os integrantes do Grupo Gestor'}
+    }
+    assert ready_titles == {
+        'Definir o Patrocinador',
+        'Definir os integrantes do Grupo Gestor',
+    }
+    for t in tasks_after:
+        if t['title'] == 'Definir o Patrocinador':
+            assert t['status'] == 'READY'
+            assert t['assigned_role'] == 'proponent'
 
     # 5. Confirmação direta no banco: atividade ativada com o tipo declarado
     #    e nenhum FormInstance criado para ela (Spec 017 FR-005).
     act_stmt = select(ActivityInstance).where(
         ActivityInstance.process_instance_id == process_id,
-        ActivityInstance.key == 'planning_preview',
+        ActivityInstance.key == 'assign_sponsor',
     )
-    preview_act = (await session.execute(act_stmt)).scalar_one()
-    assert preview_act.activity_type == 'placeholder'
-    assert preview_act.status == 'IN_PROGRESS'
+    sponsor_act = (await session.execute(act_stmt)).scalar_one()
+    assert sponsor_act.activity_type == 'role_assignment'
+    assert sponsor_act.status == 'IN_PROGRESS'
 
     form_stmt = (
         select(FormInstance)
         .join(ActivityRun, FormInstance.activity_run_id == ActivityRun.id)
-        .where(ActivityRun.activity_instance_id == preview_act.id)
+        .where(ActivityRun.activity_instance_id == sponsor_act.id)
     )
     orphan_forms = (await session.execute(form_stmt)).scalars().all()
     assert orphan_forms == []

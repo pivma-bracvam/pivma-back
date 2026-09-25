@@ -53,7 +53,6 @@ async def test_list_shows_version_status_and_counts(
         },
         headers=TRUSTED_ORIGIN,
     )
-    print('DRAFT POST', _d.status_code, _d.text[:300])
     client.put(
         '/form-templates/submission_pre_validated_v1/evaluation-assignments',
         json={
@@ -69,7 +68,6 @@ async def test_list_shows_version_status_and_counts(
     )
 
     _r = client.get('/ai-evaluations')
-    print('LIST', _r.status_code, _r.json())
     body = _r.json()
     by_name = {item['name']: item for item in body['items']}
 

@@ -1040,6 +1040,73 @@ class ConflictInterestDeclaration(AuditMixin):
 
 
 @table_registry.mapped_as_dataclass
+class RoleAssignmentInvite(AuditMixin):
+    """Convite de designação por link (Spec 028).
+
+    Linha única e mutável por identidade (processo + papel + e-mail) — ao
+    contrário de `Assignment`, um reenvio atualiza `token_hash`/`expires_at`
+    na mesma linha em vez de criar um novo ciclo; a trilha de "quem reenviou
+    quando" vive em `AuditEvent`, não em linhas adicionais (research.md R2).
+    `status` fica restrito a 'pending'/'accepted'/'revoked' na camada de
+    aplicação — sem CHECK de banco, mesmo padrão de `Assignment.role_key`.
+    Expirado é estado derivado (`status == 'pending' and expires_at < now`),
+    nunca gravado.
+    """
+
+    __tablename__ = 'role_assignment_invites'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    process_instance_id: Mapped[UUID] = mapped_column(
+        ForeignKey('process_instances.id')
+    )
+    role_key: Mapped[str] = mapped_column(String(64))
+    email: Mapped[str] = mapped_column(String(320))
+    token_hash: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column()
+    laboratory_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey('laboratories.id'), nullable=True, default=None
+    )
+    channel: Mapped[str] = mapped_column(String(32), default='link')
+    status: Mapped[str] = mapped_column(String(16), default='pending')
+    accepted_at: Mapped[datetime | None] = mapped_column(
+        nullable=True, default=None
+    )
+    accepted_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey('users.id'), nullable=True, default=None
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        nullable=True, default=None
+    )
+    revoked_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey('users.id'), nullable=True, default=None
+    )
+
+    __table_args__ = (
+        Index(
+            'uq_role_assignment_invites_pending',
+            'process_instance_id',
+            'role_key',
+            'email',
+            unique=True,
+            postgresql_where=(
+                (column('status') == 'pending')
+                & column('deleted_at').is_(None)
+            ),
+        ),
+        Index(
+            'uq_role_assignment_invites_token_hash',
+            'token_hash',
+            unique=True,
+        ),
+    )
+
+
+@table_registry.mapped_as_dataclass
 class AuditEvent(AuditMixin):
     __tablename__ = 'audit_events'
 

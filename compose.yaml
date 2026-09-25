@@ -24,9 +24,6 @@ services:
     environment:
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
       DATABASE_URL: postgresql+psycopg://db_user:db_password@db:5432/db
-      DEMOS_DIR: /app/demos
-    volumes:
-      - ./demos:/app/demos
 
 volumes:
   pgdata:

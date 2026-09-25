@@ -78,4 +78,3 @@ def test_timed_profile_permission_and_assignment_flow(
     elapsed_seconds = perf_counter() - started_at
 
     assert elapsed_seconds <= MAX_ACCEPTANCE_SECONDS
-    print(f'RBAC_TIMED_ACCEPTANCE_SECONDS={elapsed_seconds:.6f}')

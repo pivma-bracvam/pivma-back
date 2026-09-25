@@ -1,12 +1,10 @@
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 
 from pivma.core.logging import setup_logging
@@ -19,6 +17,7 @@ from pivma.routers import (
     auth,
     forms,
     institutional,
+    invites,
     pre_evaluation,
     process_participants,
     processes,
@@ -72,6 +71,7 @@ app.include_router(rbac.router)
 app.include_router(institutional.router)
 app.include_router(processes.router)
 app.include_router(process_participants.router)
+app.include_router(invites.router)
 app.include_router(forms.router)
 app.include_router(admin_logs.router)
 app.include_router(triage.router)
@@ -85,41 +85,3 @@ app.include_router(pre_evaluation.admin_router)
 @app.get('/')
 def read_root():
     return {'message': 'Hello World!'}
-
-
-def resolve_demos_dir(custom_path: str | Path | None = None) -> Path | None:
-    """Resolve o diretório das demonstrações estáticas.
-
-    Verifica caminho customizado (via DEMOS_DIR nos settings/env), depois
-    tenta o diretório corrente (cwd / 'demos'), o diretório do repositório
-    (parents[2] / 'demos' a partir de __file__ para dev local) e o diretório
-    padrão de container (/app/demos).
-    Se nenhum for encontrado, retorna None sem quebrar o backend (AGENTS.md).
-    """
-    if custom_path:
-        path = Path(custom_path).resolve()
-        if path.is_dir():
-            return path
-
-    candidates = [
-        Path.cwd() / 'demos',
-        Path(__file__).resolve().parents[2] / 'demos',
-        Path('/app/demos'),
-    ]
-    for candidate in candidates:
-        if candidate.is_dir():
-            return candidate.resolve()
-
-    return None
-
-
-demos_dir = resolve_demos_dir(settings.DEMOS_DIR)
-if demos_dir is not None:
-    app.mount(
-        '/demos',
-        StaticFiles(directory=str(demos_dir), html=True),
-        name='demos',
-    )
-    logger.info("Serving demos from '%s' at /demos", demos_dir)
-else:
-    logger.warning('Demos directory not found; skipping /demos mount.')

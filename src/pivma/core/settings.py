@@ -34,8 +34,10 @@ class Settings(BaseSettings):
         default_factory=lambda: ['pdf', 'docx', 'doc', 'png', 'jpg', 'jpeg']
     )
 
-    # Diretório das demonstrações estáticas (servidas em /demos)
-    DEMOS_DIR: str | None = Field(default=None)
+    # Convite de designação por link (Spec 028). Prazo padrão de validade do
+    # link, configurável por implantação (FR-008) — não é um parâmetro por
+    # convite individual.
+    INVITE_EXPIRATION_HOURS: int = Field(default=1)
 
     @field_validator('JWT_SECRET_KEY')
     @classmethod

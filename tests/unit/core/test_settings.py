@@ -65,11 +65,3 @@ def test_settings_rejects_invalid_authentication_origin(
 
     with pytest.raises(ValidationError, match='valid origins'):
         Settings()
-
-
-def test_settings_accepts_demos_dir(monkeypatch):
-    monkeypatch.setenv('DEMOS_DIR', '/custom/path/to/demos')
-
-    settings = Settings()
-
-    assert settings.DEMOS_DIR == '/custom/path/to/demos'

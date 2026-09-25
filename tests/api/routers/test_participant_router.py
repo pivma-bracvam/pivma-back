@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import func, select
 
+from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.core.authorization import PROCESS_PARTICIPANTS_MANAGE
 from pivma.core.database.models import (
     AccessProfile,
@@ -907,3 +908,252 @@ async def test_rejected_assignment_does_not_record_event(
         )
     )
     assert count == 0
+
+
+# ==========================================
+# Spec 028 — matriz de autorização por papel + fechamento de etapa
+# ==========================================
+
+
+async def _process_in_planning_phase(client, session, bracvam_user):
+    """Processo real na Fase 2 (Composição da Governança), via API real.
+
+    Usa o template oficial `validated_method_dossier` (v4, Spec 028) —
+    bootstrap + submissão + aprovação de triagem, mesmo padrão usado pela
+    Spec 017 para validar o motor de roteiro ponta a ponta.
+    """
+    await bootstrap_all_templates(session)
+    proponente = UserFactory()
+    session.add(proponente)
+    await session.commit()
+
+    authenticate(client, proponente)
+    resp = client.post(
+        '/processes',
+        json={
+            'template_key': 'validated_method_dossier',
+            'title': 'Dossiê para atribuição de cargo (Spec 028)',
+        },
+    )
+    assert resp.status_code == HTTPStatus.CREATED
+    process_id = resp.json()['id']
+
+    client.post(
+        f'/processes/{process_id}/activities/proposal_submission/form',
+        json={
+            'values': {
+                'method_title': 'Método para atribuição de cargo',
+                'terminology_notes': (
+                    'Conceito descrito com nomenclatura atual e '
+                    'detalhamento suficiente para avaliação.'
+                ),
+            }
+        },
+    )
+
+    authenticate(client, bracvam_user)
+    approve_resp = client.post(
+        f'/processes/{process_id}/triage/decision',
+        json={'outcome': 'APPROVED', 'justification': 'Aprovado.'},
+        headers=ORIGIN,
+    )
+    assert approve_resp.status_code == HTTPStatus.OK
+
+    return process_id, proponente
+
+
+def _task_by_title(client, process_id, title):
+    tasks = client.get('/tasks', params={'process_id': process_id}).json()
+    matches = [t for t in tasks if t['title'] == title]
+    return matches[0] if matches else None
+
+
+@pytest.mark.asyncio
+async def test_effective_proponent_designates_sponsor(
+    client, session, bracvam_user
+):
+    """A-P01: Proponente efetivo designa usuário ativo para sponsor."""
+    process_id, proponente = await _process_in_planning_phase(
+        client, session, bracvam_user
+    )
+    target = UserFactory()
+    session.add(target)
+    await session.commit()
+
+    authenticate(client, proponente)
+    resp = create_participant(client, process_id, target.id, 'sponsor')
+    assert resp.status_code == HTTPStatus.CREATED
+
+
+@pytest.mark.asyncio
+async def test_effective_proponent_designates_group_manager(
+    client, session, bracvam_user
+):
+    """A-P02: Proponente efetivo designa usuário ativo para group_manager."""
+    process_id, proponente = await _process_in_planning_phase(
+        client, session, bracvam_user
+    )
+    target = UserFactory()
+    session.add(target)
+    await session.commit()
+
+    authenticate(client, proponente)
+    resp = create_participant(client, process_id, target.id, 'group_manager')
+    assert resp.status_code == HTTPStatus.CREATED
+
+
+@pytest.mark.asyncio
+async def test_proponent_denied_for_role_outside_sponsor_and_group_manager(
+    client, session, bracvam_user
+):
+    """A-P03: Proponente sem autorização genérica é negado p/ statistician."""
+    process_id, proponente = await _process_in_planning_phase(
+        client, session, bracvam_user
+    )
+    target = UserFactory()
+    session.add(target)
+    await session.commit()
+
+    authenticate(client, proponente)
+    resp = create_participant(client, process_id, target.id, 'statistician')
+    assert resp.status_code == HTTPStatus.FORBIDDEN
+
+
+@pytest.mark.asyncio
+async def test_direct_designation_closes_role_assignment_activity(
+    client, session, bracvam_user
+):
+    """A-P04/I-E01: designar group_manager fecha a etapa e destrava as
+    dependentes (ex. Estatístico, que dependia de group_manager COMPLETED).
+    """
+    process_id, proponente = await _process_in_planning_phase(
+        client, session, bracvam_user
+    )
+    target = UserFactory()
+    session.add(target)
+    await session.commit()
+
+    assert _task_by_title(
+        client, process_id, 'Definir os integrantes do Grupo Gestor'
+    )['status'] == 'READY'
+    assert _task_by_title(client, process_id, 'Definir o Estatístico') is None
+
+    authenticate(client, proponente)
+    resp = create_participant(client, process_id, target.id, 'group_manager')
+    assert resp.status_code == HTTPStatus.CREATED
+
+    gestor_task = _task_by_title(
+        client, process_id, 'Definir os integrantes do Grupo Gestor'
+    )
+    assert gestor_task['status'] == 'COMPLETED'
+    statistician_task = _task_by_title(
+        client, process_id, 'Definir o Estatístico'
+    )
+    assert statistician_task is not None
+    assert statistician_task['status'] == 'READY'
+    assert statistician_task['assigned_role'] == 'group_manager'
+
+
+@pytest.mark.asyncio
+async def test_second_designation_of_closed_role_is_idempotent(
+    client, session, bracvam_user
+):
+    """I-E02: uma segunda designação do mesmo papel não reprocessa o
+    fechamento (sem ACTIVITY_UNBLOCKED duplicado)."""
+    process_id, proponente = await _process_in_planning_phase(
+        client, session, bracvam_user
+    )
+    first_target = UserFactory()
+    second_target = UserFactory()
+    session.add_all([first_target, second_target])
+    await session.commit()
+
+    async def _unblocked_by_group_manager_count():
+        return await session.scalar(
+            select(func.count())
+            .select_from(AuditEvent)
+            .where(
+                AuditEvent.event_type == 'ACTIVITY_UNBLOCKED',
+                AuditEvent.process_instance_id == process_id,
+                AuditEvent.context_data['unblocked_by'].astext
+                == 'assign_group_manager',
+            )
+        )
+
+    authenticate(client, proponente)
+    resp1 = create_participant(
+        client, process_id, first_target.id, 'group_manager'
+    )
+    assert resp1.status_code == HTTPStatus.CREATED
+    # A primeira designação destrava as 6 etapas que dependem só de
+    # group_manager COMPLETED (amostras, labs, estatístico, colaborador,
+    # ADHOC) — um evento ACTIVITY_UNBLOCKED por dependente destravado.
+    count_after_first = await _unblocked_by_group_manager_count()
+    assert count_after_first == 6
+
+    resp2 = create_participant(
+        client, process_id, second_target.id, 'group_manager'
+    )
+    assert resp2.status_code == HTTPStatus.CREATED
+    # A segunda designação do mesmo papel não reprocessa o fechamento —
+    # nenhum ACTIVITY_UNBLOCKED novo.
+    count_after_second = await _unblocked_by_group_manager_count()
+    assert count_after_second == count_after_first
+
+
+@pytest.mark.asyncio
+async def test_designating_role_without_declared_activity_is_noop(
+    client, session
+):
+    """I-E03: papel sem etapa role_assignment no template não falha."""
+    user = UserFactory()
+    session.add(user)
+    await session.commit()
+    await grant_participants_management(session, user)
+    process = await create_process(session)
+    authenticate(client, user)
+
+    resp = create_participant(client, process.id, user.id, 'study_manager')
+    assert resp.status_code == HTTPStatus.CREATED
+
+
+@pytest.mark.asyncio
+async def test_multiple_active_designations_for_same_role_are_accepted(
+    client, session, bracvam_user
+):
+    """A-P05/FR-019: sem titularidade única, dois usuários no mesmo papel."""
+    process_id, proponente = await _process_in_planning_phase(
+        client, session, bracvam_user
+    )
+    first_target = UserFactory()
+    second_target = UserFactory()
+    session.add_all([first_target, second_target])
+    await session.commit()
+
+    authenticate(client, proponente)
+    resp1 = create_participant(client, process_id, first_target.id, 'sponsor')
+    resp2 = create_participant(
+        client, process_id, second_target.id, 'sponsor'
+    )
+    assert resp1.status_code == HTTPStatus.CREATED
+    assert resp2.status_code == HTTPStatus.CREATED
+
+
+@pytest.mark.asyncio
+async def test_effective_proponent_revokes_own_sponsor_designation(
+    client, session, bracvam_user
+):
+    """A-P06: Proponente efetivo revoga designação de sponsor/group_manager."""
+    process_id, proponente = await _process_in_planning_phase(
+        client, session, bracvam_user
+    )
+    target = UserFactory()
+    session.add(target)
+    await session.commit()
+
+    authenticate(client, proponente)
+    create_resp = create_participant(client, process_id, target.id, 'sponsor')
+    assignment_id = create_resp.json()['id']
+
+    revoke_resp = revoke_participant(client, process_id, assignment_id)
+    assert revoke_resp.status_code == HTTPStatus.NO_CONTENT
