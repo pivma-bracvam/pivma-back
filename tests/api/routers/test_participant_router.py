@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import func, select
 
+from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.core.authorization import PROCESS_PARTICIPANTS_MANAGE
 from pivma.core.database.models import (
     AccessProfile,
@@ -921,10 +922,6 @@ async def _process_in_planning_phase(client, session, bracvam_user):
     bootstrap + submissão + aprovação de triagem, mesmo padrão usado pela
     Spec 017 para validar o motor de roteiro ponta a ponta.
     """
-    from pivma.bootstrap_process_templates import (
-        bootstrap_all_templates,  # noqa: PLC0415
-    )
-
     await bootstrap_all_templates(session)
     proponente = UserFactory()
     session.add(proponente)

@@ -8,7 +8,7 @@ from http import HTTPStatus
 import pytest
 from sqlalchemy import func, select
 
-from pivma.core.database.models import AuditEvent
+from pivma.core.database.models import AuditEvent, RoleAssignmentInvite
 from tests.api.routers.test_invites_router import create_invite
 from tests.api.routers.test_participant_router import (
     ORIGIN,
@@ -67,10 +67,6 @@ async def test_preview_expired_invite_shows_expired_flag(
     )
     token = created.json()['token']
     invite_id = created.json()['id']
-
-    from pivma.core.database.models import (
-        RoleAssignmentInvite,  # noqa: PLC0415
-    )
 
     invite = await session.get(RoleAssignmentInvite, invite_id)
     invite.expires_at = datetime.utcnow() - timedelta(hours=1)
@@ -184,10 +180,6 @@ async def test_accept_expired_invite_is_conflict(
     )
     token = created.json()['token']
     invite_id = created.json()['id']
-
-    from pivma.core.database.models import (
-        RoleAssignmentInvite,  # noqa: PLC0415
-    )
 
     invite = await session.get(RoleAssignmentInvite, invite_id)
     invite.expires_at = datetime.utcnow() - timedelta(hours=1)
