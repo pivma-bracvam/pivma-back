@@ -11,7 +11,6 @@ from pivma.core.logging import setup_logging
 from pivma.core.pre_evaluation_service import sweep_stale_runs
 from pivma.core.settings import Settings
 from pivma.routers import (
-    activities,
     admin_logs,
     ai_evaluations,
     auth,
@@ -66,7 +65,6 @@ async def sanitize_password_validation_error(request, exc):
 
 app.include_router(users.router)
 app.include_router(auth.router)
-app.include_router(activities.router)
 app.include_router(rbac.router)
 app.include_router(institutional.router)
 app.include_router(processes.router)

@@ -48,10 +48,10 @@ LABORATORY_ROLE_KEYS = frozenset({
 GROUP_MANAGER_ROLE_KEY = 'group_manager'
 PROPONENT_ROLE_KEY = 'proponent'
 
-# Cargo declarado por uma atividade de processo (`Task.assigned_role`).
-# Espelha `ActivityCargo` de `schemas.py` (camada de API); duplicado aqui,
-# sem import cruzado, no mesmo padrão já usado por `LABORATORY_ROLE_KEYS`
-# (Spec 018).
+# Cargo declarado por uma atividade de processo (`Task.assigned_role` / YAML
+# do template): o vocabulário contextual de `ParticipantRole` (resolvido via
+# `Assignment` ativa no processo) mais dois cargos globais reservados
+# (resolvidos via `AccessProfile`, nunca por processo) — Spec 018.
 GLOBAL_ACTIVITY_CARGOS = frozenset({'admin', 'bracvam'})
 ACTIVITY_CARGOS = (
     frozenset({
@@ -71,10 +71,6 @@ ACTIVITY_CARGOS = (
     })
     | GLOBAL_ACTIVITY_CARGOS
 )
-_GLOBAL_CARGO_SYSTEM_KEYS = {
-    'admin': ADMINISTRATOR_SYSTEM_KEY,
-    'bracvam': BRACVAM_SYSTEM_KEY,
-}
 
 
 async def _all_active_permission_codes(session: AsyncSession) -> list[str]:
@@ -418,50 +414,6 @@ def active_participant_process_scope(user_id: UUID):
             User.deleted_at.is_(None),
         )
     )
-
-
-async def resolve_activity_holders(
-    session: AsyncSession, process_id: UUID, cargo: str
-) -> list[User]:
-    """Quem ocupa hoje o cargo de uma atividade (Spec 018, FR-016).
-
-    Cargo global (`admin`/`bracvam`) resolve via `AccessProfile`; cargo
-    contextual resolve via `Assignment` ativa naquele processo. Lista vazia
-    significa que ninguém ocupa o cargo ainda (ver `cargo_unassigned` no
-    endpoint de Kanban).
-    """
-    if cargo in GLOBAL_ACTIVITY_CARGOS:
-        system_key = _GLOBAL_CARGO_SYSTEM_KEYS[cargo]
-        result = await session.scalars(
-            select(User)
-            .join(UserAccessProfile, UserAccessProfile.user_id == User.id)
-            .join(
-                AccessProfile,
-                AccessProfile.id == UserAccessProfile.profile_id,
-            )
-            .where(
-                AccessProfile.system_key == system_key,
-                UserAccessProfile.deleted_at.is_(None),
-                AccessProfile.deleted_at.is_(None),
-                User.deleted_at.is_(None),
-            )
-            .distinct()
-        )
-        return list(result)
-
-    result = await session.scalars(
-        select(User)
-        .join(Assignment, Assignment.user_id == User.id)
-        .where(
-            Assignment.process_instance_id == process_id,
-            Assignment.role_key == cargo,
-            Assignment.revoked_at.is_(None),
-            Assignment.deleted_at.is_(None),
-            User.deleted_at.is_(None),
-        )
-        .distinct()
-    )
-    return list(result)
 
 
 async def can_manage_participants(
