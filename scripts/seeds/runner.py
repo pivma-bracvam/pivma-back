@@ -44,7 +44,6 @@ from scripts.seeds.seed_process_retirement import run_seed_process_retirement
 from scripts.seeds.seed_role_assignment_invites import (
     run_seed_role_assignment_invites,
 )
-from scripts.seeds.seed_submission_update import run_seed_submission_update
 from scripts.seeds.seed_triage import run_seed_triage
 from scripts.seeds.seed_users import run_seed_users
 
@@ -292,11 +291,7 @@ async def run_seeds(
     print()
 
     if profile == 'all':
-        print('[8] Semeando atualização de submissão (Spec 021)...')
-        await run_seed_submission_update()
-        print()
-
-        print('[9] Semeando ciclo de vida de processo (Spec 022)...')
+        print('[8] Semeando ciclo de vida de processo (Spec 022)...')
         await run_seed_process_retirement()
         print()
 
