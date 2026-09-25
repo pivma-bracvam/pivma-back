@@ -1,6 +1,6 @@
 """Kanban de pendências consolidado (Spec 018, User Stories 1-3).
 
-Endpoint de leitura novo, não facilitador de demo (Constituição Princípio
+Endpoint de leitura novo, não facilitador de carga (Constituição Princípio
 II): nenhuma tela hoje consegue montar, sem uma consulta por processo, a
 visão de todas as atividades — incluindo as ainda não iniciadas, sem
 `Task`/`ActivityRun` algum — de todos os métodos visíveis ao usuário atual.

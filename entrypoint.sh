@@ -9,12 +9,6 @@ alembic upgrade head
 echo "==> [2/2] Executando provisionamento canônico de sistema (Bootstrap)..."
 python -m pivma.bootstrap_system
 
-# 3. Se configurado explicitamente para ambiente de demonstração/dev, carrega dados de teste
-if [ "$SEED_DEMO_DATA" = "true" ]; then
-    echo "==> [Demo] Carregando massa de demonstração (SEED_DEMO_DATA=true)..."
-    python -m scripts.seeds
-fi
-
-# 4. Inicia a aplicação FastAPI
+# 3. Inicia a aplicação FastAPI
 echo "==> Iniciando o servidor Uvicorn..."
 exec uvicorn --host 0.0.0.0 --port 8000 pivma:app

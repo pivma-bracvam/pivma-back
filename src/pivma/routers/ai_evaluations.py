@@ -421,7 +421,7 @@ async def test_version(  # noqa: PLR0913, PLR0917
 
 
 # --------------------------------------------------------------------------
-# Associações (compartilhado com a demo do editor de formulário)
+# Associações
 # --------------------------------------------------------------------------
 
 
