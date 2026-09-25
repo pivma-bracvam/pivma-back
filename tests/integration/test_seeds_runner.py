@@ -12,17 +12,12 @@ from pivma.core.database.models import (
 from pivma.core.process_engine import instantiate_process
 from scripts.seeds.runner import clean_demo_data
 
-_KANBAN_COUNT_OPTION = 300
 _SEEDED_PROCESS_COUNT = 2
 
 
 @pytest.fixture
 def parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--profile', choices=['dev', 'kanban', 'all'], default='dev'
-    )
-    parser.add_argument('--count', type=int, default=None)
     parser.add_argument('--clean', action='store_true', default=False)
     parser.add_argument('--reset', action='store_true', default=False)
     return parser
@@ -30,22 +25,12 @@ def parser():
 
 def test_seeds_cli_parser_defaults(parser):
     args = parser.parse_args([])
-    assert args.profile == 'dev'
-    assert args.count is None
     assert args.clean is False
     assert args.reset is False
 
 
 def test_seeds_cli_parser_custom_options(parser):
-    args = parser.parse_args([
-        '--profile',
-        'kanban',
-        '--count',
-        '300',
-        '--reset',
-    ])
-    assert args.profile == 'kanban'
-    assert args.count == _KANBAN_COUNT_OPTION
+    args = parser.parse_args(['--reset'])
     assert args.clean is False
     assert args.reset is True
 

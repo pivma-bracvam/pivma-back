@@ -12,7 +12,7 @@ python -m pivma.bootstrap_system
 # 3. Se configurado explicitamente para ambiente de demonstração/dev, carrega dados de teste
 if [ "$SEED_DEMO_DATA" = "true" ]; then
     echo "==> [Demo] Carregando massa de demonstração (SEED_DEMO_DATA=true)..."
-    python -m scripts.seeds --profile dev
+    python -m scripts.seeds
 fi
 
 # 4. Inicia a aplicação FastAPI

@@ -39,11 +39,6 @@ from pivma.core.settings import Settings
 from scripts.seeds.common import get_session
 from scripts.seeds.seed_ai_evaluations import run_seed_ai_evaluations
 from scripts.seeds.seed_forms import run_seed_forms
-from scripts.seeds.seed_kanban import run_seed_kanban
-from scripts.seeds.seed_process_retirement import run_seed_process_retirement
-from scripts.seeds.seed_role_assignment_invites import (
-    run_seed_role_assignment_invites,
-)
 from scripts.seeds.seed_triage import run_seed_triage
 from scripts.seeds.seed_users import run_seed_users
 
@@ -244,8 +239,6 @@ async def clean_demo_data(session: AsyncSession | None = None) -> int:
 
 
 async def run_seeds(
-    profile: str = 'dev',
-    count: int | None = None,
     clean: bool = False,
     reset: bool = False,
 ) -> None:
@@ -254,11 +247,8 @@ async def run_seeds(
         if clean:
             return
 
-    if count is None:
-        count = 300 if profile == 'kanban' else 6
-
     print('=====================================================')
-    print(f'PIVMA-Back: Executando Seed de Demonstração (Perfil: {profile})')
+    print('PIVMA-Back: Executando Seed de Demonstração')
     print('=====================================================\n')
 
     print('[1] Garantindo baseline de produção (bootstrap_system)...')
@@ -273,32 +263,16 @@ async def run_seeds(
     await run_seed_forms()
     print()
 
-    if profile in {'dev', 'all'}:
-        print('[4] Semeando Processos em Triagem Técnica...')
-        await run_seed_triage()
-        print()
-
-        print('[5] Semeando Avaliação por IA simulada...')
-        await run_seed_ai_evaluations()
-        print()
-
-        print('[6] Semeando Atribuição de Cargo por Convite (Spec 028)...')
-        await run_seed_role_assignment_invites()
-        print()
-
-    print(f'[7] Semeando Kanban de pendências ({count} processos)...')
-    await run_seed_kanban(target_count=count)
+    print('[4] Semeando Processos em Triagem Técnica...')
+    await run_seed_triage()
     print()
 
-    if profile == 'all':
-        print('[8] Semeando ciclo de vida de processo (Spec 022)...')
-        await run_seed_process_retirement()
-        print()
+    print('[5] Semeando Avaliação por IA simulada...')
+    await run_seed_ai_evaluations()
+    print()
 
     print('=====================================================')
     print('Seed de demonstração concluído com sucesso!')
-    print('=====================================================')
-    print(f'Perfil: {profile} | Processos no Kanban: {count}')
     print('=====================================================\n')
 
 
@@ -306,21 +280,6 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description=(
             'CLI de carga e expurgo dos dados de demonstração do PIVMA'
-        ),
-    )
-    parser.add_argument(
-        '--profile',
-        choices=['dev', 'kanban', 'all'],
-        default='dev',
-        help='Perfil de carga a executar (padrão: dev)',
-    )
-    parser.add_argument(
-        '--count',
-        type=int,
-        default=None,
-        help=(
-            'Quantidade de processos a gerar no Kanban '
-            '(padrão: 6 em dev/all, 300 em kanban)'
         ),
     )
     parser.add_argument(
@@ -344,8 +303,6 @@ def main(argv: list[str] | None = None) -> None:
     try:
         asyncio.run(
             run_seeds(
-                profile=args.profile,
-                count=args.count,
                 clean=args.clean,
                 reset=args.reset,
             )
