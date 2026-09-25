@@ -32,7 +32,7 @@ async def test_sync_template_from_dict(session):
                         'key': 'act_1',
                         'name': 'Atividade 1',
                         'order_index': 1,
-                        'assigned_role': 'PROPONENT',
+                        'assigned_role': 'proponent',
                         'form_template_key': 'form_1',
                         'dependencies': [],
                     }

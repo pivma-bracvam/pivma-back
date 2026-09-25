@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.core.authorization import (
+    BRACVAM_SYSTEM_KEY,
     PROCESS_PARTICIPANTS_MANAGE,
     TRIAGE_REVIEW,
 )
@@ -117,16 +118,35 @@ async def submit_to_triage(client, session):
 
 
 async def grant_triage_review(session, user):
-    permission = Permission(code=TRIAGE_REVIEW, description=TRIAGE_REVIEW)
-    profile = AccessProfile(name=f'Triagem {user.id}', description='triagem')
-    session.add_all([permission, profile])
-    await session.flush()
-    session.add_all([
-        AccessProfilePermission(
-            profile_id=profile.id, permission_id=permission.id
-        ),
-        UserAccessProfile(user_id=user.id, profile_id=profile.id),
-    ])
+    """Dá ao usuário o perfil BraCVAM: desde a Spec 030 só o cargo global
+
+    `bracvam` edita a triagem, além da permissão `triage.review`.
+    """
+    permission = await session.scalar(
+        select(Permission).where(Permission.code == TRIAGE_REVIEW)
+    )
+    if permission is None:
+        permission = Permission(code=TRIAGE_REVIEW, description=TRIAGE_REVIEW)
+        session.add(permission)
+    profile = await session.scalar(
+        select(AccessProfile).where(
+            AccessProfile.system_key == BRACVAM_SYSTEM_KEY
+        )
+    )
+    if profile is None:
+        profile = AccessProfile(
+            system_key=BRACVAM_SYSTEM_KEY,
+            name='BraCVAM',
+            description='BraCVAM',
+        )
+        session.add(profile)
+        await session.flush()
+        session.add(
+            AccessProfilePermission(
+                profile_id=profile.id, permission_id=permission.id
+            )
+        )
+    session.add(UserAccessProfile(user_id=user.id, profile_id=profile.id))
     await session.commit()
 
 

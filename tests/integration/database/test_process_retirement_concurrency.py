@@ -30,9 +30,7 @@ async def test_second_lifecycle_action_has_no_success_audit(
     (abaixo), que exercita o lock `with_for_update()` de verdade em duas
     conexões reais e concorrentes.
     """
-    process = await process_retirement_factory.submitted(
-        user, status='AI_PRE_EVALUATION'
-    )
+    process = await process_retirement_factory.submitted(user, status='OPEN')
     await delete_process(session, process.id, bracvam_user.id)
 
     with pytest.raises(ConflictError):
@@ -100,7 +98,7 @@ async def _create_race_fixture(engine: AsyncEngine) -> _RaceFixture:
             template_version_id=version.id,
             code=f'RACE-{suffix[:24]}',
             title='Processo em disputa',
-            status='AI_PRE_EVALUATION',
+            status='OPEN',
         )
         process.set_creation_audit(owner.id)
         setup.add(process)

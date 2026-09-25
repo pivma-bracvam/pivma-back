@@ -23,7 +23,15 @@ from pivma.core.process_engine import (
     save_form_values_draft,
     submit_proposal_form,
 )
+from tests.conftest import _make_rbac_user
 from tests.factories.user_factory import UserFactory
+
+
+async def _make_bracvam(session):
+    """Triador com perfil BraCVAM: só ele edita a triagem (Spec 030)."""
+    return await _make_rbac_user(
+        session, system_key='bracvam', name='BraCVAM', codes=()
+    )
 
 
 @pytest.mark.asyncio
@@ -32,9 +40,8 @@ async def test_full_process_engine_flow_approved(session):
     await bootstrap_all_templates(session)
     user = UserFactory()
     session.add(user)
-    triador = UserFactory()
-    session.add(triador)
     await session.commit()
+    triador = await _make_bracvam(session)
 
     pt_stmt = (
         select(ProcessTemplateVersion)
@@ -47,7 +54,7 @@ async def test_full_process_engine_flow_approved(session):
     process = await instantiate_process(
         session, ptv, 'Estudo de Irritação Ocular', user.id
     )
-    assert process.status == 'SUBMISSION'
+    assert process.status == 'OPEN'
     assert process.code.startswith('VAL-')
 
     # Verify initial activities
@@ -86,13 +93,13 @@ async def test_full_process_engine_flow_approved(session):
     assert 'ai_evaluation' not in artifact.metadata_payload
     assert pre_eval_run is None
 
-    # Verify process moved to TRIAGE and triage unblocked
+    # A triagem é liberada; o processo segue OPEN (Spec 030)
     p_refreshed = (
         await session.execute(
             select(ProcessInstance).where(ProcessInstance.id == process.id)
         )
     ).scalar_one()
-    assert p_refreshed.status == 'TRIAGE'
+    assert p_refreshed.status == 'OPEN'
 
     triage_act = (
         await session.execute(
@@ -124,7 +131,7 @@ async def test_full_process_engine_flow_approved(session):
         triador.id,
     )
     assert decision.outcome == 'APPROVED'
-    assert new_status == 'PLANNING'
+    assert new_status == 'OPEN'
     assert next_run is None
 
 
@@ -134,9 +141,8 @@ async def test_process_engine_flow_diligence_reexecution(session):
     await bootstrap_all_templates(session)
     user = UserFactory()
     session.add(user)
-    triador = UserFactory()
-    session.add(triador)
     await session.commit()
+    triador = await _make_bracvam(session)
 
     ptv = (
         await session.execute(
@@ -171,7 +177,7 @@ async def test_process_engine_flow_diligence_reexecution(session):
         triador.id,
     )
     assert decision.outcome == 'NEEDS_REVISION'
-    assert new_status == 'SUBMISSION'
+    assert new_status == 'OPEN'
     assert next_run == 2
 
     # Check that Run 1 is COMPLETED and Run 2 is IN_PROGRESS
@@ -195,9 +201,8 @@ async def test_process_engine_flow_rejected(session):
     await bootstrap_all_templates(session)
     user = UserFactory()
     session.add(user)
-    triador = UserFactory()
-    session.add(triador)
     await session.commit()
+    triador = await _make_bracvam(session)
 
     ptv = (
         await session.execute(

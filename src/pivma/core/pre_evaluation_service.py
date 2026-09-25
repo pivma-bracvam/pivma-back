@@ -41,9 +41,9 @@ from pivma.core.database.models import (
     ReviewerFeedback,
 )
 from pivma.core.process_engine import (
-    STATUS_AI_PRE_EVALUATION,
     STATUS_ARCHIVED,
     STATUS_CANCELLED,
+    STATUS_OPEN,
     TRIAGE_TASK_TITLE,
     AuthorizationError,
     ConflictError,
@@ -90,7 +90,7 @@ async def _execute(session: AsyncSession, run_id: UUID) -> None:  # noqa: PLR091
             ProcessInstance.id == run.process_instance_id
         )
     )
-    if process_status != STATUS_AI_PRE_EVALUATION:
+    if process_status != STATUS_OPEN:
         return
 
     template, fields_by_key, values = await _load_submission(session, run)
@@ -151,16 +151,29 @@ async def _execute(session: AsyncSession, run_id: UUID) -> None:  # noqa: PLR091
     for item, version_id in items:
         session.add(_run_item(run.id, version_id, item))
 
-    process = await session.scalar(
-        select(ProcessInstance)
+    # Spec 030 (R8): a disputa entre `_execute`, `retry_run` e a contestação
+    # é pela própria execução da IA, não mais pelo status do processo.
+    # TODO(spec-030): teste de concorrência adiado — provar que _execute,
+    # retry_run e a contestação da IA sobre a mesma EvaluationRun têm um único
+    # vencedor (FR-031), com duas sessões reais como em
+    # tests/integration/database/test_process_retirement_concurrency.py.
+    locked_run = await session.scalar(
+        select(EvaluationRun)
         .where(
-            ProcessInstance.id == run.process_instance_id,
-            ProcessInstance.status == STATUS_AI_PRE_EVALUATION,
-            ProcessInstance.deleted_at.is_(None),
+            EvaluationRun.id == run.id,
+            EvaluationRun.status == 'in_progress',
         )
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
-    if process is None:
+    process = await session.scalar(
+        select(ProcessInstance).where(
+            ProcessInstance.id == run.process_instance_id,
+            ProcessInstance.status == STATUS_OPEN,
+            ProcessInstance.deleted_at.is_(None),
+        )
+    )
+    if locked_run is None or process is None:
         await session.rollback()
         return
 
@@ -215,7 +228,6 @@ async def _execute(session: AsyncSession, run_id: UUID) -> None:  # noqa: PLR091
                 run.created_by,
                 task_titles={'triage_evaluation': TRIAGE_TASK_TITLE},
             )
-        await _set_process_status(session, run.process_instance_id, 'TRIAGE')
     else:
         await _return_to_proponent(session, run, failed=False)
 
@@ -285,7 +297,7 @@ async def _return_to_proponent(
             },
         )
     )
-    await _set_process_status(session, run.process_instance_id, 'SUBMISSION')
+    await _ensure_process_open(session, run.process_instance_id)
 
 
 async def request_direct_review(
@@ -332,7 +344,7 @@ async def request_direct_review(
             user_id,
             task_titles={'triage_evaluation': TRIAGE_TASK_TITLE},
         )
-    await _set_process_status(session, process_id, 'TRIAGE')
+    await _ensure_process_open(session, process_id)
     session.add(
         AuditEvent(
             process_instance_id=process_id,
@@ -428,11 +440,7 @@ async def retry_run(
     )
     new_run.set_creation_audit(user_id)
     session.add(new_run)
-    # O reprocessamento volta a submissão para a espera pela IA; o roteamento
-    # final é refeito por `_execute` ao término da nova execução.
-    await _set_process_status(
-        session, old.process_instance_id, STATUS_AI_PRE_EVALUATION
-    )
+    # O roteamento final é refeito por `_execute` ao término da nova execução.
     await session.commit()
     return new_run
 
@@ -884,16 +892,22 @@ async def _submission_activity(
     )
 
 
-async def _set_process_status(
-    session: AsyncSession, process_id: UUID, status: str
+async def _ensure_process_open(
+    session: AsyncSession, process_id: UUID
 ) -> None:
+    """Recusa avançar o fluxo de um processo cancelado ou arquivado.
+
+    Antes da Spec 030 esta função também gravava o status de fluxo; agora o
+    processo guarda só o ciclo de vida e a posição vem das atividades.
+    """
     process = await session.get(ProcessInstance, process_id)
-    if process is not None:
-        if process.status in {STATUS_CANCELLED, STATUS_ARCHIVED}:
-            raise ConflictError(
-                f'Processo em status {process.status!r} não permite avanço.'
-            )
-        process.status = status
+    if process is not None and process.status in {
+        STATUS_CANCELLED,
+        STATUS_ARCHIVED,
+    }:
+        raise ConflictError(
+            f'Processo em status {process.status!r} não permite avanço.'
+        )
 
 
 async def _close_open_submission_run(

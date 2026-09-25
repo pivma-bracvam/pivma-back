@@ -416,6 +416,71 @@ def active_participant_process_scope(user_id: UUID):
     )
 
 
+def process_cargos_scope(user_id: UUID):
+    """Subquery dos `role_key` ativos do usuário, correlacionável por
+
+    `Assignment.process_instance_id` (Spec 030, R4/R12).
+    """
+    return (
+        select(Assignment.role_key)
+        .join(User, User.id == Assignment.user_id)
+        .where(
+            Assignment.user_id == user_id,
+            Assignment.revoked_at.is_(None),
+            Assignment.deleted_at.is_(None),
+            User.deleted_at.is_(None),
+        )
+    )
+
+
+# Perfil global → cargo de atividade que ele concede em todo processo.
+_GLOBAL_CARGO_BY_SYSTEM_KEY = {
+    ADMINISTRATOR_SYSTEM_KEY: 'admin',
+    BRACVAM_SYSTEM_KEY: 'bracvam',
+}
+
+
+async def global_cargos(session: AsyncSession, user_id: UUID) -> set[str]:
+    """Cargos globais (`admin`, `bracvam`) vindos do perfil (Spec 030, R3)."""
+    profiles = await active_profiles_for_user(session, user_id)
+    return {
+        _GLOBAL_CARGO_BY_SYSTEM_KEY[p.system_key]
+        for p in profiles
+        if p.system_key in _GLOBAL_CARGO_BY_SYSTEM_KEY
+    }
+
+
+async def user_cargos(
+    session: AsyncSession, user_id: UUID, process_id: UUID
+) -> set[str]:
+    """Cargos efetivos do usuário no processo (Spec 030, R4).
+
+    Atribuições ativas no processo mais os cargos globais do perfil. É o
+    conjunto comparado com `view_roles`/`edit_roles` das atividades.
+    """
+    process_roles = set(
+        await session.scalars(
+            process_cargos_scope(user_id).where(
+                Assignment.process_instance_id == process_id
+            )
+        )
+    )
+    if not process_roles and not await _is_active_user(session, user_id):
+        return set()
+    return process_roles | await global_cargos(session, user_id)
+
+
+async def _is_active_user(session: AsyncSession, user_id: UUID) -> bool:
+    return (
+        await session.scalar(
+            select(User.id).where(
+                User.id == user_id, User.deleted_at.is_(None)
+            )
+        )
+        is not None
+    )
+
+
 async def can_manage_participants(
     session: AsyncSession, user_id: UUID, process_id: UUID
 ) -> bool:

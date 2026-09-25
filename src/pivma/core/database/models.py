@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     Date,
     Float,
     ForeignKey,
@@ -19,7 +20,7 @@ from sqlalchemy import (
     column,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import (
     Mapped,
     declared_attr,
@@ -537,6 +538,14 @@ class FormField(AuditMixin):
 @table_registry.mapped_as_dataclass
 class ProcessInstance(AuditMixin):
     __tablename__ = 'process_instances'
+    # Spec 030: o processo guarda só o ciclo de vida; a posição no fluxo
+    # vem das fases e atividades.
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('OPEN', 'CLOSED', 'CANCELLED', 'ARCHIVED')",
+            name='ck_process_instances_status',
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(
         init=False,
@@ -549,7 +558,7 @@ class ProcessInstance(AuditMixin):
     )
     code: Mapped[str] = mapped_column(String(32), unique=True)
     title: Mapped[str] = mapped_column(String(255))
-    status: Mapped[str] = mapped_column(String(32), default='SUBMISSION')
+    status: Mapped[str] = mapped_column(String(32), default='OPEN')
     started_at: Mapped[datetime | None] = mapped_column(
         nullable=True, default=None
     )
@@ -631,6 +640,14 @@ class ActivityInstance(AuditMixin):
         Text, nullable=True, default=None
     )
     activity_type: Mapped[str] = mapped_column(String(32), default='form')
+    # Concessões por cargo (Spec 030): quem vê e quem edita a atividade.
+    # Copiadas do template na instanciação; `admin` e `bracvam` sempre veem.
+    view_roles: Mapped[list[str]] = mapped_column(
+        ARRAY(String(64)), nullable=False, default_factory=list
+    )
+    edit_roles: Mapped[list[str]] = mapped_column(
+        ARRAY(String(64)), nullable=False, default_factory=list
+    )
 
     process_instance: Mapped[ProcessInstance] = relationship(
         back_populates='activities', init=False

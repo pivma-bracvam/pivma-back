@@ -85,7 +85,7 @@ class ProcessInstanceFactory(factory.Factory):
 
     code = factory.Sequence(lambda n: f'VAL-2026-{n:04d}')
     title = factory.Sequence(lambda n: f'Processo de Validação {n}')
-    status = 'SUBMISSION'
+    status = 'OPEN'
     started_at = None
     closed_at = None
     closure_reason = None

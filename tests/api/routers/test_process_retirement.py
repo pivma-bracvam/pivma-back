@@ -83,9 +83,7 @@ async def test_owner_can_delete_never_submitted_draft(client, session, user):
 @pytest.mark.asyncio
 async def test_owner_can_delete_own_submitted_process(client, session, user):
     """Submissão formal deixou de bloquear a exclusão (revisão 2026-09-13)."""
-    process = await _create_submitted_process(
-        session, user, status='SUBMISSION'
-    )
+    process = await _create_submitted_process(session, user, status='OPEN')
     authenticate(client, user)
 
     response = client.delete(f'/processes/{process}')
@@ -120,8 +118,9 @@ async def test_reviewer_without_platform_access_cannot_delete_draft(
 
     response = client.delete(f'/processes/{process}')
 
-    assert response.status_code == HTTPStatus.FORBIDDEN
-    assert response.json()['detail']['code'] == 'forbidden'
+    # Spec 030 (R5): sem acesso de plataforma nem atribuição, o processo
+    # não é visível.
+    assert response.status_code == HTTPStatus.NOT_FOUND
     assert await _reload(session, process) is not None
 
 
@@ -129,7 +128,7 @@ async def test_reviewer_without_platform_access_cannot_delete_draft(
 async def test_admin_deletes_others_process_and_cancels_pending_children(
     client, session, user, bracvam_user
 ):
-    process = await _create_submitted_process(session, user, status='TRIAGE')
+    process = await _create_submitted_process(session, user, status='OPEN')
     phase = await session.scalar(
         select(Phase)
         .where(Phase.process_instance_id == process)
@@ -230,13 +229,14 @@ async def test_admin_deletes_others_process_and_cancels_pending_children(
 async def test_reviewer_without_platform_access_cannot_delete_others_process(
     client, session, user, reviewer_only
 ):
-    process = await _create_submitted_process(session, user, status='TRIAGE')
+    process = await _create_submitted_process(session, user, status='OPEN')
     authenticate(client, reviewer_only)
 
     response = client.delete(f'/processes/{process}')
 
-    assert response.status_code == HTTPStatus.FORBIDDEN
-    assert response.json()['detail']['code'] == 'forbidden'
+    # Spec 030 (R5): sem acesso de plataforma nem atribuição, o processo
+    # não é visível.
+    assert response.status_code == HTTPStatus.NOT_FOUND
 
 
 @pytest.mark.asyncio
@@ -270,15 +270,16 @@ async def test_reviewer_without_platform_access_cannot_delete_revision(
 
     response = client.delete(f'/processes/{process}')
 
-    assert response.status_code == HTTPStatus.FORBIDDEN
-    assert response.json()['detail']['code'] == 'forbidden'
+    # Spec 030 (R5): sem acesso de plataforma nem atribuição, o processo
+    # não é visível.
+    assert response.status_code == HTTPStatus.NOT_FOUND
 
 
 @pytest.mark.asyncio
 async def test_deleting_already_deleted_process_is_rejected(
     client, session, user, bracvam_user
 ):
-    process = await _create_submitted_process(session, user, status='TRIAGE')
+    process = await _create_submitted_process(session, user, status='OPEN')
     authenticate(client, bracvam_user)
     assert (
         client.delete(f'/processes/{process}').status_code
@@ -372,7 +373,7 @@ async def test_archive_accepts_process_previously_deleted(
     client, session, user, bracvam_user
 ):
     """`CANCELLED` produzido pelo `DELETE` unificado também é arquivável."""
-    process = await _create_submitted_process(session, user, status='TRIAGE')
+    process = await _create_submitted_process(session, user, status='OPEN')
     authenticate(client, user)
     assert (
         client.delete(f'/processes/{process}').status_code
@@ -391,7 +392,7 @@ async def test_archive_draft_or_active_process_is_rejected(
     client, session, user, bracvam_user
 ):
     draft = await _create_process(session, user, 'Rascunho não arquivável')
-    active = await _create_submitted_process(session, user, status='TRIAGE')
+    active = await _create_submitted_process(session, user, status='OPEN')
     authenticate(client, bracvam_user)
 
     for process in (draft, active):
@@ -436,7 +437,7 @@ async def test_detail_exposes_operations_for_each_actor(
     ]
     assert returned_actions == ['DELETE']
 
-    submitted = await _create_submitted_process(session, user, status='TRIAGE')
+    submitted = await _create_submitted_process(session, user, status='OPEN')
     authenticate(client, bracvam_user)
     submitted_actions = client.get(f'/processes/{submitted}').json()[
         'available_actions'
@@ -469,7 +470,7 @@ async def test_available_action_is_revalidated_even_when_absent(
 async def test_triage_decision_is_blocked_after_deletion(
     client, session, user, bracvam_user
 ):
-    process = await _create_submitted_process(session, user, status='TRIAGE')
+    process = await _create_submitted_process(session, user, status='OPEN')
     authenticate(client, bracvam_user)
     assert (
         client.delete(f'/processes/{process}').status_code
@@ -491,7 +492,7 @@ async def _create_process(session, owner, title):
     return process.id
 
 
-async def _create_submitted_process(session, owner, *, status='TRIAGE'):
+async def _create_submitted_process(session, owner, *, status='OPEN'):
     process = await ProcessRetirementFactory(session).submitted(
         owner, status=status
     )

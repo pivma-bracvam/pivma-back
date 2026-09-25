@@ -16,9 +16,7 @@ from pivma.core.process_engine import ConflictError, delete_process
 async def test_late_pre_evaluation_does_not_change_cancelled_process(
     session, user, bracvam_user, process_retirement_factory
 ):
-    process = await process_retirement_factory.submitted(
-        user, status='AI_PRE_EVALUATION'
-    )
+    process = await process_retirement_factory.submitted(user, status='OPEN')
     activity_run = await session.scalar(
         select(ActivityRun)
         .join(ActivityInstance)
@@ -52,9 +50,7 @@ async def test_late_pre_evaluation_does_not_change_cancelled_process(
 async def test_retry_pre_evaluation_is_rejected_after_cancellation(
     session, user, bracvam_user, process_retirement_factory
 ):
-    process = await process_retirement_factory.submitted(
-        user, status='AI_PRE_EVALUATION'
-    )
+    process = await process_retirement_factory.submitted(user, status='OPEN')
     activity_run = await session.scalar(
         select(ActivityRun)
         .join(ActivityInstance)

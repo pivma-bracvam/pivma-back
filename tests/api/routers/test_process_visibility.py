@@ -9,7 +9,10 @@ from http import HTTPStatus
 
 import pytest
 
-from pivma.core.authorization import BRACVAM_SYSTEM_KEY
+from pivma.core.authorization import (
+    ADMINISTRATOR_SYSTEM_KEY,
+    BRACVAM_SYSTEM_KEY,
+)
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.participant_factory import AssignmentFactory
 from tests.factories.process_factory import (
@@ -41,7 +44,7 @@ async def _make_process(session, *, status):
 async def test_padrao_user_without_assignment_cannot_see_triage_process(
     client, session
 ):
-    process = await _make_process(session, status='TRIAGE')
+    process = await _make_process(session, status='OPEN')
     outsider = UserFactory()
     session.add(outsider)
     await session.commit()
@@ -61,7 +64,7 @@ async def test_padrao_user_without_assignment_cannot_see_triage_process(
 async def test_padrao_user_with_active_assignment_sees_triage_process(
     client, session
 ):
-    process = await _make_process(session, status='TRIAGE')
+    process = await _make_process(session, status='OPEN')
     manager = UserFactory()
     session.add(manager)
     await session.commit()
@@ -100,45 +103,61 @@ async def test_bracvam_user_sees_any_process_without_assignment(
 
 
 @pytest.mark.asyncio
-async def test_submission_status_stays_locked_to_the_proponent(
+async def test_participant_sees_process_header_during_submission(
     client, session
 ):
-    """A trava por proponente (Spec 009) continua valendo dentro do status
+    """Spec 030 (FR-015): o participante vê o cabeçalho do processo em
 
-    `SUBMISSION` mesmo para quem tem outra atribuição ativa no processo.
+    qualquer momento; o conteúdo da submissão segue a concessão da atividade.
     """
-    process = await _make_process(session, status='SUBMISSION')
-    proponent = UserFactory()
+    process = await _make_process(session, status='OPEN')
     other_role_holder = UserFactory()
-    session.add_all([proponent, other_role_holder])
+    session.add(other_role_holder)
     await session.commit()
     session.add(
         AssignmentFactory(
-            process=process, user=proponent, role_key='proponent'
-        )
-    )
-    session.add(
-        AssignmentFactory(
-            process=process,
-            user=other_role_holder,
-            role_key='group_manager',
+            process=process, user=other_role_holder, role_key='sponsor'
         )
     )
     await session.commit()
-
-    authenticate(client, proponent)
-    assert client.get(f'/processes/{process.id}').status_code == HTTPStatus.OK
 
     authenticate(client, other_role_holder)
+    assert client.get(f'/processes/{process.id}').status_code == HTTPStatus.OK
+
+
+@pytest.mark.asyncio
+async def test_user_without_assignment_gets_404_on_process(client, session):
+    process = await _make_process(session, status='OPEN')
+    outsider = UserFactory()
+    session.add(outsider)
+    await session.commit()
+    authenticate(client, outsider)
+
     assert (
         client.get(f'/processes/{process.id}').status_code
         == HTTPStatus.NOT_FOUND
     )
+    items = client.get('/processes', params={'size': 100}).json()['items']
+    assert str(process.id) not in {item['id'] for item in items}
+
+
+@pytest.mark.asyncio
+async def test_admin_sees_any_process_without_assignment(client, session):
+    process = await _make_process(session, status='OPEN')
+    admin = UserFactory()
+    profile = AccessProfileFactory(system_key=ADMINISTRATOR_SYSTEM_KEY)
+    session.add_all([admin, profile])
+    await session.commit()
+    session.add(UserAccessProfileFactory(user=admin, profile=profile))
+    await session.commit()
+    authenticate(client, admin)
+
+    assert client.get(f'/processes/{process.id}').status_code == HTTPStatus.OK
 
 
 @pytest.mark.asyncio
 async def test_timeline_endpoint_applies_the_same_visibility(client, session):
-    process = await _make_process(session, status='TRIAGE')
+    process = await _make_process(session, status='OPEN')
     outsider = UserFactory()
     session.add(outsider)
     await session.commit()

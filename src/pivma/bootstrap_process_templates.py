@@ -13,6 +13,7 @@ from pivma.core.database.models import (
     ProcessTemplate,
     ProcessTemplateVersion,
 )
+from pivma.core.process_engine import ValidationError, resolve_activity_access
 from pivma.core.settings import get_settings
 
 
@@ -146,9 +147,24 @@ async def _sync_process_template_and_version(
     return process_template, version
 
 
+def _validate_activity_access(data: dict[str, Any]) -> None:
+    """Recusa o template antes de gravar se alguma atividade tiver
+    concessões inválidas (Spec 030, FR-013)."""
+    template_key = data.get('process_template', {}).get('key')
+    for phase in data.get('phases', []):
+        for activity in phase.get('activities', []):
+            try:
+                resolve_activity_access(activity)
+            except ValidationError as exc:
+                raise ValidationError(
+                    f'Template {template_key!r}: {exc}'
+                ) from exc
+
+
 async def sync_template_from_dict(
     session: AsyncSession, data: dict[str, Any]
 ) -> tuple[ProcessTemplate, ProcessTemplateVersion, list[FormTemplate]]:
+    _validate_activity_access(data)
     synced_forms = await _sync_forms(session, data.get('forms', []))
     process_template, version = await _sync_process_template_and_version(
         session, data

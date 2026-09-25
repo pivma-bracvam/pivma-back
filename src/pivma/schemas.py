@@ -413,11 +413,16 @@ class CreateProcessRequest(BaseModel):
     initial_notes: str | None = None
 
 
+# Spec 030: o processo expõe só o ciclo de vida; a posição no fluxo vem das
+# fases e atividades.
+ProcessLifecycle = Literal['OPEN', 'CLOSED', 'CANCELLED', 'ARCHIVED']
+
+
 class ProcessInstanceDetail(BaseModel):
     id: UUID
     code: str
     title: str
-    status: str
+    status: ProcessLifecycle
     template_key: str
     version_number: int
     started_at: datetime | None = None
@@ -438,7 +443,7 @@ class ProcessInstanceListResponse(BaseModel):
 
 class ProcessLifecycleResponse(BaseModel):
     id: UUID
-    status: str | None = None
+    status: ProcessLifecycle | None = None
     available_actions: list[Literal['DELETE', 'ARCHIVE']] = Field(
         default_factory=list
     )
@@ -576,7 +581,7 @@ class PatchSubmissionRequest(BaseModel):
 class ProcessSubmissionResponse(BaseModel):
     id: UUID
     title: str
-    status: str
+    status: ProcessLifecycle
     template_key: str
     version_number: int
     run_number: int
@@ -616,7 +621,7 @@ class TriageDecisionRequest(BaseModel):
 
 class TriageDecisionResponse(BaseModel):
     process_id: UUID
-    new_process_status: str
+    process_status: ProcessLifecycle
     decision_id: UUID
     outcome: str
     next_activity_run: int | None = None
@@ -1155,7 +1160,7 @@ class DirectReviewRequestBody(BaseModel):
 
 
 class DirectReviewResponse(BaseModel):
-    process_status: str
+    process_status: ProcessLifecycle
     direct_review_request_id: UUID
 
 

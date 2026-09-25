@@ -157,7 +157,7 @@ async def test_role_assignment_activities_unlock_on_triage_approval(
         headers={'Origin': 'https://testserver'},
     )
     assert approve_resp.status_code == HTTPStatus.OK
-    assert approve_resp.json()['new_process_status'] == 'PLANNING'
+    assert approve_resp.json()['process_status'] == 'OPEN'
 
     # 4. As duas atividades sem dependência extra (Patrocinador e Grupo
     #    Gestor, executadas pelo Proponente) aparecem prontas, sem exigir

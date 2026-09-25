@@ -63,7 +63,7 @@ async def test_create_and_list_process_instances(client, session):
     assert resp.status_code == HTTPStatus.CREATED
     data = resp.json()
     assert data['code'].startswith('VAL-')
-    assert data['status'] == 'SUBMISSION'
+    assert data['status'] == 'OPEN'
     process_id = data['id']
 
     # Get single process

@@ -11,8 +11,11 @@ from pivma.core.authorization import (
     can_manage_participants,
     can_manage_process_templates,
     has_process_review_access,
+    user_cargos,
 )
 from pivma.core.database.models import (
+    ActivityInstance,
+    ActivityRun,
     AuditEvent,
     FormTemplate,
     ProcessInstance,
@@ -44,6 +47,7 @@ from pivma.schemas import (
     PatchSubmissionRequest,
     ProcessInstanceDetail,
     ProcessInstanceListResponse,
+    ProcessLifecycle,
     ProcessLifecycleResponse,
     ProcessSubmissionResponse,
     ProcessTemplateDetail,
@@ -84,12 +88,42 @@ def _normalize_definition_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+async def _events_of_visible_activities(
+    session: Session,
+    user_id,
+    process_id,
+    events: list[AuditEvent],
+) -> list[AuditEvent]:
+    """Descarta eventos de execuções cuja atividade o usuário não vê
+
+    (Spec 030, FR-021). Eventos sem execução (processo, participantes)
+    seguem as regras de `_visible_events`.
+    """
+    run_ids = {e.activity_run_id for e in events if e.activity_run_id}
+    if not run_ids:
+        return events
+    cargos = await user_cargos(session, user_id, process_id)
+    rows = await session.execute(
+        select(ActivityRun.id, ActivityInstance.view_roles)
+        .join(
+            ActivityInstance,
+            ActivityInstance.id == ActivityRun.activity_instance_id,
+        )
+        .where(ActivityRun.id.in_(run_ids))
+    )
+    hidden = {run_id for run_id, roles in rows if not cargos & set(roles)}
+    return [e for e in events if e.activity_run_id not in hidden]
+
+
 async def _visible_events(
     session: Session,
     current_user: UserModel,
     process_id,
     events: list[AuditEvent],
 ) -> list[AuditEvent]:
+    events = await _events_of_visible_activities(
+        session, current_user.id, process_id, events
+    )
     manages_participants = await can_manage_participants(
         session, current_user.id, process_id
     )
@@ -381,7 +415,7 @@ async def create_process(
 async def list_processes(
     session: Session,
     current_user: CurrentUser,
-    status: str | None = None,
+    status: ProcessLifecycle | None = None,
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
 ):
@@ -538,6 +572,8 @@ async def archive_process_endpoint(
 def _submission_http_error(error: Exception) -> HTTPException:
     if isinstance(error, NotFoundError):
         status = HTTPStatus.NOT_FOUND
+    elif isinstance(error, AuthorizationError):
+        status = HTTPStatus.FORBIDDEN
     elif isinstance(error, ConflictError):
         status = HTTPStatus.CONFLICT
     else:
@@ -573,7 +609,12 @@ async def replace_process_submission(
             title=body.title,
             values_dict=body.values,
         )
-    except (NotFoundError, ConflictError, ValidationError) as exc:
+    except (
+        NotFoundError,
+        AuthorizationError,
+        ConflictError,
+        ValidationError,
+    ) as exc:
         raise _submission_http_error(exc) from exc
 
 
@@ -597,7 +638,12 @@ async def patch_process_submission(
             title=body.title,
             values_dict=body.values,
         )
-    except (NotFoundError, ConflictError, ValidationError) as exc:
+    except (
+        NotFoundError,
+        AuthorizationError,
+        ConflictError,
+        ValidationError,
+    ) as exc:
         raise _submission_http_error(exc) from exc
 
 

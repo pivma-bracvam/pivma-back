@@ -92,10 +92,11 @@ uv run fastapi dev src/pivma/__init__.py
 
 ## Arquitetura de Permissões e Acesso
 
-A aplicação divide autorização em dois níveis:
+A aplicação divide autorização em três níveis:
 
 1. **Perfis Globais (RBAC):** Definem permissões transversais no sistema (ex.: `Administrador`, `BraCVAM`, `Grupo Gestor`).
 2. **Papéis Locais de Processo:** Definem atribuições dentro de instâncias específicas de processo (`ProcessInstance`).
+3. **Concessões por Atividade:** Cada atividade de processo lista os cargos que podem vê-la (`view_roles`) e editá-la (`edit_roles`). As concessões valem para cargos, nunca para usuários. Um usuário tem um cargo no processo por atribuição ativa ou, no caso de `admin` e `bracvam`, pelo perfil global. `admin` e `bracvam` veem todas as atividades; editar exige que o cargo esteja em `edit_roles`. As concessões vêm da chave `access` dos templates (ver `src/pivma/templates_data/README.md`).
 
 ### Bootstrap do Administrador Inicial
 
@@ -121,7 +122,8 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
 * **Avaliação Dinâmica de Permissões:** Perfis e papéis são validados a cada requisição no banco de dados, sem persistência de permissões dentro do token.
 * **Convenções de Erro:**
 * `401 Unauthorized`: Sessão inexistente ou expirada.
-* `403 Forbidden`: Falta de permissão global ou restrição por conflito de interesse ativo.
+* `403 Forbidden`: Falta de permissão global, concessão de ver sem concessão de editar na atividade, ou conflito de interesse ativo.
+* `404 Not Found`: Recurso inexistente ou sem concessão de ver. Um processo sem atribuição ativa (para quem não é Admin/BraCVAM) e uma atividade sem concessão de ver respondem 404, sem revelar que existem.
 * `409 Conflict`: Violação de unicidade ou regra de negócio (ex.: cadastro duplicado, duplicidade de papel no processo).
 * `422 Unprocessable Entity`: Erro de validação de payload/schema.
 
@@ -158,9 +160,12 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
 ### Processos, Formulários e Triagem
 
 * Ciclo de validação analítica orientado por instâncias de templates versionados.
-* Suporte a formulários dinâmicos com ciclos de rascunho e submissão estrita (bloqueio de alterações após envio).
-* Fase 1 (Triagem) inclui pareceres técnicos por campo e decisão final (aprovação, rejeição ou retorno para ajustes), restritos a usuários com permissão de triagem (`triage.review`).
-* Exclusão lógica permitida apenas para processos em estados não-terminais.
+* **Ciclo de vida:** o campo `status` do processo aceita só `OPEN`, `CLOSED`, `CANCELLED` e `ARCHIVED`, validado por `CHECK` no banco. Todo processo nasce `OPEN`; a triagem rejeitada leva a `CLOSED`, a exclusão a `CANCELLED` e o arquivamento (a partir de `CLOSED` ou `CANCELLED`) a `ARCHIVED`. `GET /processes?status=` aceita só esses valores.
+* **Posição no fluxo:** vem dos estados de fases e atividades (`BLOCKED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`), não do processo. Etapas como submissão, pré-avaliação e triagem são atividades, e várias podem estar em andamento ao mesmo tempo.
+* **Visibilidade:** Admin e BraCVAM veem todos os processos. Os demais veem o cabeçalho dos processos em que têm atribuição ativa, em qualquer cargo; formulários, versões, anexos, pré-avaliação, tarefas e eventos da linha do tempo seguem a concessão de ver de cada atividade.
+* Suporte a formulários dinâmicos com ciclos de rascunho e submissão estrita (bloqueio de alterações após envio). Só o cargo `proponent` edita a submissão; BraCVAM e Admin a leem.
+* Fase 1 (Triagem) inclui pareceres técnicos por campo e decisão final (aprovação, rejeição ou retorno para ajustes). Exige a permissão `triage.review` e a concessão de edição da atividade, que pertence só ao cargo `bracvam`: o Admin lê a triagem, mas não decide. A decisão só é aceita com a triagem em andamento; fora disso, `409`.
+* Exclusão lógica permitida apenas para processos `OPEN`.
 
 ### Participantes e Conflito de Interesses
 
@@ -224,6 +229,9 @@ consulta o histórico quando o usuário solicita.
 * `tests/api/routers/`: Testes de contrato HTTP, autorização e respostas via `TestClient`.
 * `tests/integration/database/`: Testes de integridade de dados e constraints no PostgreSQL.
 * `tests/integration/migrations/`: Testes de upgrade e downgrade do Alembic.
+* `tests/integration/bootstrap/`: Testes do provisionamento de perfis, permissões e administrador inicial.
+* `tests/integration/ai/`: Testes do pipeline de pré-avaliação com o provedor fake.
+* `tests/integration/journeys/`: Jornadas de ponta a ponta pela API pública, a partir de um deploy novo (bootstrap real, cadastro, login por cookie e troca de usuário).
 
 ### Padrões Adotados
 
