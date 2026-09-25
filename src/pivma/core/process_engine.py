@@ -427,57 +427,16 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-# Colunas do Kanban de pendências (Spec 018, FR-002).
-KANBAN_NAO_INICIADO = 'NAO_INICIADO'
-KANBAN_EM_ANDAMENTO = 'EM_ANDAMENTO'
-KANBAN_EM_ATRASO = 'EM_ATRASO'
-KANBAN_CONCLUIDO = 'CONCLUIDO'
-
-
-def classify_kanban_column(
-    *,
-    activity_status: str,
-    run_started_at: datetime | None,
-    sla_hours: int | None,
-    now: datetime | None = None,
-) -> str:
-    """Classifica uma atividade em uma das 4 colunas do Kanban.
-
-    Função pura (data-model.md, tabela de classificação): `BLOCKED` (com ou
-    sem run) é sempre `NAO_INICIADO`; `COMPLETED` é sempre `CONCLUIDO`;
-    `READY`/`IN_PROGRESS` é `EM_ATRASO` só quando o template declara
-    `sla_hours` para a etapa e o tempo decorrido desde `run_started_at` já
-    excede esse prazo — do contrário, `EM_ANDAMENTO`. Uma etapa sem
-    `sla_hours` declarado nunca entra em `EM_ATRASO` (spec, Assumptions).
-    """
-    if activity_status == 'COMPLETED':
-        return KANBAN_CONCLUIDO
-    if activity_status == 'BLOCKED':
-        return KANBAN_NAO_INICIADO
-
-    if sla_hours is not None and run_started_at is not None:
-        reference = now or utc_now()
-        # `ActivityRun.started_at` pode chegar naive (server_default do
-        # banco / `datetime.utcnow()` legado); normaliza para UTC-aware
-        # antes de subtrair, em vez de propagar o `TypeError`.
-        if run_started_at.tzinfo is None:
-            run_started_at = run_started_at.replace(tzinfo=UTC)
-        if reference - run_started_at > timedelta(hours=sla_hours):
-            return KANBAN_EM_ATRASO
-    return KANBAN_EM_ANDAMENTO
-
-
 def _compute_activity_due_date(
     *, run_started_at: datetime | None, sla_hours: int | None
 ) -> datetime | None:
     """Deriva o prazo (`Task.due_date`) de uma atividade a partir do SLA.
 
-    Mesma fórmula (soma de horas) já usada por `classify_kanban_column` para
-    que as duas nunca divirjam (Spec 024, FR-003) — mas sem a normalização
-    para timezone-aware que aquela função faz: `run_started_at` chega aqui
-    naive (mesmo padrão `datetime.utcnow()` de toda coluna de data deste
-    projeto, sem `DateTime(timezone=True)`), e `Task.due_date` é uma coluna
-    naive — misturar aware/naive nesta soma quebraria a persistência ou a
+    Soma `sla_hours` a `run_started_at` sem normalizar para timezone-aware
+    (Spec 024, FR-003): `run_started_at` chega aqui naive (mesmo padrão
+    `datetime.utcnow()` de toda coluna de data deste projeto, sem
+    `DateTime(timezone=True)`), e `Task.due_date` é uma coluna naive —
+    misturar aware/naive nesta soma quebraria a persistência ou a
     comparação posterior. Sem `sla_hours` declarado, sem prazo — nunca um
     valor inferido (FR-002).
     """
@@ -515,7 +474,7 @@ async def _template_activity_data(
 def _resolve_activity_cargo(a_data: dict[str, Any]) -> str:
     """Cargo declarado por uma atividade do template (Spec 018, FR-016).
 
-    Falha alto e cedo (na instanciação/ativação, não na leitura do Kanban)
+    Falha alto e cedo (na instanciação/ativação)
     quando um template declara um `assigned_role` fora do vocabulário
     compartilhado com `Assignment.role_key` — em vez de aceitar string livre
     e deixar a inconsistência para ser descoberta depois.
