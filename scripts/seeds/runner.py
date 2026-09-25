@@ -37,9 +37,7 @@ from pivma.core.database.models import (
 )
 from pivma.core.settings import Settings
 from scripts.seeds.common import get_session
-from scripts.seeds.seed_ai_evaluations import run_seed_ai_evaluations
 from scripts.seeds.seed_forms import run_seed_forms
-from scripts.seeds.seed_triage import run_seed_triage
 from scripts.seeds.seed_users import run_seed_users
 
 
@@ -261,14 +259,6 @@ async def run_seeds(
 
     print('[3] Semeando Templates canônicos e Processos da Fase 1...')
     await run_seed_forms()
-    print()
-
-    print('[4] Semeando Processos em Triagem Técnica...')
-    await run_seed_triage()
-    print()
-
-    print('[5] Semeando Avaliação por IA simulada...')
-    await run_seed_ai_evaluations()
     print()
 
     print('=====================================================')
