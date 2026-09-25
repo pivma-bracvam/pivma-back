@@ -224,6 +224,9 @@ consulta o histórico quando o usuário solicita.
 * `tests/api/routers/`: Testes de contrato HTTP, autorização e respostas via `TestClient`.
 * `tests/integration/database/`: Testes de integridade de dados e constraints no PostgreSQL.
 * `tests/integration/migrations/`: Testes de upgrade e downgrade do Alembic.
+* `tests/integration/bootstrap/`: Testes do provisionamento de perfis, permissões e administrador inicial.
+* `tests/integration/ai/`: Testes do pipeline de pré-avaliação com o provedor fake.
+* `tests/integration/journeys/`: Jornadas de ponta a ponta pela API pública, a partir de um deploy novo (bootstrap real, cadastro, login por cookie e troca de usuário).
 
 ### Padrões Adotados
 
