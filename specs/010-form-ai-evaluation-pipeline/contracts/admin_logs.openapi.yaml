@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: PIVMA Admin Logs & Form AI Evaluation API
   version: 0.1.0
-  description: Endpoints administrativos de observabilidade em tempo real e avaliação simulada de formulários por IA.
+  description: Endpoints administrativos para consulta de logs e avaliação de formulários por IA.
 paths:
   /forms/instances/{instance_id}/evaluate-ai:
     post:
@@ -43,24 +43,6 @@ paths:
         '404':
           description: Instância de formulário não encontrada
 
-  /admin/logs/operational/stream:
-    get:
-      summary: Stream em tempo real do Índice Operacional (SSE)
-      description: Transmite eventos operacionais da plataforma em tempo real via Server-Sent Events. Exige perfil de Administrador.
-      tags:
-        - Admin Observability
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Fluxo Server-Sent Events
-          content:
-            text/event-stream:
-              schema:
-                type: string
-        '403':
-          description: Acesso restrito a administradores
-
   /admin/logs/operational:
     get:
       summary: Consultar histórico do Índice Operacional
@@ -95,24 +77,6 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/OperationalEventIndex'
-        '403':
-          description: Acesso restrito a administradores
-
-  /admin/logs/ai/stream:
-    get:
-      summary: Stream em tempo real de eventos de IA agrupados por pipeline (SSE)
-      description: Transmite eventos granulares de etapas de IA em tempo real agrupados por pipeline (correlation_id). Exige perfil de Administrador.
-      tags:
-        - Admin Observability
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Fluxo Server-Sent Events agrupado por pipeline
-          content:
-            text/event-stream:
-              schema:
-                type: string
         '403':
           description: Acesso restrito a administradores
 
