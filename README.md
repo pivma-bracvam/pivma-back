@@ -164,7 +164,8 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
 * **Posição no fluxo:** vem dos estados de fases e atividades (`BLOCKED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`), não do processo. Etapas como submissão, pré-avaliação e triagem são atividades, e várias podem estar em andamento ao mesmo tempo.
 * **Visibilidade:** Admin e BraCVAM veem todos os processos. Os demais veem o cabeçalho dos processos em que têm atribuição ativa, em qualquer cargo; formulários, versões, anexos, pré-avaliação, tarefas e eventos da linha do tempo seguem a concessão de ver de cada atividade.
 * Suporte a formulários dinâmicos com ciclos de rascunho e submissão estrita (bloqueio de alterações após envio). Só o cargo `proponent` edita a submissão; BraCVAM e Admin a leem.
-* Fase 1 (Triagem) inclui pareceres técnicos por campo e decisão final (aprovação, rejeição ou retorno para ajustes). Exige a permissão `triage.review` e a concessão de edição da atividade, que pertence só ao cargo `bracvam`: o Admin lê a triagem, mas não decide. A decisão só é aceita com a triagem em andamento; fora disso, `409`.
+* Fase 1 (Triagem) inclui pareceres técnicos por campo e decisão final (aprovação, rejeição ou pedido de revisão). Exige a permissão `triage.review` e a concessão de edição da atividade, que pertence só ao cargo `bracvam`: o Admin lê a triagem, mas não decide. A decisão só é aceita com a triagem em andamento; fora disso, `409`.
+* **Revisão do retorno:** quando a pré-avaliação por IA termina negativa ou com falha, ou quando a triagem pede revisão, abre a atividade `submission_return_review` para o cargo `proponent`. `GET /processes/{id}/return-review` mostra o retorno (resultado da IA ou decisão e justificativa da triagem) e as escolhas disponíveis. `POST /processes/{id}/return-review` registra a escolha: `REVISE` reabre a submissão como rascunho com os valores anteriores; `CONTEST_AI` (só em retorno da IA) encaminha à triagem humana; `WITHDRAW` encerra o processo como `CLOSED`. Enquanto a revisão está aberta, a submissão fica travada. A escolha vale uma vez por retorno (`409` na segunda). A antiga `POST /processes/{id}/submission/direct-review` foi removida. A resposta da decisão de triagem traz `return_review_run` quando abre uma revisão.
 * Exclusão lógica permitida apenas para processos `OPEN`.
 
 ### Participantes e Conflito de Interesses
@@ -188,7 +189,7 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
 * A pré-avaliação opera de forma assíncrona na submissão através de modelos via LangChain.
 * **Regra de Consolidação:** A presença de 1 ou mais não-conformidades de severidade alta ou crítica consolida o resultado como negativo.
 * Resultado positivo: segue para a fila de triagem.
-* Resultado negativo/falha: retorna ao proponente para retificação ou solicitação de intervenção direta.
+* Resultado negativo/falha: abre a revisão do retorno para o proponente, que pode revisar a submissão, contestar a IA ou desistir. O reprocessamento administrativo de uma execução com falha cancela a revisão do retorno em aberto.
 
 
 * A IA não emite decisões regulatórias finais; o processo decisório permanece sob responsabilidade de triadores humanos.

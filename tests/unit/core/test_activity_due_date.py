@@ -30,6 +30,7 @@ from pivma.core.process_engine import (
     instantiate_process,
     submit_proposal_form,
 )
+from pivma.core.return_review_service import decide_return_review
 from tests.conftest import _make_rbac_user
 from tests.factories.user_factory import UserFactory
 
@@ -196,14 +197,20 @@ async def test_reopened_submission_run_gets_its_own_due_date(session):
         session, process.id, 'proposal_submission'
     )
 
+    first_number = first_run.run_number
+    first_started = first_run.started_at
+    first_due = first_task.due_date
+
     await execute_triage_decision(
         session, process.id, 'NEEDS_REVISION', 'Faltam detalhes.', triador.id
     )
+    # Spec 030: a submissão só reabre quando o proponente escolhe revisar.
+    await decide_return_review(session, process.id, user.id, 'REVISE', None)
     second_run, second_task = await _task_for(
         session, process.id, 'proposal_submission'
     )
 
-    assert second_run.run_number == first_run.run_number + 1
+    assert second_run.run_number == first_number + 1
     assert second_task.due_date == second_run.started_at + timedelta(hours=168)
-    assert second_run.started_at != first_run.started_at
-    assert second_task.due_date != first_task.due_date
+    assert second_run.started_at != first_started
+    assert second_task.due_date != first_due

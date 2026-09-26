@@ -18,6 +18,7 @@ from tests.integration.migrations.test_secure_user_registration import (
 
 PREVIOUS = '1b1772b71863'
 REVISION = '3c9a1f2d7e40'
+RETURN_REVIEW_REVISION = '7e21b4c0a9d3'
 ALL_OLD_STATUSES = (
     'SUBMISSION',
     'AI_PRE_EVALUATION',
@@ -413,3 +414,43 @@ async def test_pending_triage_still_decidable_after_upgrade(
 
     assert decision.outcome == 'APPROVED'
     assert status == 'OPEN'
+
+
+async def _return_reviews(connection, process_ids):
+    rows = await connection.execute(
+        sa.text(
+            'SELECT a.process_instance_id, a.status, a.activity_type, '
+            'a.view_roles, a.edit_roles, '
+            '(SELECT count(*) FROM activity_runs r '
+            ' WHERE r.activity_instance_id = a.id) '
+            'FROM activity_instances a '
+            "WHERE a.key = 'submission_return_review' "
+            'AND a.process_instance_id = ANY(:ids)'
+        ),
+        {'ids': list(process_ids)},
+    )
+    return {row[0]: tuple(row[1:]) for row in rows}
+
+
+@pytest.mark.asyncio
+async def test_second_revision_adds_blocked_return_review(migration_database):
+    """Cada processo existente ganha a revisão do retorno parada (T128)."""
+    processes = await _seed_all_statuses(migration_database)
+
+    await run_migration(RETURN_REVIEW_REVISION)
+    async with migration_database.connect() as connection:
+        reviews = await _return_reviews(connection, processes.values())
+
+    assert set(reviews) == set(processes.values())
+    for review in reviews.values():
+        assert review == (
+            'BLOCKED',
+            'return_review',
+            ['admin', 'bracvam', 'proponent'],
+            ['proponent'],
+            0,
+        )
+
+    await run_downgrade(REVISION)
+    async with migration_database.connect() as connection:
+        assert await _return_reviews(connection, processes.values()) == {}

@@ -31,9 +31,12 @@ async def in_triage(session, process_id):
 
 
 async def back_with_proponent(session, process_id):
-    """Submissão reaberta e triagem fechada (o antigo `SUBMISSION`)."""
+    """Retorno aberto ao proponente e triagem fechada (o antigo `SUBMISSION`
+
+    depois de uma devolução): a revisão do retorno está em andamento.
+    """
     return (
-        await activity_status(session, process_id, 'proposal_submission')
+        await activity_status(session, process_id, 'submission_return_review')
         == 'IN_PROGRESS'
         and await activity_status(session, process_id, 'triage_evaluation')
         != 'IN_PROGRESS'

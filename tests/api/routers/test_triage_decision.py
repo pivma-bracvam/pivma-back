@@ -69,7 +69,7 @@ async def test_triage_decision_needs_revision_and_resubmission(
     dec_data = dec_resp.json()
     assert dec_data['process_status'] == 'OPEN'
     assert await back_with_proponent(session, process_id)
-    assert dec_data['next_activity_run'] == 2
+    assert dec_data['return_review_run'] == 1
 
     submission_activity = await session.scalar(
         select(ActivityInstance).where(
@@ -91,8 +91,16 @@ async def test_triage_decision_needs_revision_and_resubmission(
     assert previous_run.status == 'COMPLETED'
     assert previous_form.is_submitted is True
 
-    # 3. Proponente accesses form in Run 2 (pre-populated values)
+    # 3. Proponente lê o retorno e escolhe revisar (Spec 030): só então a
+    # Run 2 da submissão abre, pré-preenchida.
     authenticate(client, proponente)
+    revise = client.post(
+        f'/processes/{process_id}/return-review',
+        json={'choice': 'REVISE'},
+        headers={'Origin': 'https://testserver'},
+    )
+    assert revise.status_code == HTTPStatus.OK
+    assert revise.json()['submission_run'] == 2
     form_resp = client.get(
         f'/processes/{process_id}/activities/proposal_submission/form'
     )

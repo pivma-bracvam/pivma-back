@@ -56,6 +56,8 @@ Cada atividade declara quais cargos podem vê-la e editá-la. As concessões val
 - `admin` e `bracvam` sempre veem todas as atividades. O sistema acrescenta os dois a `view`, e o template não tem como removê-los. Para editar, precisam estar em `edit`.
 - As concessões são copiadas para a atividade na criação do processo. Mudar o YAML não altera processos que já existem.
 
+A atividade `submission_return_review` (`activity_type: "return_review"`) existe na fase 1 de todos os templates. Ela não tem dependências nem formulário e nasce bloqueada; o motor a abre por evento, quando a IA ou a triagem devolvem a submissão ao proponente.
+
 A carga dos templates falha, indicando template, atividade e cargo, quando uma atividade não tem nenhum cargo em `edit` ou quando um cargo está fora do vocabulário de cargos (`ACTIVITY_CARGOS` em `pivma.core.authorization`).
 
 ---

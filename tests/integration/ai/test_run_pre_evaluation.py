@@ -91,6 +91,19 @@ async def test_execute_persists_items_and_report_and_routes_negative(
     assert report is not None
     assert report.metadata_payload['consolidated_result'] == 'negative'
 
+    # Spec 030 (US4-1): o retorno negativo abre a revisão do retorno e não
+    # reabre a submissão diretamente.
+    review_runs = await _runs_of(
+        session, run.process_instance_id, 'submission_return_review'
+    )
+    assert [(r.status, r.execution_reason) for r in review_runs] == [
+        ('IN_PROGRESS', 'AI_PRE_EVALUATION')
+    ]
+    submission_runs = await _runs_of(
+        session, run.process_instance_id, 'proposal_submission'
+    )
+    assert len(submission_runs) == 1
+
 
 @pytest.mark.asyncio
 async def test_execute_positive_result_unblocks_triage(
@@ -235,3 +248,59 @@ async def test_execute_skips_when_run_no_longer_in_progress(
     assert items == []
     process = await session.get(ProcessInstance, run.process_instance_id)
     assert process.status == 'OPEN'
+
+
+async def _runs_of(session, process_id, key):
+    from pivma.core.database.models import ActivityInstance  # noqa: PLC0415
+
+    return list(
+        await session.scalars(
+            select(ActivityRun)
+            .join(ActivityInstance)
+            .where(
+                ActivityInstance.process_instance_id == process_id,
+                ActivityInstance.key == key,
+            )
+            .order_by(ActivityRun.run_number)
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_failed_run_opens_return_review(
+    client, ai_eval_admin, session, fake_provider
+):
+    del fake_provider
+    run_id = await _submitted_run(
+        client, session, ai_eval_admin, severity='critical'
+    )
+
+    await svc._mark_failed(session, run_id)
+
+    run = await session.get(EvaluationRun, run_id)
+    review_runs = await _runs_of(
+        session, run.process_instance_id, 'submission_return_review'
+    )
+    assert [(r.status, r.execution_reason) for r in review_runs] == [
+        ('IN_PROGRESS', 'AI_PRE_EVALUATION')
+    ]
+
+
+@pytest.mark.asyncio
+async def test_positive_result_does_not_open_return_review(
+    client, ai_eval_admin, session, fake_provider
+):
+    del fake_provider
+    run_id = await _submitted_run(
+        client, session, ai_eval_admin, severity='low'
+    )
+
+    await svc._execute(session, run_id)
+
+    run = await session.get(EvaluationRun, run_id)
+    assert (
+        await _runs_of(
+            session, run.process_instance_id, 'submission_return_review'
+        )
+        == []
+    )

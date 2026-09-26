@@ -236,58 +236,58 @@ Seguir o padrão de `tests/integration/migrations/test_task_assigned_role_normal
 
 **Abertura** (`tests/api/routers/test_return_review.py`):
 
-- [ ] T102 [P] [US4] `test_new_process_has_blocked_return_review_without_run`: após criar o processo, a atividade `submission_return_review` existe, `BLOCKED`, sem `ActivityRun` e sem tarefa.
-- [ ] T103 [P] [US4] `test_triage_needs_revision_opens_return_review`: decisão `NEEDS_REVISION` → execução 1 `IN_PROGRESS`, tarefa `READY` com `assigned_role='proponent'`, `return_review_run == 1` na resposta; submissão **não** ganha nova execução ainda (US4-2, FR-036, FR-038).
-- [ ] T104 [P] [US4] `test_triage_rejection_does_not_open_return_review` e `test_triage_approval_does_not_open_return_review` (US4-8).
-- [ ] T105 [P] [US4] Em `tests/integration/ai/test_run_pre_evaluation.py`, ajustar `test_execute_persists_items_and_report_and_routes_negative`: negativo abre a revisão do retorno com `execution_reason='AI_PRE_EVALUATION'` e não abre nova execução da submissão (US4-1).
-- [ ] T106 [P] [US4] No mesmo arquivo, `test_failed_run_opens_return_review` (falha no provedor → mesma abertura).
-- [ ] T107 [P] [US4] No mesmo arquivo, `test_positive_result_does_not_open_return_review`.
-- [ ] T108 [P] [US4] `test_return_review_opened_event_is_audited`: `AuditEvent` `RETURN_REVIEW_OPENED` com `source` no `context_data` (data-model, audit_events).
+- [X] T102 [P] [US4] `test_new_process_has_blocked_return_review_without_run`: após criar o processo, a atividade `submission_return_review` existe, `BLOCKED`, sem `ActivityRun` e sem tarefa.
+- [X] T103 [P] [US4] `test_triage_needs_revision_opens_return_review`: decisão `NEEDS_REVISION` → execução 1 `IN_PROGRESS`, tarefa `READY` com `assigned_role='proponent'`, `return_review_run == 1` na resposta; submissão **não** ganha nova execução ainda (US4-2, FR-036, FR-038).
+- [X] T104 [P] [US4] `test_triage_rejection_does_not_open_return_review` e `test_triage_approval_does_not_open_return_review` (US4-8).
+- [X] T105 [P] [US4] Em `tests/integration/ai/test_run_pre_evaluation.py`, ajustar `test_execute_persists_items_and_report_and_routes_negative`: negativo abre a revisão do retorno com `execution_reason='AI_PRE_EVALUATION'` e não abre nova execução da submissão (US4-1).
+- [X] T106 [P] [US4] No mesmo arquivo, `test_failed_run_opens_return_review` (falha no provedor → mesma abertura).
+- [X] T107 [P] [US4] No mesmo arquivo, `test_positive_result_does_not_open_return_review`.
+- [X] T108 [P] [US4] `test_return_review_opened_event_is_audited`: `AuditEvent` `RETURN_REVIEW_OPENED` com `source` no `context_data` (data-model, audit_events).
 
 **Leitura**:
 
-- [ ] T109 [P] [US4] `test_get_return_review_from_triage_shows_decision`: proponente → 200 com `source='TRIAGE'`, `triage_decision.justification` igual à da decisão, `available_choices == ['REVISE','WITHDRAW']` (FR-037).
-- [ ] T110 [P] [US4] `test_get_return_review_from_ai_shows_pre_evaluation`: `source='AI_PRE_EVALUATION'`, `ai_pre_evaluation` presente, `available_choices` inclui `CONTEST_AI`.
-- [ ] T111 [P] [US4] `test_get_return_review_404_when_none_open`.
-- [ ] T112 [P] [US4] `test_get_return_review_404_for_sponsor` e `test_get_return_review_200_for_bracvam_and_admin` (US4-7).
+- [X] T109 [P] [US4] `test_get_return_review_from_triage_shows_decision`: proponente → 200 com `source='TRIAGE'`, `triage_decision.justification` igual à da decisão, `available_choices == ['REVISE','WITHDRAW']` (FR-037).
+- [X] T110 [P] [US4] `test_get_return_review_from_ai_shows_pre_evaluation`: `source='AI_PRE_EVALUATION'`, `ai_pre_evaluation` presente, `available_choices` inclui `CONTEST_AI`.
+- [X] T111 [P] [US4] `test_get_return_review_404_when_none_open`.
+- [X] T112 [P] [US4] `test_get_return_review_404_for_sponsor` e `test_get_return_review_200_for_bracvam_and_admin` (US4-7).
 
 **Escolhas**:
 
-- [ ] T113 [P] [US4] `test_revise_opens_new_submission_draft_with_previous_values`: `REVISE` → 200, `submission_run == 2`; `GET .../proposal_submission/form` traz os valores anteriores e `is_submitted is False`; revisão do retorno `COMPLETED` e atividade `BLOCKED` (US4-3).
-- [ ] T114 [P] [US4] `test_contest_ai_moves_to_triage`: com origem IA, `CONTEST_AI` → `triage_evaluation` `IN_PROGRESS` e tarefa `bracvam` `READY`; `DirectReviewRequest` gravado (US4-4).
-- [ ] T115 [P] [US4] `test_contest_ai_rejected_for_triage_source`: origem triagem → 422.
-- [ ] T116 [P] [US4] `test_withdraw_closes_process`: `WITHDRAW` → `process_status == 'CLOSED'`, `closure_reason` preenchido, tarefas pendentes `CANCELLED` (US4-5).
-- [ ] T117 [P] [US4] `test_choice_is_audited`: `RETURN_REVIEW_DECIDED` com `choice`, `source` e `justification` (FR-040).
-- [ ] T118 [P] [US4] `test_bracvam_cannot_choose` e `test_admin_cannot_choose`: 403; `test_sponsor_choice_is_404` (US4-6).
-- [ ] T119 [P] [US4] `test_second_choice_is_conflict`: segunda escolha na mesma execução → 409 `invalid_transition` (FR-040).
-- [ ] T120 [P] [US4] `test_choice_on_closed_process_is_conflict`: processo `CANCELLED` com revisão aberta → 409.
-- [ ] T121 [P] [US4] `test_choice_requires_trusted_origin`: sem `Origin` → 403.
-- [ ] T122 [P] [US4] `test_submission_locked_while_return_review_open`: com revisão aberta, `PUT .../proposal_submission/form` → 409 (FR-038).
-- [ ] T123 [P] [US4] `test_admin_retry_cancels_open_return_review`: falha → revisão aberta; `POST /admin/pre-evaluations/{run_id}/retry` → execução da revisão `CANCELLED`, tarefa `CANCELLED`, atividade `BLOCKED` (R9).
+- [X] T113 [P] [US4] `test_revise_opens_new_submission_draft_with_previous_values`: `REVISE` → 200, `submission_run == 2`; `GET .../proposal_submission/form` traz os valores anteriores e `is_submitted is False`; revisão do retorno `COMPLETED` e atividade `BLOCKED` (US4-3).
+- [X] T114 [P] [US4] `test_contest_ai_moves_to_triage`: com origem IA, `CONTEST_AI` → `triage_evaluation` `IN_PROGRESS` e tarefa `bracvam` `READY`; `DirectReviewRequest` gravado (US4-4).
+- [X] T115 [P] [US4] `test_contest_ai_rejected_for_triage_source`: origem triagem → 422.
+- [X] T116 [P] [US4] `test_withdraw_closes_process`: `WITHDRAW` → `process_status == 'CLOSED'`, `closure_reason` preenchido, tarefas pendentes `CANCELLED` (US4-5).
+- [X] T117 [P] [US4] `test_choice_is_audited`: `RETURN_REVIEW_DECIDED` com `choice`, `source` e `justification` (FR-040).
+- [X] T118 [P] [US4] `test_bracvam_cannot_choose` e `test_admin_cannot_choose`: 403; `test_sponsor_choice_is_404` (US4-6).
+- [X] T119 [P] [US4] `test_second_choice_is_conflict`: segunda escolha na mesma execução → 409 `invalid_transition` (FR-040).
+- [X] T120 [P] [US4] `test_choice_on_closed_process_is_conflict`: processo `CANCELLED` com revisão aberta → 409.
+- [X] T121 [P] [US4] `test_choice_requires_trusted_origin`: sem `Origin` → 403.
+- [X] T122 [P] [US4] `test_submission_locked_while_return_review_open`: com revisão aberta, `PUT .../proposal_submission/form` → 409 (FR-038).
+- [X] T123 [P] [US4] `test_admin_retry_cancels_open_return_review`: falha → revisão aberta; `POST /admin/pre-evaluations/{run_id}/retry` → execução da revisão `CANCELLED`, tarefa `CANCELLED`, atividade `BLOCKED` (R9).
 
 **Concorrência e contrato removido**:
 
-- [ ] T124 [US4] **Teste de concorrência adiado por decisão do usuário.** Na implementação de T134, acrescentar em `src/pivma/core/return_review_service.py`, acima do `SELECT ... FOR UPDATE` da `ActivityRun` em `decide_return_review`, o comentário `# TODO(spec-030): teste de concorrência adiado — provar que duas escolhas simultâneas na mesma execução da revisão do retorno têm um único vencedor e a outra recebe ConflictError (FR-040), com duas sessões reais.` Não criar o arquivo de teste. A escolha repetida em sequência continua coberta por T119.
-- [ ] T125 [P] [US4] Em `tests/api/routers/test_direct_review.py`, substituir o conteúdo por `test_direct_review_route_is_removed`: `POST /processes/{id}/submission/direct-review` → 404 e o caminho não está em `/openapi.json`. Os comportamentos antigos migram para T114 e T115.
+- [X] T124 [US4] **Teste de concorrência adiado por decisão do usuário.** Na implementação de T134, acrescentar em `src/pivma/core/return_review_service.py`, acima do `SELECT ... FOR UPDATE` da `ActivityRun` em `decide_return_review`, o comentário `# TODO(spec-030): teste de concorrência adiado — provar que duas escolhas simultâneas na mesma execução da revisão do retorno têm um único vencedor e a outra recebe ConflictError (FR-040), com duas sessões reais.` Não criar o arquivo de teste. A escolha repetida em sequência continua coberta por T119.
+- [X] T125 [P] [US4] Em `tests/api/routers/test_direct_review.py`, substituir o conteúdo por `test_direct_review_route_is_removed`: `POST /processes/{id}/submission/direct-review` → 404 e o caminho não está em `/openapi.json`. Os comportamentos antigos migram para T114 e T115.
 
 **Jornadas**:
 
-- [ ] T126 [P] [US4] `tests/integration/journeys/test_return_review_via_triage.py`: cadastro → criar → enviar → BraCVAM `NEEDS_REVISION` → proponente lê o retorno → `REVISE` → reenvia → BraCVAM aprova; `status == 'OPEN'` ao final e fase 1 `COMPLETED`.
-- [ ] T127 [P] [US4] `tests/integration/journeys/test_return_review_via_ai.py`: template com avaliação de IA configurada (template 4 ou configuração via `/ai-evaluations`, seguindo `tests/ai_eval_helpers.py`), `fake_provider` negativo, `_execute` explícito → proponente `CONTEST_AI` → BraCVAM aprova.
-- [ ] T128 [P] [US4] Em `tests/integration/migrations/test_process_lifecycle_migration.py`, `test_second_revision_adds_blocked_return_review_to_existing_processes`: aplicada a 2ª revisão, cada processo existente ganha `submission_return_review` `BLOCKED`, sem execução, com `edit_roles=['proponent']` e `view_roles=['admin','bracvam','proponent']`; o `downgrade` remove a atividade.
+- [X] T126 [P] [US4] `tests/integration/journeys/test_return_review_via_triage.py`: cadastro → criar → enviar → BraCVAM `NEEDS_REVISION` → proponente lê o retorno → `REVISE` → reenvia → BraCVAM aprova; `status == 'OPEN'` ao final e fase 1 `COMPLETED`.
+- [X] T127 [P] [US4] `tests/integration/journeys/test_return_review_via_ai.py`: template com avaliação de IA configurada (template 4 ou configuração via `/ai-evaluations`, seguindo `tests/ai_eval_helpers.py`), `fake_provider` negativo, `_execute` explícito → proponente `CONTEST_AI` → BraCVAM aprova.
+- [X] T128 [P] [US4] Em `tests/integration/migrations/test_process_lifecycle_migration.py`, `test_second_revision_adds_blocked_return_review_to_existing_processes`: aplicada a 2ª revisão, cada processo existente ganha `submission_return_review` `BLOCKED`, sem execução, com `edit_roles=['proponent']` e `view_roles=['admin','bracvam','proponent']`; o `downgrade` remove a atividade.
 
 ### Implementation for User Story 4
 
-- [ ] T129 [US4] Acrescentar `submission_return_review` à fase 1 dos 5 YAMLs em `src/pivma/templates_data/`: `name: "Revisão do Retorno"`, `assigned_role: "proponent"`, `activity_type: "return_review"`, `sla_hours: 168`, sem `form_template_key`, sem `dependencies`, `access: {edit: ["proponent"], view: []}`. `order_index` após `triage_evaluation`.
-- [ ] T130 [US4] Em `src/pivma/core/process_engine.py`, `instantiate_process` e `_advance_dependent_activities`: pular atividades com `activity_type == 'return_review'` (nascem `BLOCKED`, `blocked_reason='Sem retorno pendente.'`, sem execução nem tarefa) (R9).
-- [ ] T131 [US4] No mesmo arquivo, criar `open_return_review(session, process_id, *, source, user_id) -> int` (nova `ActivityRun` com `run_number` incremental e `execution_reason=source`, `Task` `READY` para `proponent` com `due_date` por `sla_hours`, atividade `IN_PROGRESS`, `AuditEvent RETURN_REVIEW_OPENED`); devolve o `run_number`.
-- [ ] T132 [US4] No mesmo arquivo, `_handle_needs_revision`: trocar `_open_new_submission_run` por `open_return_review(source='TRIAGE')`; manter `REVISION_REQUESTED`; devolver o número da execução para `return_review_run`.
-- [ ] T133 [US4] Em `src/pivma/core/pre_evaluation_service.py`, `_return_to_proponent`: trocar `_open_new_submission_run` por `open_return_review(source='AI_PRE_EVALUATION')`; `retry_run`: cancelar execução e tarefa abertas da revisão do retorno antes de criar a nova `EvaluationRun`.
-- [ ] T134 [US4] Criar `src/pivma/core/return_review_service.py` com `get_open_return_review(session, process_id, user_id)` (exige ver; monta o conteúdo por `source`) e `decide_return_review(session, process_id, user_id, choice, justification)`: trava a `ActivityRun` aberta (`FOR UPDATE`), exige editar, valida `choice` contra `source`, aplica `REVISE` (`_open_new_submission_run`), `CONTEST_AI` (`request_direct_review`) ou `WITHDRAW` (`CLOSED` + `closed_at` + `closure_reason` + `_cancel_pending_children` + `PROCESS_WITHDRAWN`), conclui execução e tarefa, grava `RETURN_REVIEW_DECIDED` e faz `commit`.
-- [ ] T135 [US4] Em `src/pivma/schemas.py`, criar `ReturnReviewChoice = Literal['REVISE','CONTEST_AI','WITHDRAW']`, `ReturnReviewResponse`, `ReturnReviewDecisionRequest` (`extra='forbid'`) e `ReturnReviewDecisionResponse` conforme `contracts/http-api.md`. Remover `DirectReviewResponse` e `DirectReviewRequestBody`.
-- [ ] T136 [US4] Criar `src/pivma/routers/return_review.py` com `GET` e `POST /processes/{id}/return-review` (`TrustedOrigin` no POST; `NotFoundError` 404, `AuthorizationError` 403, `ConflictError` 409 `invalid_transition`, `ValidationError` 422) e registrar em `src/pivma/__init__.py`.
-- [ ] T137 [US4] Em `src/pivma/routers/pre_evaluation.py`, remover a rota `request_direct_review`. Manter `pre_evaluation_service.request_direct_review` (usado por T134).
-- [ ] T138 [US4] Criar `migrations/versions/<rev>_return_review_activity.py` (2ª revisão, PR 2) com `down_revision` = revisão de T099: insere `submission_return_review` (`BLOCKED`, `activity_type='return_review'`, `blocked_reason='Sem retorno pendente.'`, concessões de `data-model.md`) na fase 1 de cada processo que não a tenha; `downgrade` remove essas atividades (passo 3 de R10).
+- [X] T129 [US4] Acrescentar `submission_return_review` à fase 1 dos 5 YAMLs em `src/pivma/templates_data/`: `name: "Revisão do Retorno"`, `assigned_role: "proponent"`, `activity_type: "return_review"`, `sla_hours: 168`, sem `form_template_key`, sem `dependencies`, `access: {edit: ["proponent"], view: []}`. `order_index` após `triage_evaluation`.
+- [X] T130 [US4] Em `src/pivma/core/process_engine.py`, `instantiate_process` e `_advance_dependent_activities`: pular atividades com `activity_type == 'return_review'` (nascem `BLOCKED`, `blocked_reason='Sem retorno pendente.'`, sem execução nem tarefa) (R9).
+- [X] T131 [US4] No mesmo arquivo, criar `open_return_review(session, process_id, *, source, user_id) -> int` (nova `ActivityRun` com `run_number` incremental e `execution_reason=source`, `Task` `READY` para `proponent` com `due_date` por `sla_hours`, atividade `IN_PROGRESS`, `AuditEvent RETURN_REVIEW_OPENED`); devolve o `run_number`.
+- [X] T132 [US4] No mesmo arquivo, `_handle_needs_revision`: trocar `_open_new_submission_run` por `open_return_review(source='TRIAGE')`; manter `REVISION_REQUESTED`; devolver o número da execução para `return_review_run`.
+- [X] T133 [US4] Em `src/pivma/core/pre_evaluation_service.py`, `_return_to_proponent`: trocar `_open_new_submission_run` por `open_return_review(source='AI_PRE_EVALUATION')`; `retry_run`: cancelar execução e tarefa abertas da revisão do retorno antes de criar a nova `EvaluationRun`.
+- [X] T134 [US4] Criar `src/pivma/core/return_review_service.py` com `get_open_return_review(session, process_id, user_id)` (exige ver; monta o conteúdo por `source`) e `decide_return_review(session, process_id, user_id, choice, justification)`: trava a `ActivityRun` aberta (`FOR UPDATE`), exige editar, valida `choice` contra `source`, aplica `REVISE` (`_open_new_submission_run`), `CONTEST_AI` (`request_direct_review`) ou `WITHDRAW` (`CLOSED` + `closed_at` + `closure_reason` + `_cancel_pending_children` + `PROCESS_WITHDRAWN`), conclui execução e tarefa, grava `RETURN_REVIEW_DECIDED` e faz `commit`.
+- [X] T135 [US4] Em `src/pivma/schemas.py`, criar `ReturnReviewChoice = Literal['REVISE','CONTEST_AI','WITHDRAW']`, `ReturnReviewResponse`, `ReturnReviewDecisionRequest` (`extra='forbid'`) e `ReturnReviewDecisionResponse` conforme `contracts/http-api.md`. Remover `DirectReviewResponse` e `DirectReviewRequestBody`.
+- [X] T136 [US4] Criar `src/pivma/routers/return_review.py` com `GET` e `POST /processes/{id}/return-review` (`TrustedOrigin` no POST; `NotFoundError` 404, `AuthorizationError` 403, `ConflictError` 409 `invalid_transition`, `ValidationError` 422) e registrar em `src/pivma/__init__.py`.
+- [X] T137 [US4] Em `src/pivma/routers/pre_evaluation.py`, remover a rota `request_direct_review`. Manter `pre_evaluation_service.request_direct_review` (usado por T134).
+- [X] T138 [US4] Criar `migrations/versions/<rev>_return_review_activity.py` (2ª revisão, PR 2) com `down_revision` = revisão de T099: insere `submission_return_review` (`BLOCKED`, `activity_type='return_review'`, `blocked_reason='Sem retorno pendente.'`, concessões de `data-model.md`) na fase 1 de cada processo que não a tenha; `downgrade` remove essas atividades (passo 3 de R10).
 - [ ] T139 [US4] Rodar T102–T127 e confirmar verde.
 
 **Checkpoint**: retorno pela IA e pela triagem passa pela revisão do retorno.
@@ -386,6 +386,12 @@ recebe TODOs marcados `TODO(spec-030)` para retomar depois.
 - Resultado do PR 1 (T146), em `feat/030-process-lifecycle-activity-access`: `pytest` → 870 passed, 1 skipped, 0 failed (cobertura 92%); `ruff check .` sem erros; `ruff format --check` limpo nos arquivos desta feature (os avisos restantes são de arquivos anteriores à branch, como `migrations/versions/*` e `specs/028-*/data-model.md`, e não foram tocados). Depois dessa rodada houve só formatação e reversão de formatação alheia; os arquivos afetados foram re-testados (67 passed).
 - Cenários do quickstart executados no PR 1 (T147): 1 (jornada), 2 (triagem rejeita), 6 (matriz de acesso), 7 (Admin não decide), 8 (`sponsor` vê cabeçalho e não a submissão), 9 (`?status=TRIAGE` → 422), 11 (migração) e 12 (sem status de fluxo nas respostas), todos por testes automatizados. 3, 4 e 5 dependem da revisão do retorno (PR 2); 10 foi adiado (`TODO(spec-030)`). A checagem manual no app (seção 4) não foi feita.
 - Polish (T144–T147) marcado para o PR 1; repetir T146/T147 ao fim do PR 2 e do PR 3.
+- Decisões tomadas durante a implementação do PR 2 (branch `feat/030-return-review`):
+  - `REVISION_REQUESTED` continua sendo gravado no momento do retorno, com `new_run_number` = execução da submissão que abrirá se o proponente escolher revisar. É o que `GET /processes/{id}/submission-versions` usa para projetar as versões devolvidas.
+  - `get_current_form_instance`, `get_current_activity_run` e `_open_triage_run` passaram a recarregar a coleção `runs` (`populate_existing`). Sem isso, uma sessão que já tinha carregado a atividade não via a execução nova aberta pelo `REVISE`.
+  - A escolha `CONTEST_AI` chama `pre_evaluation_service.request_direct_review`, que faz o `commit`; em `ConflictError` a sessão é revertida antes de propagar.
+  - Os testes que simulavam "retorno reabre a submissão" ganharam o passo `REVISE` (`test_triage_decision`, `test_form_attachments`, `test_process_submission_update`, `test_process_engine`, `test_activity_due_date`); `back_with_proponent` passou a significar "revisão do retorno aberta".
+- Resultado do PR 2 (T146): `pytest` → 893 passed, 1 skipped, 0 failed (cobertura 92%); `ruff check .` sem erros. Cenários do quickstart executados por testes automatizados (T147): 3 (retorno pela triagem → `REVISE`), 4 (IA negativa → `CONTEST_AI`) e 5 (`WITHDRAW`); a checagem manual no app não foi feita.
 - Decisões tomadas durante a implementação do PR 1:
   - `require_activity_access` e `activity_view_clause` ficaram em `core/process_engine.py` (não em `authorization.py`), para usar as exceções do motor sem import circular; `user_cargos`, `global_cargos` e `process_cargos_scope` ficaram em `authorization.py`.
   - Conflito de interesse bloqueia a **edição** acima das concessões; a leitura continua como antes (não havia bloqueio de leitura por conflito).

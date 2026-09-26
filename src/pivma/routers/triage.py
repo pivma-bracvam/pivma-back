@@ -109,5 +109,5 @@ async def submit_triage_decision(
         process_status=new_status,
         decision_id=decision.id,
         outcome=decision.outcome,
-        next_activity_run=next_run,
+        return_review_run=next_run,
     )

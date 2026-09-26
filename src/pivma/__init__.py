@@ -21,6 +21,7 @@ from pivma.routers import (
     process_participants,
     processes,
     rbac,
+    return_review,
     tasks,
     triage,
     users,
@@ -78,6 +79,7 @@ app.include_router(ai_evaluations.router)
 app.include_router(ai_evaluations.templates_router)
 app.include_router(pre_evaluation.router)
 app.include_router(pre_evaluation.admin_router)
+app.include_router(return_review.router)
 
 
 @app.get('/')

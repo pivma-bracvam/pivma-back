@@ -286,6 +286,12 @@ async def test_replacing_attachment_after_revision_keeps_submitted_snapshot(
     assert revision.status_code == HTTPStatus.OK
 
     authenticate(client, owner)
+    # Spec 030: o proponente escolhe revisar antes de a submissão reabrir.
+    client.post(
+        f'/processes/{pid}/return-review',
+        json={'choice': 'REVISE'},
+        headers={'Origin': 'https://testserver'},
+    )
     replacement = upload(client, pid, name='second.pdf', data=b'second')
     assert replacement.status_code == HTTPStatus.OK
 
