@@ -288,7 +288,7 @@ Seguir o padrão de `tests/integration/migrations/test_task_assigned_role_normal
 - [X] T136 [US4] Criar `src/pivma/routers/return_review.py` com `GET` e `POST /processes/{id}/return-review` (`TrustedOrigin` no POST; `NotFoundError` 404, `AuthorizationError` 403, `ConflictError` 409 `invalid_transition`, `ValidationError` 422) e registrar em `src/pivma/__init__.py`.
 - [X] T137 [US4] Em `src/pivma/routers/pre_evaluation.py`, remover a rota `request_direct_review`. Manter `pre_evaluation_service.request_direct_review` (usado por T134).
 - [X] T138 [US4] Criar `migrations/versions/<rev>_return_review_activity.py` (2ª revisão, PR 2) com `down_revision` = revisão de T099: insere `submission_return_review` (`BLOCKED`, `activity_type='return_review'`, `blocked_reason='Sem retorno pendente.'`, concessões de `data-model.md`) na fase 1 de cada processo que não a tenha; `downgrade` remove essas atividades (passo 3 de R10).
-- [ ] T139 [US4] Rodar T102–T127 e confirmar verde.
+- [X] T139 [US4] Rodar T102–T127 e confirmar verde. *Execução*: coberto pela suíte completa do PR 2 (893 passed); a marcação ficou de fora do commit #56 por engano e foi corrigida no PR 3.
 
 **Checkpoint**: retorno pela IA e pela triagem passa pela revisão do retorno.
 
@@ -302,13 +302,13 @@ Seguir o padrão de `tests/integration/migrations/test_task_assigned_role_normal
 
 ### Tests for User Story 5
 
-- [ ] T140 [P] [US5] Em `tests/api/routers/test_activity_parallel_visibility.py`, `test_phase1_completed_after_triage_approval`: após aprovar via API, consultar `Phase` na `session` e verificar `status == 'COMPLETED'` na fase 1; `GET /processes/{id}` segue `OPEN` (US5-1).
-- [ ] T141 [P] [US5] No mesmo arquivo, `test_parallel_activities_both_in_progress_for_user_with_both_grants`: no template 4, após a aprovação, liberar duas atividades da fase 2 com cargos diferentes; um usuário com os dois cargos recebe as duas tarefas em `GET /tasks?process_id=`, e as duas `ActivityInstance`, consultadas na `session`, estão `IN_PROGRESS` (US5-2). Se o template não tiver duas atividades liberadas ao mesmo tempo, montar o cenário com um dicionário de template de teste via `sync_template_from_dict`.
-- [ ] T142 [P] [US5] No mesmo arquivo, `test_parallel_activities_filtered_by_grant`: usuário com só um dos cargos recebe só a tarefa da atividade concedida em `GET /tasks?process_id=` (US5-3, SC-005).
+- [X] T140 [P] [US5] Em `tests/api/routers/test_activity_parallel_visibility.py`, `test_phase1_completed_after_triage_approval`: após aprovar via API, consultar `Phase` na `session` e verificar `status == 'COMPLETED'` na fase 1; `GET /processes/{id}` segue `OPEN` (US5-1).
+- [X] T141 [P] [US5] No mesmo arquivo, `test_parallel_activities_both_in_progress_for_user_with_both_grants`: no template 4, após a aprovação, liberar duas atividades da fase 2 com cargos diferentes; um usuário com os dois cargos recebe as duas tarefas em `GET /tasks?process_id=`, e as duas `ActivityInstance`, consultadas na `session`, estão `IN_PROGRESS` (US5-2). Se o template não tiver duas atividades liberadas ao mesmo tempo, montar o cenário com um dicionário de template de teste via `sync_template_from_dict`.
+- [X] T142 [P] [US5] No mesmo arquivo, `test_parallel_activities_filtered_by_grant`: usuário com só um dos cargos recebe só a tarefa da atividade concedida em `GET /tasks?process_id=` (US5-3, SC-005).
 
 ### Implementation for User Story 5
 
-- [ ] T143 [US5] Nenhum código novo esperado. Se T140–T142 falharem, corrigir apenas o ponto específico (fase não marcada como concluída ou filtro de tarefa) em `src/pivma/core/process_engine.py` ou `src/pivma/routers/tasks.py`, registrando a causa na descrição do commit.
+- [X] T143 [US5] Nenhum código novo esperado. Se T140–T142 falharem, corrigir apenas o ponto específico (fase não marcada como concluída ou filtro de tarefa) em `src/pivma/core/process_engine.py` ou `src/pivma/routers/tasks.py`, registrando a causa na descrição do commit.
 
 ---
 
@@ -398,3 +398,4 @@ recebe TODOs marcados `TODO(spec-030)` para retomar depois.
   - `process_visibility_clause` deixou de liberar quem só tem `triage.review` sem perfil de plataforma (R5). Testes de exclusão por "revisor sem acesso de plataforma" passaram de 403 para 404.
   - `POST /processes/{id}/submission/direct-review` continua no PR 1, mas responde `process_status: 'OPEN'`.
   - O BraCVAM deixou de poder editar o rascunho do proponente via `PATCH /processes/{id}` (antes permitido); `test_bracvam_can_patch_draft` virou `test_bracvam_cannot_patch_draft`.
+- PR 3 (branch `feat/030-parallel-activities`): T140–T142 passaram sem código novo (T143), confirmando que fases e atividades guardam a posição no fluxo e que `/tasks` filtra por concessão com atividades em paralelo. O cenário usa um template de teste com duas atividades sem dependência e cargos de processo distintos (`statistician`, `peer_reviewer`), porque os templates reais não têm esse caso. Resultado (T146): `pytest` → 896 passed, 1 skipped, 0 failed; `ruff check .` sem erros. Nenhuma mudança de contrato; README sem alteração.
