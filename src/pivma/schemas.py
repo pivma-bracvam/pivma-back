@@ -639,6 +639,14 @@ class TaskSummary(BaseModel):
     id: UUID
     process_id: UUID
     process_code: str
+    process_title: str
+    # Atividade, execução e fase da tarefa: permitem agrupar por atividade
+    # (ex.: kanban da etapa 1) sem uma chamada por tarefa. A tarefa vigente
+    # de uma atividade é a de maior `activity_run_number`.
+    activity_key: str
+    activity_run_number: int
+    phase_key: str
+    phase_order: int
     title: str
     assigned_role: str | None = None
     status: str

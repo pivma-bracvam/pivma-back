@@ -43,7 +43,10 @@ async def list_tasks(
         .options(
             selectinload(Task.activity_run)
             .selectinload(ActivityRun.activity_instance)
-            .selectinload(ActivityInstance.process_instance)
+            .selectinload(ActivityInstance.process_instance),
+            selectinload(Task.activity_run)
+            .selectinload(ActivityRun.activity_instance)
+            .selectinload(ActivityInstance.phase),
         )
     )
     # Spec 018 (FR-006/FR-014): sem isto, qualquer usuário autenticado listava
@@ -64,18 +67,27 @@ async def list_tasks(
     res = await session.execute(stmt)
     tasks = res.scalars().all()
 
-    return [
-        TaskSummary(
-            id=t.id,
-            process_id=t.activity_run.activity_instance.process_instance.id,
-            process_code=t.activity_run.activity_instance.process_instance.code,
-            title=t.title,
-            assigned_role=t.assigned_role,
-            status=t.status,
-            due_date=t.due_date,
-        )
-        for t in tasks
-    ]
+    return [_task_summary(t) for t in tasks]
+
+
+def _task_summary(task: Task) -> TaskSummary:
+    run = task.activity_run
+    activity = run.activity_instance
+    process = activity.process_instance
+    return TaskSummary(
+        id=task.id,
+        process_id=process.id,
+        process_code=process.code,
+        process_title=process.title,
+        activity_key=activity.key,
+        activity_run_number=run.run_number,
+        phase_key=activity.phase.key,
+        phase_order=activity.phase.order_index,
+        title=task.title,
+        assigned_role=task.assigned_role,
+        status=task.status,
+        due_date=task.due_date,
+    )
 
 
 @router.get(
