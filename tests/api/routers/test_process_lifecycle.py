@@ -79,7 +79,7 @@ async def test_triage_approval_response_reports_open(
 
     assert body['process_status'] == 'OPEN'
     assert 'new_process_status' not in body
-    assert body['next_activity_run'] is None
+    assert body['return_review_run'] is None
 
 
 @pytest.mark.asyncio

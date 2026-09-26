@@ -1,4 +1,8 @@
-"""Rotas de pré-avaliação por IA e intervenção direta (Spec 013, US2/US3)."""
+"""Rotas de pré-avaliação por IA (Spec 013, US2).
+
+A intervenção direta (US3) virou a escolha `CONTEST_AI` da revisão do
+retorno (Spec 030, `routers/return_review.py`).
+"""
 
 from http import HTTPStatus
 from uuid import UUID
@@ -9,7 +13,6 @@ from pivma.core import pre_evaluation_service as svc
 from pivma.core.authorization import (
     TRIAGE_REVIEW,
     has_permission,
-    is_active_effective_proponent,
 )
 from pivma.core.database.models import EvaluationRun
 from pivma.core.process_engine import (
@@ -20,8 +23,6 @@ from pivma.core.process_engine import (
 )
 from pivma.dependencies import AdminUser, CurrentUser, Session, TrustedOrigin
 from pivma.schemas import (
-    DirectReviewRequestBody,
-    DirectReviewResponse,
     PreEvaluationResponse,
     ReviewerFeedbackRequest,
     ReviewerFeedbackResponse,
@@ -63,38 +64,6 @@ async def get_pre_evaluation(
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail=str(e)
         ) from e
-
-
-@router.post(
-    '/{id}/submission/direct-review', response_model=DirectReviewResponse
-)
-async def request_direct_review(
-    id: UUID,
-    body: DirectReviewRequestBody,
-    session: Session,
-    current_user: CurrentUser,
-    origin: TrustedOrigin,
-):
-    del origin
-    if not await is_active_effective_proponent(session, current_user.id, id):
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN,
-            detail='Apenas o proponente pode solicitar intervenção direta.',
-        )
-    try:
-        request = await svc.request_direct_review(
-            session, id, current_user.id, body.justification
-        )
-    except ConflictError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.CONFLICT, detail=str(e)
-        ) from e
-
-    return DirectReviewResponse(
-        # Spec 030 (FR-006): só o ciclo de vida, nunca a posição no fluxo.
-        process_status='OPEN',
-        direct_review_request_id=request.id,
-    )
 
 
 @router.post(

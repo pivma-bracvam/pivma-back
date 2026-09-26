@@ -34,6 +34,17 @@ phases:
             required_status: "COMPLETED"
             condition_type: "ACTIVITY_COMPLETED"
 
+      - key: "submission_return_review"
+        name: "Revisão do Retorno"
+        order_index: 3
+        assigned_role: "proponent"
+        access:
+          edit: ["proponent"]
+          view: []
+        activity_type: "return_review"
+        sla_hours: 168  # 7 dias corridos para o proponente decidir (Spec 030)
+        dependencies: []  # aberta por evento (retorno da IA ou da triagem)
+
 forms:
   - key: "submission_pre_validated_v1"
     name: "Formulário de Submissão - Método Pré-Validado"

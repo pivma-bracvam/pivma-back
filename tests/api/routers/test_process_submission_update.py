@@ -556,6 +556,12 @@ async def test_history_is_frozen_and_latest_form_is_current(
     assert decision.status_code == HTTPStatus.OK
 
     authenticate(client, owner)
+    # Spec 030: o proponente escolhe revisar antes de a submissão reabrir.
+    client.post(
+        f'/processes/{process_id}/return-review',
+        json={'choice': 'REVISE'},
+        headers={'Origin': 'https://testserver'},
+    )
     second_values = {'method_title': 'Método versão 2'}
     client.patch(
         f'/processes/{process_id}',
@@ -575,6 +581,11 @@ async def test_history_is_frozen_and_latest_form_is_current(
     assert second_revision.status_code == HTTPStatus.OK
 
     authenticate(client, owner)
+    client.post(
+        f'/processes/{process_id}/return-review',
+        json={'choice': 'REVISE'},
+        headers={'Origin': 'https://testserver'},
+    )
     client.patch(
         f'/processes/{process_id}',
         json={'title': 'Título versão 3'},

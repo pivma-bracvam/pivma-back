@@ -41,6 +41,7 @@ from pivma.core.database.models import (
     ReviewerFeedback,
 )
 from pivma.core.process_engine import (
+    RETURN_SOURCE_AI,
     STATUS_ARCHIVED,
     STATUS_CANCELLED,
     STATUS_OPEN,
@@ -49,8 +50,10 @@ from pivma.core.process_engine import (
     ConflictError,
     NotFoundError,
     _advance_dependent_activities,  # noqa: PLC2701
-    _open_new_submission_run,  # noqa: PLC2701
+    _latest_submission_run_number,  # noqa: PLC2701
+    cancel_open_return_review,
     ensure_process_mutable,
+    open_return_review,
 )
 from pivma.core.settings import Settings
 
@@ -271,11 +274,18 @@ async def _return_to_proponent(
     reason = 'Pré-avaliação automática por IA'
     if failed:
         reason += ' (falha no processamento)'
-    next_run_number = await _open_new_submission_run(
+    await _ensure_process_open(session, run.process_instance_id)
+    # Spec 030 (FR-036): o retorno abre a revisão do retorno; a submissão só
+    # reabre se o proponente escolher revisar. `new_run_number` é a execução
+    # da submissão que abrirá nesse caso (projeção de versões devolvidas).
+    next_run_number = (
+        await _latest_submission_run_number(session, run.process_instance_id)
+        + 1
+    )
+    await open_return_review(
         session,
         run.process_instance_id,
-        reason=reason,
-        task_title='Revisar submissão após a pré-avaliação por IA',
+        source=RETURN_SOURCE_AI,
         user_id=run.created_by,
     )
     triage_act = await _triage_activity(session, run.process_instance_id)
@@ -297,7 +307,6 @@ async def _return_to_proponent(
             },
         )
     )
-    await _ensure_process_open(session, run.process_instance_id)
 
 
 async def request_direct_review(
@@ -432,6 +441,7 @@ async def retry_run(
     if old.status == 'completed':
         raise ConflictError('Execução já concluída; nada a reprocessar.')
     await ensure_process_mutable(session, old.process_instance_id)
+    await cancel_open_return_review(session, old.process_instance_id, user_id)
 
     new_run = EvaluationRun(
         process_instance_id=old.process_instance_id,

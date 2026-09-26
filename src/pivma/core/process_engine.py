@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import any_, exists, select
+from sqlalchemy import any_, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import ColumnElement
@@ -101,6 +101,13 @@ FIELD_TARGET_TYPES = frozenset({'field', 'field_set', 'document'})
 # passado explicitamente a `_advance_dependent_activities` para não mudar o
 # que já é exibido a quem faz a triagem hoje.
 TRIAGE_TASK_TITLE = 'Realizar Triagem da Proposta'
+
+# Revisão do retorno (Spec 030, US4): atividade do proponente aberta quando a
+# pré-avaliação por IA ou a triagem devolvem a submissão.
+RETURN_REVIEW_KEY = 'submission_return_review'
+RETURN_REVIEW_ACTIVITY_TYPE = 'return_review'
+RETURN_SOURCE_AI = 'AI_PRE_EVALUATION'
+RETURN_SOURCE_TRIAGE = 'TRIAGE'
 
 
 def lifecycle_available_actions(
@@ -685,7 +692,12 @@ async def instantiate_process(
         for act_key, a_data in act_meta.items():
             act = act_map[act_key]
             deps = a_data.get('dependencies', [])
-            if not deps:
+            if a_data.get('activity_type') == RETURN_REVIEW_ACTIVITY_TYPE:
+                # Aberta por evento (retorno da IA ou da triagem), nunca
+                # pelo motor de dependências (Spec 030, R9).
+                act.status = 'BLOCKED'
+                act.blocked_reason = 'Sem retorno pendente.'
+            elif not deps:
                 await _init_first_activity(
                     session, act, a_data, creator_user_id
                 )
@@ -785,6 +797,9 @@ async def get_current_form_instance(
             .selectinload(ActivityRun.form_instances)
             .selectinload(FormInstance.reviews),
         )
+        # A execução mais recente decide o formulário corrente: recarrega a
+        # coleção para não usar `runs` antigo do identity map da sessão.
+        .execution_options(populate_existing=True)
     )
     act = (await session.execute(stmt)).scalar_one_or_none()
     if not act:
@@ -859,6 +874,7 @@ async def get_current_activity_run(
         .options(
             selectinload(ActivityInstance.runs),
         )
+        .execution_options(populate_existing=True)
     )
     act = (await session.execute(stmt)).scalar_one_or_none()
     if not act:
@@ -2157,6 +2173,7 @@ async def _open_triage_run(
             ActivityInstance.deleted_at.is_(None),
         )
         .options(selectinload(ActivityInstance.runs))
+        .execution_options(populate_existing=True)
     )
     if act is None:
         raise NotFoundError("Atividade 'triage_evaluation' não encontrada.")
@@ -2321,19 +2338,147 @@ async def _open_new_submission_run(
     return next_run_number
 
 
+async def _latest_submission_run_number(
+    session: AsyncSession, process_id: UUID
+) -> int:
+    return (
+        await session.scalar(
+            select(func.max(ActivityRun.run_number))
+            .join(
+                ActivityInstance,
+                ActivityInstance.id == ActivityRun.activity_instance_id,
+            )
+            .where(
+                ActivityInstance.process_instance_id == process_id,
+                ActivityInstance.key == 'proposal_submission',
+                ActivityRun.deleted_at.is_(None),
+            )
+        )
+        or 0
+    )
+
+
+async def open_return_review(
+    session: AsyncSession,
+    process_id: UUID,
+    *,
+    source: str,
+    user_id: UUID,
+) -> int:
+    """Abre uma execução da revisão do retorno para o proponente.
+
+    Spec 030 (FR-036): chamada no retorno negativo ou com falha da IA e no
+    pedido de revisão da triagem. A submissão continua travada até o
+    proponente escolher revisar (FR-038). Devolve o número da execução.
+    """
+    act = await session.scalar(
+        select(ActivityInstance).where(
+            ActivityInstance.process_instance_id == process_id,
+            ActivityInstance.key == RETURN_REVIEW_KEY,
+            ActivityInstance.deleted_at.is_(None),
+        )
+    )
+    if act is None:
+        raise NotFoundError('Atividade de revisão do retorno não encontrada.')
+    last_run = await session.scalar(
+        select(func.max(ActivityRun.run_number)).where(
+            ActivityRun.activity_instance_id == act.id,
+            ActivityRun.deleted_at.is_(None),
+        )
+    )
+    run = ActivityRun(
+        activity_instance_id=act.id,
+        run_number=(last_run or 0) + 1,
+        status='IN_PROGRESS',
+        execution_reason=source,
+    )
+    run.set_creation_audit(user_id)
+    session.add(run)
+    await session.flush()
+
+    a_data = await _template_activity_data(
+        session, process_id, RETURN_REVIEW_KEY
+    )
+    task = Task(
+        activity_run_id=run.id,
+        title='Revisar o retorno da submissão',
+        assigned_role='proponent',
+        status='READY',
+        due_date=_compute_activity_due_date(
+            run_started_at=run.started_at,
+            sla_hours=a_data.get('sla_hours'),
+        ),
+    )
+    task.set_creation_audit(user_id)
+    session.add(task)
+
+    act.status = 'IN_PROGRESS'
+    act.blocked_reason = None
+    act.set_update_audit(user_id)
+    session.add(
+        AuditEvent(
+            process_instance_id=process_id,
+            activity_run_id=run.id,
+            user_id=user_id,
+            event_type='RETURN_REVIEW_OPENED',
+            context_data={'source': source, 'run_number': run.run_number},
+        )
+    )
+    return run.run_number
+
+
+async def cancel_open_return_review(
+    session: AsyncSession, process_id: UUID, user_id: UUID
+) -> None:
+    """Cancela a revisão do retorno em aberto (Spec 030, R9).
+
+    Usada pelo reprocessamento da IA: o retorno que o proponente ainda não
+    decidiu deixa de valer, porque uma nova pré-avaliação vai rodar.
+    """
+    act = await session.scalar(
+        select(ActivityInstance)
+        .where(
+            ActivityInstance.process_instance_id == process_id,
+            ActivityInstance.key == RETURN_REVIEW_KEY,
+            ActivityInstance.deleted_at.is_(None),
+        )
+        .options(
+            selectinload(ActivityInstance.runs).selectinload(ActivityRun.tasks)
+        )
+    )
+    if act is None or act.status != 'IN_PROGRESS':
+        return
+    for run in act.runs:
+        if run.status != 'IN_PROGRESS':
+            continue
+        run.status = STATUS_CANCELLED
+        run.set_update_audit(user_id)
+        for task in run.tasks:
+            if task.status not in {'COMPLETED', STATUS_CANCELLED}:
+                task.status = STATUS_CANCELLED
+                task.set_update_audit(user_id)
+    act.status = 'BLOCKED'
+    act.blocked_reason = 'Sem retorno pendente.'
+    act.set_update_audit(user_id)
+
+
 async def _handle_needs_revision(
     session: AsyncSession, ctx: TriageContext
 ) -> int:
-    next_run_number = await _open_new_submission_run(
+    # `new_run_number` do evento é a execução da submissão que abrirá se o
+    # proponente escolher revisar; é o que projeta as versões devolvidas.
+    next_run_number = (
+        await _latest_submission_run_number(session, ctx.process.id) + 1
+    )
+    review_run_number = await open_return_review(
         session,
         ctx.process.id,
-        reason=f'Diligência de triagem: {ctx.justification}',
-        task_title=('Revisar e Ajustar Submissão da Proposta (Diligência)'),
+        source=RETURN_SOURCE_TRIAGE,
         user_id=ctx.user_id,
     )
 
     ctx.triage_act.status = 'BLOCKED'
-    ctx.triage_act.blocked_reason = 'Aguardando reenvio pelo proponente.'
+    ctx.triage_act.blocked_reason = 'Aguardando o retorno do proponente.'
     ctx.triage_act.set_update_audit(ctx.user_id)
 
     ctx.process.set_update_audit(ctx.user_id)
@@ -2350,7 +2495,7 @@ async def _handle_needs_revision(
             },
         )
     )
-    return next_run_number
+    return review_run_number
 
 
 async def _handle_approved_decision(
@@ -2443,19 +2588,19 @@ async def execute_triage_decision(
         user_id=user_id,
     )
 
-    next_run_number = None
+    return_review_run = None
 
     if outcome == 'APPROVED':
         await _handle_approved_decision(session, ctx)
     elif outcome == 'REJECTED':
         await _handle_rejected_decision(session, ctx)
     elif outcome == 'NEEDS_REVISION':
-        next_run_number = await _handle_needs_revision(session, ctx)
+        return_review_run = await _handle_needs_revision(session, ctx)
     else:
         raise ValidationError(f'Resultado de triagem inválido: {outcome!r}.')
 
     await session.commit()
-    return decision, process.status, next_run_number
+    return decision, process.status, return_review_run
 
 
 async def _prune_evaluation_assignments(

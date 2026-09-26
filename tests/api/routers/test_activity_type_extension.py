@@ -57,6 +57,7 @@ async def test_template_detail_declares_both_phases_with_activity_type(
     assert phase_1_activities == {
         'proposal_submission': 'form',
         'triage_evaluation': 'form',
+        'submission_return_review': 'return_review',
     }
 
     phase_2_activities = {
@@ -102,7 +103,14 @@ async def test_template_detail_defaults_activity_type_for_legacy_templates(
         assert resp.status_code == HTTPStatus.OK
         for phase in resp.json()['definition']['phases']:
             for activity in phase['activities']:
-                assert activity['activity_type'] == 'form'
+                # A revisão do retorno (Spec 030) é a única que declara
+                # `activity_type`; as demais recebem o padrão `form`.
+                expected = (
+                    'return_review'
+                    if activity['key'] == 'submission_return_review'
+                    else 'form'
+                )
+                assert activity['activity_type'] == expected
 
 
 @pytest.mark.asyncio

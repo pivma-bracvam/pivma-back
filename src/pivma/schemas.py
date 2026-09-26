@@ -624,7 +624,7 @@ class TriageDecisionResponse(BaseModel):
     process_status: ProcessLifecycle
     decision_id: UUID
     outcome: str
-    next_activity_run: int | None = None
+    return_review_run: int | None = None
 
 
 class ActivityCompletionResponse(BaseModel):
@@ -1155,13 +1155,38 @@ class PreEvaluationResponse(BaseModel):
     direct_review_request: dict[str, Any] | None = None
 
 
-class DirectReviewRequestBody(BaseModel):
+# Revisão do retorno (Spec 030, US4)
+ReturnReviewChoice = Literal['REVISE', 'CONTEST_AI', 'WITHDRAW']
+ReturnReviewSource = Literal['AI_PRE_EVALUATION', 'TRIAGE']
+
+
+class ReturnReviewTriageDecision(BaseModel):
+    outcome: str
+    justification: str
+    decided_at: datetime
+
+
+class ReturnReviewResponse(BaseModel):
+    run_number: int
+    source: ReturnReviewSource
+    opened_at: datetime
+    due_date: datetime | None = None
+    available_choices: list[ReturnReviewChoice]
+    ai_pre_evaluation: PreEvaluationResponse | None = None
+    triage_decision: ReturnReviewTriageDecision | None = None
+
+
+class ReturnReviewDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    choice: ReturnReviewChoice
     justification: str | None = None
 
 
-class DirectReviewResponse(BaseModel):
+class ReturnReviewDecisionResponse(BaseModel):
+    choice: ReturnReviewChoice
     process_status: ProcessLifecycle
-    direct_review_request_id: UUID
+    submission_run: int | None = None
 
 
 class ReviewerFeedbackItem(BaseModel):

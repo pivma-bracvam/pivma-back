@@ -35,6 +35,17 @@ phases:
             required_status: "COMPLETED"
             condition_type: "ACTIVITY_COMPLETED"
 
+      - key: "submission_return_review"
+        name: "Revisão do Retorno"
+        order_index: 3
+        assigned_role: "proponent"
+        access:
+          edit: ["proponent"]
+          view: []
+        activity_type: "return_review"
+        sla_hours: 168  # 7 dias corridos para o proponente decidir (Spec 030)
+        dependencies: []  # aberta por evento (retorno da IA ou da triagem)
+
   # Fase 2 (Spec 028): as 8 atividades de atribuição de cargo da Etapa 2,
   # substituindo a prévia placeholder da Spec 017 nesta nova versão (v4) —
   # instâncias presas à v3 continuam vendo "planning_preview" intacta

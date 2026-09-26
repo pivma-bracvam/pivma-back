@@ -23,6 +23,7 @@ from pivma.core.process_engine import (
     save_form_values_draft,
     submit_proposal_form,
 )
+from pivma.core.return_review_service import decide_return_review
 from tests.conftest import _make_rbac_user
 from tests.factories.user_factory import UserFactory
 
@@ -178,7 +179,13 @@ async def test_process_engine_flow_diligence_reexecution(session):
     )
     assert decision.outcome == 'NEEDS_REVISION'
     assert new_status == 'OPEN'
-    assert next_run == 2
+    # Spec 030: abre a revisão do retorno (execução 1); a submissão só
+    # reabre quando o proponente escolhe revisar.
+    assert next_run == 1
+    revised = await decide_return_review(
+        session, process.id, user.id, 'REVISE', None
+    )
+    assert revised['submission_run'] == 2
 
     # Check that Run 1 is COMPLETED and Run 2 is IN_PROGRESS
     act, run_2, form_inst_2, _, _ = await get_current_form_instance(
