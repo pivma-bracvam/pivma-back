@@ -963,7 +963,9 @@ async def _process_in_planning_phase(client, session, bracvam_user):
 
 
 def _task_by_title(client, process_id, title):
-    tasks = client.get('/tasks', params={'process_id': process_id}).json()
+    tasks = client.get('/tasks', params={'process_id': process_id}).json()[
+        'data'
+    ]
     matches = [t for t in tasks if t['title'] == title]
     return matches[0] if matches else None
 

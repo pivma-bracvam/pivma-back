@@ -76,7 +76,7 @@ async def _parallel_process(session):
 def _task_titles(client, process_id):
     response = client.get('/tasks', params={'process_id': str(process_id)})
     assert response.status_code == HTTPStatus.OK, response.text
-    return {task['title'] for task in response.json()}
+    return {task['title'] for task in response.json()['data']}
 
 
 @pytest.mark.asyncio

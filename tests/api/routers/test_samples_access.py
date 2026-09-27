@@ -252,7 +252,7 @@ async def test_admin_and_bracvam_see_sample_task_status_only(
         assert response.status_code == HTTPStatus.OK
         tasks = [
             t
-            for t in response.json()
+            for t in response.json()['data']
             if t['activity_key'] == 'sample_definition'
         ]
         assert len(tasks) == 1
@@ -269,7 +269,9 @@ async def test_participating_lab_does_not_see_sample_task(session, client):
 
     assert response.status_code == HTTPStatus.OK
     assert not [
-        t for t in response.json() if t['activity_key'] == 'sample_definition'
+        t
+        for t in response.json()['data']
+        if t['activity_key'] == 'sample_definition'
     ]
 
 

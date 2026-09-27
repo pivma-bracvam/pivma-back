@@ -68,7 +68,7 @@ def process_tasks(client, process_id):
     assert response.status_code == HTTPStatus.OK, response.text
     # Por atividade: um cargo pode ter várias tarefas abertas ao mesmo tempo
     # (ex.: o proponente nas atribuições da Fase 2, Spec 031).
-    return {task['activity_key']: task for task in response.json()}
+    return {task['activity_key']: task for task in response.json()['data']}
 
 
 @pytest.fixture

@@ -42,7 +42,7 @@ def _pending(client, pid):
         '/tasks', params={'process_id': pid, 'status': 'READY'}
     )
     assert response.status_code == HTTPStatus.OK, response.text
-    return {task['activity_key'] for task in response.json()}
+    return {task['activity_key'] for task in response.json()['data']}
 
 
 @pytest.mark.asyncio

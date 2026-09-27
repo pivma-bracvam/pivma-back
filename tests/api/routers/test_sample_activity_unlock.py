@@ -195,7 +195,7 @@ async def test_sample_activity_opens_after_both_assignments(session, client):
     assert response.status_code == HTTPStatus.OK, response.text
     tasks = [
         t
-        for t in response.json()
+        for t in response.json()['data']
         if t['title'] == 'Definição e Preparação das Amostras'
     ]
     assert len(tasks) == 1

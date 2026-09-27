@@ -39,11 +39,13 @@ async def test_outsider_does_not_see_other_users_tasks(client, session):
     authenticate(client, outsider)
     resp = client.get('/tasks', params={'process_id': process_id})
     assert resp.status_code == HTTPStatus.OK
-    assert resp.json() == []
+    assert resp.json()['data'] == []
 
     resp_all = client.get('/tasks')
     assert resp_all.status_code == HTTPStatus.OK
-    assert process_id not in {t['process_id'] for t in resp_all.json()}
+    assert process_id not in {
+        t['process']['id'] for t in resp_all.json()['data']
+    }
 
 
 @pytest.mark.asyncio
@@ -56,7 +58,7 @@ async def test_task_detail_denied_to_outsider(client, session):
 
     authenticate(client, owner)
     await _create_process(client)
-    own_task_id = client.get('/tasks').json()[0]['id']
+    own_task_id = client.get('/tasks').json()['data'][0]['id']
 
     authenticate(client, outsider)
     resp = client.get(f'/tasks/{own_task_id}')
@@ -100,7 +102,7 @@ async def test_task_list_hides_tasks_of_activities_without_view(
     resp = client.get('/tasks', params={'process_id': process_id})
 
     assert resp.status_code == HTTPStatus.OK
-    assert resp.json() == []
+    assert resp.json()['data'] == []
 
 
 @pytest.mark.asyncio
@@ -114,14 +116,18 @@ async def test_task_list_shows_triage_task_to_bracvam_not_to_proponent(
 
     roles = {
         t['assigned_role']
-        for t in client.get('/tasks', params={'process_id': process_id}).json()
+        for t in client.get(
+            '/tasks', params={'process_id': process_id}
+        ).json()['data']
     }
     assert roles == {'proponent'}
 
     authenticate(client, bracvam_user)
     roles = {
         t['assigned_role']
-        for t in client.get('/tasks', params={'process_id': process_id}).json()
+        for t in client.get(
+            '/tasks', params={'process_id': process_id}
+        ).json()['data']
     }
     assert roles == {'proponent', 'bracvam'}
 
@@ -135,7 +141,9 @@ async def test_task_detail_404_without_view(client, session, bracvam_user):
     authenticate(client, bracvam_user)
     triage_task_id = next(
         t['id']
-        for t in client.get('/tasks', params={'process_id': process_id}).json()
+        for t in client.get(
+            '/tasks', params={'process_id': process_id}
+        ).json()['data']
         if t['assigned_role'] == 'bracvam'
     )
 

@@ -31,10 +31,10 @@ async def _proponent_process(client, session, *, template_key, title):
     return proponent, response.json()['id']
 
 
-def _tasks(client, pid):
-    response = client.get('/tasks', params={'process_id': pid})
+def _tasks(client, pid, **params):
+    response = client.get('/tasks', params={'process_id': pid, **params})
     assert response.status_code == HTTPStatus.OK, response.text
-    return response.json()
+    return response.json()['data']
 
 
 @pytest.mark.asyncio
@@ -52,9 +52,8 @@ async def test_task_summary_identifies_activity_phase_and_process(
 
     assert task['activity_key'] == 'proposal_submission'
     assert task['activity_run_number'] == 1
-    assert task['phase_key'] == 'phase_1_submission_triage'
-    assert task['phase_order'] == 1
-    assert task['process_title'] == 'Irritação ocular'
+    assert task['phase'] == {'key': 'phase_1_submission_triage', 'order': 1}
+    assert task['process']['title'] == 'Irritação ocular'
 
 
 @pytest.mark.asyncio
@@ -81,7 +80,7 @@ async def test_task_summary_distinguishes_current_run_after_revision(
     submission = sorted(
         (
             (t['activity_run_number'], t['status'])
-            for t in _tasks(client, pid)
+            for t in _tasks(client, pid, current_run='false')
             if t['activity_key'] == 'proposal_submission'
         ),
     )
@@ -114,7 +113,7 @@ async def test_task_summary_separates_phases_for_bracvam(
 
     by_phase = {}
     for task in _tasks(client, pid):
-        by_phase.setdefault(task['phase_order'], set()).add(
+        by_phase.setdefault(task['phase']['order'], set()).add(
             task['activity_key']
         )
 

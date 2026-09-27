@@ -157,7 +157,7 @@ async def test_role_assignment_activities_unlock_on_triage_approval(
     # 2. A Fase 2 ainda não existe como tarefa (dependência não satisfeita).
     tasks_before = client.get(
         '/tasks', params={'process_id': process_id}
-    ).json()
+    ).json()['data']
     assert not [
         t for t in tasks_before if t['title'] == 'Definir o Patrocinador'
     ]
@@ -178,7 +178,7 @@ async def test_role_assignment_activities_unlock_on_triage_approval(
     #    group_manager COMPLETED).
     tasks_after = client.get(
         '/tasks', params={'process_id': process_id}
-    ).json()
+    ).json()['data']
     ready_titles = {
         t['title']
         for t in tasks_after

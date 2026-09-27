@@ -196,7 +196,8 @@ async def test_triage_decision_needs_revision_and_resubmission(
     tasks_resp = client.get(f'/tasks?process_id={process_id}&status=READY')
     assert tasks_resp.status_code == HTTPStatus.OK
     assert any(
-        t['id'] == str(second_triage_task.id) for t in tasks_resp.json()
+        t['id'] == str(second_triage_task.id)
+        for t in tasks_resp.json()['data']
     )
 
     # 5. Triador approves
