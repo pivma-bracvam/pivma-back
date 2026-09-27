@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # convite individual.
     INVITE_EXPIRATION_HOURS: int = Field(default=1)
 
+    # Amostras cegas (Spec 031). Base da URL do frontend gravada no QR code
+    # do frasco; sem valor, usa a primeira origem de `AUTH_ALLOWED_ORIGINS`.
+    SAMPLE_QR_BASE_URL: str | None = Field(default=None)
+
     @field_validator('JWT_SECRET_KEY')
     @classmethod
     def validate_jwt_secret_key(cls, value):

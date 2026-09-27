@@ -1219,3 +1219,105 @@ class AgreementMetricsResponse(BaseModel):
     runs_with_most_disagreements: list[dict[str, Any]] = Field(
         default_factory=list
     )
+
+
+# ---------------------------------------------------------------------------
+# Spec 031 — Definição e Preparação das Amostras (estudo cego)
+# ---------------------------------------------------------------------------
+
+SampleText255 = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
+]
+SampleText64 = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=64),
+]
+SampleLongText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1)
+]
+# O formato e o dígito verificador do CAS são validados no serviço, que
+# responde com `code='invalid_cas'`; aqui só se limita o tamanho.
+SampleCasNumber = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=32),
+]
+SampleActivityStatus = Literal['BLOCKED', 'IN_PROGRESS', 'COMPLETED']
+
+
+class SampleSubstanceCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    chemical_name: SampleText255
+    cas_number: SampleCasNumber
+    lot: SampleText64
+    safe_handling_instructions: SampleLongText
+    purity: SampleText64 | None = None
+    solubility: SampleLongText | None = None
+
+
+class SampleSubstanceUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    chemical_name: SampleText255 | None = None
+    cas_number: SampleCasNumber | None = None
+    lot: SampleText64 | None = None
+    safe_handling_instructions: SampleLongText | None = None
+    purity: SampleText64 | None = None
+    solubility: SampleLongText | None = None
+
+
+class SampleBlindCode(BaseModel):
+    code: str
+    laboratory_id: UUID
+    laboratory_name: str
+
+
+class SampleSds(BaseModel):
+    filename: str
+    size: int | None = None
+    uploaded_at: datetime
+
+
+class SampleSubstance(BaseModel):
+    id: UUID
+    chemical_name: str
+    cas_number: str
+    lot: str
+    purity: str | None = None
+    solubility: str | None = None
+    safe_handling_instructions: str
+    sds: SampleSds | None = None
+    blind_codes: list[SampleBlindCode]
+
+
+class SampleSubstanceList(BaseModel):
+    activity_status: SampleActivityStatus
+    substances: list[SampleSubstance]
+
+
+class SampleCompletionResponse(BaseModel):
+    activity_status: SampleActivityStatus
+    substance_count: int
+    laboratory_count: int
+    code_count: int
+
+
+class SampleLabel(BaseModel):
+    code: str
+    study_code: str
+    laboratory_id: UUID
+    laboratory_name: str
+    lot: str
+    qr_url: str
+    qr_svg: str
+
+
+class BlindVial(BaseModel):
+    """Visão cega do frasco: nunca nome químico, CAS nem SDS (FR-021)."""
+
+    model_config = ConfigDict(extra='forbid')
+
+    code: str
+    lot: str
+    safe_handling_instructions: str

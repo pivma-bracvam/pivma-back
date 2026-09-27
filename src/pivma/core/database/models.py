@@ -1164,6 +1164,98 @@ class AuditEvent(AuditMixin):
 
 
 # ---------------------------------------------------------------------------
+# Spec 031 — Definição e Preparação das Amostras (estudo cego)
+# ---------------------------------------------------------------------------
+
+
+@table_registry.mapped_as_dataclass
+class StudySubstance(AuditMixin):
+    """Substância cadastrada num processo pelo Grupo de Seleção (Spec 031).
+
+    O CAS é único entre as substâncias ativas do processo e pode se repetir
+    em outro processo (FR-005). A SDS original vive num `Artifact`.
+    """
+
+    __tablename__ = 'study_substances'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    process_instance_id: Mapped[UUID] = mapped_column(
+        ForeignKey('process_instances.id')
+    )
+    chemical_name: Mapped[str] = mapped_column(String(255))
+    cas_number: Mapped[str] = mapped_column(String(12))
+    lot: Mapped[str] = mapped_column(String(64))
+    safe_handling_instructions: Mapped[str] = mapped_column(Text)
+    purity: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, default=None
+    )
+    solubility: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+    sds_artifact_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey('artifacts.id'), nullable=True, default=None
+    )
+
+    __table_args__ = (
+        Index(
+            'uq_study_substances_process_cas_active',
+            'process_instance_id',
+            'cas_number',
+            unique=True,
+            postgresql_where=column('deleted_at').is_(None),
+        ),
+    )
+
+
+@table_registry.mapped_as_dataclass
+class BlindSampleCode(AuditMixin):
+    """Frasco: a combinação substância × laboratório com o código cego.
+
+    O código é opaco e único entre os códigos ativos do processo (FR-011);
+    cada laboratório tem um único código ativo por substância (FR-012).
+    """
+
+    __tablename__ = 'blind_sample_codes'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    process_instance_id: Mapped[UUID] = mapped_column(
+        ForeignKey('process_instances.id')
+    )
+    substance_id: Mapped[UUID] = mapped_column(
+        ForeignKey('study_substances.id')
+    )
+    laboratory_id: Mapped[UUID] = mapped_column(ForeignKey('laboratories.id'))
+    code: Mapped[str] = mapped_column(String(8))
+
+    __table_args__ = (
+        Index(
+            'uq_blind_sample_codes_process_code_active',
+            'process_instance_id',
+            'code',
+            unique=True,
+            postgresql_where=column('deleted_at').is_(None),
+        ),
+        Index(
+            'uq_blind_sample_codes_substance_lab_active',
+            'substance_id',
+            'laboratory_id',
+            unique=True,
+            postgresql_where=column('deleted_at').is_(None),
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Spec 013 — Avaliação Configurável por IA na Submissão e Triagem
 # ---------------------------------------------------------------------------
 

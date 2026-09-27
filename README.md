@@ -21,6 +21,7 @@ A documentação interativa das rotas, esquemas de entrada/saída e testes de re
   - [Catálogo Institucional](#catálogo-institucional)
   - [Processos, Formulários e Triagem](#processos-formulários-e-triagem)
   - [Participantes e Conflito de Interesses](#participantes-e-conflito-de-interesses)
+  - [Amostras Cegas](#amostras-cegas)
   - [Avaliação Configurável por IA](#avaliação-configurável-por-ia)
   - [Observabilidade de Logs](#observabilidade-de-logs)
 - [Comandos Úteis (`poetry` e `uv`)](#comandos-úteis-poetry-e-uv)
@@ -51,6 +52,7 @@ As configurações são validadas pela classe `Settings` em `src/pivma/core/sett
 | `SECRET_KEY` | Chave secreta para assinatura de tokens e sessões | `sua-chave-secreta` |
 | `AI_PROVIDER` | Provedor de IA para pré-avaliação (`openai` ou `fake` em CI/testes) | `fake` |
 | `OPENAI_API_KEY` | Chave de API da OpenAI (necessária se `AI_PROVIDER=openai`) | `sk-...` |
+| `SAMPLE_QR_BASE_URL` | Base da URL do frontend gravada no QR code dos frascos. Sem valor, usa a primeira origem de `AUTH_ALLOWED_ORIGINS` | `https://pivma.exemplo` |
 
 Gere o arquivo local:
 
@@ -167,6 +169,7 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
 * Suporte a formulários dinâmicos com ciclos de rascunho e submissão estrita (bloqueio de alterações após envio). Só o cargo `proponent` edita a submissão; BraCVAM e Admin a leem.
 * Fase 1 (Triagem) inclui pareceres técnicos por campo e decisão final (aprovação, rejeição ou pedido de revisão). Exige a permissão `triage.review` e a concessão de edição da atividade, que pertence só ao cargo `bracvam`: o Admin lê a triagem, mas não decide. A decisão só é aceita com a triagem em andamento; fora disso, `409`.
 * **Revisão do retorno:** quando a pré-avaliação por IA termina negativa ou com falha, ou quando a triagem pede revisão, abre a atividade `submission_return_review` para o cargo `proponent`. `GET /processes/{id}/return-review` mostra o retorno (resultado da IA ou decisão e justificativa da triagem) e as escolhas disponíveis. `POST /processes/{id}/return-review` registra a escolha: `REVISE` reabre a submissão como rascunho com os valores anteriores; `CONTEST_AI` (só em retorno da IA) encaminha à triagem humana; `WITHDRAW` encerra o processo como `CLOSED`. Enquanto a revisão está aberta, a submissão fica travada. A escolha vale uma vez por retorno (`409` na segunda). A antiga `POST /processes/{id}/submission/direct-review` foi removida. A resposta da decisão de triagem traz `return_review_run` quando abre uma revisão.
+* **Fase 2 (Composição da Governança):** presente nos cinco templates (versões 3 dos templates 01, 02, 03 e 05; versão 5 do template 04). Abre quando a triagem é aprovada, com as oito atividades de atribuição de cargo e a atividade de amostras (`sample_definition`). Processos criados em versões anteriores mantêm a estrutura da versão em que nasceram.
 * Exclusão lógica permitida apenas para processos `OPEN`.
 
 ### Participantes e Conflito de Interesses
@@ -175,6 +178,7 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
 * Técnicos: `group_manager`, `study_manager`, `statistician`, `adhoc_evaluator`, `peer_reviewer`.
 * Proponente: `proponent` (atribuído ao criador do processo).
 * Laboratoriais: `lead_laboratory`, `participating_laboratory` (exigem vínculo institucional ativo do usuário com o respectivo laboratório).
+* Fase 2: `sponsor`, `sample_selection_group`, `regulatory_observer`, `collaborator`.
 
 
 * **Regras de Conflito de Interesse:**
@@ -183,6 +187,20 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
 * O conteúdo da justificativa do conflito é visível apenas ao declarante e aos gestores do processo.
 
 
+
+### Amostras Cegas
+
+Atividade `sample_definition` da Fase 2 (Spec 031, RF038 e RF050). Abre quando as atribuições do Grupo de Seleção de Amostras e dos Laboratórios Participantes estão concluídas.
+
+* **Acesso:** só o cargo `sample_selection_group` do processo vê e altera substâncias, códigos, SDS e etiquetas. Todas as rotas exigem a concessão de **edição** da atividade, também nas leituras. Laboratórios e Grupo Gestor recebem `404`; Admin e BraCVAM veem a atividade e seu status em `GET /tasks`, mas recebem `403` no conteúdo. Conflito de interesse vigente também bloqueia a leitura.
+* **Substâncias:** `GET/POST /processes/{id}/samples`, `PATCH/DELETE /processes/{id}/samples/{substance_id}`. Nome químico, CAS, lote e instruções de manuseio seguro são obrigatórios. O CAS passa por formato e dígito verificador (`422 invalid_cas`) e é único entre as substâncias ativas do processo (`409 duplicate_cas`); pode se repetir em outro processo.
+* **Códigos cegos:** cada cadastro gera um código de 8 caracteres (`23456789ABCDEFGHJKMNPQRSTUVWXYZ`, sem `0/O/1/I/L`) por laboratório com designação ativa de `participating_laboratory`. O código é aleatório, único no processo e não carrega informação da substância ou do laboratório. O laboratório líder não recebe código por ser líder.
+* **SDS:** `PUT/GET /processes/{id}/samples/{substance_id}/sds`, só PDF, com o limite de `ATTACHMENT_MAX_SIZE_MB`. Substituir a SDS descarta a anterior.
+* **Conclusão:** `POST /processes/{id}/samples/complete` exige ao menos uma substância, SDS em todas e ao menos um laboratório (`422 no_substances`, `missing_sds`, `no_laboratories`). Gera os códigos que faltam, descarta os de laboratórios que saíram e conclui a atividade. Depois disso, toda alteração responde `409 invalid_transition`.
+* **Etiquetas:** `GET /processes/{id}/samples/labels` devolve, por frasco, estudo, laboratório, código, lote, `qr_url` e `qr_svg` (data URI SVG gerado com `segno`). O frontend monta o layout e imprime.
+* **QR code:** contém só `{SAMPLE_QR_BASE_URL}/amostras/{process_id}/frascos/{code}`, rota do frontend que chama `GET /processes/{id}/samples/vials/{code}`. Essa rota exige login e devolve só código, lote e instruções de manuseio, nunca nome químico, CAS ou SDS.
+* **Auditoria:** eventos `SAMPLE_*` na linha do tempo guardam só identificadores e contagens.
+* O acesso dos laboratórios participantes aos próprios códigos fica para o recebimento de amostras (issue #28).
 
 ### Avaliação Configurável por IA
 

@@ -49,7 +49,7 @@ async def test_new_user_reaches_approved_triage_on_pre_validated_method(
     )
     assert response.status_code == HTTPStatus.CREATED, response.text
     process_id = response.json()['id']
-    submission_task = process_tasks(client, process_id)['proponent']
+    submission_task = process_tasks(client, process_id)['proposal_submission']
     assert submission_task['status'] == 'READY'
 
     # 3. Envia a submissão; sem IA configurada, segue direto para a triagem.
@@ -81,7 +81,7 @@ async def test_new_user_reaches_approved_triage_on_pre_validated_method(
     log_in(client, 'triador')
     me = client.get('/auth/me').json()
     assert 'triage.review' in me['access']['global_permissions']
-    triage_task = process_tasks(client, process_id)['bracvam']
+    triage_task = process_tasks(client, process_id)['triage_evaluation']
     assert triage_task['status'] == 'READY'
 
     # 5. O BraCVAM aprova a triagem.
@@ -99,8 +99,8 @@ async def test_new_user_reaches_approved_triage_on_pre_validated_method(
     # 6. Estado final observável pela API e trilha de auditoria.
     assert client.get(f'/processes/{process_id}').json()['status'] == 'OPEN'
     tasks = process_tasks(client, process_id)
-    assert tasks['proponent']['status'] == 'COMPLETED'
-    assert tasks['bracvam']['status'] == 'COMPLETED'
+    assert tasks['proposal_submission']['status'] == 'COMPLETED'
+    assert tasks['triage_evaluation']['status'] == 'COMPLETED'
 
     events = list(
         await session.scalars(

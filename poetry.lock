@@ -2922,6 +2922,18 @@ files = [
 ]
 
 [[package]]
+name = "segno"
+version = "1.6.6"
+description = "QR Code and Micro QR Code generator for Python"
+optional = false
+python-versions = ">=3.5"
+groups = ["main"]
+files = [
+    {file = "segno-1.6.6-py3-none-any.whl", hash = "sha256:28c7d081ed0cf935e0411293a465efd4d500704072cdb039778a2ab8736190c7"},
+    {file = "segno-1.6.6.tar.gz", hash = "sha256:e60933afc4b52137d323a4434c8340e0ce1e58cec71439e46680d4db188f11b3"},
+]
+
+[[package]]
 name = "sentry-sdk"
 version = "2.67.1"
 description = "Python client for Sentry (https://sentry.io)"
@@ -4348,4 +4360,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.14,<4.0"
-content-hash = "52254e0d6a83862b84ce3076467a40e8223c603e504576498ec6de0a8928ee0a"
+content-hash = "79eaeecf8f0c3b02c35188f26e59300a3a349cbe4b9c8deb0d21cd59a716974d"
