@@ -22,7 +22,12 @@ def test_hashing_failure_rolls_back_without_exposing_secret(
     )
 
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
-    assert response.json() == {'detail': 'Internal server error'}
+    assert response.json() == {
+        'detail': {
+            'code': 'internal_error',
+            'message': 'Erro interno do servidor.',
+        }
+    }
     assert 'sensitive' not in response.text
     assert not session.identity_map
 
@@ -49,6 +54,11 @@ def test_persistence_failure_rolls_back(
     )
 
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
-    assert response.json() == {'detail': 'Internal server error'}
+    assert response.json() == {
+        'detail': {
+            'code': 'internal_error',
+            'message': 'Erro interno do servidor.',
+        }
+    }
     assert 'sensitive' not in response.text
     rollback.assert_awaited()

@@ -141,7 +141,7 @@ async def test_submit_blocked_without_required_attachment(client, session):
 
     assert submit.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert (
-        submit.json()['detail']['errors'][0]['code'] == 'attachment_required'
+        submit.json()['detail']['fields'][0]['code'] == 'attachment_required'
     )
     form = client.get(FORM_URL.format(pid=pid)).json()
     assert form['is_submitted'] is False
@@ -203,7 +203,7 @@ async def test_draft_rejects_inline_file_upload_value(client, session):
     )
 
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-    assert resp.json()['detail']['errors'][0]['code'] == (
+    assert resp.json()['detail']['fields'][0]['code'] == (
         'file_upload_uses_attachment_endpoint'
     )
 

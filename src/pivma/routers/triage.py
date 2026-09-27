@@ -2,10 +2,11 @@ from http import HTTPStatus
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from pivma.core.authorization import TRIAGE_REVIEW
 from pivma.core.database.models import User
+from pivma.core.errors import api_error, domain_error
 from pivma.core.process_engine import (
     AuthorizationError,
     ConflictError,
@@ -50,17 +51,12 @@ async def submit_field_reviews(
             user_id=current_user.id,
         )
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.NOT_FOUND, e) from e
     except AuthorizationError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.FORBIDDEN, e) from e
     except ConflictError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.CONFLICT,
-            detail={'code': 'invalid_transition', 'message': str(e)},
+        raise api_error(
+            HTTPStatus.CONFLICT, 'invalid_transition', str(e)
         ) from e
 
     return {'message': 'Avaliações de campo registradas com sucesso.'}
@@ -87,22 +83,15 @@ async def submit_triage_decision(
             user_id=current_user.id,
         )
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.NOT_FOUND, e) from e
     except AuthorizationError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.FORBIDDEN, e) from e
     except ConflictError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.CONFLICT,
-            detail={'code': 'invalid_transition', 'message': str(e)},
+        raise api_error(
+            HTTPStatus.CONFLICT, 'invalid_transition', str(e)
         ) from e
     except ValidationError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.UNPROCESSABLE_ENTITY, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.UNPROCESSABLE_ENTITY, e) from e
 
     return TriageDecisionResponse(
         process_id=id,

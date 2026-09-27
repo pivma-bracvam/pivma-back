@@ -69,14 +69,14 @@ async def create_assignment(  # noqa: PLR0913, PLR0917
     if target_user is None:
         raise NotFoundError('Usuário não encontrado.')
     if target_user.deleted_at is not None:
-        raise ConflictError('Usuário inativo.')
+        raise ConflictError('Usuário inativo.', code='inactive_entity')
 
     if role_key in LABORATORY_ROLE_KEYS:
         laboratory = await session.get(Laboratory, laboratory_id)
         if laboratory is None:
             raise NotFoundError('Laboratório não encontrado.')
         if laboratory.deleted_at is not None:
-            raise ConflictError('Laboratório inativo.')
+            raise ConflictError('Laboratório inativo.', code='inactive_entity')
         if not await has_active_laboratory_affiliation(
             session, user_id, laboratory_id
         ):
@@ -99,7 +99,8 @@ async def create_assignment(  # noqa: PLR0913, PLR0917
         await session.rollback()
         raise ConflictError(
             'Já existe uma designação ativa para este processo, '
-            'usuário e papel.'
+            'usuário e papel.',
+            code='duplicate',
         ) from None
 
     session.add(

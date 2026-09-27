@@ -142,7 +142,7 @@ async def test_draft_rejects_unknown_field_atomically(client, session):
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     error = response.json()['detail']
     assert error['code'] == 'invalid_form_values'
-    assert error['errors'][0]['field_key'] == 'unknown_field'
+    assert error['fields'][0]['field'] == 'values.unknown_field'
     values = client.get(endpoint).json()['values']
     assert values['method_title'] == 'Anterior'
 
@@ -203,7 +203,7 @@ async def test_draft_rejects_incompatible_values(
     response = client.put(endpoint, json={'values': {field_key: value}})
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-    assert response.json()['detail']['errors'][0]['code'] == error_code
+    assert response.json()['detail']['fields'][0]['code'] == error_code
 
 
 @pytest.mark.asyncio
@@ -281,7 +281,7 @@ async def test_draft_rejects_inline_file_upload_value_without_persisting(
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert (
-        response.json()['detail']['errors'][0]['code']
+        response.json()['detail']['fields'][0]['code']
         == 'file_upload_uses_attachment_endpoint'
     )
     assert await session.scalar(select(FormValue.id)) is None

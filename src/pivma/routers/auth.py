@@ -2,7 +2,6 @@ from http import HTTPStatus
 
 from fastapi import (
     APIRouter,
-    HTTPException,
     Response,
 )
 from fastapi.concurrency import run_in_threadpool
@@ -20,6 +19,7 @@ from pivma.core.database.models import (
     ProcessInstance,
     User,
 )
+from pivma.core.errors import api_error
 from pivma.core.security import (
     ACCESS_TOKEN_TTL,
     DUMMY_PASSWORD_HASH,
@@ -78,9 +78,10 @@ async def login(
         credentials.password,
     )
     if user is None or not password_is_valid:
-        raise HTTPException(
-            status_code=HTTPStatus.UNAUTHORIZED,
-            detail='Invalid credentials',
+        raise api_error(
+            HTTPStatus.UNAUTHORIZED,
+            'invalid_credentials',
+            'Usuário ou senha inválidos.',
         )
 
     token = create_access_token(user.id, settings.JWT_SECRET_KEY)

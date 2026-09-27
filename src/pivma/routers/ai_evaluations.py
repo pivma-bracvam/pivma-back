@@ -4,7 +4,7 @@ from http import HTTPStatus
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from pivma.core import evaluation_service as svc
 from pivma.core.authorization import (
@@ -12,6 +12,7 @@ from pivma.core.authorization import (
     AI_EVALUATIONS_READ,
 )
 from pivma.core.database.models import EvaluationVersion, User
+from pivma.core.errors import api_error, domain_error
 from pivma.core.listing import (
     PageQuery,
     PerPageQuery,
@@ -72,7 +73,7 @@ def _raise_http(exc: Exception) -> None:
         status = HTTPStatus.UNPROCESSABLE_ENTITY
     else:  # pragma: no cover - defensive
         raise exc
-    raise HTTPException(status_code=status, detail=str(exc)) from exc
+    raise domain_error(status, exc) from exc
 
 
 def _version_summary(version: EvaluationVersion) -> EvaluationVersionSummary:
@@ -242,9 +243,10 @@ async def suggest_criteria(
             target_type=body.target_type,
         )
     except Exception as exc:  # noqa: BLE001 - provider failure -> 503
-        raise HTTPException(
-            status_code=HTTPStatus.SERVICE_UNAVAILABLE,
-            detail='Serviço de IA indisponível.',
+        raise api_error(
+            HTTPStatus.SERVICE_UNAVAILABLE,
+            'ai_unavailable',
+            'Serviço de IA indisponível.',
         ) from exc
     return SuggestCriteriaResponse(suggestions=suggestions)
 
@@ -440,9 +442,10 @@ async def test_version(  # noqa: PLR0913, PLR0917
     except (NotFoundError, ConflictError) as exc:
         _raise_http(exc)
     except Exception as exc:  # noqa: BLE001 - provider failure -> 503
-        raise HTTPException(
-            status_code=HTTPStatus.SERVICE_UNAVAILABLE,
-            detail='Serviço de IA indisponível.',
+        raise api_error(
+            HTTPStatus.SERVICE_UNAVAILABLE,
+            'ai_unavailable',
+            'Serviço de IA indisponível.',
         ) from exc
 
 

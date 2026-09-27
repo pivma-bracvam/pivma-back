@@ -83,6 +83,37 @@ class TemplateRef(BaseModel):
     version: int = Field(description='Versão do template usada no processo')
 
 
+# ==========================================
+# ERROS (Spec 034)
+# ==========================================
+
+
+class FieldError(BaseModel):
+    location: Literal['body', 'query', 'path', 'header', 'cookie'] = Field(
+        description='Onde está o campo: corpo, consulta, caminho, cabeçalho'
+    )
+    field: str = Field(
+        description='Caminho do campo separado por ponto; vazio para o corpo'
+    )
+    code: str = Field(description='Tipo do problema (ex.: missing)')
+    message: str = Field(description='Mensagem em português')
+
+
+class ErrorDetail(BaseModel):
+    """Erro no formato único. Códigos específicos podem trazer contexto."""
+
+    code: str = Field(description='Código estável do erro, em inglês')
+    message: str = Field(description='Mensagem em português')
+    fields: list[FieldError] | None = Field(
+        None, description='Campos com problema (só em erros de validação)'
+    )
+    model_config = ConfigDict(extra='allow')
+
+
+class ErrorResponse(BaseModel):
+    detail: ErrorDetail = Field(description='Erro da requisição')
+
+
 class UserSchema(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
@@ -112,7 +143,7 @@ class UserSchema(BaseModel):
     @classmethod
     def reject_password_whitespace(cls, value):
         if any(character.isspace() for character in value):
-            raise ValueError('Invalid password')
+            raise ValueError('Senha inválida.')
         return value
 
 
@@ -155,17 +186,17 @@ class UserUpdate(BaseModel):
     @classmethod
     def reject_password_whitespace(cls, value):
         if any(character.isspace() for character in value):
-            raise ValueError('Invalid password')
+            raise ValueError('Senha inválida.')
         return value
 
     @model_validator(mode='after')
     def require_update_field(self):
         if not self.model_fields_set:
-            raise ValueError('At least one field is required')
+            raise ValueError('Informe ao menos um campo.')
         if any(
             getattr(self, field) is None for field in self.model_fields_set
         ):
-            raise ValueError('Update fields cannot be null')
+            raise ValueError('Campos de atualização não podem ser nulos.')
         return self
 
 
@@ -238,7 +269,7 @@ class ProfileCreate(BaseModel):
     @classmethod
     def unique_permission_codes(cls, value):
         if len(value) != len(set(value)):
-            raise ValueError('permission_codes must be unique')
+            raise ValueError('As permissões não podem se repetir.')
         return value
 
 
@@ -253,12 +284,12 @@ class ProfileUpdate(BaseModel):
     @classmethod
     def unique_permission_codes(cls, value):
         if value is not None and len(value) != len(set(value)):
-            raise ValueError('permission_codes must be unique')
+            raise ValueError('As permissões não podem se repetir.')
         return value
 
     def model_post_init(self, __context) -> None:
         if not self.model_fields_set:
-            raise ValueError('At least one field is required')
+            raise ValueError('Informe ao menos um campo.')
 
 
 class ProfilePublic(BaseModel):
@@ -853,9 +884,11 @@ class ParticipantAssignmentCreate(BaseModel):
         if role is None:
             return value
         if role in LABORATORY_ROLE_KEYS and value is None:
-            raise ValueError('laboratory_id is required for laboratory roles')
+            raise ValueError(
+                'Informe o laboratório para cargos de laboratório.'
+            )
         if role not in LABORATORY_ROLE_KEYS and value is not None:
-            raise ValueError('laboratory_id is not allowed for this role')
+            raise ValueError('Este cargo não aceita laboratório.')
         return value
 
 
@@ -935,9 +968,11 @@ class InviteCreate(BaseModel):
         if role is None:
             return value
         if role in LABORATORY_ROLE_KEYS and value is None:
-            raise ValueError('laboratory_id is required for laboratory roles')
+            raise ValueError(
+                'Informe o laboratório para cargos de laboratório.'
+            )
         if role not in LABORATORY_ROLE_KEYS and value is not None:
-            raise ValueError('laboratory_id is not allowed for this role')
+            raise ValueError('Este cargo não aceita laboratório.')
         return value
 
 

@@ -723,7 +723,12 @@ async def test_owner_forbidden_response_matches_for_foreign_and_unknown(
         response = declare_conflict(client, process.id, uuid4(), True)
 
     assert response.status_code == HTTPStatus.FORBIDDEN
-    assert response.json() == {'detail': 'Forbidden'}
+    assert response.json() == {
+        'detail': {
+            'code': 'forbidden',
+            'message': 'Sem permissão para esta ação.',
+        }
+    }
 
 
 # --- A-A: auditoria das mutações ---

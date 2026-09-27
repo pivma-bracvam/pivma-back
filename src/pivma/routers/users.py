@@ -2,7 +2,7 @@ from http import HTTPStatus
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Query, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -16,6 +16,7 @@ from pivma.core.authorization import (
 )
 from pivma.core.database import get_session
 from pivma.core.database.models import AccessProfile, User, UserAccessProfile
+from pivma.core.errors import api_error
 from pivma.core.listing import (
     PageQuery,
     PerPageQuery,
@@ -51,8 +52,8 @@ async def find_conflict(
     exclude_user_id: UUID | None = None,
 ):
     for column, value, message in (
-        (User.username, user.username, 'Username already exists'),
-        (User.email, user.email, 'Email already exists'),
+        (User.username, user.username, 'Nome de usuário já em uso.'),
+        (User.email, user.email, 'E-mail já em uso.'),
     ):
         if value is None:
             continue
@@ -190,10 +191,7 @@ async def list_users(  # noqa: PLR0913, PLR0917
 async def create_user(user: UserSchema, session: Session):
     conflict = await find_conflict(session, user)
     if conflict:
-        raise HTTPException(
-            status_code=HTTPStatus.CONFLICT,
-            detail=conflict,
-        )
+        raise api_error(HTTPStatus.CONFLICT, 'duplicate', conflict)
 
     try:
         password_hash = await run_in_threadpool(hash_password, user.password)
@@ -202,19 +200,20 @@ async def create_user(user: UserSchema, session: Session):
         await session.rollback()
         conflict = await find_conflict(session, user)
         if conflict:
-            raise HTTPException(
-                status_code=HTTPStatus.CONFLICT,
-                detail=conflict,
+            raise api_error(
+                HTTPStatus.CONFLICT, 'duplicate', conflict
             ) from None
-        raise HTTPException(
-            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-            detail='Internal server error',
+        raise api_error(
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+            'internal_error',
+            'Erro interno do servidor.',
         ) from None
     except Exception:
         await session.rollback()
-        raise HTTPException(
-            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-            detail='Internal server error',
+        raise api_error(
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+            'internal_error',
+            'Erro interno do servidor.',
         ) from None
 
     return db_user
@@ -253,15 +252,12 @@ async def update_user(
 ):
     item = await session.get(User, user_id)
     if item is None:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='User not found'
+        raise api_error(
+            HTTPStatus.NOT_FOUND, 'not_found', 'Usuário não encontrado.'
         )
     conflict = await find_conflict(session, payload, exclude_user_id=item.id)
     if conflict:
-        raise HTTPException(
-            status_code=HTTPStatus.CONFLICT,
-            detail=conflict,
-        )
+        raise api_error(HTTPStatus.CONFLICT, 'duplicate', conflict)
 
     try:
         changes = await prepare_user_changes(payload)
@@ -276,19 +272,20 @@ async def update_user(
             session, payload, exclude_user_id=item.id
         )
         if conflict:
-            raise HTTPException(
-                status_code=HTTPStatus.CONFLICT,
-                detail=conflict,
+            raise api_error(
+                HTTPStatus.CONFLICT, 'duplicate', conflict
             ) from None
-        raise HTTPException(
-            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-            detail='Internal server error',
+        raise api_error(
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+            'internal_error',
+            'Erro interno do servidor.',
         ) from None
     except Exception:
         await session.rollback()
-        raise HTTPException(
-            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-            detail='Internal server error',
+        raise api_error(
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+            'internal_error',
+            'Erro interno do servidor.',
         ) from None
 
     return item
@@ -331,13 +328,14 @@ async def deactivate_user(
         select(User).where(User.id == user_id).with_for_update()
     )
     if item is None:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='User not found'
+        raise api_error(
+            HTTPStatus.NOT_FOUND, 'not_found', 'Usuário não encontrado.'
         )
     if item.id == actor.id:
-        raise HTTPException(
-            status_code=HTTPStatus.CONFLICT,
-            detail='Cannot deactivate yourself',
+        raise api_error(
+            HTTPStatus.CONFLICT,
+            'self_deactivation',
+            'Não é possível desativar a própria conta.',
         )
 
     item.set_deletion_audit(actor.id)
@@ -346,8 +344,8 @@ async def deactivate_user(
         await ensure_administrator_remains(session)
     except ValueError as exc:
         await session.rollback()
-        raise HTTPException(
-            status_code=HTTPStatus.CONFLICT, detail=str(exc)
+        raise api_error(
+            HTTPStatus.CONFLICT, 'last_administrator', str(exc)
         ) from exc
 
     await session.commit()

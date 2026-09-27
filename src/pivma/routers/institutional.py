@@ -19,6 +19,7 @@ from pivma.core.database.models import (
     User,
     UserInstitutionalAffiliation,
 )
+from pivma.core.errors import api_error
 from pivma.core.listing import (
     PageQuery,
     PerPageQuery,
@@ -64,11 +65,15 @@ AffiliationManager = Annotated[
 
 
 def not_found(detail: str) -> HTTPException:
-    return HTTPException(status_code=HTTPStatus.NOT_FOUND, detail=detail)
+    return api_error(HTTPStatus.NOT_FOUND, 'not_found', detail)
 
 
-def conflict(detail: str) -> HTTPException:
-    return HTTPException(status_code=HTTPStatus.CONFLICT, detail=detail)
+def conflict(detail: str, code: str = 'conflict') -> HTTPException:
+    return api_error(HTTPStatus.CONFLICT, code, detail)
+
+
+def inactive(detail: str) -> HTTPException:
+    return conflict(detail, 'inactive_entity')
 
 
 async def commit_or_conflict(session: Session, detail: str) -> None:
@@ -76,7 +81,7 @@ async def commit_or_conflict(session: Session, detail: str) -> None:
         await session.commit()
     except IntegrityError:
         await session.rollback()
-        raise conflict(detail) from None
+        raise conflict(detail, 'duplicate') from None
 
 
 async def flush_or_conflict(session: Session, detail: str) -> None:
@@ -84,7 +89,7 @@ async def flush_or_conflict(session: Session, detail: str) -> None:
         await session.flush()
     except IntegrityError:
         await session.rollback()
-        raise conflict(detail) from None
+        raise conflict(detail, 'duplicate') from None
 
 
 def institution_public(item: Institution) -> InstitutionPublic:
@@ -141,7 +146,7 @@ async def get_institution(
         execution_options={'skip_soft_delete_filter': True},
     )
     if item is None:
-        raise not_found('Institution not found')
+        raise not_found('Instituição não encontrada.')
     return item
 
 
@@ -152,7 +157,7 @@ async def get_laboratory(session: Session, laboratory_id: UUID) -> Laboratory:
         execution_options={'skip_soft_delete_filter': True},
     )
     if item is None:
-        raise not_found('Laboratory not found')
+        raise not_found('Laboratório não encontrado.')
     return item
 
 
@@ -233,11 +238,15 @@ async def create_institution(
     item = Institution(name=payload.name)
     item.set_creation_audit(actor.id)
     session.add(item)
-    await flush_or_conflict(session, 'Institution name already exists')
+    await flush_or_conflict(
+        session, 'Já existe uma instituição com este nome.'
+    )
     record_change(
         session, 'institution.created', 'institution', item.id, actor.id
     )
-    await commit_or_conflict(session, 'Institution name already exists')
+    await commit_or_conflict(
+        session, 'Já existe uma instituição com este nome.'
+    )
     await session.refresh(item)
     return institution_public(item)
 
@@ -261,14 +270,18 @@ async def update_institution(
 ):
     item = await get_institution(session, institution_id)
     if item.deleted_at is not None:
-        raise conflict('Institution is inactive')
+        raise inactive('Instituição inativa.')
     item.name = payload.name
     item.set_update_audit(actor.id)
-    await flush_or_conflict(session, 'Institution name already exists')
+    await flush_or_conflict(
+        session, 'Já existe uma instituição com este nome.'
+    )
     record_change(
         session, 'institution.updated', 'institution', item.id, actor.id
     )
-    await commit_or_conflict(session, 'Institution name already exists')
+    await commit_or_conflict(
+        session, 'Já existe uma instituição com este nome.'
+    )
     await session.refresh(item)
     return institution_public(item)
 
@@ -284,7 +297,7 @@ async def deactivate_institution(
 ) -> Response:
     item = await get_institution(session, institution_id)
     if item.deleted_at is not None:
-        raise conflict('Institution is inactive')
+        raise inactive('Instituição inativa.')
     item.set_deletion_audit(actor.id)
     record_change(
         session, 'institution.deactivated', 'institution', item.id, actor.id
@@ -343,15 +356,17 @@ async def create_laboratory(
 ):
     institution = await get_institution(session, payload.institution_id)
     if institution.deleted_at is not None:
-        raise conflict('Institution is inactive')
+        raise inactive('Instituição inativa.')
     item = Laboratory(institution_id=institution.id, name=payload.name)
     item.set_creation_audit(actor.id)
     session.add(item)
-    await flush_or_conflict(session, 'Laboratory name already exists')
+    await flush_or_conflict(session, 'Já existe um laboratório com este nome.')
     record_change(
         session, 'laboratory.created', 'laboratory', item.id, actor.id
     )
-    await commit_or_conflict(session, 'Laboratory name already exists')
+    await commit_or_conflict(
+        session, 'Já existe um laboratório com este nome.'
+    )
     await session.refresh(item)
     return laboratory_public(
         item, await get_institution(session, item.institution_id)
@@ -376,14 +391,16 @@ async def update_laboratory(
 ):
     item = await get_laboratory(session, laboratory_id)
     if item.deleted_at is not None:
-        raise conflict('Laboratory is inactive')
+        raise inactive('Laboratório inativo.')
     item.name = payload.name
     item.set_update_audit(actor.id)
-    await flush_or_conflict(session, 'Laboratory name already exists')
+    await flush_or_conflict(session, 'Já existe um laboratório com este nome.')
     record_change(
         session, 'laboratory.updated', 'laboratory', item.id, actor.id
     )
-    await commit_or_conflict(session, 'Laboratory name already exists')
+    await commit_or_conflict(
+        session, 'Já existe um laboratório com este nome.'
+    )
     await session.refresh(item)
     return laboratory_public(
         item, await get_institution(session, item.institution_id)
@@ -401,7 +418,7 @@ async def deactivate_laboratory(
 ) -> Response:
     item = await get_laboratory(session, laboratory_id)
     if item.deleted_at is not None:
-        raise conflict('Laboratory is inactive')
+        raise inactive('Laboratório inativo.')
     item.set_deletion_audit(actor.id)
     record_change(
         session, 'laboratory.deactivated', 'laboratory', item.id, actor.id
@@ -421,7 +438,7 @@ async def list_user_affiliations(
     per_page: PerPageQuery = 20,
 ):
     if await session.get(User, user_id) is None:
-        raise not_found('User not found')
+        raise not_found('Usuário não encontrado.')
     items, total = await paginate_query(
         session,
         select(UserInstitutionalAffiliation).where(
@@ -456,19 +473,21 @@ async def create_affiliation(
 ):
     user = await session.get(User, user_id)
     if user is None:
-        raise not_found('User not found')
+        raise not_found('Usuário não encontrado.')
     if user.deleted_at is not None:
-        raise conflict('User is inactive')
+        raise inactive('Usuário inativo.')
     institution = await get_institution(session, payload.institution_id)
     if institution.deleted_at is not None:
-        raise conflict('Institution is inactive')
+        raise inactive('Instituição inativa.')
     laboratory = None
     if payload.laboratory_id is not None:
         laboratory = await get_laboratory(session, payload.laboratory_id)
         if laboratory.deleted_at is not None:
-            raise conflict('Laboratory is inactive')
+            raise inactive('Laboratório inativo.')
         if laboratory.institution_id != institution.id:
-            raise conflict('Laboratory does not belong to institution')
+            raise conflict(
+                'O laboratório não pertence à instituição informada.'
+            )
     item = UserInstitutionalAffiliation(
         user_id=user.id,
         institution_id=institution.id,
@@ -476,11 +495,11 @@ async def create_affiliation(
     )
     item.set_creation_audit(actor.id)
     session.add(item)
-    await flush_or_conflict(session, 'Active affiliation already exists')
+    await flush_or_conflict(session, 'O usuário já tem esta afiliação ativa.')
     record_change(
         session, 'affiliation.created', 'affiliation', item.id, actor.id
     )
-    await commit_or_conflict(session, 'Active affiliation already exists')
+    await commit_or_conflict(session, 'O usuário já tem esta afiliação ativa.')
     await session.refresh(item)
     return await affiliation_public(session, item)
 
@@ -503,9 +522,9 @@ async def deactivate_affiliation(
         )
     )
     if item is None:
-        raise not_found('Affiliation not found')
+        raise not_found('Afiliação não encontrada.')
     if item.deleted_at is not None:
-        raise conflict('Affiliation is inactive')
+        raise inactive('Afiliação inativa.')
     item.set_deletion_audit(actor.id)
     record_change(
         session, 'affiliation.deactivated', 'affiliation', item.id, actor.id

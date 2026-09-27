@@ -132,7 +132,12 @@ def test_login_rejects_incorrect_password_without_secret(client, user):
     response = login(client, user.username, 'Incorrect-Passphrase-2026')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
-    assert response.json() == {'detail': 'Invalid credentials'}
+    assert response.json() == {
+        'detail': {
+            'code': 'invalid_credentials',
+            'message': 'Usuário ou senha inválidos.',
+        }
+    }
     assert 'Incorrect-Passphrase-2026' not in response.text
     assert 'access_token' not in client.cookies
 
@@ -141,7 +146,12 @@ def test_login_rejects_unknown_identifier_with_same_response(client):
     response = login(client, 'missing@example.com')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
-    assert response.json() == {'detail': 'Invalid credentials'}
+    assert response.json() == {
+        'detail': {
+            'code': 'invalid_credentials',
+            'message': 'Usuário ou senha inválidos.',
+        }
+    }
     assert 'access_token' not in client.cookies
 
 
@@ -149,7 +159,12 @@ def test_login_rejects_deleted_user_with_same_response(client, deleted_user):
     response = login(client, deleted_user.username)
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
-    assert response.json() == {'detail': 'Invalid credentials'}
+    assert response.json() == {
+        'detail': {
+            'code': 'invalid_credentials',
+            'message': 'Usuário ou senha inválidos.',
+        }
+    }
     assert 'access_token' not in client.cookies
 
 
@@ -157,7 +172,12 @@ def test_me_rejects_missing_cookie(client):
     response = client.get('/auth/me')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
-    assert response.json() == {'detail': 'Not authenticated'}
+    assert response.json() == {
+        'detail': {
+            'code': 'not_authenticated',
+            'message': 'Sessão ausente ou expirada.',
+        }
+    }
 
 
 def test_me_rejects_tampered_token(client, user):
@@ -170,7 +190,12 @@ def test_me_rejects_tampered_token(client, user):
     response = client.get('/auth/me')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
-    assert response.json() == {'detail': 'Not authenticated'}
+    assert response.json() == {
+        'detail': {
+            'code': 'not_authenticated',
+            'message': 'Sessão ausente ou expirada.',
+        }
+    }
 
 
 def test_me_rejects_expired_token(client, user):
@@ -184,7 +209,12 @@ def test_me_rejects_expired_token(client, user):
     response = client.get('/auth/me')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
-    assert response.json() == {'detail': 'Not authenticated'}
+    assert response.json() == {
+        'detail': {
+            'code': 'not_authenticated',
+            'message': 'Sessão ausente ou expirada.',
+        }
+    }
 
 
 def test_me_rejects_user_deleted_after_login(client, user, session):
@@ -195,7 +225,12 @@ def test_me_rejects_user_deleted_after_login(client, user, session):
     response = client.get('/auth/me')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
-    assert response.json() == {'detail': 'Not authenticated'}
+    assert response.json() == {
+        'detail': {
+            'code': 'not_authenticated',
+            'message': 'Sessão ausente ou expirada.',
+        }
+    }
 
 
 def test_login_sets_secure_cookie_for_eight_hours(client, user):
@@ -234,7 +269,12 @@ def test_logout_rejects_missing_origin_without_removing_cookie(client, user):
     response = client.post('/auth/logout')
 
     assert response.status_code == HTTPStatus.FORBIDDEN
-    assert response.json() == {'detail': 'Invalid origin'}
+    assert response.json() == {
+        'detail': {
+            'code': 'invalid_origin',
+            'message': 'Origem da requisição não confiável.',
+        }
+    }
     assert 'access_token' in client.cookies
 
 
@@ -247,7 +287,12 @@ def test_logout_rejects_untrusted_origin_without_removing_cookie(client, user):
     )
 
     assert response.status_code == HTTPStatus.FORBIDDEN
-    assert response.json() == {'detail': 'Invalid origin'}
+    assert response.json() == {
+        'detail': {
+            'code': 'invalid_origin',
+            'message': 'Origem da requisição não confiável.',
+        }
+    }
     assert 'access_token' in client.cookies
 
 
@@ -258,7 +303,12 @@ def test_logout_requires_authentication(client):
     )
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
-    assert response.json() == {'detail': 'Not authenticated'}
+    assert response.json() == {
+        'detail': {
+            'code': 'not_authenticated',
+            'message': 'Sessão ausente ou expirada.',
+        }
+    }
 
 
 def test_cors_allows_configured_origin_with_credentials(client):

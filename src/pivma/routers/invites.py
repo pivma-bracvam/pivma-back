@@ -12,6 +12,7 @@ from http import HTTPStatus
 from fastapi import APIRouter, HTTPException
 
 from pivma.core.database.models import ProcessInstance
+from pivma.core.errors import api_error
 from pivma.core.invite_service import (
     accept_invite,
     get_invite_by_token,
@@ -27,8 +28,8 @@ router = APIRouter(prefix='/invites', tags=['Role Assignment Invites'])
 
 
 def _not_found() -> HTTPException:
-    return HTTPException(
-        status_code=HTTPStatus.NOT_FOUND, detail='Convite não encontrado.'
+    return api_error(
+        HTTPStatus.NOT_FOUND, 'not_found', 'Convite não encontrado.'
     )
 
 
@@ -73,9 +74,10 @@ async def accept_invite_endpoint(
     # verificado aqui (não em invite_service.accept_invite) porque é 403,
     # não 409, e current_user já está disponível neste nível.
     if current_user.email.lower() != invite.email.lower():
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN,
-            detail='O e-mail autenticado não corresponde ao convite.',
+        raise api_error(
+            HTTPStatus.FORBIDDEN,
+            'invite_email_mismatch',
+            'O e-mail autenticado não corresponde ao convite.',
         )
 
     try:
@@ -85,8 +87,8 @@ async def accept_invite_endpoint(
     except NotFoundError as e:
         raise _not_found() from e
     except ConflictError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.CONFLICT, detail=str(e)
+        raise api_error(
+            HTTPStatus.CONFLICT, e.code or 'conflict', str(e)
         ) from e
 
     await session.commit()

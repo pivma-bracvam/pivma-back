@@ -22,6 +22,12 @@ from pivma.core.database.models import (
     FormField,
     FormValue,
 )
+from pivma.core.errors import (
+    api_error,
+    domain_error,
+    form_field_errors,
+    http_error,
+)
 from pivma.core.pre_evaluation_service import run_pre_evaluation
 from pivma.core.process_engine import (
     AccessLevel,
@@ -60,6 +66,18 @@ _ATTACHMENT_ERROR_STATUS = {
     'file_too_large': HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
     'extension_not_allowed': HTTPStatus.UNPROCESSABLE_ENTITY,
 }
+
+
+def _invalid_form_values(error: ValidationError) -> HTTPException:
+    """Erros por campo do formulário dinâmico no formato único (Spec 034)."""
+    if not error.errors:
+        return domain_error(HTTPStatus.UNPROCESSABLE_ENTITY, error)
+    return api_error(
+        HTTPStatus.UNPROCESSABLE_ENTITY,
+        'invalid_form_values',
+        'Há campos do formulário com valores inválidos.',
+        fields=form_field_errors(error.errors),
+    )
 
 
 def _extract_form_field_value(fv: Any, field_type: str) -> Any:  # noqa: PLR0911
@@ -141,9 +159,7 @@ async def get_activity_form(
             session, id, activity_key, current_user.id
         )
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.NOT_FOUND, e) from e
 
     field_map = {f.id: f for f in fields}
     values_dict: dict[str, Any] = {}
@@ -219,23 +235,15 @@ async def save_form_draft(
             user_id=current_user.id,
         )
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.NOT_FOUND, e) from e
     except AuthorizationError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.FORBIDDEN, e) from e
     except ConflictError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.CONFLICT,
-            detail={'code': 'invalid_transition', 'message': str(e)},
+        raise api_error(
+            HTTPStatus.CONFLICT, 'invalid_transition', str(e)
         ) from e
     except ValidationError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
-            detail={'code': 'invalid_form_values', 'errors': e.errors},
-        ) from e
+        raise _invalid_form_values(e) from e
 
     return {
         'message': 'Rascunho salvo com sucesso.',
@@ -265,24 +273,14 @@ async def submit_form(  # noqa: PLR0913, PLR0917
             user_id=current_user.id,
         )
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.NOT_FOUND, e) from e
     except AuthorizationError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.FORBIDDEN, e) from e
     except ValidationError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
-            detail={'code': 'invalid_form_values', 'errors': e.errors}
-            if e.errors
-            else str(e),
-        ) from e
+        raise _invalid_form_values(e) from e
     except ConflictError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.CONFLICT,
-            detail={'code': 'invalid_transition', 'message': str(e)},
+        raise api_error(
+            HTTPStatus.CONFLICT, 'invalid_transition', str(e)
         ) from e
 
     pre_evaluation = None
@@ -321,26 +319,18 @@ async def _load_file_field(  # noqa: PLR0913
             session, process_id, activity_key, user_id, access
         )
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.NOT_FOUND, e) from e
     except AuthorizationError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.FORBIDDEN, e) from e
 
     field = next((f for f in fields if f.field_key == field_key), None)
     if field is None:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Campo não encontrado.'
-        )
+        raise http_error(HTTPStatus.NOT_FOUND, 'Campo não encontrado.')
     if field.field_type != 'file_upload':
-        raise HTTPException(
-            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
-            detail={
-                'code': 'not_a_file_field',
-                'message': 'O campo indicado não aceita anexos.',
-            },
+        raise api_error(
+            HTTPStatus.UNPROCESSABLE_ENTITY,
+            'not_a_file_field',
+            'O campo indicado não aceita anexos.',
         )
     return run, form_inst, field
 
@@ -378,17 +368,14 @@ async def upload_field_attachment(  # noqa: PLR0913, PLR0914, PLR0915, PLR0917
     try:
         await ensure_process_mutable(session, id)
     except ConflictError as exc:
-        raise HTTPException(
-            status_code=HTTPStatus.CONFLICT,
-            detail={'code': 'invalid_transition', 'message': str(exc)},
+        raise api_error(
+            HTTPStatus.CONFLICT, 'invalid_transition', str(exc)
         ) from exc
     if form_inst.is_submitted:
-        raise HTTPException(
-            status_code=HTTPStatus.CONFLICT,
-            detail={
-                'code': 'form_submitted',
-                'message': 'O formulário submetido é imutável.',
-            },
+        raise api_error(
+            HTTPStatus.CONFLICT,
+            'form_submitted',
+            'O formulário submetido é imutável.',
         )
 
     allowed = resolve_allowed_extensions(field, settings)
@@ -507,25 +494,19 @@ async def delete_field_attachment(  # noqa: PLR0913, PLR0917
     try:
         await ensure_process_mutable(session, id)
     except ConflictError as exc:
-        raise HTTPException(
-            status_code=HTTPStatus.CONFLICT,
-            detail={'code': 'invalid_transition', 'message': str(exc)},
+        raise api_error(
+            HTTPStatus.CONFLICT, 'invalid_transition', str(exc)
         ) from exc
     if form_inst.is_submitted:
-        raise HTTPException(
-            status_code=HTTPStatus.CONFLICT,
-            detail={
-                'code': 'form_submitted',
-                'message': 'O formulário submetido é imutável.',
-            },
+        raise api_error(
+            HTTPStatus.CONFLICT,
+            'form_submitted',
+            'O formulário submetido é imutável.',
         )
 
     form_value = await _active_form_value(session, form_inst.id, field.id)
     if form_value is None or form_value.file_attachment_id is None:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail='Campo sem anexo.',
-        )
+        raise http_error(HTTPStatus.NOT_FOUND, 'Campo sem anexo.')
 
     artifact = await session.get(Artifact, form_value.file_attachment_id)
     removed_abspath = None
@@ -580,20 +561,14 @@ async def download_field_attachment(  # noqa: PLR0913, PLR0917
     )
     form_value = await _active_form_value(session, form_inst.id, field.id)
     if form_value is None or form_value.file_attachment_id is None:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Campo sem anexo.'
-        )
+        raise http_error(HTTPStatus.NOT_FOUND, 'Campo sem anexo.')
     artifact = await session.get(Artifact, form_value.file_attachment_id)
     if artifact is None or artifact.deleted_at is not None:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Anexo não encontrado.'
-        )
+        raise http_error(HTTPStatus.NOT_FOUND, 'Anexo não encontrado.')
 
     abspath = attachment_abspath(settings, artifact.file_path or '')
     if not abspath.is_file():
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Anexo não encontrado.'
-        )
+        raise http_error(HTTPStatus.NOT_FOUND, 'Anexo não encontrado.')
 
     meta = artifact.metadata_payload or {}
     return FileResponse(
@@ -608,7 +583,4 @@ def _attachment_http_error(error: AttachmentError) -> HTTPException:
     status = _ATTACHMENT_ERROR_STATUS.get(
         error.code, HTTPStatus.UNPROCESSABLE_ENTITY
     )
-    return HTTPException(
-        status_code=status,
-        detail={'code': error.code, 'message': error.message},
-    )
+    return api_error(status, error.code, error.message)

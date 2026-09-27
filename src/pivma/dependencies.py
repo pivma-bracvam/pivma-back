@@ -13,6 +13,7 @@ from pivma.ai.provider import get_model_provider as _build_model_provider
 from pivma.core.authorization import has_permission
 from pivma.core.database import get_session
 from pivma.core.database.models import User
+from pivma.core.errors import api_error
 from pivma.core.security import decode_access_token
 from pivma.core.settings import Settings, get_settings
 
@@ -33,8 +34,10 @@ access_token_cookie = APIKeyCookie(
 
 
 def not_authenticated() -> HTTPException:
-    return HTTPException(
-        status_code=HTTPStatus.UNAUTHORIZED, detail='Not authenticated'
+    return api_error(
+        HTTPStatus.UNAUTHORIZED,
+        'not_authenticated',
+        'Sessão ausente ou expirada.',
     )
 
 
@@ -72,8 +75,10 @@ async def require_trusted_origin(
     request: Request, settings: SettingsDependency
 ) -> None:
     if request.headers.get('Origin') not in settings.AUTH_ALLOWED_ORIGINS:
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN, detail='Invalid origin'
+        raise api_error(
+            HTTPStatus.FORBIDDEN,
+            'invalid_origin',
+            'Origem da requisição não confiável.',
         )
 
 
@@ -93,8 +98,10 @@ def require_permission(code: str):
                 request.method,
                 request.url.path,
             )
-            raise HTTPException(
-                status_code=HTTPStatus.FORBIDDEN, detail='Forbidden'
+            raise api_error(
+                HTTPStatus.FORBIDDEN,
+                'forbidden',
+                'Sem permissão para esta ação.',
             )
         return user
 
@@ -114,9 +121,10 @@ async def require_admin(
     profiles = await active_profiles_for_user(session, user.id)
     if any(p.system_key == ADMINISTRATOR_SYSTEM_KEY for p in profiles):
         return user
-    raise HTTPException(
-        status_code=HTTPStatus.FORBIDDEN,
-        detail='Acesso restrito a administradores.',
+    raise api_error(
+        HTTPStatus.FORBIDDEN,
+        'admin_only',
+        'Acesso restrito a administradores.',
     )
 
 

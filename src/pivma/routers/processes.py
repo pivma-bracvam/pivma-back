@@ -1,3 +1,4 @@
+import logging
 from copy import deepcopy
 from http import HTTPStatus
 from typing import Any
@@ -23,6 +24,12 @@ from pivma.core.database.models import (
     ProcessTemplateVersion,
 )
 from pivma.core.database.models import User as UserModel
+from pivma.core.errors import (
+    api_error,
+    domain_error,
+    form_field_errors,
+    http_error,
+)
 from pivma.core.listing import (
     PageQuery,
     PerPageQuery,
@@ -72,6 +79,7 @@ from pivma.schemas import (
     UpdateFormTemplateRequest,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix='/processes', tags=['Processes'])
 
 PARTICIPANT_EVENT_TYPES = frozenset({
@@ -208,10 +216,7 @@ async def get_template_detail(key: str, session: Session, _: CurrentUser):
     res = await session.execute(stmt)
     template = res.scalar_one_or_none()
     if not template:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail=f"Template '{key}' não encontrado.",
-        )
+        raise http_error(HTTPStatus.NOT_FOUND, 'Template não encontrado.')
 
     published_versions = sorted(
         [
@@ -223,11 +228,9 @@ async def get_template_detail(key: str, session: Session, _: CurrentUser):
         reverse=True,
     )
     if not published_versions:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail=(
-                f"Nenhuma versão publicada encontrada para o template '{key}'."
-            ),
+        raise http_error(
+            HTTPStatus.NOT_FOUND,
+            'Nenhuma versão publicada encontrada para o template.',
         )
 
     latest = published_versions[0]
@@ -256,9 +259,8 @@ async def get_form_template_detail(
         ProcessTemplate.key == key, ProcessTemplate.deleted_at.is_(None)
     )
     if not (await session.execute(p_stmt)).scalar_one_or_none():
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail=f"Template de processo '{key}' não encontrado.",
+        raise http_error(
+            HTTPStatus.NOT_FOUND, 'Template de processo não encontrado.'
         )
 
     stmt = (
@@ -271,9 +273,8 @@ async def get_form_template_detail(
     )
     form_template = (await session.execute(stmt)).scalar_one_or_none()
     if not form_template:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail=f"Template de formulário '{form_key}' não encontrado.",
+        raise http_error(
+            HTTPStatus.NOT_FOUND, 'Template de formulário não encontrado.'
         )
 
     active_fields = sorted(
@@ -324,9 +325,8 @@ async def update_form_template_definition_endpoint(
     current_user: CurrentUser,
 ):
     if not await can_manage_process_templates(session, current_user.id):
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN,
-            detail='Acesso restrito à equipe de gestão BraCVAM.',
+        raise http_error(
+            HTTPStatus.FORBIDDEN, 'Acesso restrito à equipe de gestão BraCVAM.'
         )
 
     fields_data = [f.model_dump() for f in body.fields]
@@ -341,13 +341,9 @@ async def update_form_template_definition_endpoint(
             description=body.description,
         )
     except NotFoundError as exc:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise domain_error(HTTPStatus.NOT_FOUND, exc) from exc
     except ValidationError as exc:
-        raise HTTPException(
-            status_code=HTTPStatus.UNPROCESSABLE_ENTITY, detail=str(exc)
-        ) from exc
+        raise domain_error(HTTPStatus.UNPROCESSABLE_ENTITY, exc) from exc
 
     active_fields = sorted(
         [f for f in fields if f.deleted_at is None],
@@ -409,11 +405,8 @@ async def create_process(
     res = await session.execute(stmt)
     latest_version = res.scalars().first()
     if not latest_version:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail=(
-                f"Template '{body.template_key}' não encontrado ou inativo."
-            ),
+        raise http_error(
+            HTTPStatus.NOT_FOUND, 'Template não encontrado ou inativo.'
         )
 
     try:
@@ -424,10 +417,13 @@ async def create_process(
             creator_user_id=current_user.id,
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-            detail=f'Erro ao instanciar processo: {e!s}',
-        )
+        # O detalhe vai para o log, nunca para a resposta (Spec 034, R4).
+        logger.exception('process instantiation failed')
+        raise api_error(
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+            'internal_error',
+            'Não foi possível criar o processo.',
+        ) from e
 
     return ProcessInstanceDetail(
         id=process.id,
@@ -463,12 +459,8 @@ async def list_processes(
     if status == STATUS_ARCHIVED and not await has_process_review_access(
         session, current_user.id
     ):
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN,
-            detail={
-                'code': 'forbidden',
-                'message': 'Acesso restrito à plataforma.',
-            },
+        raise api_error(
+            HTTPStatus.FORBIDDEN, 'forbidden', 'Acesso restrito à plataforma.'
         )
     visibility = await process_visibility_clause(session, current_user.id)
     if visibility is not None:
@@ -541,9 +533,7 @@ async def get_process(id: UUID, session: Session, current_user: CurrentUser):
     )
     p = (await session.execute(stmt)).scalar_one_or_none()
     if not p:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Processo não encontrado.'
-        )
+        raise http_error(HTTPStatus.NOT_FOUND, 'Processo não encontrado.')
 
     return ProcessInstanceDetail(
         id=p.id,
@@ -564,19 +554,10 @@ async def get_process(id: UUID, session: Session, current_user: CurrentUser):
 
 def _retirement_http_error(error: Exception) -> HTTPException:
     if isinstance(error, NotFoundError):
-        return HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail={'code': 'not_found', 'message': str(error)},
-        )
+        return api_error(HTTPStatus.NOT_FOUND, 'not_found', str(error))
     if isinstance(error, AuthorizationError):
-        return HTTPException(
-            status_code=HTTPStatus.FORBIDDEN,
-            detail={'code': 'forbidden', 'message': str(error)},
-        )
-    return HTTPException(
-        status_code=HTTPStatus.CONFLICT,
-        detail={'code': 'invalid_transition', 'message': str(error)},
-    )
+        return api_error(HTTPStatus.FORBIDDEN, 'forbidden', str(error))
+    return api_error(HTTPStatus.CONFLICT, 'invalid_transition', str(error))
 
 
 @router.delete(
@@ -621,14 +602,15 @@ def _submission_http_error(error: Exception) -> HTTPException:
     else:
         status = HTTPStatus.UNPROCESSABLE_ENTITY
     if isinstance(error, ValidationError) and error.errors:
-        detail = {'code': 'invalid_submission_values', 'errors': error.errors}
-    elif isinstance(error, ConflictError):
-        detail = {'code': 'invalid_transition', 'message': str(error)}
-    elif isinstance(error, NotFoundError):
-        detail = {'code': 'not_found', 'message': str(error)}
-    else:
-        detail = str(error)
-    return HTTPException(status_code=status, detail=detail)
+        return api_error(
+            status,
+            'invalid_submission_values',
+            'Há campos da submissão com valores inválidos.',
+            fields=form_field_errors(error.errors),
+        )
+    if isinstance(error, ConflictError):
+        return api_error(status, 'invalid_transition', str(error))
+    return domain_error(status, error)
 
 
 @router.put(
@@ -717,9 +699,7 @@ async def list_submission_versions(
             sort=SortApplied(by='returned_at', order='desc'),
         )
     except NotFoundError as exc:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise domain_error(HTTPStatus.NOT_FOUND, exc) from exc
 
 
 @router.get(
@@ -738,9 +718,7 @@ async def get_submission_version(
             session, id, run_number, current_user.id
         )
     except NotFoundError as exc:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise domain_error(HTTPStatus.NOT_FOUND, exc) from exc
 
 
 @router.get(
@@ -763,9 +741,7 @@ async def get_process_timeline(
         p_stmt = p_stmt.where(visibility)
     p = (await session.execute(p_stmt)).scalar_one_or_none()
     if not p:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Processo não encontrado.'
-        )
+        raise http_error(HTTPStatus.NOT_FOUND, 'Processo não encontrado.')
 
     events_stmt = (
         select(AuditEvent)

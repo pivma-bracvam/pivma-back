@@ -46,7 +46,11 @@ from pivma.core.database.models import (
 
 
 class ProcessEngineError(Exception):
-    pass
+    """Erro de domínio; `code` é o código estável da resposta (Spec 034)."""
+
+    def __init__(self, message: str = '', *, code: str | None = None) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class ValidationError(ProcessEngineError):
@@ -55,8 +59,9 @@ class ValidationError(ProcessEngineError):
         message: str,
         *,
         errors: list[dict[str, str]] | None = None,
+        code: str | None = None,
     ) -> None:
-        super().__init__(message)
+        super().__init__(message, code=code)
         self.errors = errors or []
 
 

@@ -3,7 +3,7 @@ from http import HTTPStatus
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 from sqlalchemy import and_, any_, exists, func, or_, select
 from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.orm import aliased, selectinload
@@ -21,6 +21,7 @@ from pivma.core.database.models import (
     Phase,
     Task,
 )
+from pivma.core.errors import http_error
 from pivma.core.listing import build_pagination
 from pivma.core.process_engine import (
     NotFoundError,
@@ -308,17 +309,13 @@ async def get_task_detail(
         stmt = stmt.where(visibility)
     t = (await session.execute(stmt)).scalar_one_or_none()
     if not t:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Tarefa não encontrada.'
-        )
+        raise http_error(HTTPStatus.NOT_FOUND, 'Tarefa não encontrada.')
 
     act = t.activity_run.activity_instance
     try:
         await require_activity_access(session, current_user.id, act, 'view')
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Tarefa não encontrada.'
-        ) from e
+        raise http_error(HTTPStatus.NOT_FOUND, 'Tarefa não encontrada.') from e
     is_blocked = act.status == 'BLOCKED'
 
     return TaskDetail(

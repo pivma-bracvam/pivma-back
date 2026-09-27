@@ -57,7 +57,12 @@ def test_list_users_requires_authentication(client):
     response = client.get('/users')
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
-    assert response.json() == {'detail': 'Not authenticated'}
+    assert response.json() == {
+        'detail': {
+            'code': 'not_authenticated',
+            'message': 'Sessão ausente ou expirada.',
+        }
+    }
     assert 'items' not in response.json()
 
 
@@ -67,7 +72,12 @@ def test_list_users_requires_users_read(client, user):
     response = client.get('/users')
 
     assert response.status_code == HTTPStatus.FORBIDDEN
-    assert response.json() == {'detail': 'Forbidden'}
+    assert response.json() == {
+        'detail': {
+            'code': 'forbidden',
+            'message': 'Sem permissão para esta ação.',
+        }
+    }
     assert 'items' not in response.json()
 
 
@@ -84,7 +94,12 @@ def test_rbac_administrative_permissions_do_not_grant_user_listing(
     response = client.get('/users')
 
     assert response.status_code == HTTPStatus.FORBIDDEN
-    assert response.json() == {'detail': 'Forbidden'}
+    assert response.json() == {
+        'detail': {
+            'code': 'forbidden',
+            'message': 'Sem permissão para esta ação.',
+        }
+    }
 
 
 def test_users_read_allows_user_listing(client, users_read_user):

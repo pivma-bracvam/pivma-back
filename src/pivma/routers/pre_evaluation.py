@@ -7,7 +7,7 @@ retorno (Spec 030, `routers/return_review.py`).
 from http import HTTPStatus
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks
 
 from pivma.core import pre_evaluation_service as svc
 from pivma.core.authorization import (
@@ -15,6 +15,7 @@ from pivma.core.authorization import (
     has_permission,
 )
 from pivma.core.database.models import EvaluationRun
+from pivma.core.errors import domain_error, http_error
 from pivma.core.process_engine import (
     AuthorizationError,
     ConflictError,
@@ -45,9 +46,7 @@ async def _ensure_can_read(
             session, process_id, 'proposal_submission', user_id, 'view'
         )
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.NOT_FOUND, e) from e
 
 
 @router.get('/{id}/pre-evaluation', response_model=PreEvaluationResponse)
@@ -61,9 +60,7 @@ async def get_pre_evaluation(
     try:
         return await svc.get_pre_evaluation(session, id, run_id)
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.NOT_FOUND, e) from e
 
 
 @router.post(
@@ -80,9 +77,9 @@ async def record_feedback(  # noqa: PLR0913, PLR0917
 ):
     del origin
     if not await has_permission(session, current_user.id, TRIAGE_REVIEW):
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN,
-            detail='Apenas o BraCVAM registra feedback da pré-avaliação.',
+        raise http_error(
+            HTTPStatus.FORBIDDEN,
+            'Apenas o BraCVAM registra feedback da pré-avaliação.',
         )
     try:
         recorded = await svc.record_feedback(
@@ -93,13 +90,9 @@ async def record_feedback(  # noqa: PLR0913, PLR0917
             [item.model_dump() for item in body.items],
         )
     except AuthorizationError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.FORBIDDEN, e) from e
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.NOT_FOUND, e) from e
     return ReviewerFeedbackResponse(recorded=recorded)
 
 
@@ -114,14 +107,10 @@ async def retry_pre_evaluation(
     del actor, origin
     run = await session.get(EvaluationRun, run_id)
     if run is None:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Execução não encontrada.'
-        )
+        raise http_error(HTTPStatus.NOT_FOUND, 'Execução não encontrada.')
     try:
         new_run = await svc.retry_run(session, run_id, run.created_by)
     except (ConflictError, AuthorizationError) as e:
-        raise HTTPException(
-            status_code=HTTPStatus.CONFLICT, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.CONFLICT, e) from e
     background_tasks.add_task(svc.run_pre_evaluation, new_run.id)
     return {'new_run_id': str(new_run.id), 'status': new_run.status}
