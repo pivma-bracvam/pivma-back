@@ -251,7 +251,7 @@ consulta o histórico quando o usuário solicita.
 * `tests/integration/migrations/`: Testes de upgrade e downgrade do Alembic.
 * `tests/integration/bootstrap/`: Testes do provisionamento de perfis, permissões e administrador inicial.
 * `tests/integration/ai/`: Testes do pipeline de pré-avaliação com o provedor fake.
-* `tests/integration/journeys/`: Jornadas de ponta a ponta pela API pública, a partir de um deploy novo (bootstrap real, cadastro, login por cookie e troca de usuário).
+* `tests/integration/journeys/`: Jornadas de ponta a ponta pela API pública, agrupadas por etapa do processo (`etapa_1_submissao_triagem/`, `etapa_2_planejamento_preparacao/`). Os helpers comuns (bootstrap de deploy novo, cadastro, login por cookie e troca de usuário) ficam em `journeys/conftest.py`.
 
 ### Padrões Adotados
 

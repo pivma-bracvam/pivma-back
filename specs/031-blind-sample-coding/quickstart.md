@@ -14,7 +14,7 @@ Guia de verificação ponta a ponta. Contrato em
 ```bash
 poetry run pytest tests/unit/core/test_sample_service.py
 poetry run pytest tests/api/routers/test_samples_router.py tests/api/routers/test_samples_access.py
-poetry run pytest tests/integration/journeys/test_sample_definition_journey.py
+poetry run pytest tests/integration/journeys/etapa_2_planejamento_preparacao/test_sample_definition_journey.py
 poetry run pytest tests/integration/migrations/test_blind_sample_migration.py
 poetry run pytest                     # suíte completa, sem regressão
 poetry run ruff check . && poetry run ruff format --check .

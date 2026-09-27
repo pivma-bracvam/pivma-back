@@ -119,7 +119,7 @@ tests/
 ├── api/routers/test_samples_access.py              # matriz de acesso por perfil, isolamento entre processos
 ├── api/routers/test_activity_type_extension.py     # ajuste: templates legados agora têm Fase 2
 ├── integration/bootstrap/test_template_phase_2.py  # Fase 2 idêntica nos 5 templates; versões antigas preservadas
-├── integration/journeys/test_sample_definition_journey.py  # 4 substâncias × 3 laboratórios → 12 códigos
+├── integration/journeys/etapa_2_planejamento_preparacao/test_sample_definition_journey.py  # 4 × 3 → 12 códigos
 └── integration/migrations/test_blind_sample_migration.py   # upgrade/downgrade
 ```
 
