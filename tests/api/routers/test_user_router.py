@@ -335,7 +335,12 @@ def test_create_user_already_exists_username(client, user):
         },
     )
     assert response.status_code == HTTPStatus.CONFLICT
-    assert response.json() == {'detail': 'Username already exists'}
+    assert response.json() == {
+        'detail': {
+            'code': 'duplicate',
+            'message': 'Nome de usuário já em uso.',
+        }
+    }
 
 
 def test_create_user_already_exists_email(client, user):
@@ -349,7 +354,9 @@ def test_create_user_already_exists_email(client, user):
         },
     )
     assert response.status_code == HTTPStatus.CONFLICT
-    assert response.json() == {'detail': 'Email already exists'}
+    assert response.json() == {
+        'detail': {'code': 'duplicate', 'message': 'E-mail já em uso.'}
+    }
 
 
 def test_create_user_rejects_case_insensitive_username(client, user):
@@ -364,7 +371,12 @@ def test_create_user_rejects_case_insensitive_username(client, user):
     )
 
     assert response.status_code == HTTPStatus.CONFLICT
-    assert response.json() == {'detail': 'Username already exists'}
+    assert response.json() == {
+        'detail': {
+            'code': 'duplicate',
+            'message': 'Nome de usuário já em uso.',
+        }
+    }
 
 
 def test_create_user_rejects_case_insensitive_email(client, user):
@@ -379,7 +391,9 @@ def test_create_user_rejects_case_insensitive_email(client, user):
     )
 
     assert response.status_code == HTTPStatus.CONFLICT
-    assert response.json() == {'detail': 'Email already exists'}
+    assert response.json() == {
+        'detail': {'code': 'duplicate', 'message': 'E-mail já em uso.'}
+    }
 
 
 def test_create_user_preserves_username_and_email_case_after_trim(client):
@@ -410,7 +424,12 @@ def test_create_user_reports_username_before_email(client, user):
     )
 
     assert response.status_code == HTTPStatus.CONFLICT
-    assert response.json() == {'detail': 'Username already exists'}
+    assert response.json() == {
+        'detail': {
+            'code': 'duplicate',
+            'message': 'Nome de usuário já em uso.',
+        }
+    }
 
 
 def test_create_user_frees_identifiers_after_deletion(client, deleted_user):
@@ -440,7 +459,16 @@ def test_create_user_sanitizes_password_validation_error(client):
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-    assert response.json() == {'detail': 'Invalid password'}
+    detail = response.json()['detail']
+    assert detail['code'] == 'validation_error'
+    assert detail['fields'] == [
+        {
+            'location': 'body',
+            'field': 'password',
+            'code': 'invalid',
+            'message': 'Senha inválida.',
+        }
+    ]
     assert 'secret value' not in response.text
 
 

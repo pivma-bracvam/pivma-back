@@ -147,7 +147,7 @@ async def create_invite(  # noqa: PLR0913, PLR0917
         if laboratory is None:
             raise NotFoundError('Laboratório não encontrado.')
         if laboratory.deleted_at is not None:
-            raise ConflictError('Laboratório inativo.')
+            raise ConflictError('Laboratório inativo.', code='inactive_entity')
 
     token = generate_invite_token()
     invite = RoleAssignmentInvite(
@@ -168,7 +168,8 @@ async def create_invite(  # noqa: PLR0913, PLR0917
         await session.rollback()
         raise ConflictError(
             'Já existe um convite pendente para este processo, '
-            'papel e e-mail.'
+            'papel e e-mail.',
+            code='duplicate',
         ) from None
 
     session.add(
@@ -217,7 +218,9 @@ async def resend_invite(
 ) -> tuple[RoleAssignmentInvite, str]:
     """Renova token/prazo na mesma linha (FR-012, research.md R2)."""
     if invite.status != PENDING:
-        raise ConflictError('Convite não está mais pendente.')
+        raise ConflictError(
+            'Convite não está mais pendente.', code='invite_not_pending'
+        )
     if await _role_assignment_activity_is_completed(session, invite):
         raise ConflictError(
             'A etapa de atribuição de cargo deste convite já se encerrou.'
@@ -249,7 +252,9 @@ async def revoke_invite(
 ) -> RoleAssignmentInvite:
     """Marca o convite como revogado (FR-013)."""
     if invite.status != PENDING:
-        raise ConflictError('Convite não está mais pendente.')
+        raise ConflictError(
+            'Convite não está mais pendente.', code='invite_not_pending'
+        )
     if await _role_assignment_activity_is_completed(session, invite):
         raise ConflictError(
             'A etapa de atribuição de cargo deste convite já se encerrou.'
@@ -296,9 +301,11 @@ async def accept_invite(
     403 em vez de 409.
     """
     if invite.status != PENDING:
-        raise ConflictError('Convite não está mais pendente.')
+        raise ConflictError(
+            'Convite não está mais pendente.', code='invite_not_pending'
+        )
     if is_expired(invite):
-        raise ConflictError('Convite expirado.')
+        raise ConflictError('Convite expirado.', code='invite_expired')
 
     process = await session.get(ProcessInstance, invite.process_instance_id)
     if process is None:

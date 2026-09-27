@@ -273,7 +273,12 @@ def test_revocation_takes_effect_on_next_request_with_same_cookie(
     client.cookies.set('access_token', target_token)
     denied_response = client.get('/rbac/permissions')
     assert denied_response.status_code == HTTPStatus.FORBIDDEN
-    assert denied_response.json() == {'detail': 'Forbidden'}
+    assert denied_response.json() == {
+        'detail': {
+            'code': 'forbidden',
+            'message': 'Sem permissão para esta ação.',
+        }
+    }
 
 
 def test_inactive_profile_takes_effect_on_next_request_with_same_cookie(

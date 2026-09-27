@@ -16,6 +16,7 @@ from pivma.core.attachment_service import (
     attachment_abspath,
     remove_file_best_effort,
 )
+from pivma.core.errors import api_error, domain_error
 from pivma.core.listing import PageQuery, PerPageQuery, build_pagination
 from pivma.core.process_engine import (
     AuthorizationError,
@@ -49,25 +50,19 @@ def _http_error(exc: Exception) -> HTTPException:
     if isinstance(exc, AttachmentError):
         return _attachment_http_error(exc)
     if isinstance(exc, NotFoundError):
-        return HTTPException(status_code=HTTPStatus.NOT_FOUND, detail=str(exc))
+        return domain_error(HTTPStatus.NOT_FOUND, exc)
     if isinstance(exc, AuthorizationError):
-        return HTTPException(status_code=HTTPStatus.FORBIDDEN, detail=str(exc))
+        return domain_error(HTTPStatus.FORBIDDEN, exc)
     if isinstance(exc, ConflictError):
-        return HTTPException(
-            status_code=HTTPStatus.CONFLICT,
-            detail={
-                'code': getattr(exc, 'code', 'invalid_transition'),
-                'message': str(exc),
-            },
+        return api_error(
+            HTTPStatus.CONFLICT, exc.code or 'invalid_transition', str(exc)
         )
     if isinstance(exc, ValidationError):
-        return HTTPException(
-            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
-            detail={
-                'code': getattr(exc, 'code', 'validation_error'),
-                'message': str(exc),
-                **getattr(exc, 'extra', {}),
-            },
+        return api_error(
+            HTTPStatus.UNPROCESSABLE_ENTITY,
+            exc.code or 'validation_error',
+            str(exc),
+            **getattr(exc, 'extra', {}),
         )
     raise exc
 

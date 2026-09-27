@@ -2,14 +2,12 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.exception_handlers import request_validation_exception_handler
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
 from pivma.core.logging import setup_logging
 from pivma.core.pre_evaluation_service import sweep_stale_runs
 from pivma.core.settings import Settings
+from pivma.errors import install_openapi, register_error_handlers
 from pivma.routers import (
     admin_logs,
     ai_evaluations,
@@ -55,15 +53,8 @@ app.add_middleware(
 )
 
 
-@app.exception_handler(RequestValidationError)
-async def sanitize_password_validation_error(request, exc):
-    if any('password' in error.get('loc', ()) for error in exc.errors()):
-        return JSONResponse(
-            status_code=422,
-            content={'detail': 'Invalid password'},
-        )
-    return await request_validation_exception_handler(request, exc)
-
+register_error_handlers(app)
+install_openapi(app)
 
 app.include_router(users.router)
 app.include_router(auth.router)

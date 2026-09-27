@@ -35,7 +35,12 @@ def test_rbac_routes_require_authentication(client, method, path):
     response = getattr(client, method)(path)
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
-    assert response.json() == {'detail': 'Not authenticated'}
+    assert response.json() == {
+        'detail': {
+            'code': 'not_authenticated',
+            'message': 'Sessão ausente ou expirada.',
+        }
+    }
 
 
 @pytest_asyncio.fixture
@@ -91,8 +96,18 @@ async def test_forbidden_response_does_not_reveal_target_existence(
         HTTPStatus.FORBIDDEN,
     ]
     assert [response.json() for response in responses] == [
-        {'detail': 'Forbidden'},
-        {'detail': 'Forbidden'},
+        {
+            'detail': {
+                'code': 'forbidden',
+                'message': 'Sem permissão para esta ação.',
+            }
+        },
+        {
+            'detail': {
+                'code': 'forbidden',
+                'message': 'Sem permissão para esta ação.',
+            }
+        },
     ]
     assert len([
         record
@@ -273,7 +288,12 @@ async def test_only_permission_denial_emits_operational_rbac_log(
     assert unauthenticated.status_code == HTTPStatus.UNAUTHORIZED
     assert permission_denied.status_code == HTTPStatus.FORBIDDEN
     assert invalid_origin.status_code == HTTPStatus.FORBIDDEN
-    assert invalid_origin.json() == {'detail': 'Invalid origin'}
+    assert invalid_origin.json() == {
+        'detail': {
+            'code': 'invalid_origin',
+            'message': 'Origem da requisição não confiável.',
+        }
+    }
     assert invalid_payload.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert conflict.status_code == HTTPStatus.CONFLICT
 

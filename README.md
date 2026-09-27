@@ -132,12 +132,16 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
   * processo (`process`): `id`, `code`, `title`; etapa (`phase`): `key`, `order`.
 
   Aparecem em designações de participante, convites, laboratórios, afiliações, processos, etiquetas e tarefas. Campos de auditoria (`created_by`, `assigned_by`, `accepted_by` e similares) continuam como identificadores.
-* **Convenções de Erro:**
-* `401 Unauthorized`: Sessão inexistente ou expirada.
-* `403 Forbidden`: Falta de permissão global, concessão de ver sem concessão de editar na atividade, ou conflito de interesse ativo.
-* `404 Not Found`: Recurso inexistente ou sem concessão de ver. Um processo sem atribuição ativa (para quem não é Admin/BraCVAM) e uma atividade sem concessão de ver respondem 404, sem revelar que existem.
-* `409 Conflict`: Violação de unicidade ou regra de negócio (ex.: cadastro duplicado, duplicidade de papel no processo).
-* `422 Unprocessable Entity`: Erro de validação de payload/schema.
+* **Convenções de Erro:** todo erro responde `{"detail": {"code": ..., "message": ...}}`. O `code` é estável, em inglês, e é por ele que o cliente decide o comportamento; a `message` está em português e serve para exibir. Nenhuma resposta repete valores enviados nem detalhes internos. Os erros de validação (`422`) trazem também `fields`, uma entrada por campo com `location` (`body`, `query`, `path`, `header`, `cookie`), `field` (caminho separado por ponto), `code` e `message`. Na senha, o item vem com `code: invalid` e sem a regra.
+  * `400 bad_request` (anexo vazio: `empty_file`).
+  * `401 not_authenticated`: sessão inexistente ou expirada; `invalid_credentials` no login.
+  * `403 forbidden`: falta de permissão global, concessão de ver sem concessão de editar na atividade, ou conflito de interesse ativo. Também `invalid_origin` (mutação de origem não confiável), `admin_only` e `invite_email_mismatch`.
+  * `404 not_found`: recurso inexistente ou sem concessão de ver. Um processo sem atribuição ativa (para quem não é Admin/BraCVAM) e uma atividade sem concessão de ver respondem 404, sem revelar que existem.
+  * `405 method_not_allowed`.
+  * `409 conflict`: regra de negócio. Códigos específicos: `duplicate`, `inactive_entity`, `process_closed`, `invalid_transition`, `form_submitted`, `invite_expired`, `invite_not_pending`, `self_deactivation`, `last_administrator`, `duplicate_cas`.
+  * `413 payload_too_large` (anexo acima do limite: `file_too_large`).
+  * `422 validation_error`: validação de entrada, com `fields`. Formulário dinâmico: `invalid_form_values` e `invalid_submission_values`, também com `fields` (`field: values.<chave>`). Outros específicos: `extension_not_allowed`, `not_a_file_field`, `invalid_cas`, `no_substances`, `missing_sds` (com `substance_ids`), `no_laboratories`.
+  * `500 internal_error` e `503 service_unavailable` (`ai_unavailable` quando o provedor de IA falha).
 
 
 

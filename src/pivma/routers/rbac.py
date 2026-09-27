@@ -11,6 +11,7 @@ from pivma.core.authorization import (
     RBAC_ASSIGNMENTS_MANAGE,
     RBAC_PROFILES_MANAGE,
     RBAC_READ,
+    LastAdministratorError,
     active_profile_permissions,
     active_profiles_for_user,
     effective_permission_codes,
@@ -24,6 +25,7 @@ from pivma.core.database.models import (
     User,
     UserAccessProfile,
 )
+from pivma.core.errors import api_error
 from pivma.core.listing import (
     PageQuery,
     PerPageQuery,
@@ -57,8 +59,21 @@ AssignmentManager = Annotated[
 ]
 
 
-def conflict(detail: str) -> HTTPException:
-    return HTTPException(status_code=HTTPStatus.CONFLICT, detail=detail)
+def conflict(detail: str, code: str = 'conflict') -> HTTPException:
+    return api_error(HTTPStatus.CONFLICT, code, detail)
+
+
+def not_found(detail: str) -> HTTPException:
+    return api_error(HTTPStatus.NOT_FOUND, 'not_found', detail)
+
+
+def value_error_conflict(exc: ValueError) -> HTTPException:
+    code = (
+        'last_administrator'
+        if isinstance(exc, LastAdministratorError)
+        else 'conflict'
+    )
+    return conflict(str(exc), code)
 
 
 async def profile_public(
@@ -98,7 +113,9 @@ async def commit_or_conflict(session: Session) -> None:
         await session.commit()
     except IntegrityError as exc:
         await session.rollback()
-        raise conflict('Conflicting active RBAC state') from exc
+        raise conflict(
+            'O estado atual do RBAC conflita com a operação.'
+        ) from exc
 
 
 async def flush_or_conflict(session: Session) -> None:
@@ -106,7 +123,9 @@ async def flush_or_conflict(session: Session) -> None:
         await session.flush()
     except IntegrityError as exc:
         await session.rollback()
-        raise conflict('Conflicting active RBAC state') from exc
+        raise conflict(
+            'O estado atual do RBAC conflita com a operação.'
+        ) from exc
 
 
 @router.get('/permissions', response_model=PermissionListResponse)
@@ -175,7 +194,7 @@ async def create_profile(
         )
     )
     if official is not None:
-        raise conflict('Official profile name is reserved')
+        raise conflict('Nome reservado a um perfil oficial.', 'duplicate')
     profile = AccessProfile(
         name=payload.name, description=payload.description, system_key=None
     )
@@ -188,7 +207,7 @@ async def create_profile(
         )
     except ValueError as exc:
         await session.rollback()
-        raise conflict(str(exc)) from exc
+        raise value_error_conflict(exc) from exc
     session.add(change('profile.created', 'profile', profile.id, actor.id))
     if payload.permission_codes:
         session.add(
@@ -217,14 +236,12 @@ async def update_profile(
         select(AccessProfile).where(AccessProfile.id == profile_id)
     )
     if profile is None:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Profile not found'
-        )
+        raise not_found('Perfil não encontrado.')
     if profile.deleted_at is not None:
-        raise conflict('Profile is inactive')
+        raise conflict('Perfil inativo.', 'inactive_entity')
     if payload.name is not None:
         if profile.system_key is not None:
-            raise conflict('Official profile name cannot change')
+            raise conflict('O nome de um perfil oficial não pode mudar.')
         official = await session.scalar(
             select(AccessProfile.id).where(
                 AccessProfile.system_key.is_not(None),
@@ -232,7 +249,7 @@ async def update_profile(
             )
         )
         if official is not None:
-            raise conflict('Official profile name is reserved')
+            raise conflict('Nome reservado a um perfil oficial.', 'duplicate')
         profile.name = payload.name
     if payload.description is not None:
         profile.description = payload.description
@@ -247,7 +264,7 @@ async def update_profile(
             await ensure_administrator_remains(session)
         except ValueError as exc:
             await session.rollback()
-            raise conflict(str(exc)) from exc
+            raise value_error_conflict(exc) from exc
         session.add(
             change(
                 'profile.permissions_replaced',
@@ -273,20 +290,18 @@ async def deactivate_profile(
         select(AccessProfile).where(AccessProfile.id == profile_id)
     )
     if profile is None:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Profile not found'
-        )
+        raise not_found('Perfil não encontrado.')
     if profile.deleted_at is not None:
-        raise conflict('Profile is inactive')
+        raise conflict('Perfil inativo.', 'inactive_entity')
     if profile.system_key == ADMINISTRATOR_SYSTEM_KEY:
-        raise conflict('Administrator profile cannot be deactivated')
+        raise conflict('O perfil Administrador não pode ser desativado.')
     profile.set_deletion_audit(actor.id)
     await session.flush()
     try:
         await ensure_administrator_remains(session)
     except ValueError as exc:
         await session.rollback()
-        raise conflict(str(exc)) from exc
+        raise value_error_conflict(exc) from exc
     session.add(change('profile.deactivated', 'profile', profile.id, actor.id))
     await commit_or_conflict(session)
     return Response(status_code=HTTPStatus.NO_CONTENT)
@@ -299,9 +314,7 @@ async def get_user_access(user_id: UUID, session: Session, actor: ReadUser):
         select(User).where(User.id == user_id, User.deleted_at.is_(None))
     )
     if user is None:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='User not found'
-        )
+        raise not_found('Usuário não encontrado.')
     profiles = await active_profiles_for_user(session, user_id)
     return UserAccess(
         user_id=user_id,
@@ -333,12 +346,9 @@ async def grant_profile(
         select(AccessProfile).where(AccessProfile.id == profile_id)
     )
     if user is None or profile is None:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail='User or profile not found',
-        )
+        raise not_found('Usuário ou perfil não encontrado.')
     if user.deleted_at is not None or profile.deleted_at is not None:
-        raise conflict('User or profile is inactive')
+        raise conflict('Usuário ou perfil inativo.', 'inactive_entity')
     assignment = UserAccessProfile(user_id=user_id, profile_id=profile_id)
     assignment.set_creation_audit(actor.id)
     session.add(assignment)
@@ -381,16 +391,14 @@ async def revoke_profile(
         .with_for_update()
     )
     if assignment is None:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Assignment not found'
-        )
+        raise not_found('Atribuição não encontrada.')
     assignment.set_deletion_audit(actor.id)
     await session.flush()
     try:
         await ensure_administrator_remains(session)
     except ValueError as exc:
         await session.rollback()
-        raise conflict(str(exc)) from exc
+        raise value_error_conflict(exc) from exc
     session.add(
         change('assignment.revoked', 'assignment', assignment.id, actor.id)
     )

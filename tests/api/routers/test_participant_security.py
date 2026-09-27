@@ -112,7 +112,16 @@ async def test_outsider_receives_same_403_for_known_and_unknown_process(
     known = client.get(f'/processes/{process.id}/participants')
     unknown = client.get(f'/processes/{uuid4()}/participants')
     assert known.status_code == unknown.status_code == HTTPStatus.FORBIDDEN
-    assert known.json() == unknown.json() == {'detail': 'Forbidden'}
+    assert (
+        known.json()
+        == unknown.json()
+        == {
+            'detail': {
+                'code': 'forbidden',
+                'message': 'Sem permissão para esta ação.',
+            }
+        }
+    )
 
 
 @pytest.mark.asyncio
@@ -125,7 +134,16 @@ async def test_outsider_receives_same_403_for_history_known_and_unknown(
     known = client.get(f'/processes/{process.id}/participants/history')
     unknown = client.get(f'/processes/{uuid4()}/participants/history')
     assert known.status_code == unknown.status_code == HTTPStatus.FORBIDDEN
-    assert known.json() == unknown.json() == {'detail': 'Forbidden'}
+    assert (
+        known.json()
+        == unknown.json()
+        == {
+            'detail': {
+                'code': 'forbidden',
+                'message': 'Sem permissão para esta ação.',
+            }
+        }
+    )
 
 
 @pytest.mark.asyncio
@@ -176,7 +194,12 @@ async def test_mutation_without_trusted_origin_returns_403(
         )
 
     assert response.status_code == HTTPStatus.FORBIDDEN
-    assert response.json() == {'detail': 'Invalid origin'}
+    assert response.json() == {
+        'detail': {
+            'code': 'invalid_origin',
+            'message': 'Origem da requisição não confiável.',
+        }
+    }
 
 
 @pytest.mark.asyncio

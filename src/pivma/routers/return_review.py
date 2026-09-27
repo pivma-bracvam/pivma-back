@@ -3,9 +3,10 @@
 from http import HTTPStatus
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from pivma.core import return_review_service as svc
+from pivma.core.errors import api_error, domain_error
 from pivma.core.process_engine import (
     AuthorizationError,
     ConflictError,
@@ -29,9 +30,7 @@ async def get_return_review(
     try:
         return await svc.get_open_return_review(session, id, current_user.id)
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.NOT_FOUND, e) from e
 
 
 @router.post(
@@ -49,19 +48,12 @@ async def decide_return_review(
             session, id, current_user.id, body.choice, body.justification
         )
     except NotFoundError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.NOT_FOUND, e) from e
     except AuthorizationError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.FORBIDDEN, e) from e
     except ConflictError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.CONFLICT,
-            detail={'code': 'invalid_transition', 'message': str(e)},
+        raise api_error(
+            HTTPStatus.CONFLICT, 'invalid_transition', str(e)
         ) from e
     except ValidationError as e:
-        raise HTTPException(
-            status_code=HTTPStatus.UNPROCESSABLE_ENTITY, detail=str(e)
-        ) from e
+        raise domain_error(HTTPStatus.UNPROCESSABLE_ENTITY, e) from e

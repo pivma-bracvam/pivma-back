@@ -161,7 +161,12 @@ def test_mutation_requires_trusted_origin_after_permission_check(
         '/institutional/institutions', json={'name': 'Origin'}
     )
     assert response.status_code == HTTPStatus.FORBIDDEN
-    assert response.json() == {'detail': 'Invalid origin'}
+    assert response.json() == {
+        'detail': {
+            'code': 'invalid_origin',
+            'message': 'Origem da requisição não confiável.',
+        }
+    }
 
 
 @pytest.mark.parametrize(
@@ -187,6 +192,16 @@ async def test_affiliation_manager_cannot_probe_another_users_affiliations(
         HTTPStatus.FORBIDDEN,
     ]
     assert [known.json(), unknown.json()] == [
-        {'detail': 'Forbidden'},
-        {'detail': 'Forbidden'},
+        {
+            'detail': {
+                'code': 'forbidden',
+                'message': 'Sem permissão para esta ação.',
+            }
+        },
+        {
+            'detail': {
+                'code': 'forbidden',
+                'message': 'Sem permissão para esta ação.',
+            }
+        },
     ]

@@ -130,12 +130,18 @@ async def test_update_user_updates_all_editable_fields(
         {
             'field': 'username',
             'value': 'other.user',
-            'detail': 'Username already exists',
+            'detail': {
+                'code': 'duplicate',
+                'message': 'Nome de usuário já em uso.',
+            },
         },
         {
             'field': 'email',
             'value': 'other@example.com',
-            'detail': 'Email already exists',
+            'detail': {
+                'code': 'duplicate',
+                'message': 'E-mail já em uso.',
+            },
         },
     ],
 )

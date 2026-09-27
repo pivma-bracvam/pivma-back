@@ -19,6 +19,11 @@ from pivma.core.database.models import (
     UserInstitutionalAffiliation,
 )
 
+
+class LastAdministratorError(ValueError):
+    """A operação deixaria o sistema sem administrador ativo (Spec 034)."""
+
+
 RBAC_READ = 'rbac.read'
 RBAC_PROFILES_MANAGE = 'rbac.profiles.manage'
 RBAC_ASSIGNMENTS_MANAGE = 'rbac.assignments.manage'
@@ -257,7 +262,7 @@ async def replace_profile_permissions(
         )
     )
     if len(permissions) != len(requested):
-        raise ValueError('Permission not found')
+        raise ValueError('Permissão não encontrada.')
     current = list(
         await session.scalars(
             select(AccessProfilePermission).where(
@@ -315,7 +320,9 @@ async def ensure_administrator_remains(session: AsyncSession) -> None:
         .limit(1)
     )
     if result.first() is None:
-        raise ValueError('At least one administrator must remain')
+        raise LastAdministratorError(
+            'É preciso manter ao menos um administrador ativo.'
+        )
 
 
 # ==========================================

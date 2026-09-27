@@ -202,7 +202,9 @@ async def test_put_requires_all_non_file_fields(client, session):
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-    assert response.json()['detail']['errors'][0]['field_key'] == 'summary'
+    assert response.json()['detail']['fields'][0]['field'] == (
+        'values.summary'
+    )
 
 
 @pytest.mark.asyncio
@@ -217,8 +219,8 @@ async def test_put_rejects_blank_required_field(client, session):
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-    assert response.json()['detail']['errors'][0]['field_key'] == (
-        'method_title'
+    assert response.json()['detail']['fields'][0]['field'] == (
+        'values.method_title'
     )
 
 
@@ -272,7 +274,7 @@ async def test_put_rejects_inline_file_value(client, session):
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert (
-        response.json()['detail']['errors'][0]['code']
+        response.json()['detail']['fields'][0]['code']
         == 'file_upload_uses_attachment_endpoint'
     )
 

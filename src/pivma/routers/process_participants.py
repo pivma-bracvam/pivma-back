@@ -19,6 +19,7 @@ from pivma.core.database.models import (
     ProcessInstance,
     RoleAssignmentInvite,
 )
+from pivma.core.errors import api_error
 from pivma.core.invite_service import (
     create_invite,
     invite_public_kwargs,
@@ -69,15 +70,21 @@ router = APIRouter(prefix='/processes', tags=['Process Participants'])
 
 
 def not_found(detail: str) -> HTTPException:
-    return HTTPException(status_code=HTTPStatus.NOT_FOUND, detail=detail)
+    return api_error(HTTPStatus.NOT_FOUND, 'not_found', detail)
 
 
-def conflict(detail: str) -> HTTPException:
-    return HTTPException(status_code=HTTPStatus.CONFLICT, detail=detail)
+def conflict(detail: str, code: str = 'conflict') -> HTTPException:
+    return api_error(HTTPStatus.CONFLICT, code, detail)
+
+
+def domain_conflict(exc: ConflictError) -> HTTPException:
+    return conflict(str(exc), exc.code or 'conflict')
 
 
 def forbidden() -> HTTPException:
-    return HTTPException(status_code=HTTPStatus.FORBIDDEN, detail='Forbidden')
+    return api_error(
+        HTTPStatus.FORBIDDEN, 'forbidden', 'Sem permissão para esta ação.'
+    )
 
 
 def _assignment_event_context(
@@ -211,9 +218,12 @@ async def create_participant(
     if process is None:
         raise not_found('Processo não encontrado.')
     if process.deleted_at is not None:
-        raise conflict('Processo inativo.')
+        raise conflict('Processo inativo.', 'process_closed')
     if process.status in IMMUTABLE_PROCESS_STATUSES:
-        raise conflict('Processo encerrado não aceita novos participantes.')
+        raise conflict(
+            'Processo encerrado não aceita novos participantes.',
+            'process_closed',
+        )
 
     try:
         assignment = await create_assignment(
@@ -228,7 +238,7 @@ async def create_participant(
     except NotFoundError as e:
         raise not_found(str(e)) from e
     except ConflictError as e:
-        raise conflict(str(e)) from e
+        raise domain_conflict(e) from e
 
     await session.commit()
     await session.refresh(assignment)
@@ -278,7 +288,9 @@ async def revoke_participant(
     if process is None:
         raise not_found('Processo não encontrado.')
     if process.status in IMMUTABLE_PROCESS_STATUSES:
-        raise conflict('Processo encerrado não aceita alterações.')
+        raise conflict(
+            'Processo encerrado não aceita alterações.', 'process_closed'
+        )
     if assignment.revoked_at is not None:
         raise conflict('Designação já revogada.')
 
@@ -324,7 +336,9 @@ async def declare_conflict(
     if process is None:
         raise not_found('Processo não encontrado.')
     if process.status in IMMUTABLE_PROCESS_STATUSES:
-        raise conflict('Processo encerrado não aceita conflitos.')
+        raise conflict(
+            'Processo encerrado não aceita conflitos.', 'process_closed'
+        )
     if assignment.revoked_at is not None:
         raise conflict('Designação revogada.')
 
@@ -479,9 +493,11 @@ async def create_participant_invite(
     if process is None:
         raise not_found('Processo não encontrado.')
     if process.deleted_at is not None:
-        raise conflict('Processo inativo.')
+        raise conflict('Processo inativo.', 'process_closed')
     if process.status in IMMUTABLE_PROCESS_STATUSES:
-        raise conflict('Processo encerrado não aceita novos convites.')
+        raise conflict(
+            'Processo encerrado não aceita novos convites.', 'process_closed'
+        )
 
     try:
         invite, token = await create_invite(
@@ -497,7 +513,7 @@ async def create_participant_invite(
     except NotFoundError as e:
         raise not_found(str(e)) from e
     except ConflictError as e:
-        raise conflict(str(e)) from e
+        raise domain_conflict(e) from e
 
     await session.commit()
     await session.refresh(invite)
@@ -578,7 +594,7 @@ async def resend_participant_invite(
             expiration_hours=settings.INVITE_EXPIRATION_HOURS,
         )
     except ConflictError as e:
-        raise conflict(str(e)) from e
+        raise domain_conflict(e) from e
 
     await session.commit()
     await session.refresh(invite)
@@ -606,7 +622,7 @@ async def revoke_participant_invite(
     try:
         invite = await revoke_invite(session, invite, actor_id=current_user.id)
     except ConflictError as e:
-        raise conflict(str(e)) from e
+        raise domain_conflict(e) from e
 
     process = await session.get(ProcessInstance, process_id)
     if process is not None:
