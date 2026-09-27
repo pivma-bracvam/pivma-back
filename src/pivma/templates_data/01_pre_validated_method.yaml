@@ -2,7 +2,7 @@ process_template:
   key: "pre_validated_method"
   name: "Método Pré-Validado"
   description: "Método 100% novo já desenvolvido, protocolo estabelecido e validação interlaboratorial ainda por ser executada (Candidato à Validação Interlaboratorial / Validation-Ready Method)."
-  version: 2
+  version: 3
   is_active: true
 
 phases:
@@ -44,6 +44,145 @@ phases:
         activity_type: "return_review"
         sla_hours: 168  # 7 dias corridos para o proponente decidir (Spec 030)
         dependencies: []  # aberta por evento (retorno da IA ou da triagem)
+
+  # Fase 2 (Spec 031): cópia da Fase 2 do template 04 (Spec 028) com a
+  # atividade de amostras. Mantenha as oito atribuições idênticas às do
+  # template 04 — `tests/integration/bootstrap/test_template_phase_2.py`
+  # compara os cinco templates.
+  - key: "phase_2_role_assignment"
+    name: "Fase 2: Composição da Governança"
+    order_index: 2
+    activities:
+      - key: "assign_sponsor"
+        name: "Definir o Patrocinador"
+        order_index: 1
+        assigned_role: "proponent"
+        access:
+          edit: ["proponent"]
+          view: []
+        activity_type: "role_assignment"
+        target_role_key: "sponsor"
+        dependencies:
+          - required_activity_key: "triage_evaluation"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_group_manager"
+        name: "Definir os integrantes do Grupo Gestor"
+        order_index: 2
+        assigned_role: "proponent"
+        access:
+          edit: ["proponent"]
+          view: []
+        activity_type: "role_assignment"
+        target_role_key: "group_manager"
+        dependencies:
+          - required_activity_key: "triage_evaluation"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_sample_selection_group"
+        name: "Definir o Grupo de Seleção de Amostras"
+        order_index: 3
+        assigned_role: "group_manager"
+        access:
+          edit: ["group_manager"]
+          view: []
+        activity_type: "role_assignment"
+        target_role_key: "sample_selection_group"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_lead_laboratory"
+        name: "Definir o Laboratório Líder"
+        order_index: 4
+        assigned_role: "group_manager"
+        access:
+          edit: ["group_manager"]
+          view: []
+        activity_type: "role_assignment"
+        target_role_key: "lead_laboratory"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_participating_laboratory"
+        name: "Definir os Laboratórios Participantes"
+        order_index: 5
+        assigned_role: "group_manager"
+        access:
+          edit: ["group_manager"]
+          view: []
+        activity_type: "role_assignment"
+        target_role_key: "participating_laboratory"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_statistician"
+        name: "Definir o Estatístico"
+        order_index: 6
+        assigned_role: "group_manager"
+        access:
+          edit: ["group_manager"]
+          view: []
+        activity_type: "role_assignment"
+        target_role_key: "statistician"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_collaborator"
+        name: "Definir Colaboradores e Observadores"
+        order_index: 7
+        assigned_role: "bracvam"
+        access:
+          edit: ["bracvam"]
+          view: []
+        activity_type: "role_assignment"
+        target_role_key: "collaborator"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_adhoc_evaluator"
+        name: "Definir Especialistas Temáticos (Comitê ADHOC)"
+        order_index: 8
+        assigned_role: "bracvam"
+        access:
+          edit: ["bracvam"]
+          view: []
+        activity_type: "role_assignment"
+        target_role_key: "adhoc_evaluator"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      # Spec 031: cadastro das substâncias, códigos cegos por laboratório e
+      # etiquetas. Só o Grupo de Seleção de Amostras vê e edita o conteúdo;
+      # abre quando o Grupo e os Laboratórios Participantes estão atribuídos.
+      - key: "sample_definition"
+        name: "Definição e Preparação das Amostras"
+        order_index: 9
+        assigned_role: "sample_selection_group"
+        access:
+          edit: ["sample_selection_group"]
+          view: []
+        activity_type: "sample_definition"
+        dependencies:
+          - required_activity_key: "assign_sample_selection_group"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "assign_participating_laboratory"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
 
 forms:
   - key: "submission_pre_validated_v1"

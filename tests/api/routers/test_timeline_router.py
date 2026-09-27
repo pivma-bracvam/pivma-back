@@ -86,6 +86,10 @@ async def test_process_timeline_events_recorded_and_ordered(
         'ACTIVITY_UNBLOCKED',
         'FIELD_REVIEWED',
         'TRIAGE_APPROVED',
+        # Spec 031: a aprovação abre a Fase 2 também no template 1
+        # (Patrocinador e Grupo Gestor).
+        'ACTIVITY_UNBLOCKED',
+        'ACTIVITY_UNBLOCKED',
     ]
 
 

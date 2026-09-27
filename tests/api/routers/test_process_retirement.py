@@ -134,9 +134,11 @@ async def test_admin_deletes_others_process_and_cancels_pending_children(
         .where(Phase.process_instance_id == process)
         .order_by(Phase.order_index)
     )
+    # A primeira atividade da primeira fase: desde a Spec 031 a Fase 2 também
+    # tem uma atividade com `order_index == 1`.
     activity = await session.scalar(
         select(ActivityInstance)
-        .where(ActivityInstance.process_instance_id == process)
+        .where(ActivityInstance.phase_id == phase.id)
         .order_by(ActivityInstance.order_index)
     )
     run = await session.scalar(

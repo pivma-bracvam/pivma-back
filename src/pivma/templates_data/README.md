@@ -58,6 +58,8 @@ Cada atividade declara quais cargos podem vê-la e editá-la. As concessões val
 
 A atividade `submission_return_review` (`activity_type: "return_review"`) existe na fase 1 de todos os templates. Ela não tem dependências nem formulário e nasce bloqueada; o motor a abre por evento, quando a IA ou a triagem devolvem a submissão ao proponente.
 
+A fase 2 (`phase_2_role_assignment`) é igual nos cinco templates: as oito atividades de atribuição de cargo (`activity_type: "role_assignment"`) e a atividade `sample_definition` (`activity_type: "sample_definition"`, Spec 031). Esta só concede edição a `sample_selection_group` e depende de `assign_sample_selection_group` e `assign_participating_laboratory`. Ao mudar uma atribuição, mude nos cinco arquivos; `tests/integration/bootstrap/test_template_phase_2.py` compara as cópias.
+
 A carga dos templates falha, indicando template, atividade e cargo, quando uma atividade não tem nenhum cargo em `edit` ou quando um cargo está fora do vocabulário de cargos (`ACTIVITY_CARGOS` em `pivma.core.authorization`).
 
 ---

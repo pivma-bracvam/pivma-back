@@ -2,7 +2,7 @@ process_template:
   key: "validated_method_dossier"
   name: "Método Validado – Dossiê Submetido"
   description: "Método 100% novo já desenvolvido, protocolo estabelecido e toda validação já concluída – dossiê pronto para revisão por pares e adoção regulatória (Peer-Review Ready)."
-  version: 4
+  version: 5
   is_active: true
 
 phases:
@@ -166,6 +166,25 @@ phases:
         target_role_key: "adhoc_evaluator"
         dependencies:
           - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      # Spec 031: cadastro das substâncias, códigos cegos por laboratório e
+      # etiquetas. Só o Grupo de Seleção de Amostras vê e edita o conteúdo;
+      # abre quando o Grupo e os Laboratórios Participantes estão atribuídos.
+      - key: "sample_definition"
+        name: "Definição e Preparação das Amostras"
+        order_index: 9
+        assigned_role: "sample_selection_group"
+        access:
+          edit: ["sample_selection_group"]
+          view: []
+        activity_type: "sample_definition"
+        dependencies:
+          - required_activity_key: "assign_sample_selection_group"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "assign_participating_laboratory"
             required_status: "COMPLETED"
             condition_type: "ACTIVITY_COMPLETED"
 

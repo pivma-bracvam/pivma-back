@@ -66,7 +66,9 @@ def log_out(client):
 def process_tasks(client, process_id):
     response = client.get('/tasks', params={'process_id': process_id})
     assert response.status_code == HTTPStatus.OK, response.text
-    return {task['assigned_role']: task for task in response.json()}
+    # Por atividade: um cargo pode ter várias tarefas abertas ao mesmo tempo
+    # (ex.: o proponente nas atribuições da Fase 2, Spec 031).
+    return {task['activity_key']: task for task in response.json()}
 
 
 @pytest.fixture
