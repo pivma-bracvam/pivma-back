@@ -53,10 +53,10 @@ async def test_padrao_user_without_assignment_cannot_see_triage_process(
     resp = client.get(f'/processes/{process.id}')
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
-    resp_list = client.get('/processes', params={'size': 100})
+    resp_list = client.get('/processes', params={'per_page': 100})
     assert resp_list.status_code == HTTPStatus.OK
     assert str(process.id) not in {
-        item['id'] for item in resp_list.json()['items']
+        item['id'] for item in resp_list.json()['data']
     }
 
 
@@ -79,10 +79,8 @@ async def test_padrao_user_with_active_assignment_sees_triage_process(
     resp = client.get(f'/processes/{process.id}')
     assert resp.status_code == HTTPStatus.OK
 
-    resp_list = client.get('/processes', params={'size': 100})
-    assert str(process.id) in {
-        item['id'] for item in resp_list.json()['items']
-    }
+    resp_list = client.get('/processes', params={'per_page': 100})
+    assert str(process.id) in {item['id'] for item in resp_list.json()['data']}
 
 
 @pytest.mark.asyncio
@@ -137,7 +135,7 @@ async def test_user_without_assignment_gets_404_on_process(client, session):
         client.get(f'/processes/{process.id}').status_code
         == HTTPStatus.NOT_FOUND
     )
-    items = client.get('/processes', params={'size': 100}).json()['items']
+    items = client.get('/processes', params={'per_page': 100}).json()['data']
     assert str(process.id) not in {item['id'] for item in items}
 
 

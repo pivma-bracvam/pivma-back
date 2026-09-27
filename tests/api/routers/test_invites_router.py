@@ -80,7 +80,7 @@ async def test_authorized_person_creates_invite_and_receives_token(
     assert body['email'] == 'patrocinador@exemplo.org'
 
     list_resp = list_invites(client, process_id)
-    for item in list_resp.json():
+    for item in list_resp.json()['data']:
         assert 'token' not in item
 
 
@@ -171,13 +171,13 @@ async def test_listing_filters_by_per_role_authorization(
     authenticate(client, proponente)
     resp = list_invites(client, process_id)
     assert resp.status_code == HTTPStatus.OK
-    roles_seen = {item['role_key'] for item in resp.json()}
+    roles_seen = {item['role_key'] for item in resp.json()['data']}
     assert roles_seen == {'sponsor'}
 
     # BraCVAM (autorização global) enxerga os dois.
     authenticate(client, bracvam_user)
     resp = list_invites(client, process_id)
-    roles_seen = {item['role_key'] for item in resp.json()}
+    roles_seen = {item['role_key'] for item in resp.json()['data']}
     assert roles_seen == {'sponsor', 'adhoc_evaluator'}
 
 

@@ -105,8 +105,8 @@ async def test_list_filters_by_lifecycle(client, session, bracvam_user):
     _decide(client, closed_pid, 'REJECTED')
 
     items = client.get(
-        '/processes', params={'status': 'CLOSED', 'size': 100}
-    ).json()['items']
+        '/processes', params={'status': 'CLOSED', 'per_page': 100}
+    ).json()['data']
 
     ids = {item['id'] for item in items}
     assert closed_pid in ids
@@ -153,7 +153,7 @@ async def test_no_response_contains_flow_status(client, session, bracvam_user):
     created = _create(client)
     pid = created['id']
     bodies = [created, client.get(f'/processes/{pid}').json()]
-    bodies += client.get('/processes', params={'size': 100}).json()['items']
+    bodies += client.get('/processes', params={'per_page': 100}).json()['data']
     _submit(client, pid)
     bodies.append(client.get(f'/processes/{pid}').json())
     authenticate(client, bracvam_user)

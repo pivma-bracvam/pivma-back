@@ -31,6 +31,7 @@ from pivma.core.database.models import (
     FormTemplate,
     ReviewerFeedback,
 )
+from pivma.core.listing import paginate_query
 from pivma.core.process_engine import (
     FIELD_TARGET_TYPES as _FIELD_TARGET_TYPES,
 )
@@ -169,28 +170,34 @@ async def get_definition_detail(
 
 
 async def list_definitions(
-    session: AsyncSession, *, search: str | None, offset: int, limit: int
-) -> list[dict[str, Any]]:
-    stmt = (
-        select(EvaluationDefinition)
-        .where(EvaluationDefinition.deleted_at.is_(None))
-        .order_by(func.lower(EvaluationDefinition.name))
-        .offset(offset)
-        .limit(limit)
-        .options(
-            selectinload(EvaluationDefinition.versions).selectinload(
-                EvaluationVersion.criteria
-            ),
-            selectinload(EvaluationDefinition.assignments),
-        )
+    session: AsyncSession, *, search: str | None, page: int, per_page: int
+) -> tuple[list[dict[str, Any]], int]:
+    """Página da biblioteca e total, ordenados por nome (Spec 033)."""
+    stmt = select(EvaluationDefinition).where(
+        EvaluationDefinition.deleted_at.is_(None)
     )
     if search:
         stmt = stmt.where(
             EvaluationDefinition.name.ilike(f'%{search.strip()}%')
         )
+    definitions, total = await paginate_query(
+        session,
+        stmt.options(
+            selectinload(EvaluationDefinition.versions).selectinload(
+                EvaluationVersion.criteria
+            ),
+            selectinload(EvaluationDefinition.assignments),
+        ),
+        order_by=(
+            func.lower(EvaluationDefinition.name),
+            EvaluationDefinition.id,
+        ),
+        page=page,
+        per_page=per_page,
+    )
 
     result: list[dict[str, Any]] = []
-    for definition in await session.scalars(stmt):
+    for definition in definitions:
         versions = [v for v in definition.versions if v.deleted_at is None]
         latest = max(versions, key=lambda v: v.version_number, default=None)
         result.append({
@@ -208,7 +215,7 @@ async def list_definitions(
                 if a.deleted_at is None and a.enabled
             ),
         })
-    return result
+    return result, total
 
 
 async def soft_delete_definition(
@@ -527,7 +534,7 @@ async def list_references(
         await session.scalars(
             select(EvaluationReference)
             .where(EvaluationReference.deleted_at.is_(None))
-            .order_by(EvaluationReference.identifier)
+            .order_by(EvaluationReference.identifier, EvaluationReference.id)
         )
     )
 

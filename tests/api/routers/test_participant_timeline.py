@@ -88,7 +88,7 @@ async def test_manager_sees_all_new_participant_events(session, client):
     authenticate(client, manager)
     timeline = client.get(f'/processes/{process_id}/timeline')
     assert timeline.status_code == HTTPStatus.OK
-    event_types = {e['event_type'] for e in timeline.json()['events']}
+    event_types = {e['event_type'] for e in timeline.json()['data']}
     assert 'PARTICIPANT_ASSIGNED' in event_types
 
 
@@ -111,7 +111,7 @@ async def test_non_proponent_participant_cannot_read_submission_timeline(
     timeline = client.get(f'/processes/{process_id}/timeline')
     assert timeline.status_code == HTTPStatus.OK
     assert all(
-        event['activity_run_id'] is None for event in timeline.json()['events']
+        event['activity_run_id'] is None for event in timeline.json()['data']
     )
 
 
@@ -180,6 +180,6 @@ async def test_timeline_orders_tied_events_by_ascending_identifier(
 
     authenticate(client, manager)
     timeline = client.get(f'/processes/{process_id}/timeline')
-    events = timeline.json()['events']
+    events = timeline.json()['data']
     assert events[0]['id'] == str(lower_id_event.id)
     assert events[1]['id'] == str(higher_id_event.id)

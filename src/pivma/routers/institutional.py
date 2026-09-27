@@ -19,6 +19,14 @@ from pivma.core.database.models import (
     User,
     UserInstitutionalAffiliation,
 )
+from pivma.core.listing import (
+    PageQuery,
+    PerPageQuery,
+    build_pagination,
+    paginate_items,
+    paginate_query,
+)
+from pivma.core.references import institution_ref, laboratory_ref, user_refs
 from pivma.dependencies import (
     CurrentUser,
     Session,
@@ -27,22 +35,25 @@ from pivma.dependencies import (
 )
 from pivma.schemas import (
     AffiliationCreate,
+    AffiliationListResponse,
     AffiliationPublic,
-    InstitutionalChangePage,
+    InstitutionalChangeListResponse,
     InstitutionalChangePublic,
     InstitutionCreate,
+    InstitutionListResponse,
     InstitutionPublic,
-    InstitutionSummary,
     InstitutionUpdate,
     LaboratoryCreate,
+    LaboratoryListResponse,
     LaboratoryPublic,
-    LaboratorySummary,
     LaboratoryUpdate,
+    NoFilters,
+    SelfAffiliationListResponse,
     SelfAffiliationPublic,
+    SortApplied,
 )
 
 router = APIRouter(prefix='/institutional', tags=['institutional'])
-MAX_HISTORY_LIMIT = 100
 ReadUser = Annotated[User, Depends(require_permission(INSTITUTIONAL_READ))]
 CatalogManager = Annotated[
     User, Depends(require_permission(INSTITUTIONAL_CATALOGS_MANAGE))
@@ -76,15 +87,9 @@ async def flush_or_conflict(session: Session, detail: str) -> None:
         raise conflict(detail) from None
 
 
-def institution_summary(item: Institution) -> InstitutionSummary:
-    return InstitutionSummary(
-        id=item.id, name=item.name, active=item.deleted_at is None
-    )
-
-
 def institution_public(item: Institution) -> InstitutionPublic:
     return InstitutionPublic(
-        **institution_summary(item).model_dump(),
+        **institution_ref(item).model_dump(),
         created_by=item.created_by,
         created_at=item.created_at,
         updated_by=item.updated_by,
@@ -94,16 +99,14 @@ def institution_public(item: Institution) -> InstitutionPublic:
     )
 
 
-def laboratory_summary(item: Laboratory) -> LaboratorySummary:
-    return LaboratorySummary(
-        id=item.id, name=item.name, active=item.deleted_at is None
-    )
-
-
-def laboratory_public(item: Laboratory) -> LaboratoryPublic:
+def laboratory_public(
+    item: Laboratory, institution: Institution
+) -> LaboratoryPublic:
     return LaboratoryPublic(
-        **laboratory_summary(item).model_dump(),
-        institution_id=item.institution_id,
+        id=item.id,
+        name=item.name,
+        active=item.deleted_at is None,
+        institution=institution_ref(institution),
         created_by=item.created_by,
         created_at=item.created_at,
         updated_by=item.updated_by,
@@ -170,11 +173,20 @@ async def affiliation_public(
         and institution.deleted_at is None
         and (laboratory is None or laboratory.deleted_at is None)
     )
+    laboratory_institution = (
+        institution
+        if laboratory is None or laboratory.institution_id == institution.id
+        else await get_institution(session, laboratory.institution_id)
+    )
     return AffiliationPublic(
         id=item.id,
-        user_id=item.user_id,
-        institution=institution_summary(institution),
-        laboratory=laboratory_summary(laboratory) if laboratory else None,
+        user=(await user_refs(session, [item.user_id]))[item.user_id],
+        institution=institution_ref(institution),
+        laboratory=(
+            laboratory_ref(laboratory, laboratory_institution)
+            if laboratory
+            else None
+        ),
         active=active,
         created_by=item.created_by,
         created_at=item.created_at,
@@ -185,16 +197,26 @@ async def affiliation_public(
     )
 
 
-@router.get('/institutions', response_model=list[InstitutionPublic])
-async def list_institutions(session: Session, _: ReadUser):
-    items = list(
-        await session.scalars(
-            select(Institution).order_by(
-                func.lower(Institution.name), Institution.id
-            )
-        )
+@router.get('/institutions', response_model=InstitutionListResponse)
+async def list_institutions(
+    session: Session,
+    _: ReadUser,
+    page: PageQuery = 1,
+    per_page: PerPageQuery = 20,
+):
+    items, total = await paginate_query(
+        session,
+        select(Institution),
+        order_by=(func.lower(Institution.name), Institution.id),
+        page=page,
+        per_page=per_page,
     )
-    return [institution_public(item) for item in items]
+    return InstitutionListResponse(
+        data=[institution_public(item) for item in items],
+        pagination=build_pagination(page, per_page, total),
+        filters_applied=NoFilters(),
+        sort=SortApplied(by='name', order='asc'),
+    )
 
 
 @router.post(
@@ -271,18 +293,41 @@ async def deactivate_institution(
     return Response(status_code=HTTPStatus.NO_CONTENT)
 
 
-@router.get('/laboratories', response_model=list[LaboratoryPublic])
-async def list_laboratories(session: Session, _: ReadUser):
-    items = list(
-        await session.scalars(
-            select(Laboratory).order_by(
-                Laboratory.institution_id,
-                func.lower(Laboratory.name),
-                Laboratory.id,
-            )
-        )
+@router.get('/laboratories', response_model=LaboratoryListResponse)
+async def list_laboratories(
+    session: Session,
+    _: ReadUser,
+    page: PageQuery = 1,
+    per_page: PerPageQuery = 20,
+):
+    items, total = await paginate_query(
+        session,
+        select(Laboratory),
+        order_by=(
+            Laboratory.institution_id,
+            func.lower(Laboratory.name),
+            Laboratory.id,
+        ),
+        page=page,
+        per_page=per_page,
     )
-    return [laboratory_public(item) for item in items]
+    institutions = {
+        institution.id: institution
+        for institution in await session.scalars(
+            select(Institution)
+            .where(Institution.id.in_({i.institution_id for i in items}))
+            .execution_options(skip_soft_delete_filter=True)
+        )
+    }
+    return LaboratoryListResponse(
+        data=[
+            laboratory_public(item, institutions[item.institution_id])
+            for item in items
+        ],
+        pagination=build_pagination(page, per_page, total),
+        filters_applied=NoFilters(),
+        sort=SortApplied(by='institution', order='asc'),
+    )
 
 
 @router.post(
@@ -308,12 +353,17 @@ async def create_laboratory(
     )
     await commit_or_conflict(session, 'Laboratory name already exists')
     await session.refresh(item)
-    return laboratory_public(item)
+    return laboratory_public(
+        item, await get_institution(session, item.institution_id)
+    )
 
 
 @router.get('/laboratories/{laboratory_id}', response_model=LaboratoryPublic)
 async def read_laboratory(laboratory_id: UUID, session: Session, _: ReadUser):
-    return laboratory_public(await get_laboratory(session, laboratory_id))
+    item = await get_laboratory(session, laboratory_id)
+    return laboratory_public(
+        item, await get_institution(session, item.institution_id)
+    )
 
 
 @router.patch('/laboratories/{laboratory_id}', response_model=LaboratoryPublic)
@@ -335,7 +385,9 @@ async def update_laboratory(
     )
     await commit_or_conflict(session, 'Laboratory name already exists')
     await session.refresh(item)
-    return laboratory_public(item)
+    return laboratory_public(
+        item, await get_institution(session, item.institution_id)
+    )
 
 
 @router.delete(
@@ -359,22 +411,35 @@ async def deactivate_laboratory(
 
 
 @router.get(
-    '/users/{user_id}/affiliations', response_model=list[AffiliationPublic]
+    '/users/{user_id}/affiliations', response_model=AffiliationListResponse
 )
-async def list_user_affiliations(user_id: UUID, session: Session, _: ReadUser):
+async def list_user_affiliations(
+    user_id: UUID,
+    session: Session,
+    _: ReadUser,
+    page: PageQuery = 1,
+    per_page: PerPageQuery = 20,
+):
     if await session.get(User, user_id) is None:
         raise not_found('User not found')
-    items = list(
-        await session.scalars(
-            select(UserInstitutionalAffiliation)
-            .where(UserInstitutionalAffiliation.user_id == user_id)
-            .order_by(
-                UserInstitutionalAffiliation.created_at.desc(),
-                UserInstitutionalAffiliation.id.desc(),
-            )
-        )
+    items, total = await paginate_query(
+        session,
+        select(UserInstitutionalAffiliation).where(
+            UserInstitutionalAffiliation.user_id == user_id
+        ),
+        order_by=(
+            UserInstitutionalAffiliation.created_at.desc(),
+            UserInstitutionalAffiliation.id.desc(),
+        ),
+        page=page,
+        per_page=per_page,
     )
-    return [await affiliation_public(session, item) for item in items]
+    return AffiliationListResponse(
+        data=[await affiliation_public(session, item) for item in items],
+        pagination=build_pagination(page, per_page, total),
+        filters_applied=NoFilters(),
+        sort=SortApplied(by='created_at', order='desc'),
+    )
 
 
 @router.post(
@@ -449,9 +514,20 @@ async def deactivate_affiliation(
     return Response(status_code=HTTPStatus.NO_CONTENT)
 
 
-@router.get('/me/affiliations', response_model=list[SelfAffiliationPublic])
-async def list_my_affiliations(session: Session, user: CurrentUser):
-    items = await active_institutional_affiliations(session, user.id)
+@router.get('/me/affiliations', response_model=SelfAffiliationListResponse)
+async def list_my_affiliations(
+    session: Session,
+    user: CurrentUser,
+    page: PageQuery = 1,
+    per_page: PerPageQuery = 20,
+):
+    # O serviço já filtra e ordena (created_at desc, id desc); a paginação
+    # vem depois do filtro (Spec 033, R2).
+    items, total = paginate_items(
+        await active_institutional_affiliations(session, user.id),
+        page,
+        per_page,
+    )
     response = []
     for item in items:
         public = await affiliation_public(session, item)
@@ -462,36 +538,33 @@ async def list_my_affiliations(session: Session, user: CurrentUser):
                 laboratory=public.laboratory,
             )
         )
-    return response
+    return SelfAffiliationListResponse(
+        data=response,
+        pagination=build_pagination(page, per_page, total),
+        filters_applied=NoFilters(),
+        sort=SortApplied(by='created_at', order='desc'),
+    )
 
 
-@router.get('/changes', response_model=InstitutionalChangePage)
+@router.get('/changes', response_model=InstitutionalChangeListResponse)
 async def list_changes(
     session: Session,
     _: ReadUser,
-    offset: int = 0,
-    limit: int = MAX_HISTORY_LIMIT,
+    page: PageQuery = 1,
+    per_page: PerPageQuery = 20,
 ):
-    if offset < 0 or limit < 1 or limit > MAX_HISTORY_LIMIT:
-        raise HTTPException(
-            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
-            detail='Invalid pagination',
-        )
-    items = list(
-        await session.scalars(
-            select(InstitutionalChange)
-            .order_by(
-                InstitutionalChange.created_at.desc(),
-                InstitutionalChange.id.desc(),
-            )
-            .offset(offset)
-            .limit(limit)
-        )
+    items, total = await paginate_query(
+        session,
+        select(InstitutionalChange),
+        order_by=(
+            InstitutionalChange.created_at.desc(),
+            InstitutionalChange.id.desc(),
+        ),
+        page=page,
+        per_page=per_page,
     )
-    return InstitutionalChangePage(
-        offset=offset,
-        limit=limit,
-        items=[
+    return InstitutionalChangeListResponse(
+        data=[
             InstitutionalChangePublic(
                 id=item.id,
                 action=item.action,
@@ -502,4 +575,7 @@ async def list_changes(
             )
             for item in items
         ],
+        pagination=build_pagination(page, per_page, total),
+        filters_applied=NoFilters(),
+        sort=SortApplied(by='occurred_at', order='desc'),
     )

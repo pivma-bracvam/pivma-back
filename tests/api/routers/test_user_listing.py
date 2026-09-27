@@ -23,7 +23,7 @@ from tests.factories.rbac_factory import (
 )
 from tests.factories.user_factory import UserFactory
 
-DEFAULT_LIMIT = 100
+DEFAULT_PER_PAGE = 20
 PAGE_LIMIT = 2
 
 
@@ -85,7 +85,7 @@ async def persist_assignment(session, user, profile, *, deleted_at=None):
 
 
 def user_ids(response):
-    return [item['id'] for item in response.json()['items']]
+    return [item['id'] for item in response.json()['data']]
 
 
 def test_list_users_defaults_to_first_page_of_active_accounts(
@@ -96,9 +96,9 @@ def test_list_users_defaults_to_first_page_of_active_accounts(
     response = client.get('/users')
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json()['offset'] == 0
-    assert response.json()['limit'] == DEFAULT_LIMIT
-    assert response.json()['items']
+    assert response.json()['pagination']['page'] == 1
+    assert response.json()['pagination']['per_page'] == DEFAULT_PER_PAGE
+    assert response.json()['data']
 
 
 @pytest.mark.parametrize('active_query', [None, 'true'])
@@ -112,7 +112,7 @@ def test_list_users_defaults_to_active_accounts(
 
     assert response.status_code == HTTPStatus.OK
     assert str(deleted_user.id) not in user_ids(response)
-    assert all(item['active'] for item in response.json()['items'])
+    assert all(item['active'] for item in response.json()['data'])
 
 
 @pytest.mark.asyncio
@@ -250,11 +250,20 @@ def test_list_users_without_match_returns_empty_page(client, listing_reader):
     authenticate(client, listing_reader)
 
     response = client.get(
-        '/users', params={'search': 'does-not-exist', 'offset': 3, 'limit': 7}
+        '/users', params={'search': 'does-not-exist', 'page': 3, 'per_page': 7}
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {'offset': 3, 'limit': 7, 'items': []}
+    body = response.json()
+    assert body['data'] == []
+    assert body['pagination'] == {
+        'page': 3,
+        'per_page': 7,
+        'total_items': 0,
+        'total_pages': 0,
+        'has_next': False,
+        'has_prev': False,
+    }
 
 
 def test_list_users_response_has_only_page_fields(client, listing_reader):
@@ -263,7 +272,12 @@ def test_list_users_response_has_only_page_fields(client, listing_reader):
     response = client.get('/users')
 
     assert response.status_code == HTTPStatus.OK
-    assert set(response.json()) == {'offset', 'limit', 'items'}
+    assert set(response.json()) == {
+        'data',
+        'pagination',
+        'filters_applied',
+        'sort',
+    }
 
 
 def test_list_users_items_have_only_administrative_fields(
@@ -277,7 +291,7 @@ def test_list_users_items_have_only_administrative_fields(
     assert all(
         set(item)
         == {'id', 'full_name', 'username', 'email', 'active', 'profiles'}
-        for item in response.json()['items']
+        for item in response.json()['data']
     )
 
 
@@ -296,7 +310,7 @@ async def test_list_users_without_profile_is_padrao(
     response = client.get('/users', params={'search': 'PadraoTarget'})
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json()['items'][0]['profiles'] == []
+    assert response.json()['data'][0]['profiles'] == []
 
 
 @pytest.mark.asyncio
@@ -312,7 +326,7 @@ async def test_list_users_includes_full_name(client, listing_reader, session):
     response = client.get('/users', params={'search': 'FullNameTarget'})
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json()['items'][0]['full_name'] == 'Maria Silva'
+    assert response.json()['data'][0]['full_name'] == 'Maria Silva'
 
 
 @pytest.mark.asyncio
@@ -329,7 +343,7 @@ async def test_list_users_includes_active_profile_name(
     response = client.get('/users', params={'search': 'ProfileTarget'})
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json()['items'][0]['profiles'] == [
+    assert response.json()['data'][0]['profiles'] == [
         {'id': str(profile.id), 'name': 'Avaliador Ad Hoc', 'active': True}
     ]
 
@@ -355,8 +369,8 @@ def test_list_users_openapi_matches_versioned_contract(client):
         == contract_operation['x-required-permission']
     )
 
-    generated_page = generated['components']['schemas']['AdminUserPage']
-    contract_page = contract['components']['schemas']['AdminUserPage']
+    # O envelope da Spec 007 (`AdminUserPage`) foi substituído pelo padrão de
+    # listagem (Spec 033); o item e a operação continuam os do contrato.
     generated_item = generated['components']['schemas']['AdminUser']
     contract_item = contract['components']['schemas']['AdminUser']
     assert generated_item['required'] == contract_item['required']
@@ -364,35 +378,10 @@ def test_list_users_openapi_matches_versioned_contract(client):
         generated_item['properties']['full_name']
         == contract_item['properties']['full_name']
     )
-    assert generated_page['required'] == contract_page['required']
-    assert (
-        generated_page['properties']['offset']['type']
-        == contract_page['properties']['offset']['type']
-    )
-    assert (
-        generated_page['properties']['offset']['minimum']
-        == contract_page['properties']['offset']['minimum']
-    )
-    assert (
-        generated_page['properties']['limit']['type']
-        == contract_page['properties']['limit']['type']
-    )
-    assert (
-        generated_page['properties']['limit']['minimum']
-        == contract_page['properties']['limit']['minimum']
-    )
-    assert (
-        generated_page['properties']['limit']['maximum']
-        == contract_page['properties']['limit']['maximum']
-    )
-    assert (
-        generated_page['properties']['items']['type']
-        == contract_page['properties']['items']['type']
-    )
-    assert (
-        generated_page['properties']['items']['items']
-        == contract_page['properties']['items']['items']
-    )
+    response_schema = generated_operation['responses']['200']['content'][
+        'application/json'
+    ]['schema']
+    assert response_schema['$ref'].endswith('/UserListResponse')
 
     response_components = contract['components']['responses']
     response_refs = {'401': 'NotAuthenticated', '403': 'Forbidden'}
@@ -415,7 +404,7 @@ async def test_listed_user_id_is_accepted_by_rbac_access_endpoint(
 
     listing = client.get('/users', params={'search': 'RbacTarget'})
     assert listing.status_code == HTTPStatus.OK
-    listed_id = listing.json()['items'][0]['id']
+    listed_id = listing.json()['data'][0]['id']
     access = client.get(f'/rbac/users/{listed_id}/access')
 
     assert listed_id == str(target.id)
@@ -424,7 +413,7 @@ async def test_listed_user_id_is_accepted_by_rbac_access_endpoint(
 
 
 @pytest.mark.asyncio
-async def test_list_users_limit_restricts_matching_items(
+async def test_list_users_per_page_restricts_matching_items(
     client, listing_reader, session
 ):
     for index in range(3):
@@ -436,21 +425,21 @@ async def test_list_users_limit_restricts_matching_items(
     authenticate(client, listing_reader)
 
     response = client.get(
-        '/users', params={'search': 'LimitedTarget', 'limit': PAGE_LIMIT}
+        '/users', params={'search': 'LimitedTarget', 'per_page': PAGE_LIMIT}
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert len(response.json()['items']) == PAGE_LIMIT
+    assert len(response.json()['data']) == PAGE_LIMIT
 
 
-@pytest.mark.parametrize('limit', [1, 100])
-def test_list_users_accepts_valid_limits(client, listing_reader, limit):
+@pytest.mark.parametrize('per_page', [1, 100])
+def test_list_users_accepts_valid_per_page(client, listing_reader, per_page):
     authenticate(client, listing_reader)
 
-    response = client.get('/users', params={'limit': limit})
+    response = client.get('/users', params={'per_page': per_page})
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json()['limit'] == limit
+    assert response.json()['pagination']['per_page'] == per_page
 
 
 @pytest.mark.asyncio
@@ -472,11 +461,11 @@ async def test_list_users_pages_cover_each_matching_account_once(
             '/users',
             params={
                 'search': 'PageTarget',
-                'offset': offset,
-                'limit': PAGE_LIMIT,
+                'page': page,
+                'per_page': PAGE_LIMIT,
             },
         )
-        for offset in (0, 2, 4)
+        for page in (1, 2, 3)
     ]
     listed_ids = [item_id for page in pages for item_id in user_ids(page)]
 
@@ -556,7 +545,7 @@ def test_list_users_active_false_returns_only_inactive_accounts(
     response = client.get('/users', params={'active': 'false'})
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json()['items'] == [
+    assert response.json()['data'] == [
         {
             'id': str(deleted_user.id),
             'full_name': deleted_user.full_name,
@@ -601,7 +590,7 @@ async def test_list_users_profile_filter_ignores_ended_assignment(
     response = client.get('/users', params={'profile_id': str(profile.id)})
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json()['items'] == []
+    assert response.json()['data'] == []
 
 
 @pytest.mark.asyncio
@@ -620,7 +609,7 @@ async def test_list_users_profile_filter_ignores_inactive_profile(
     response = client.get('/users', params={'profile_id': str(profile.id)})
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json()['items'] == []
+    assert response.json()['data'] == []
 
 
 def test_list_users_unknown_profile_returns_empty_page(client, listing_reader):
@@ -629,7 +618,7 @@ def test_list_users_unknown_profile_returns_empty_page(client, listing_reader):
     response = client.get('/users', params={'profile_id': str(UUID(int=999))})
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json()['items'] == []
+    assert response.json()['data'] == []
 
 
 @pytest.mark.asyncio
@@ -676,8 +665,8 @@ async def test_list_users_combines_filters_before_pagination(
             'search': 'CombinedTarget',
             'active': 'true',
             'profile_id': str(profile.id),
-            'offset': 0,
-            'limit': 1,
+            'page': 1,
+            'per_page': 1,
         },
     )
 
@@ -686,7 +675,7 @@ async def test_list_users_combines_filters_before_pagination(
 
 
 @pytest.mark.asyncio
-async def test_list_users_offset_beyond_matches_returns_empty_page(
+async def test_list_users_page_beyond_matches_returns_empty_page(
     client, listing_reader, session
 ):
     await persist_user(
@@ -695,39 +684,39 @@ async def test_list_users_offset_beyond_matches_returns_empty_page(
     authenticate(client, listing_reader)
 
     response = client.get(
-        '/users', params={'search': 'OffsetTarget', 'offset': 2, 'limit': 1}
+        '/users', params={'search': 'OffsetTarget', 'page': 3, 'per_page': 1}
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json()['items'] == []
+    assert response.json()['data'] == []
 
 
-@pytest.mark.parametrize('offset', [-1])
-def test_list_users_rejects_negative_offset(client, listing_reader, offset):
+@pytest.mark.parametrize('page', [0, -1])
+def test_list_users_rejects_invalid_page(client, listing_reader, page):
     authenticate(client, listing_reader)
 
-    response = client.get('/users', params={'offset': offset})
+    response = client.get('/users', params={'page': page})
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-    assert 'items' not in response.json()
+    assert 'data' not in response.json()
 
 
-def test_list_users_rejects_zero_limit(client, listing_reader):
+def test_list_users_rejects_zero_per_page(client, listing_reader):
     authenticate(client, listing_reader)
 
-    response = client.get('/users', params={'limit': 0})
+    response = client.get('/users', params={'per_page': 0})
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-    assert 'items' not in response.json()
+    assert 'data' not in response.json()
 
 
-def test_list_users_rejects_limit_above_maximum(client, listing_reader):
+def test_list_users_rejects_per_page_above_maximum(client, listing_reader):
     authenticate(client, listing_reader)
 
-    response = client.get('/users', params={'limit': 101})
+    response = client.get('/users', params={'per_page': 101})
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-    assert 'items' not in response.json()
+    assert 'data' not in response.json()
 
 
 def test_list_users_rejects_invalid_active(client, listing_reader):
@@ -736,7 +725,7 @@ def test_list_users_rejects_invalid_active(client, listing_reader):
     response = client.get('/users', params={'active': 'not-a-boolean'})
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-    assert 'items' not in response.json()
+    assert 'data' not in response.json()
 
 
 def test_list_users_rejects_malformed_profile_id(client, listing_reader):
@@ -745,4 +734,4 @@ def test_list_users_rejects_malformed_profile_id(client, listing_reader):
     response = client.get('/users', params={'profile_id': 'not-a-uuid'})
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-    assert 'items' not in response.json()
+    assert 'data' not in response.json()

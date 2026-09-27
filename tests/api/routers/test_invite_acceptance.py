@@ -101,9 +101,11 @@ async def test_accept_with_matching_email_creates_assignment(
     assert body['assignment_id'] is not None
     assert body['invite']['status'] == 'accepted'
 
-    participants = client.get(f'/processes/{process_id}/participants').json()
+    participants = client.get(f'/processes/{process_id}/participants').json()[
+        'data'
+    ]
     assert any(
-        p['user_id'] == str(new_user.id) and p['role_key'] == 'sponsor'
+        p['user']['id'] == str(new_user.id) and p['role_key'] == 'sponsor'
         for p in participants
     )
 
@@ -155,7 +157,7 @@ async def test_accept_with_mismatched_email_is_forbidden(
     authenticate(client, proponente)
     preview = client.get(
         f'/processes/{process_id}/participants/invites'
-    ).json()
+    ).json()['data']
     invite_row = next(i for i in preview if i['id'] == invite_id)
     assert invite_row['status'] == 'pending'
 
@@ -275,7 +277,7 @@ async def test_accept_laboratory_role_without_affiliation_is_conflict(
     authenticate(client, gestor)
     invites = client.get(
         f'/processes/{process_id}/participants/invites'
-    ).json()
+    ).json()['data']
     invite_row = next(i for i in invites if i['id'] == invite_id)
     assert invite_row['status'] == 'pending'
 

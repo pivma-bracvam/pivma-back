@@ -16,6 +16,12 @@ from pivma.core.authorization import (
 )
 from pivma.core.database import get_session
 from pivma.core.database.models import AccessProfile, User, UserAccessProfile
+from pivma.core.listing import (
+    PageQuery,
+    PerPageQuery,
+    build_pagination,
+    paginate_query,
+)
 from pivma.core.security import hash_password
 from pivma.dependencies import (
     TrustedOrigin,
@@ -23,8 +29,10 @@ from pivma.dependencies import (
 )
 from pivma.schemas import (
     AdminUser,
-    AdminUserPage,
-    ProfileSummary,
+    ProfileRef,
+    SortApplied,
+    UserListFilters,
+    UserListResponse,
     UserPublic,
     UserSchema,
     UserUpdate,
@@ -88,7 +96,7 @@ async def persist_user(
 @router.get(
     '',
     operation_id='listUsers',
-    response_model=AdminUserPage,
+    response_model=UserListResponse,
     openapi_extra={'x-required-permission': USERS_READ},
     responses={
         HTTPStatus.UNAUTHORIZED: {
@@ -110,8 +118,8 @@ async def list_users(  # noqa: PLR0913, PLR0917
     search: Annotated[str | None, Query()] = None,
     active: Annotated[bool, Query()] = True,
     profile_id: Annotated[UUID | None, Query()] = None,
-    offset: Annotated[int, Query(ge=0)] = 0,
-    limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    page: PageQuery = 1,
+    per_page: PerPageQuery = 20,
 ):
     del actor
     predicates = [
@@ -140,26 +148,23 @@ async def list_users(  # noqa: PLR0913, PLR0917
             )
             .exists()
         )
-    users = list(
-        await session.scalars(
-            select(User)
-            .where(*predicates)
-            .order_by(func.lower(User.username).asc(), User.id.asc())
-            .offset(offset)
-            .limit(limit)
-            # `active=false` lista contas inativas por desenho; ignora o
-            # filtro global de soft-delete (Spec 022), que do contrário
-            # esconderia essas mesmas contas por padrão.
-            .execution_options(skip_soft_delete_filter=True)
-        )
+    users, total = await paginate_query(
+        session,
+        select(User)
+        .where(*predicates)
+        # `active=false` lista contas inativas por desenho; ignora o
+        # filtro global de soft-delete (Spec 022), que do contrário
+        # esconderia essas mesmas contas por padrão.
+        .execution_options(skip_soft_delete_filter=True),
+        order_by=(func.lower(User.username).asc(), User.id.asc()),
+        page=page,
+        per_page=per_page,
     )
     profiles_by_user = await active_profiles_for_users(
         session, [user.id for user in users]
     )
-    return AdminUserPage(
-        offset=offset,
-        limit=limit,
-        items=[
+    return UserListResponse(
+        data=[
             AdminUser(
                 id=user.id,
                 username=user.username,
@@ -167,14 +172,17 @@ async def list_users(  # noqa: PLR0913, PLR0917
                 full_name=user.full_name,
                 active=user.deleted_at is None,
                 profiles=[
-                    ProfileSummary(
-                        id=profile.id, name=profile.name, active=True
-                    )
+                    ProfileRef(id=profile.id, name=profile.name, active=True)
                     for profile in profiles_by_user.get(user.id, [])
                 ],
             )
             for user in users
         ],
+        pagination=build_pagination(page, per_page, total),
+        filters_applied=UserListFilters(
+            search=search, active=active, profile_id=profile_id
+        ),
+        sort=SortApplied(by='username', order='asc'),
     )
 
 

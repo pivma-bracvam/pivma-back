@@ -37,7 +37,7 @@ from pivma.schemas import (
     CurrentUserAccess,
     CurrentUserResponse,
     LoginCredentials,
-    ProfileSummary,
+    ProfileRef,
     UserIdentity,
 )
 
@@ -165,7 +165,7 @@ async def read_current_user(
         user=identity,
         access=CurrentUserAccess(
             profiles=[
-                ProfileSummary(id=profile.id, name=profile.name, active=True)
+                ProfileRef(id=profile.id, name=profile.name, active=True)
                 for profile in profiles
             ],
             global_permissions=await effective_permission_codes(

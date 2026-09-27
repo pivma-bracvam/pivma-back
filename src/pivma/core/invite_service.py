@@ -32,6 +32,8 @@ from pivma.core.process_engine import (
     _find_role_assignment_activity,  # noqa: PLC2701
     _maybe_close_role_assignment_activity,  # noqa: PLC2701
 )
+from pivma.core.references import laboratory_refs
+from pivma.schemas import InvitePublic, ProcessRef
 
 PENDING = 'pending'
 ACCEPTED = 'accepted'
@@ -73,18 +75,43 @@ def is_expired(
     return invite.status == PENDING and invite.expires_at < current
 
 
-def invite_public_kwargs(invite: RoleAssignmentInvite) -> dict:
+async def invite_public_kwargs(
+    session: AsyncSession, invite: RoleAssignmentInvite
+) -> dict:
     """Campos comuns a `InvitePublic`/`InviteCreatedResponse`.
 
     Compartilhado entre os dois routers que expõem convites
-    (``process_participants`` e ``invites``) para não duplicar a leitura
-    dos mesmos 13 campos.
+    (``process_participants`` e ``invites``). Para listas, prefira
+    `invite_publics`, que carrega as referências em lote.
     """
+    process = await session.get(ProcessInstance, invite.process_instance_id)
+    laboratories = await laboratory_refs(session, [invite.laboratory_id])
+    return _invite_fields(invite, process, laboratories)
+
+
+async def invite_publics(
+    session: AsyncSession,
+    process: ProcessInstance,
+    invites: list[RoleAssignmentInvite],
+) -> list[InvitePublic]:
+    """Convites de um processo com as referências carregadas em lote."""
+    laboratories = await laboratory_refs(
+        session, [invite.laboratory_id for invite in invites]
+    )
+    return [
+        InvitePublic(**_invite_fields(invite, process, laboratories))
+        for invite in invites
+    ]
+
+
+def _invite_fields(invite, process, laboratories) -> dict:
     return {
         'id': invite.id,
-        'process_id': invite.process_instance_id,
+        'process': ProcessRef(
+            id=process.id, code=process.code, title=process.title
+        ),
         'role_key': invite.role_key,
-        'laboratory_id': invite.laboratory_id,
+        'laboratory': laboratories.get(invite.laboratory_id),
         'email': invite.email,
         'channel': invite.channel,
         'status': invite.status,

@@ -93,7 +93,7 @@ async def accept_invite_endpoint(
     await session.refresh(invite)
 
     return InviteAcceptResponse(
-        invite=InvitePublic(**invite_public_kwargs(invite)),
+        invite=InvitePublic(**await invite_public_kwargs(session, invite)),
         assignment_id=assignment_id,
         process_id=invite.process_instance_id,
         role_key=invite.role_key,

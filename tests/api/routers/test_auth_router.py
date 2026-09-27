@@ -316,7 +316,7 @@ def test_openapi_declares_access_token_as_cookie_security_scheme(client):
         'scopes',
     ]
     assert current_user_access['properties']['profiles'] == {
-        'items': {'$ref': '#/components/schemas/ProfileSummary'},
+        'items': {'$ref': '#/components/schemas/ProfileRef'},
         'title': 'Profiles',
         'type': 'array',
     }

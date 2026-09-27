@@ -69,7 +69,7 @@ async def test_owner_can_delete_never_submitted_draft(client, session, user):
     )
     assert all(
         item['id'] != str(process)
-        for item in client.get('/processes').json()['items']
+        for item in client.get('/processes').json()['data']
     )
     event = await session.scalar(
         select(AuditEvent).where(
@@ -223,7 +223,7 @@ async def test_admin_deletes_others_process_and_cancels_pending_children(
     )
     assert all(
         item['id'] != str(process)
-        for item in client.get('/processes').json()['items']
+        for item in client.get('/processes').json()['data']
     )
 
 
@@ -344,11 +344,11 @@ async def test_archive_closed_process_is_hidden_from_default_list(
     assert 'justification' not in event.context_data
     assert all(
         item['id'] != process
-        for item in client.get('/processes').json()['items']
+        for item in client.get('/processes').json()['data']
     )
     archived = client.get('/processes', params={'status': 'ARCHIVED'})
     assert archived.status_code == HTTPStatus.OK
-    assert archived.json()['items'][0]['id'] == str(process)
+    assert archived.json()['data'][0]['id'] == str(process)
 
 
 @pytest.mark.asyncio

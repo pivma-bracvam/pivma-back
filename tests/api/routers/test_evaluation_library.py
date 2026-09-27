@@ -69,7 +69,7 @@ async def test_list_shows_version_status_and_counts(
 
     _r = client.get('/ai-evaluations')
     body = _r.json()
-    by_name = {item['name']: item for item in body['items']}
+    by_name = {item['name']: item for item in body['data']}
 
     published = by_name['Verificação de POP']
     assert published['latest_version']['status'] == 'published'
