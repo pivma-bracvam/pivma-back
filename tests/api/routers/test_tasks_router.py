@@ -29,20 +29,21 @@ async def test_list_and_filter_tasks(client, session):
     # 2. List all tasks
     tasks_resp = client.get('/tasks')
     assert tasks_resp.status_code == HTTPStatus.OK
-    tasks = tasks_resp.json()
+    tasks = tasks_resp.json()['data']
     assert len(tasks) >= 1
 
     prop_task = next(
         t
         for t in tasks
-        if t['process_id'] == process_id and t['assigned_role'] == 'proponent'
+        if t['process']['id'] == process_id
+        and t['assigned_role'] == 'proponent'
     )
     assert prop_task['status'] == 'READY'
 
     # 3. Filter tasks by role
     prop_filter_resp = client.get('/tasks?role=proponent')
     assert prop_filter_resp.status_code == HTTPStatus.OK
-    filtered = prop_filter_resp.json()
+    filtered = prop_filter_resp.json()['data']
     assert filtered
     assert all(t['assigned_role'] == 'proponent' for t in filtered)
 
@@ -81,8 +82,9 @@ async def test_task_listing_reflects_normalized_proponent_assigned_role(
     assert tasks_resp.status_code == HTTPStatus.OK
     prop_task = next(
         t
-        for t in tasks_resp.json()
-        if t['process_id'] == process_id and t['assigned_role'] == 'proponent'
+        for t in tasks_resp.json()['data']
+        if t['process']['id'] == process_id
+        and t['assigned_role'] == 'proponent'
     )
     assert prop_task['assigned_role'] == 'proponent'
 
@@ -115,7 +117,7 @@ async def test_task_due_date_is_populated_from_template_sla(client, session):
     assert tasks_resp.status_code == HTTPStatus.OK
     prop_task = next(
         t
-        for t in tasks_resp.json()
+        for t in tasks_resp.json()['data']
         if t['assigned_role'] == 'proponent'
     )
     assert prop_task['due_date'] is not None

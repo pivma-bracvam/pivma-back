@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Generic, Literal, TypeVar
 from uuid import UUID
 
 from pydantic import (
@@ -7,9 +7,11 @@ from pydantic import (
     ConfigDict,
     EmailStr,
     Field,
+    SerializerFunctionWrapHandler,
     StringConstraints,
     TypeAdapter,
     field_validator,
+    model_serializer,
     model_validator,
 )
 
@@ -383,6 +385,79 @@ class InstitutionalChangePage(FilterPage):
 
 
 # ==========================================
+# LISTAGENS (Spec 032)
+# ==========================================
+
+ItemT = TypeVar('ItemT')
+FiltersT = TypeVar('FiltersT')
+FacetsT = TypeVar('FacetsT')
+SummaryT = TypeVar('SummaryT')
+
+# Blocos do envelope que só aparecem quando pedidos em `include`.
+_OPTIONAL_ENVELOPE_BLOCKS = ('facets', 'summary')
+
+
+class Pagination(BaseModel):
+    page: int = Field(description='Página atual, começando em 1')
+    per_page: int = Field(description='Itens por página')
+    total_items: int = Field(description='Total de itens com os filtros')
+    total_pages: int = Field(description='Total de páginas; 0 sem itens')
+    has_next: bool = Field(description='Existe página seguinte')
+    has_prev: bool = Field(description='Existe página anterior')
+
+
+class SortApplied(BaseModel):
+    by: str = Field(description='Campo de ordenação aplicado')
+    order: Literal['asc', 'desc'] = Field(description='Direção aplicada')
+
+
+class ListEnvelope(BaseModel, Generic[ItemT, FiltersT, FacetsT, SummaryT]):
+    """Resposta padrão de listagem (Spec 032, FR-001 a FR-008)."""
+
+    data: list[ItemT] = Field(description='Itens da página')
+    pagination: Pagination = Field(description='Paginação por página')
+    filters_applied: FiltersT = Field(
+        description='Filtros aplicados, incluindo os padrões'
+    )
+    sort: SortApplied = Field(description='Ordenação aplicada')
+    facets: FacetsT | None = Field(
+        None,
+        description='Contagens por valor de filtro (só com include=facets)',
+    )
+    summary: SummaryT | None = Field(
+        None, description='Agregados da listagem (só com include=summary)'
+    )
+
+    @model_serializer(mode='wrap')
+    def _omit_unrequested_blocks(self, handler: SerializerFunctionWrapHandler):
+        # Só no nível do envelope: `exclude_none` apagaria também os campos
+        # nulos dos itens (ex.: `due_date`) (research R4). Sem anotação de
+        # retorno de propósito: com ela, o OpenAPI troca o schema do envelope
+        # por um objeto genérico.
+        data = handler(self)
+        for key in _OPTIONAL_ENVELOPE_BLOCKS:
+            if data.get(key) is None:
+                data.pop(key, None)
+        return data
+
+
+# ==========================================
+# REFERÊNCIAS (Spec 032)
+# ==========================================
+
+
+class ProcessRef(BaseModel):
+    id: UUID = Field(description='Identificador do processo')
+    code: str = Field(description='Código do processo')
+    title: str = Field(description='Título do processo')
+
+
+class PhaseRef(BaseModel):
+    key: str = Field(description='Chave da fase no template')
+    order: int = Field(description='Ordem da fase no processo')
+
+
+# ==========================================
 # PROCESS, FORM & TRIAGE SCHEMAS
 # ==========================================
 
@@ -635,23 +710,68 @@ class ActivityCompletionResponse(BaseModel):
     pre_evaluation: dict[str, Any] | None = None
 
 
+TaskStatus = Literal['READY', 'COMPLETED', 'CANCELLED']
+
+
 class TaskSummary(BaseModel):
     id: UUID
-    process_id: UUID
-    process_code: str
-    process_title: str
+    process: ProcessRef
     # Atividade, execução e fase da tarefa: permitem agrupar por atividade
-    # (ex.: kanban da etapa 1) sem uma chamada por tarefa. A tarefa vigente
-    # de uma atividade é a de maior `activity_run_number`.
+    # (ex.: kanban da etapa 1) sem uma chamada por tarefa.
     activity_key: str
     activity_run_number: int
-    phase_key: str
-    phase_order: int
+    phase: PhaseRef
     title: str
     assigned_role: str | None = None
-    status: str
+    status: TaskStatus
     due_date: datetime | None = None
+    can_act: bool = Field(
+        description=(
+            'O usuário pode agir nesta tarefa: tem concessão de editar a '
+            'atividade e não tem conflito de interesse vigente no processo'
+        )
+    )
     model_config = ConfigDict(from_attributes=True)
+
+
+class TaskFiltersApplied(BaseModel):
+    status: list[TaskStatus] = Field(
+        description='Status pedidos; vazio = todos'
+    )
+    activity_key: list[str] = Field(
+        description='Atividades pedidas; vazio = todas'
+    )
+    phase_order: int | None = Field(description='Ordem da fase')
+    process_id: UUID | None = Field(description='Processo')
+    role: str | None = Field(description='Cargo da tarefa')
+    actionable: bool = Field(
+        description='Só tarefas em que o usuário pode agir'
+    )
+    current_run: bool = Field(
+        description='Só a rodada vigente de cada atividade (padrão)'
+    )
+    overdue: bool = Field(description='Só tarefas abertas com prazo vencido')
+
+
+class TaskFacets(BaseModel):
+    activity_key: dict[str, int] = Field(
+        description='Quantidade de tarefas por atividade'
+    )
+    status: dict[str, int] = Field(
+        description='Quantidade de tarefas por status'
+    )
+
+
+class TaskListSummary(BaseModel):
+    ai_pre_evaluation_in_progress: int = Field(
+        description='Processos visíveis com pré-avaliação por IA em andamento'
+    )
+
+
+class TaskListResponse(
+    ListEnvelope[TaskSummary, TaskFiltersApplied, TaskFacets, TaskListSummary]
+):
+    """Lista de tarefas no padrão de listagem (Spec 032)."""
 
 
 class TaskDetail(BaseModel):

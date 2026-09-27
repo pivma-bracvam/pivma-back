@@ -349,7 +349,7 @@ async def test_accept_and_revoke_pending_sibling_closes_activity(
     authenticate(client, bracvam_user)
     tasks_before = client.get(
         '/tasks', params={'process_id': process_id}
-    ).json()
+    ).json()['data']
     title = 'Definir Especialistas Temáticos (Comitê ADHOC)'
     before = [t for t in tasks_before if t['title'] == title]
     assert before
@@ -360,7 +360,7 @@ async def test_accept_and_revoke_pending_sibling_closes_activity(
 
     tasks_after = client.get(
         '/tasks', params={'process_id': process_id}
-    ).json()
+    ).json()['data']
     after = [t for t in tasks_after if t['title'] == title]
     assert after
     assert after[0]['status'] == 'COMPLETED'

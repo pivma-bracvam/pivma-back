@@ -112,7 +112,9 @@ async def test_blind_sample_journey_four_substances_three_labs(  # noqa: PLR0914
 
     # 4. O Grupo de Seleção recebe a tarefa de amostras.
     authenticate(client, selector)
-    tasks = _ok(client.get('/tasks', params={'process_id': process_id}))
+    tasks = _ok(client.get('/tasks', params={'process_id': process_id}))[
+        'data'
+    ]
     assert [
         t['status'] for t in tasks if t['activity_key'] == 'sample_definition'
     ] == ['READY']

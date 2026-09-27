@@ -380,7 +380,9 @@ async def test_accept_closes_activity_when_last_pending_invite(
 
     # Spec 030: a tarefa é do cargo `proponent`; só ele (e Admin/BraCVAM) a vê.
     authenticate(client, proponente)
-    tasks = client.get('/tasks', params={'process_id': process_id}).json()
+    tasks = client.get('/tasks', params={'process_id': process_id}).json()[
+        'data'
+    ]
     sponsor_task = next(
         t for t in tasks if t['title'] == 'Definir o Patrocinador'
     )

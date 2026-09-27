@@ -1,12 +1,14 @@
 from collections.abc import Iterable, Sequence
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, and_, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from pivma.core.database.models import (
     AccessProfile,
     AccessProfilePermission,
+    ActivityInstance,
     Assignment,
     ConflictInterestDeclaration,
     Institution,
@@ -675,6 +677,47 @@ async def has_current_conflict(
         .where(latest.c.has_conflict.is_(True))
     )
     return (count or 0) > 0
+
+
+def current_conflict_clause(user_id: UUID) -> ColumnElement[bool]:
+    """Conflito vigente do usuário no processo da atividade, em SQL.
+
+    Mesma regra de `has_current_conflict`, correlacionada por
+    `ActivityInstance.process_instance_id` para filtrar listas (Spec 032,
+    R2): a última declaração de uma atribuição ativa do usuário no processo
+    diz que há conflito.
+    """
+    newer = aliased(ConflictInterestDeclaration)
+    return exists(
+        select(ConflictInterestDeclaration.id)
+        .join(
+            Assignment,
+            Assignment.id == ConflictInterestDeclaration.assignment_id,
+        )
+        .where(
+            Assignment.process_instance_id
+            == ActivityInstance.process_instance_id,
+            Assignment.user_id == user_id,
+            Assignment.revoked_at.is_(None),
+            Assignment.deleted_at.is_(None),
+            ConflictInterestDeclaration.has_conflict.is_(True),
+            ~exists(
+                select(newer.id).where(
+                    newer.assignment_id
+                    == ConflictInterestDeclaration.assignment_id,
+                    or_(
+                        newer.declared_at
+                        > ConflictInterestDeclaration.declared_at,
+                        and_(
+                            newer.declared_at
+                            == ConflictInterestDeclaration.declared_at,
+                            newer.id > ConflictInterestDeclaration.id,
+                        ),
+                    ),
+                )
+            ),
+        )
+    )
 
 
 async def can_manage_process_templates(
