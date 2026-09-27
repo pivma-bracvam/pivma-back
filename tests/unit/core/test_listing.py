@@ -2,8 +2,8 @@
 
 from pydantic import BaseModel
 
-from pivma.core.listing import build_pagination
-from pivma.schemas import ListEnvelope, SortApplied
+from pivma.core.listing import build_pagination, paginate_items
+from pivma.schemas import ListEnvelope, ListPage, NoFilters, SortApplied
 
 
 def test_pagination_middle_page():
@@ -83,3 +83,29 @@ def test_envelope_keeps_facets_and_summary_when_set():
 
     assert dumped['facets'] == {'name': {'a': 1}}
     assert dumped['summary'] == {'total': 1}
+
+
+# --- Spec 033: paginação em memória e envelope sem contagens --------------
+
+
+def test_paginate_items_second_page():
+    assert paginate_items(list(range(25)), page=2, per_page=20) == (
+        [20, 21, 22, 23, 24],
+        25,
+    )
+
+
+def test_paginate_items_beyond_last():
+    assert paginate_items(list(range(25)), page=3, per_page=20) == ([], 25)
+
+
+def test_list_page_has_no_optional_blocks():
+    dumped = ListPage[_Item, NoFilters](
+        data=[_Item(name='a')],
+        pagination=build_pagination(page=1, per_page=20, total=1),
+        filters_applied=NoFilters(),
+        sort=SortApplied(by='name', order='asc'),
+    ).model_dump(mode='json')
+
+    assert set(dumped) == {'data', 'pagination', 'filters_applied', 'sort'}
+    assert dumped['filters_applied'] == {}

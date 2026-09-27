@@ -350,7 +350,7 @@ async def test_updated_full_name_is_visible_in_auth_and_listing(
     assert 'full_name' not in current.json()
     listed = next(
         item
-        for item in listing.json()['items']
+        for item in listing.json()['data']
         if item['id'] == str(user_manager.id)
     )
     assert listed['full_name'] == 'Administrator Name'

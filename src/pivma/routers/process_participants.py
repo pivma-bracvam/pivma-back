@@ -1,7 +1,7 @@
 from http import HTTPStatus
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, HTTPException, Response
 from sqlalchemy import select
 
 from pivma.core.authorization import (
@@ -22,8 +22,16 @@ from pivma.core.database.models import (
 from pivma.core.invite_service import (
     create_invite,
     invite_public_kwargs,
+    invite_publics,
     resend_invite,
     revoke_invite,
+)
+from pivma.core.listing import (
+    PageQuery,
+    PerPageQuery,
+    build_pagination,
+    paginate_items,
+    paginate_query,
 )
 from pivma.core.participant_service import create_assignment
 from pivma.core.process_engine import (
@@ -33,6 +41,7 @@ from pivma.core.process_engine import (
     _maybe_close_role_assignment_activity,  # noqa: PLC2701
     utc_now,
 )
+from pivma.core.references import laboratory_refs, user_refs
 from pivma.dependencies import (
     CurrentUser,
     Session,
@@ -44,16 +53,19 @@ from pivma.schemas import (
     ConflictDeclarationPublic,
     InviteCreate,
     InviteCreatedResponse,
+    InviteListResponse,
     InvitePublic,
+    NoFilters,
     ParticipantAssignmentCreate,
     ParticipantAssignmentPublic,
     ParticipantHistoryItem,
-    ParticipantHistoryPage,
+    ParticipantHistoryListResponse,
+    ParticipantListResponse,
+    ProcessRef,
+    SortApplied,
 )
 
 router = APIRouter(prefix='/processes', tags=['Process Participants'])
-
-MAX_HISTORY_LIMIT = 200
 
 
 def not_found(detail: str) -> HTTPException:
@@ -92,16 +104,25 @@ async def _build_participant_publics(
     declarations = await latest_declarations_map(
         session, [assignment.id for assignment in assignments]
     )
+    # Referências da página em lote (Spec 033, R6): uma consulta por tipo.
+    process = await session.get(ProcessInstance, process_id)
+    process_ref = ProcessRef(
+        id=process.id, code=process.code, title=process.title
+    )
+    users = await user_refs(session, [a.user_id for a in assignments])
+    laboratories = await laboratory_refs(
+        session, [a.laboratory_id for a in assignments]
+    )
     publics = []
     for assignment in assignments:
         declaration = declarations.get(assignment.id)
         publics.append(
             ParticipantAssignmentPublic(
                 id=assignment.id,
-                process_id=process_id,
-                user_id=assignment.user_id,
+                process=process_ref,
+                user=users[assignment.user_id],
                 role_key=assignment.role_key,
-                laboratory_id=assignment.laboratory_id,
+                laboratory=laboratories.get(assignment.laboratory_id),
                 assigned_by=assignment.assigned_by,
                 assigned_at=assignment.assigned_at,
                 revoked_at=assignment.revoked_at,
@@ -127,11 +148,15 @@ async def _get_active_process(session: Session, process_id: UUID):
 
 @router.get(
     '/{process_id}/participants',
-    response_model=list[ParticipantAssignmentPublic],
+    response_model=ParticipantListResponse,
     status_code=HTTPStatus.OK,
 )
 async def list_participants(
-    process_id: UUID, session: Session, current_user: CurrentUser
+    process_id: UUID,
+    session: Session,
+    current_user: CurrentUser,
+    page: PageQuery = 1,
+    per_page: PerPageQuery = 20,
 ):
     scope = await participant_read_scope(session, current_user.id, process_id)
     if scope is None:
@@ -148,10 +173,21 @@ async def list_participants(
     )
     if scope == 'self':
         stmt = stmt.where(Assignment.user_id == current_user.id)
-    stmt = stmt.order_by(Assignment.assigned_at.desc(), Assignment.id.desc())
-
-    assignments = list(await session.scalars(stmt))
-    return await _build_participant_publics(session, process_id, assignments)
+    assignments, total = await paginate_query(
+        session,
+        stmt,
+        order_by=(Assignment.assigned_at.desc(), Assignment.id.desc()),
+        page=page,
+        per_page=per_page,
+    )
+    return ParticipantListResponse(
+        data=await _build_participant_publics(
+            session, process_id, assignments
+        ),
+        pagination=build_pagination(page, per_page, total),
+        filters_applied=NoFilters(),
+        sort=SortApplied(by='assigned_at', order='desc'),
+    )
 
 
 @router.post(
@@ -329,15 +365,15 @@ async def declare_conflict(
 
 @router.get(
     '/{process_id}/participants/history',
-    response_model=ParticipantHistoryPage,
+    response_model=ParticipantHistoryListResponse,
     status_code=HTTPStatus.OK,
 )
 async def get_participant_history(
     process_id: UUID,
     session: Session,
     current_user: CurrentUser,
-    offset: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=MAX_HISTORY_LIMIT),
+    page: PageQuery = 1,
+    per_page: PerPageQuery = 20,
 ):
     scope = await participant_read_scope(session, current_user.id, process_id)
     if scope is None:
@@ -353,14 +389,13 @@ async def get_participant_history(
     )
     if scope == 'self':
         stmt = stmt.where(Assignment.user_id == current_user.id)
-    stmt = (
-        stmt
-        .order_by(Assignment.assigned_at.desc(), Assignment.id.desc())
-        .offset(offset)
-        .limit(limit)
+    assignments, total = await paginate_query(
+        session,
+        stmt,
+        order_by=(Assignment.assigned_at.desc(), Assignment.id.desc()),
+        page=page,
+        per_page=per_page,
     )
-
-    assignments = list(await session.scalars(stmt))
     publics = await _build_participant_publics(
         session, process_id, assignments
     )
@@ -385,7 +420,12 @@ async def get_participant_history(
         for public in publics
     ]
 
-    return ParticipantHistoryPage(offset=offset, limit=limit, items=items)
+    return ParticipantHistoryListResponse(
+        data=items,
+        pagination=build_pagination(page, per_page, total),
+        filters_applied=NoFilters(),
+        sort=SortApplied(by='assigned_at', order='desc'),
+    )
 
 
 # ==========================================
@@ -393,10 +433,10 @@ async def get_participant_history(
 # ==========================================
 
 
-def _invite_public(
-    invite: RoleAssignmentInvite, *, token: str | None = None
+async def _invite_public(
+    session: Session, invite: RoleAssignmentInvite, *, token: str | None = None
 ) -> InvitePublic:
-    kwargs = invite_public_kwargs(invite)
+    kwargs = await invite_public_kwargs(session, invite)
     if token is not None:
         return InviteCreatedResponse(**kwargs, token=token)
     return InvitePublic(**kwargs)
@@ -461,16 +501,20 @@ async def create_participant_invite(
 
     await session.commit()
     await session.refresh(invite)
-    return _invite_public(invite, token=token)
+    return await _invite_public(session, invite, token=token)
 
 
 @router.get(
     '/{process_id}/participants/invites',
-    response_model=list[InvitePublic],
+    response_model=InviteListResponse,
     status_code=HTTPStatus.OK,
 )
 async def list_participant_invites(
-    process_id: UUID, session: Session, current_user: CurrentUser
+    process_id: UUID,
+    session: Session,
+    current_user: CurrentUser,
+    page: PageQuery = 1,
+    per_page: PerPageQuery = 20,
 ):
     process = await _get_active_process(session, process_id)
     if process is None:
@@ -482,17 +526,29 @@ async def list_participant_invites(
             RoleAssignmentInvite.process_instance_id == process_id,
             RoleAssignmentInvite.deleted_at.is_(None),
         )
-        .order_by(RoleAssignmentInvite.created_at.desc())
+        .order_by(
+            RoleAssignmentInvite.created_at.desc(),
+            RoleAssignmentInvite.id.desc(),
+        )
     )
     invites = list(await session.scalars(stmt))
 
-    visible = []
-    for invite in invites:
+    # A autorização é por cargo do convite e roda em Python: a página vem
+    # depois do filtro, para o total refletir só o que o usuário gere (R2).
+    visible = [
+        invite
+        for invite in invites
         if await can_manage_role_assignment(
             session, current_user.id, process_id, invite.role_key
-        ):
-            visible.append(_invite_public(invite))
-    return visible
+        )
+    ]
+    page_invites, total = paginate_items(visible, page, per_page)
+    return InviteListResponse(
+        data=await invite_publics(session, process, page_invites),
+        pagination=build_pagination(page, per_page, total),
+        filters_applied=NoFilters(),
+        sort=SortApplied(by='created_at', order='desc'),
+    )
 
 
 @router.post(
@@ -526,7 +582,7 @@ async def resend_participant_invite(
 
     await session.commit()
     await session.refresh(invite)
-    return _invite_public(invite, token=token)
+    return await _invite_public(session, invite, token=token)
 
 
 @router.post(
@@ -560,4 +616,4 @@ async def revoke_participant_invite(
 
     await session.commit()
     await session.refresh(invite)
-    return _invite_public(invite)
+    return await _invite_public(session, invite)

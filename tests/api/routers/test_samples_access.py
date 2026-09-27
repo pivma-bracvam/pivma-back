@@ -287,7 +287,7 @@ async def test_timeline_sample_events_carry_no_identity(
     response = client.get(f'/processes/{ctx.process_id}/timeline')
 
     assert response.status_code == HTTPStatus.OK
-    types = {e['event_type'] for e in response.json()['events']}
+    types = {e['event_type'] for e in response.json()['data']}
     assert {
         'SAMPLE_SUBSTANCE_REGISTERED',
         'SAMPLE_CODES_GENERATED',
@@ -309,6 +309,6 @@ async def test_timeline_hides_sample_events_from_participating_lab(
     assert response.status_code == HTTPStatus.OK
     assert not [
         e
-        for e in response.json()['events']
+        for e in response.json()['data']
         if e['event_type'].startswith('SAMPLE_')
     ]

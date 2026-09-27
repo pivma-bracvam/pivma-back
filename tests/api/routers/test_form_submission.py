@@ -99,7 +99,7 @@ async def test_form_draft_and_submission_flow(client, session):
     # 8. Check timeline
     tl_resp = client.get(f'/processes/{process_id}/timeline')
     assert tl_resp.status_code == HTTPStatus.OK
-    events = tl_resp.json()['events']
+    events = tl_resp.json()['data']
     event_types = [e['event_type'] for e in events]
     assert 'PROCESS_CREATED' in event_types
     assert 'FORM_DRAFT_SAVED' in event_types

@@ -16,6 +16,7 @@ from pivma.core.attachment_service import (
     attachment_abspath,
     remove_file_best_effort,
 )
+from pivma.core.listing import PageQuery, PerPageQuery, build_pagination
 from pivma.core.process_engine import (
     AuthorizationError,
     ConflictError,
@@ -31,12 +32,14 @@ from pivma.dependencies import (
 from pivma.routers.forms import _attachment_http_error  # noqa: PLC2701
 from pivma.schemas import (
     BlindVial,
+    NoFilters,
     SampleCompletionResponse,
-    SampleLabel,
+    SampleLabelListResponse,
     SampleSubstance,
     SampleSubstanceCreate,
     SampleSubstanceList,
     SampleSubstanceUpdate,
+    SortApplied,
 )
 
 router = APIRouter(prefix='/processes', tags=['Samples'])
@@ -86,17 +89,32 @@ async def list_samples(id: UUID, session: Session, current_user: CurrentUser):
         raise _http_error(exc) from exc
 
 
-@router.get('/{id}/samples/labels', response_model=list[SampleLabel])
-async def list_sample_labels(
+@router.get('/{id}/samples/labels', response_model=SampleLabelListResponse)
+async def list_sample_labels(  # noqa: PLR0913, PLR0917
     id: UUID,
     session: Session,
     current_user: CurrentUser,
     settings: SettingsDependency,
+    page: PageQuery = 1,
+    per_page: PerPageQuery = 20,
 ):
     try:
-        return await svc.list_labels(session, settings, id, current_user.id)
+        labels, total = await svc.list_labels(
+            session,
+            settings,
+            id,
+            current_user.id,
+            page=page,
+            per_page=per_page,
+        )
     except _DOMAIN_ERRORS as exc:
         raise _http_error(exc) from exc
+    return SampleLabelListResponse(
+        data=labels,
+        pagination=build_pagination(page, per_page, total),
+        filters_applied=NoFilters(),
+        sort=SortApplied(by='laboratory', order='asc'),
+    )
 
 
 @router.get('/{id}/samples/vials/{code}', response_model=BlindVial)

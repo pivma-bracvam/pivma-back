@@ -4,7 +4,7 @@ from http import HTTPStatus
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 
 from pivma.core import evaluation_service as svc
 from pivma.core.authorization import (
@@ -12,6 +12,12 @@ from pivma.core.authorization import (
     AI_EVALUATIONS_READ,
 )
 from pivma.core.database.models import EvaluationVersion, User
+from pivma.core.listing import (
+    PageQuery,
+    PerPageQuery,
+    build_pagination,
+    paginate_items,
+)
 from pivma.core.process_engine import (
     ConflictError,
     NotFoundError,
@@ -28,18 +34,22 @@ from pivma.schemas import (
     AssignmentsResponse,
     CreateEvaluationRequest,
     EvaluableFieldsResponse,
-    EvaluationDefinitionPage,
     EvaluationDefinitionResponse,
+    EvaluationListFilters,
+    EvaluationListResponse,
     EvaluationTestRequest,
     EvaluationTestResponse,
     EvaluationVersionResponse,
     EvaluationVersionSummary,
+    NoFilters,
     PatchEvaluationVersionRequest,
     PublishResponse,
     ReferenceCreateRequest,
     ReferenceImpactResponse,
+    ReferenceListResponse,
     ReferencePublic,
     ReplaceAssignmentsRequest,
+    SortApplied,
     SuggestCriteriaRequest,
     SuggestCriteriaResponse,
 )
@@ -51,7 +61,6 @@ ReadUser = Annotated[User, Depends(require_permission(AI_EVALUATIONS_READ))]
 ManageUser = Annotated[
     User, Depends(require_permission(AI_EVALUATIONS_MANAGE))
 ]
-MAX_LIMIT = 100
 
 
 def _raise_http(exc: Exception) -> None:
@@ -108,22 +117,20 @@ def _version_response(
 # --------------------------------------------------------------------------
 
 
-@router.get('', response_model=EvaluationDefinitionPage)
+@router.get('', response_model=EvaluationListResponse)
 async def list_evaluations(
     session: Session,
     actor: ReadUser,
     search: str | None = None,
-    offset: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=MAX_LIMIT),
+    page: PageQuery = 1,
+    per_page: PerPageQuery = 20,
 ):
     del actor
-    items = await svc.list_definitions(
-        session, search=search, offset=offset, limit=limit
+    items, total = await svc.list_definitions(
+        session, search=search, page=page, per_page=per_page
     )
-    return EvaluationDefinitionPage(
-        offset=offset,
-        limit=limit,
-        items=[
+    return EvaluationListResponse(
+        data=[
             {
                 **item,
                 'latest_version': (
@@ -134,6 +141,9 @@ async def list_evaluations(
             }
             for item in items
         ],
+        pagination=build_pagination(page, per_page, total),
+        filters_applied=EvaluationListFilters(search=search),
+        sort=SortApplied(by='name', order='asc'),
     )
 
 
@@ -244,10 +254,26 @@ async def suggest_criteria(
 # --------------------------------------------------------------------------
 
 
-@router.get('/references', response_model=list[ReferencePublic])
-async def list_references(session: Session, actor: ReadUser):
+@router.get('/references', response_model=ReferenceListResponse)
+async def list_references(
+    session: Session,
+    actor: ReadUser,
+    page: PageQuery = 1,
+    per_page: PerPageQuery = 20,
+):
     del actor
-    return await svc.list_references(session)
+    references, total = paginate_items(
+        await svc.list_references(session), page, per_page
+    )
+    return ReferenceListResponse(
+        data=[
+            ReferencePublic.model_validate(item, from_attributes=True)
+            for item in references
+        ],
+        pagination=build_pagination(page, per_page, total),
+        filters_applied=NoFilters(),
+        sort=SortApplied(by='identifier', order='asc'),
+    )
 
 
 @router.post(

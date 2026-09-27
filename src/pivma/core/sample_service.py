@@ -17,7 +17,7 @@ from uuid import UUID
 
 import segno
 from fastapi import UploadFile
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,6 +48,7 @@ from pivma.core.process_engine import (
     ensure_process_mutable,
     require_activity_access,
 )
+from pivma.core.references import laboratory_refs
 from pivma.core.settings import Settings
 
 SAMPLE_ACTIVITY_KEY = 'sample_definition'
@@ -772,45 +773,63 @@ def vial_qr_url(settings: Settings, process_id: UUID, code: str) -> str:
     return f'{base.rstrip("/")}/amostras/{process_id}/frascos/{code}'
 
 
-async def list_labels(
+async def list_labels(  # noqa: PLR0913
     session: AsyncSession,
     settings: Settings,
     process_id: UUID,
     user_id: UUID,
-) -> list[dict[str, Any]]:
-    """Dados de etiqueta de cada frasco, com QR em SVG (FR-015, FR-018)."""
+    *,
+    page: int,
+    per_page: int,
+) -> tuple[list[dict[str, Any]], int]:
+    """Dados de etiqueta de cada frasco, com QR em SVG (FR-015, FR-018).
+
+    Paginada no banco (Spec 033): o QR só é gerado para a página.
+    """
     await _sample_activity(session, process_id, user_id)
     process = await session.get(ProcessInstance, process_id)
+    stmt = (
+        select(BlindSampleCode, StudySubstance.lot, Laboratory.name)
+        .join(
+            StudySubstance,
+            StudySubstance.id == BlindSampleCode.substance_id,
+        )
+        .join(Laboratory, Laboratory.id == BlindSampleCode.laboratory_id)
+        .where(
+            BlindSampleCode.process_instance_id == process_id,
+            BlindSampleCode.deleted_at.is_(None),
+            StudySubstance.deleted_at.is_(None),
+        )
+        .execution_options(skip_soft_delete_filter=True)
+    )
+    total = await session.scalar(
+        select(func.count())
+        .select_from(stmt.subquery())
+        .execution_options(skip_soft_delete_filter=True)
+    )
     rows = (
         await session.execute(
-            select(BlindSampleCode, StudySubstance.lot, Laboratory.name)
-            .join(
-                StudySubstance,
-                StudySubstance.id == BlindSampleCode.substance_id,
-            )
-            .join(Laboratory, Laboratory.id == BlindSampleCode.laboratory_id)
-            .where(
-                BlindSampleCode.process_instance_id == process_id,
-                BlindSampleCode.deleted_at.is_(None),
-                StudySubstance.deleted_at.is_(None),
-            )
+            stmt
             .order_by(Laboratory.name, BlindSampleCode.code)
-            .execution_options(skip_soft_delete_filter=True)
+            .offset((page - 1) * per_page)
+            .limit(per_page)
         )
     ).all()
+    laboratories = await laboratory_refs(
+        session, [code.laboratory_id for code, _, _ in rows]
+    )
     labels = []
-    for code, lot, laboratory_name in rows:
+    for code, lot, _ in rows:
         url = vial_qr_url(settings, process_id, code.code)
         labels.append({
             'code': code.code,
             'study_code': process.code,
-            'laboratory_id': code.laboratory_id,
-            'laboratory_name': laboratory_name,
+            'laboratory': laboratories[code.laboratory_id],
             'lot': lot,
             'qr_url': url,
             'qr_svg': segno.make(url, error='m').svg_data_uri(),
         })
-    return labels
+    return labels, total or 0
 
 
 # ---------------------------------------------------------------------------

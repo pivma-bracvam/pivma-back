@@ -24,21 +24,30 @@ from pivma.core.database.models import (
     User,
     UserAccessProfile,
 )
+from pivma.core.listing import (
+    PageQuery,
+    PerPageQuery,
+    build_pagination,
+    paginate_query,
+)
 from pivma.dependencies import Session, TrustedOrigin, require_permission
 from pivma.schemas import (
+    NoFilters,
+    PermissionListResponse,
     PermissionPublic,
     ProfileAssignmentPublic,
     ProfileCreate,
+    ProfileListResponse,
     ProfilePublic,
-    ProfileSummary,
+    ProfileRef,
     ProfileUpdate,
-    RbacChangePage,
+    RbacChangeListResponse,
     RbacChangePublic,
+    SortApplied,
     UserAccess,
 )
 
 router = APIRouter(prefix='/rbac', tags=['rbac'])
-MAX_CHANGE_LIMIT = 100
 ReadUser = Annotated[User, Depends(require_permission(RBAC_READ))]
 ProfileManager = Annotated[
     User, Depends(require_permission(RBAC_PROFILES_MANAGE))
@@ -100,23 +109,53 @@ async def flush_or_conflict(session: Session) -> None:
         raise conflict('Conflicting active RBAC state') from exc
 
 
-@router.get('/permissions', response_model=list[PermissionPublic])
-async def list_permissions(session: Session, actor: ReadUser):
+@router.get('/permissions', response_model=PermissionListResponse)
+async def list_permissions(
+    session: Session,
+    actor: ReadUser,
+    page: PageQuery = 1,
+    per_page: PerPageQuery = 20,
+):
     del actor
-    return list(
-        await session.scalars(select(Permission).order_by(Permission.code))
+    items, total = await paginate_query(
+        session,
+        select(Permission),
+        order_by=(Permission.code,),
+        page=page,
+        per_page=per_page,
+    )
+    return PermissionListResponse(
+        data=[
+            PermissionPublic.model_validate(i, from_attributes=True)
+            for i in items
+        ],
+        pagination=build_pagination(page, per_page, total),
+        filters_applied=NoFilters(),
+        sort=SortApplied(by='code', order='asc'),
     )
 
 
-@router.get('/profiles', response_model=list[ProfilePublic])
-async def list_profiles(session: Session, actor: ReadUser):
+@router.get('/profiles', response_model=ProfileListResponse)
+async def list_profiles(
+    session: Session,
+    actor: ReadUser,
+    page: PageQuery = 1,
+    per_page: PerPageQuery = 20,
+):
     del actor
-    profiles = list(
-        await session.scalars(
-            select(AccessProfile).order_by(AccessProfile.name)
-        )
+    profiles, total = await paginate_query(
+        session,
+        select(AccessProfile),
+        order_by=(AccessProfile.name, AccessProfile.id),
+        page=page,
+        per_page=per_page,
     )
-    return [await profile_public(session, profile) for profile in profiles]
+    return ProfileListResponse(
+        data=[await profile_public(session, profile) for profile in profiles],
+        pagination=build_pagination(page, per_page, total),
+        filters_applied=NoFilters(),
+        sort=SortApplied(by='name', order='asc'),
+    )
 
 
 @router.post(
@@ -267,7 +306,7 @@ async def get_user_access(user_id: UUID, session: Session, actor: ReadUser):
     return UserAccess(
         user_id=user_id,
         profiles=[
-            ProfileSummary(id=item.id, name=item.name, active=True)
+            ProfileRef(id=item.id, name=item.name, active=True)
             for item in profiles
         ],
         effective_permissions=await effective_permission_codes(
@@ -359,31 +398,23 @@ async def revoke_profile(
     return Response(status_code=HTTPStatus.NO_CONTENT)
 
 
-@router.get('/changes', response_model=RbacChangePage)
+@router.get('/changes', response_model=RbacChangeListResponse)
 async def list_changes(
     session: Session,
     actor: ReadUser,
-    offset: int = 0,
-    limit: int = 100,
+    page: PageQuery = 1,
+    per_page: PerPageQuery = 20,
 ):
     del actor
-    if offset < 0 or limit < 1 or limit > MAX_CHANGE_LIMIT:
-        raise HTTPException(
-            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
-            detail='Invalid pagination',
-        )
-    items = list(
-        await session.scalars(
-            select(RbacChange)
-            .order_by(RbacChange.created_at.desc(), RbacChange.id.desc())
-            .offset(offset)
-            .limit(limit)
-        )
+    items, total = await paginate_query(
+        session,
+        select(RbacChange),
+        order_by=(RbacChange.created_at.desc(), RbacChange.id.desc()),
+        page=page,
+        per_page=per_page,
     )
-    return RbacChangePage(
-        offset=offset,
-        limit=limit,
-        items=[
+    return RbacChangeListResponse(
+        data=[
             RbacChangePublic(
                 id=item.id,
                 action=item.action,
@@ -394,4 +425,7 @@ async def list_changes(
             )
             for item in items
         ],
+        pagination=build_pagination(page, per_page, total),
+        filters_applied=NoFilters(),
+        sort=SortApplied(by='occurred_at', order='desc'),
     )

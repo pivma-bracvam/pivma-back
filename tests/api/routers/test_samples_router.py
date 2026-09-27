@@ -901,9 +901,11 @@ async def test_complete_emits_audit_with_counts_only(session, client):
 
 
 def _labels(client, process_id):
-    response = client.get(_url(process_id, '/labels'))
+    response = client.get(
+        _url(process_id, '/labels'), params={'per_page': 100}
+    )
     assert response.status_code == HTTPStatus.OK, response.text
-    return response.json()
+    return response.json()['data']
 
 
 def _svg(data_uri):
@@ -930,12 +932,12 @@ async def test_labels_return_one_per_vial(session, client):
     names = {str(lab.id): lab.name for lab in ctx.labs}
     for label in labels:
         assert label['study_code'] == process.code
-        assert label['laboratory_name'] == names[label['laboratory_id']]
+        assert label['laboratory']['name'] == names[label['laboratory']['id']]
         assert label['lot'] == 'L-2026-04'
         assert label['qr_url']
         assert label['qr_svg']
-    assert [(lb['laboratory_name'], lb['code']) for lb in labels] == sorted(
-        (lb['laboratory_name'], lb['code']) for lb in labels
+    assert [(lb['laboratory']['name'], lb['code']) for lb in labels] == sorted(
+        (lb['laboratory']['name'], lb['code']) for lb in labels
     )
 
 

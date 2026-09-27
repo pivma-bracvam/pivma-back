@@ -5,12 +5,9 @@ from pydantic import ValidationError
 
 from pivma.schemas import (
     AffiliationCreate,
-    InstitutionalChangePage,
     InstitutionCreate,
     LaboratoryCreate,
 )
-
-MAX_HISTORY_LIMIT = 100
 
 
 def test_catalog_schemas_normalize_names_and_forbid_extra_fields():
@@ -36,14 +33,3 @@ def test_affiliation_schema_accepts_optional_laboratory_and_forbids_extra():
     )
     with pytest.raises(ValidationError):
         AffiliationCreate(institution_id=institution_id, extra='value')
-
-
-def test_institutional_change_page_limits_pagination_values():
-    assert (
-        InstitutionalChangePage(
-            offset=0, limit=MAX_HISTORY_LIMIT, items=[]
-        ).limit
-        == MAX_HISTORY_LIMIT
-    )
-    with pytest.raises(ValidationError):
-        InstitutionalChangePage(offset=-1, items=[])

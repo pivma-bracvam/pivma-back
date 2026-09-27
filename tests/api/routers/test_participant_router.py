@@ -134,7 +134,7 @@ async def test_administrator_creates_valid_individual_assignment(
     )
     assert response.status_code == HTTPStatus.CREATED
     body = response.json()
-    assert body['user_id'] == str(other_user.id)
+    assert body['user']['id'] == str(other_user.id)
     assert body['role_key'] == 'study_manager'
     assert body['active'] is True
 
@@ -172,7 +172,7 @@ async def test_manager_creates_laboratory_assignment_with_current_affiliation(
         client, process.id, other_user.id, 'lead_laboratory', laboratory.id
     )
     assert response.status_code == HTTPStatus.CREATED
-    assert response.json()['laboratory_id'] == str(laboratory.id)
+    assert response.json()['laboratory']['id'] == str(laboratory.id)
 
 
 @pytest.mark.asyncio
@@ -362,7 +362,7 @@ async def test_manager_listing_returns_all_active_cycles(
 
     listed = client.get(f'/processes/{process.id}/participants')
     assert listed.status_code == HTTPStatus.OK
-    assert {item['role_key'] for item in listed.json()} == {
+    assert {item['role_key'] for item in listed.json()['data']} == {
         'study_manager',
         'statistician',
     }
@@ -381,7 +381,9 @@ async def test_participant_listing_returns_only_own_cycles(
     authenticate(client, other_user)
     listed = client.get(f'/processes/{process.id}/participants')
     assert listed.status_code == HTTPStatus.OK
-    assert [item['user_id'] for item in listed.json()] == [str(other_user.id)]
+    assert [item['user']['id'] for item in listed.json()['data']] == [
+        str(other_user.id)
+    ]
 
 
 @pytest.mark.asyncio
@@ -394,7 +396,7 @@ async def test_listing_signals_null_conflict_without_declaration(
     create_participant(client, process.id, other_user.id, 'study_manager')
 
     listed = client.get(f'/processes/{process.id}/participants')
-    assert listed.json()[0]['has_conflict'] is None
+    assert listed.json()['data'][0]['has_conflict'] is None
 
 
 @pytest.mark.asyncio
@@ -416,7 +418,7 @@ async def test_listing_signals_ineffective_after_losing_affiliation(
     await session.commit()
 
     listed = client.get(f'/processes/{process.id}/participants')
-    assert listed.json()[0]['effective'] is False
+    assert listed.json()['data'][0]['effective'] is False
 
 
 @pytest.mark.asyncio
@@ -435,7 +437,7 @@ async def test_manager_listing_signals_true_conflict_after_current_declaration(
 
     authenticate(client, user)
     listed = client.get(f'/processes/{process.id}/participants')
-    assert listed.json()[0]['has_conflict'] is True
+    assert listed.json()['data'][0]['has_conflict'] is True
 
 
 # --- A-C: conflito e histórico ---
@@ -479,7 +481,7 @@ async def test_owner_declares_absence_of_conflict_preserving_previous(
         f'/processes/{process.id}/participants/history'
     ).json()
     item = next(
-        i for i in history['items'] if i['assignment']['id'] == created['id']
+        i for i in history['data'] if i['assignment']['id'] == created['id']
     )
     assert len(item['declarations']) == 2
     assert item['declarations'][0]['id'] == first.json()['id']
@@ -540,7 +542,7 @@ async def test_manager_history_exposes_declaration_justification(
         f'/processes/{process.id}/participants/history'
     ).json()
     item = next(
-        i for i in history['items'] if i['assignment']['id'] == created['id']
+        i for i in history['data'] if i['assignment']['id'] == created['id']
     )
     assert item['declarations'][0]['justification'] == 'Motivo claro'
 
@@ -564,7 +566,7 @@ async def test_owner_history_exposes_own_declaration_justification(
         f'/processes/{process.id}/participants/history'
     ).json()
     item = next(
-        i for i in history['items'] if i['assignment']['id'] == created['id']
+        i for i in history['data'] if i['assignment']['id'] == created['id']
     )
     assert item['declarations'][0]['justification'] == 'Motivo do titular'
 
@@ -587,7 +589,7 @@ async def test_manager_history_includes_active_and_revoked_cycles(
     history = client.get(
         f'/processes/{process.id}/participants/history'
     ).json()
-    ids = {item['assignment']['id'] for item in history['items']}
+    ids = {item['assignment']['id'] for item in history['data']}
     assert {first['id'], second['id']}.issubset(ids)
 
 
@@ -607,7 +609,7 @@ async def test_participant_history_includes_only_own_cycles(
     history = client.get(
         f'/processes/{process.id}/participants/history'
     ).json()
-    ids = {item['assignment']['id'] for item in history['items']}
+    ids = {item['assignment']['id'] for item in history['data']}
     assert ids == {other_cycle['id']}
 
 
@@ -624,8 +626,8 @@ async def test_history_orders_cycles_by_assignment_descending(
     history = client.get(
         f'/processes/{process.id}/participants/history'
     ).json()
-    assert history['items'][0]['assignment']['role_key'] == 'statistician'
-    assert history['items'][1]['assignment']['role_key'] == 'study_manager'
+    assert history['data'][0]['assignment']['role_key'] == 'statistician'
+    assert history['data'][1]['assignment']['role_key'] == 'study_manager'
 
 
 @pytest.mark.asyncio
@@ -648,7 +650,7 @@ async def test_history_orders_declarations_ascending(
         f'/processes/{process.id}/participants/history'
     ).json()
     item = next(
-        i for i in history['items'] if i['assignment']['id'] == created['id']
+        i for i in history['data'] if i['assignment']['id'] == created['id']
     )
     assert [d['justification'] for d in item['declarations']] == [
         'Primeira',
@@ -657,7 +659,7 @@ async def test_history_orders_declarations_ascending(
 
 
 @pytest.mark.asyncio
-async def test_history_pagination_rejects_limit_above_maximum(
+async def test_history_pagination_rejects_per_page_above_maximum(
     session, client, user
 ):
     await grant_participants_management(session, user)
@@ -665,13 +667,13 @@ async def test_history_pagination_rejects_limit_above_maximum(
     authenticate(client, user)
 
     response = client.get(
-        f'/processes/{process.id}/participants/history?limit=201'
+        f'/processes/{process.id}/participants/history?per_page=101'
     )
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
 @pytest.mark.asyncio
-async def test_history_pagination_applies_offset_and_limit_without_repeats(
+async def test_history_pagination_applies_pages_without_repeats(
     session, client, user, other_user
 ):
     await grant_participants_management(session, user)
@@ -681,21 +683,21 @@ async def test_history_pagination_applies_offset_and_limit_without_repeats(
         create_participant(client, process.id, other_user.id, role)
 
     first_page = client.get(
-        f'/processes/{process.id}/participants/history?offset=0&limit=1'
+        f'/processes/{process.id}/participants/history?page=1&per_page=1'
     ).json()
     second_page = client.get(
-        f'/processes/{process.id}/participants/history?offset=1&limit=1'
+        f'/processes/{process.id}/participants/history?page=2&per_page=1'
     ).json()
     all_items = client.get(
-        f'/processes/{process.id}/participants/history?offset=0&limit=100'
+        f'/processes/{process.id}/participants/history?per_page=100'
     ).json()
 
     combined_ids = [
-        first_page['items'][0]['assignment']['id'],
-        second_page['items'][0]['assignment']['id'],
+        first_page['data'][0]['assignment']['id'],
+        second_page['data'][0]['assignment']['id'],
     ]
     assert combined_ids == [
-        item['assignment']['id'] for item in all_items['items'][:2]
+        item['assignment']['id'] for item in all_items['data'][:2]
     ]
     assert len(set(combined_ids)) == 2
 

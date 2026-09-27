@@ -155,7 +155,9 @@ async def test_administrator_profile_lists_permission_never_composed(
 
     assert response.status_code == HTTPStatus.OK
     admin_profile = next(
-        item for item in response.json() if item['name'] == 'Administrador'
+        item
+        for item in response.json()['data']
+        if item['name'] == 'Administrador'
     )
     assert 'future.feature' in admin_profile['permission_codes']
 
@@ -175,7 +177,7 @@ def test_change_history_lists_recorded_actions_ordered_by_occurred_at_desc(
     response = client.get('/rbac/changes')
 
     assert response.status_code == HTTPStatus.OK
-    changes = response.json()['items']
+    changes = response.json()['data']
     assert {
         'profile.created',
         'profile.updated',
@@ -234,7 +236,7 @@ def test_change_history_includes_deactivation_and_revocation_actions(
     assert {
         'profile.deactivated',
         'assignment.revoked',
-    }.issubset({item['action'] for item in response.json()['items']})
+    }.issubset({item['action'] for item in response.json()['data']})
 
 
 def test_revocation_takes_effect_on_next_request_with_same_cookie(
@@ -326,7 +328,7 @@ async def test_change_history_exposes_bootstrap_with_null_actor(
     assert response.status_code == HTTPStatus.OK
     item = next(
         change
-        for change in response.json()['items']
+        for change in response.json()['data']
         if change['id'] == str(bootstrap_change.id)
     )
     assert item['action'] == 'bootstrap.admin_assigned'

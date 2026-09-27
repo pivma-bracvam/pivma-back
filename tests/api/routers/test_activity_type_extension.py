@@ -139,7 +139,7 @@ async def test_role_assignment_activities_unlock_on_triage_approval(
     )
     assert resp.status_code == HTTPStatus.CREATED
     process_id = resp.json()['id']
-    assert resp.json()['version_number'] == 5
+    assert resp.json()['template']['version'] == 5
 
     client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',

@@ -127,7 +127,9 @@ def _url(process_id):
 
 
 def _process_title(client, process_id):
-    processes = client.get('/processes', params={'size': 100}).json()['items']
+    processes = client.get('/processes', params={'per_page': 100}).json()[
+        'data'
+    ]
     return next(
         item['title'] for item in processes if item['id'] == process_id
     )
@@ -463,7 +465,10 @@ async def test_draft_update_does_not_create_history_or_change_flow(
     assert process_after.status == process_before.status == 'OPEN'
     assert response.json()['form_instance_id'] == run_before
     assert (
-        client.get(f'/processes/{process_id}/submission-versions').json() == []
+        client.get(f'/processes/{process_id}/submission-versions').json()[
+            'data'
+        ]
+        == []
     )
 
 
@@ -478,7 +483,10 @@ async def test_patch_draft_does_not_create_history(client, session):
 
     assert response.status_code == HTTPStatus.OK
     assert (
-        client.get(f'/processes/{process_id}/submission-versions').json() == []
+        client.get(f'/processes/{process_id}/submission-versions').json()[
+            'data'
+        ]
+        == []
     )
 
 
@@ -601,7 +609,7 @@ async def test_history_is_frozen_and_latest_form_is_current(
     assert current.status_code == HTTPStatus.OK
     assert current.json()['values']['method_title'] == 'Método versão 3'
     assert history.status_code == HTTPStatus.OK
-    assert [item['run_number'] for item in history.json()] == [2, 1]
+    assert [item['run_number'] for item in history.json()['data']] == [2, 1]
     assert detail.status_code == HTTPStatus.OK
     assert detail.json()['title'] == 'Título original da proposta'
     assert detail.json()['values'] == first_values

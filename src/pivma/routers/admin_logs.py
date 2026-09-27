@@ -11,6 +11,8 @@ router = APIRouter(prefix='/admin/logs', tags=['Admin Observability'])
     '/operational',
     response_model=list[OperationalEventIndex],
     summary='Consultar histórico do Índice Operacional',
+    # Fora da documentação: estes logs devem deixar de existir (Spec 033).
+    include_in_schema=False,
 )
 async def get_operational_logs(
     admin_user: AdminUser,
@@ -29,6 +31,8 @@ async def get_operational_logs(
     '/ai',
     response_model=list[PipelineExecutionGroup],
     summary='Consultar histórico de etapas de IA agrupadas por pipeline',
+    # Fora da documentação: estes logs devem deixar de existir (Spec 033).
+    include_in_schema=False,
 )
 async def get_ai_pipeline_logs(
     admin_user: AdminUser,

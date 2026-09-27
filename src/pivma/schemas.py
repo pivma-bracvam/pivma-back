@@ -27,6 +27,62 @@ class Message(BaseModel):
     message: str
 
 
+# ==========================================
+# REFERÊNCIAS (Specs 032 e 033)
+# ==========================================
+# Entidades relacionadas em respostas: objetos pequenos de formato fixo, em
+# um nível só. Campos de auditoria continuam como identificadores.
+
+
+class ProcessRef(BaseModel):
+    id: UUID = Field(description='Identificador do processo')
+    code: str = Field(description='Código do processo')
+    title: str = Field(description='Título do processo')
+
+
+class PhaseRef(BaseModel):
+    key: str = Field(description='Chave da fase no template')
+    order: int = Field(description='Ordem da fase no processo')
+
+
+class UserRef(BaseModel):
+    """Pessoa referenciada. Nunca traz e-mail."""
+
+    id: UUID = Field(description='Identificador do usuário')
+    username: str = Field(description='Nome de usuário')
+    full_name: str | None = Field(description='Nome completo')
+
+
+class ProfileRef(BaseModel):
+    id: UUID = Field(description='Identificador do perfil')
+    name: str = Field(description='Nome do perfil')
+    active: bool = Field(description='Perfil ativo')
+    model_config = ConfigDict(extra='forbid')
+
+
+class InstitutionRef(BaseModel):
+    id: UUID = Field(description='Identificador da instituição')
+    name: str = Field(description='Nome da instituição')
+    active: bool = Field(description='Instituição ativa')
+    model_config = ConfigDict(extra='forbid')
+
+
+class LaboratoryRef(BaseModel):
+    id: UUID = Field(description='Identificador do laboratório')
+    name: str = Field(description='Nome do laboratório')
+    active: bool = Field(description='Laboratório ativo')
+    institution: InstitutionRef = Field(
+        description='Instituição do laboratório'
+    )
+    model_config = ConfigDict(extra='forbid')
+
+
+class TemplateRef(BaseModel):
+    key: str = Field(description='Chave do template de processo')
+    name: str = Field(description='Nome do template de processo')
+    version: int = Field(description='Versão do template usada no processo')
+
+
 class UserSchema(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
@@ -113,16 +169,9 @@ class UserUpdate(BaseModel):
         return self
 
 
-class ProfileSummary(BaseModel):
-    id: UUID
-    name: str
-    active: bool
-    model_config = ConfigDict(extra='forbid')
-
-
 class AdminUser(UserPublic):
     active: bool
-    profiles: list[ProfileSummary]
+    profiles: list[ProfileRef]
     model_config = ConfigDict(extra='forbid', from_attributes=True)
 
 
@@ -149,7 +198,7 @@ class AccessScope(BaseModel):
 
 
 class CurrentUserAccess(BaseModel):
-    profiles: list[ProfileSummary]
+    profiles: list[ProfileRef]
     global_permissions: list[str]
     scopes: list[AccessScope]
     model_config = ConfigDict(extra='forbid')
@@ -158,18 +207,6 @@ class CurrentUserAccess(BaseModel):
 class CurrentUserResponse(BaseModel):
     user: UserIdentity
     access: CurrentUserAccess
-    model_config = ConfigDict(extra='forbid')
-
-
-class FilterPage(BaseModel):
-    offset: int = Field(0, ge=0)
-    limit: int = Field(100, ge=1)
-
-
-class AdminUserPage(FilterPage):
-    offset: int = Field(..., ge=0)
-    limit: int = Field(..., ge=1, le=100)
-    items: list[AdminUser]
     model_config = ConfigDict(extra='forbid')
 
 
@@ -242,7 +279,7 @@ class ProfilePublic(BaseModel):
 
 class UserAccess(BaseModel):
     user_id: UUID
-    profiles: list[ProfileSummary]
+    profiles: list[ProfileRef]
     effective_permissions: list[str]
     model_config = ConfigDict(extra='forbid')
 
@@ -269,11 +306,6 @@ class RbacChangePublic(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 
-class RbacChangePage(FilterPage):
-    items: list[RbacChangePublic]
-    model_config = ConfigDict(extra='forbid')
-
-
 # ==========================================
 # INSTITUTIONAL AFFILIATION SCHEMAS
 # ==========================================
@@ -294,14 +326,7 @@ class InstitutionUpdate(InstitutionCreate):
     pass
 
 
-class InstitutionSummary(BaseModel):
-    id: UUID
-    name: str
-    active: bool
-    model_config = ConfigDict(extra='forbid')
-
-
-class InstitutionPublic(InstitutionSummary):
+class InstitutionPublic(InstitutionRef):
     created_by: UUID | None
     created_at: datetime
     updated_by: UUID | None
@@ -323,15 +348,13 @@ class LaboratoryUpdate(BaseModel):
     name: InstitutionalName
 
 
-class LaboratorySummary(BaseModel):
+class LaboratoryPublic(BaseModel):
     id: UUID
     name: str
     active: bool
-    model_config = ConfigDict(extra='forbid')
-
-
-class LaboratoryPublic(LaboratorySummary):
-    institution_id: UUID
+    institution: InstitutionRef = Field(
+        description='Instituição do laboratório'
+    )
     created_by: UUID | None
     created_at: datetime
     updated_by: UUID | None
@@ -349,9 +372,9 @@ class AffiliationCreate(BaseModel):
 
 class AffiliationPublic(BaseModel):
     id: UUID
-    user_id: UUID
-    institution: InstitutionSummary
-    laboratory: LaboratorySummary | None
+    user: UserRef = Field(description='Pessoa afiliada')
+    institution: InstitutionRef
+    laboratory: LaboratoryRef | None
     active: bool
     created_by: UUID | None
     created_at: datetime
@@ -364,8 +387,8 @@ class AffiliationPublic(BaseModel):
 
 class SelfAffiliationPublic(BaseModel):
     id: UUID
-    institution: InstitutionSummary
-    laboratory: LaboratorySummary | None
+    institution: InstitutionRef
+    laboratory: LaboratoryRef | None
     model_config = ConfigDict(extra='forbid')
 
 
@@ -376,11 +399,6 @@ class InstitutionalChangePublic(BaseModel):
     target_id: UUID
     actor_user_id: UUID | None
     occurred_at: datetime
-    model_config = ConfigDict(extra='forbid')
-
-
-class InstitutionalChangePage(FilterPage):
-    items: list[InstitutionalChangePublic]
     model_config = ConfigDict(extra='forbid')
 
 
@@ -411,8 +429,11 @@ class SortApplied(BaseModel):
     order: Literal['asc', 'desc'] = Field(description='Direção aplicada')
 
 
-class ListEnvelope(BaseModel, Generic[ItemT, FiltersT, FacetsT, SummaryT]):
-    """Resposta padrão de listagem (Spec 032, FR-001 a FR-008)."""
+class ListPage(BaseModel, Generic[ItemT, FiltersT]):
+    """Resposta padrão de listagem (Spec 032, FR-001 a FR-008).
+
+    Base das listagens sem contagens nem resumo (Spec 033).
+    """
 
     data: list[ItemT] = Field(description='Itens da página')
     pagination: Pagination = Field(description='Paginação por página')
@@ -420,6 +441,17 @@ class ListEnvelope(BaseModel, Generic[ItemT, FiltersT, FacetsT, SummaryT]):
         description='Filtros aplicados, incluindo os padrões'
     )
     sort: SortApplied = Field(description='Ordenação aplicada')
+
+
+class NoFilters(BaseModel):
+    """Listagem sem filtros."""
+
+
+class ListEnvelope(
+    ListPage[ItemT, FiltersT], Generic[ItemT, FiltersT, FacetsT, SummaryT]
+):
+    """Listagem com contagens e resumo sob demanda (Spec 032)."""
+
     facets: FacetsT | None = Field(
         None,
         description='Contagens por valor de filtro (só com include=facets)',
@@ -439,22 +471,6 @@ class ListEnvelope(BaseModel, Generic[ItemT, FiltersT, FacetsT, SummaryT]):
             if data.get(key) is None:
                 data.pop(key, None)
         return data
-
-
-# ==========================================
-# REFERÊNCIAS (Spec 032)
-# ==========================================
-
-
-class ProcessRef(BaseModel):
-    id: UUID = Field(description='Identificador do processo')
-    code: str = Field(description='Código do processo')
-    title: str = Field(description='Título do processo')
-
-
-class PhaseRef(BaseModel):
-    key: str = Field(description='Chave da fase no template')
-    order: int = Field(description='Ordem da fase no processo')
 
 
 # ==========================================
@@ -498,8 +514,7 @@ class ProcessInstanceDetail(BaseModel):
     code: str
     title: str
     status: ProcessLifecycle
-    template_key: str
-    version_number: int
+    template: TemplateRef = Field(description='Template e versão do processo')
     started_at: datetime | None = None
     closed_at: datetime | None = None
     closure_reason: str | None = None
@@ -507,13 +522,6 @@ class ProcessInstanceDetail(BaseModel):
         default_factory=list
     )
     model_config = ConfigDict(from_attributes=True)
-
-
-class ProcessInstanceListResponse(BaseModel):
-    items: list[ProcessInstanceDetail]
-    total: int
-    page: int
-    size: int
 
 
 class ProcessLifecycleResponse(BaseModel):
@@ -796,12 +804,6 @@ class TimelineEvent(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ProcessTimelineResponse(BaseModel):
-    process_id: UUID
-    code: str
-    events: list[TimelineEvent]
-
-
 # ==========================================
 # PROCESS PARTICIPANT & CONFLICT SCHEMAS
 # ==========================================
@@ -861,10 +863,14 @@ class ParticipantAssignmentPublic(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
     id: UUID
-    process_id: UUID
-    user_id: UUID
+    process: ProcessRef = Field(description='Processo da designação')
+    user: UserRef = Field(description='Pessoa designada')
     role_key: str
-    laboratory_id: UUID | None
+    laboratory: LaboratoryRef | None = Field(
+        description=(
+            'Laboratório da designação; nulo fora dos cargos de laboratório'
+        )
+    )
     assigned_by: UUID
     assigned_at: datetime
     revoked_at: datetime | None
@@ -896,14 +902,6 @@ class ParticipantHistoryItem(BaseModel):
 
     assignment: ParticipantAssignmentPublic
     declarations: list[ConflictDeclarationPublic]
-
-
-class ParticipantHistoryPage(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-
-    offset: int
-    limit: int
-    items: list[ParticipantHistoryItem]
 
 
 # ==========================================
@@ -947,9 +945,13 @@ class InvitePublic(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
     id: UUID
-    process_id: UUID
+    process: ProcessRef = Field(description='Processo do convite')
     role_key: str
-    laboratory_id: UUID | None
+    laboratory: LaboratoryRef | None = Field(
+        description=(
+            'Laboratório do convite; nulo fora dos cargos de laboratório'
+        )
+    )
     email: str
     channel: str
     status: Literal['pending', 'accepted', 'revoked']
@@ -1087,12 +1089,6 @@ class EvaluationDefinitionSummary(BaseModel):
     latest_version: EvaluationVersionSummary | None = None
     published_versions: int = 0
     assignments_count: int = 0
-
-
-class EvaluationDefinitionPage(FilterPage):
-    offset: int = Field(..., ge=0)
-    limit: int = Field(..., ge=1, le=100)
-    items: list[EvaluationDefinitionSummary]
 
 
 class PatchEvaluationVersionRequest(BaseModel):
@@ -1426,8 +1422,7 @@ class SampleCompletionResponse(BaseModel):
 class SampleLabel(BaseModel):
     code: str
     study_code: str
-    laboratory_id: UUID
-    laboratory_name: str
+    laboratory: LaboratoryRef = Field(description='Laboratório destinatário')
     lot: str
     qr_url: str
     qr_svg: str
@@ -1441,3 +1436,113 @@ class BlindVial(BaseModel):
     code: str
     lot: str
     safe_handling_instructions: str
+
+
+# ==========================================
+# RESPOSTAS DE LISTAGEM (Spec 033)
+# ==========================================
+# Uma classe nomeada por listagem, para o OpenAPI ter um schema legível.
+
+
+class UserListFilters(BaseModel):
+    search: str | None = Field(
+        description='Busca por nome de usuário ou e-mail'
+    )
+    active: bool = Field(description='Contas ativas (true) ou inativas')
+    profile_id: UUID | None = Field(description='Contas com este perfil')
+
+
+class UserListResponse(ListPage[AdminUser, UserListFilters]):
+    """Usuários da administração."""
+
+
+class PermissionListResponse(ListPage[PermissionPublic, NoFilters]):
+    """Catálogo de permissões."""
+
+
+class ProfileListResponse(ListPage[ProfilePublic, NoFilters]):
+    """Perfis de acesso."""
+
+
+class RbacChangeListResponse(ListPage[RbacChangePublic, NoFilters]):
+    """Trilha de alterações do RBAC."""
+
+
+class InstitutionListResponse(ListPage[InstitutionPublic, NoFilters]):
+    """Instituições."""
+
+
+class LaboratoryListResponse(ListPage[LaboratoryPublic, NoFilters]):
+    """Laboratórios."""
+
+
+class AffiliationListResponse(ListPage[AffiliationPublic, NoFilters]):
+    """Afiliações de um usuário."""
+
+
+class SelfAffiliationListResponse(ListPage[SelfAffiliationPublic, NoFilters]):
+    """Afiliações ativas do usuário logado."""
+
+
+class InstitutionalChangeListResponse(
+    ListPage[InstitutionalChangePublic, NoFilters]
+):
+    """Trilha de alterações do catálogo institucional."""
+
+
+class ProcessListFilters(BaseModel):
+    status: ProcessLifecycle | None = Field(
+        description='Status do processo; nulo = todos, menos os arquivados'
+    )
+
+
+class ProcessTemplateListResponse(ListPage[ProcessTemplateSummary, NoFilters]):
+    """Templates de processo ativos."""
+
+
+class ProcessListResponse(ListPage[ProcessInstanceDetail, ProcessListFilters]):
+    """Processos visíveis ao usuário."""
+
+
+class SubmissionVersionListResponse(
+    ListPage[SubmissionVersionSummary, NoFilters]
+):
+    """Versões devolvidas da submissão."""
+
+
+class TimelineListResponse(ListPage[TimelineEvent, NoFilters]):
+    """Eventos da linha do tempo visíveis ao usuário, em ordem cronológica."""
+
+
+class ParticipantListResponse(
+    ListPage[ParticipantAssignmentPublic, NoFilters]
+):
+    """Designações ativas do processo visíveis ao usuário."""
+
+
+class ParticipantHistoryListResponse(
+    ListPage[ParticipantHistoryItem, NoFilters]
+):
+    """Histórico de designações e declarações de conflito."""
+
+
+class InviteListResponse(ListPage[InvitePublic, NoFilters]):
+    """Convites do processo que o usuário pode gerir."""
+
+
+class EvaluationListFilters(BaseModel):
+    search: str | None = Field(description='Busca pelo nome da avaliação')
+
+
+class EvaluationListResponse(
+    ListPage[EvaluationDefinitionSummary, EvaluationListFilters]
+):
+    """Biblioteca de avaliações de IA."""
+
+
+class ReferenceListResponse(ListPage[ReferencePublic, NoFilters]):
+    """Referências normativas das avaliações de IA."""
+
+
+class SampleLabelListResponse(ListPage[SampleLabel, NoFilters]):
+    """Etiquetas dos frascos, só para o Grupo de Seleção de Amostras."""

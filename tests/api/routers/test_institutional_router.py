@@ -99,7 +99,7 @@ def test_create_laboratory_returns_active_record_linked_to_institution(
     assert created.status_code == HTTPStatus.CREATED
     laboratory = created.json()
     assert laboratory['active'] is True
-    assert laboratory['institution_id'] == institution['id']
+    assert laboratory['institution']['id'] == institution['id']
 
 
 def test_list_laboratories_orders_by_institution_then_name(
@@ -114,8 +114,8 @@ def test_list_laboratories_orders_by_institution_then_name(
     assert listed.status_code == HTTPStatus.OK
     names = [
         item['name']
-        for item in listed.json()
-        if item['institution_id'] == institution['id']
+        for item in listed.json()['data']
+        if item['institution']['id'] == institution['id']
     ]
     assert names == ['Alpha lab', 'Zebra lab']
 
@@ -133,7 +133,7 @@ def test_update_laboratory_renames_without_moving_institution(
         json={'name': 'Lab B'},
     )
     assert changed.status_code == HTTPStatus.OK
-    assert changed.json()['institution_id'] == institution['id']
+    assert changed.json()['institution']['id'] == institution['id']
     assert changed.json()['name'] == 'Lab B'
 
 
@@ -180,7 +180,7 @@ def test_catalog_mutations_record_institutional_history(
         'laboratory.created',
         'laboratory.updated',
         'laboratory.deactivated',
-    }.issubset({item['action'] for item in changes.json()['items']})
+    }.issubset({item['action'] for item in changes.json()['data']})
 
 
 def test_institution_read_returns_404_for_unknown_id(
@@ -227,25 +227,25 @@ def test_history_pagination_matches_full_listing_slice(
     client, institutional_administrator
 ):
     authenticate(client, institutional_administrator)
-    initial_history = client.get('/institutional/changes').json()['items']
+    initial_history = client.get('/institutional/changes').json()['data']
     create_institution(client, 'UFBA')
     create_institution(client, 'UFC')
 
-    first_page = client.get('/institutional/changes?offset=0&limit=1')
-    second_page = client.get('/institutional/changes?offset=1&limit=1')
-    all_changes = client.get('/institutional/changes?offset=0&limit=100')
+    first_page = client.get('/institutional/changes?page=1&per_page=1')
+    second_page = client.get('/institutional/changes?page=2&per_page=1')
+    all_changes = client.get('/institutional/changes?per_page=100')
     assert first_page.status_code == second_page.status_code == HTTPStatus.OK
-    assert [*first_page.json()['items'], *second_page.json()['items']] == (
-        all_changes.json()['items'][:2]
+    assert [*first_page.json()['data'], *second_page.json()['data']] == (
+        all_changes.json()['data'][:2]
     )
-    assert len(all_changes.json()['items']) == len(initial_history) + 2
+    assert len(all_changes.json()['data']) == len(initial_history) + 2
 
 
-def test_history_rejects_limit_above_maximum(
+def test_history_rejects_per_page_above_maximum(
     client, institutional_administrator
 ):
     authenticate(client, institutional_administrator)
-    response = client.get('/institutional/changes?limit=101')
+    response = client.get('/institutional/changes?per_page=101')
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
@@ -264,11 +264,11 @@ def test_create_affiliation_composes_users_scope(
     )
     assert created.status_code == HTTPStatus.CREATED
     affiliation = created.json()
-    assert affiliation['user_id'] == str(other_user.id)
+    assert affiliation['user']['id'] == str(other_user.id)
     assert affiliation['active'] is True
 
     authenticate(client, other_user)
-    assert client.get('/institutional/me/affiliations').json() == [
+    assert client.get('/institutional/me/affiliations').json()['data'] == [
         {
             'id': affiliation['id'],
             'institution': {
@@ -280,6 +280,11 @@ def test_create_affiliation_composes_users_scope(
                 'id': laboratory['id'],
                 'name': 'Lab',
                 'active': True,
+                'institution': {
+                    'id': institution['id'],
+                    'name': 'USP',
+                    'active': True,
+                },
             },
         }
     ]
@@ -297,7 +302,7 @@ def test_self_affiliations_returns_union_of_multiple_active_scopes(
     authenticate(client, other_user)
     own = client.get('/institutional/me/affiliations')
     assert own.status_code == HTTPStatus.OK
-    assert {item['institution']['id'] for item in own.json()} == {
+    assert {item['institution']['id'] for item in own.json()['data']} == {
         first_institution['id'],
         second_institution['id'],
     }
@@ -312,7 +317,9 @@ def test_admin_lists_affiliations_of_a_specific_user(
 
     listed = client.get(f'/institutional/users/{other_user.id}/affiliations')
     assert listed.status_code == HTTPStatus.OK
-    assert [item['user_id'] for item in listed.json()] == [str(other_user.id)]
+    assert [item['user']['id'] for item in listed.json()['data']] == [
+        str(other_user.id)
+    ]
 
 
 def test_deactivated_affiliation_stops_composing_scope_on_next_request(
@@ -325,7 +332,7 @@ def test_deactivated_affiliation_stops_composing_scope_on_next_request(
     ).json()
 
     authenticate(client, other_user)
-    assert client.get('/institutional/me/affiliations').json() == [
+    assert client.get('/institutional/me/affiliations').json()['data'] == [
         {
             'id': affiliation['id'],
             'institution': {
@@ -346,7 +353,7 @@ def test_deactivated_affiliation_stops_composing_scope_on_next_request(
     assert deactivated.status_code == HTTPStatus.NO_CONTENT
 
     authenticate(client, other_user)
-    assert client.get('/institutional/me/affiliations').json() == []
+    assert client.get('/institutional/me/affiliations').json()['data'] == []
 
 
 def test_correcting_an_affiliation_starts_a_new_traceable_cycle(
@@ -372,7 +379,7 @@ def test_correcting_an_affiliation_starts_a_new_traceable_cycle(
 
     history_targets = {
         item['target_id']
-        for item in client.get('/institutional/changes').json()['items']
+        for item in client.get('/institutional/changes').json()['data']
         if item['action'] in {'affiliation.created', 'affiliation.deactivated'}
     }
     assert {first_cycle['id'], second_cycle.json()['id']}.issubset(

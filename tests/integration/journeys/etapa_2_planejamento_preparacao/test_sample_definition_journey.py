@@ -152,7 +152,7 @@ async def test_blind_sample_journey_four_substances_three_labs(  # noqa: PLR0914
     assert len(set(codes)) == SUBSTANCES * LABS
 
     # 7. Etiquetas e visão cega sem identidade química (SC-004).
-    labels = _ok(client.get(f'{samples}/labels'))
+    labels = _ok(client.get(f'{samples}/labels'))['data']
     assert len(labels) == SUBSTANCES * LABS
     vial = _ok(client.get(f'{samples}/vials/{labels[0]["code"]}'))
     blob = json.dumps([vial, [lb['qr_url'] for lb in labels]])

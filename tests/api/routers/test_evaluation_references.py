@@ -36,7 +36,7 @@ async def test_create_list_and_duplicate_reference(
 
     listed = client.get('/ai-evaluations/references')
     assert listed.status_code == HTTPStatus.OK
-    assert any(r['id'] == ref_id for r in listed.json())
+    assert any(r['id'] == ref_id for r in listed.json()['data'])
 
     dup = _create_reference(client)
     assert dup.status_code == HTTPStatus.CONFLICT

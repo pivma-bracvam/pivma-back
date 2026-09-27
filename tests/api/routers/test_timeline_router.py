@@ -72,10 +72,9 @@ async def test_process_timeline_events_recorded_and_ordered(
     tl_resp = client.get(f'/processes/{process_id}/timeline')
     assert tl_resp.status_code == HTTPStatus.OK
     timeline_data = tl_resp.json()
-    assert timeline_data['process_id'] == process_id
-    assert len(timeline_data['events']) >= 4
+    assert len(timeline_data['data']) >= 4
 
-    event_types = [e['event_type'] for e in timeline_data['events']]
+    event_types = [e['event_type'] for e in timeline_data['data']]
     assert event_types == [
         'PROCESS_CREATED',
         'FORM_DRAFT_SAVED',
@@ -122,7 +121,7 @@ async def test_timeline_hides_events_of_activities_without_view(
     assert decision.status_code == HTTPStatus.OK, decision.text
 
     bracvam_events = client.get(f'/processes/{process_id}/timeline').json()[
-        'events'
+        'data'
     ]
     triage_run_ids = {
         e['activity_run_id']
@@ -133,7 +132,7 @@ async def test_timeline_hides_events_of_activities_without_view(
 
     authenticate(client, proponente)
     proponent_events = client.get(f'/processes/{process_id}/timeline').json()[
-        'events'
+        'data'
     ]
     assert not {e['activity_run_id'] for e in proponent_events} & (
         triage_run_ids

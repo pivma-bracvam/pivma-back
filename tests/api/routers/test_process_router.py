@@ -21,7 +21,7 @@ async def test_list_and_get_process_templates(client, session):
     # 1. List templates
     resp = client.get('/processes/templates')
     assert resp.status_code == HTTPStatus.OK
-    templates = resp.json()
+    templates = resp.json()['data']
     expected_templates_count = 5
     assert len(templates) == expected_templates_count
     expected_keys = {
@@ -75,8 +75,8 @@ async def test_create_and_list_process_instances(client, session):
     resp_list = client.get('/processes')
     assert resp_list.status_code == HTTPStatus.OK
     list_data = resp_list.json()
-    assert list_data['total'] >= 1
-    assert any(p['id'] == process_id for p in list_data['items'])
+    assert list_data['pagination']['total_items'] >= 1
+    assert any(p['id'] == process_id for p in list_data['data'])
 
 
 @pytest.mark.asyncio
@@ -160,8 +160,8 @@ async def test_process_list_is_scoped_to_active_proponent(client, session):
     response = client.get('/processes')
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json()['total'] == 0
-    assert all(item['id'] != process_id for item in response.json()['items'])
+    assert response.json()['pagination']['total_items'] == 0
+    assert all(item['id'] != process_id for item in response.json()['data'])
     assert (
         client.get(f'/processes/{process_id}').status_code
         == HTTPStatus.NOT_FOUND

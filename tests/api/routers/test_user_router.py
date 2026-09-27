@@ -502,7 +502,7 @@ def test_deactivated_user_is_absent_from_default_listing(
 
     assert response.status_code == HTTPStatus.OK
     assert str(other_user.id) not in {
-        item['id'] for item in response.json()['items']
+        item['id'] for item in response.json()['data']
     }
 
 
@@ -517,7 +517,7 @@ def test_deactivated_user_is_in_inactive_listing(
     response = client.get('/users?active=false')
 
     assert response.status_code == HTTPStatus.OK
-    inactive_users = {item['id']: item for item in response.json()['items']}
+    inactive_users = {item['id']: item for item in response.json()['data']}
     assert inactive_users[str(other_user.id)]['active'] is False
 
 

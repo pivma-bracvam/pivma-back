@@ -122,8 +122,16 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
 * **Transporte de Sessão:** A autenticação opera via cookie seguro `access_token` (`HttpOnly`, `SameSite=Lax`). Requisições no cliente HTTP devem utilizar `credentials: 'include'` (ou `withCredentials: true`).
 * **Validação de Origem (CSRF):** Mutações de estado (`POST`, `PUT`, `PATCH`, `DELETE`) validam a procedência contra a lista de origens confiáveis da aplicação. Certifique-se de configurar o endereço do frontend em desenvolvimento no arquivo `.env`.
 * **Avaliação Dinâmica de Permissões:** Perfis e papéis são validados a cada requisição no banco de dados, sem persistência de permissões dentro do token.
-* **Padrão de Listagem:** As listagens no padrão (hoje `GET /tasks`; as demais migram em seguida) respondem com `data`, `pagination` (`page`, `per_page`, `total_items`, `total_pages`, `has_next`, `has_prev`), `filters_applied` (com os padrões aplicados) e `sort` (`by`, `order`). `facets` e `summary` só aparecem quando pedidos em `include`. A paginação é por página: `page` começa em 1, `per_page` vai de 1 a 100 (padrão 20), e uma página além da última devolve `data` vazio com os totais. A ordem é estável entre chamadas.
-* **Referências Resumidas:** Entidades relacionadas vêm como objetos pequenos de formato fixo (ex.: `process` com `id`, `code` e `title`), em um nível só. Campos de auditoria (`created_by` e similares) continuam como identificadores.
+* **Padrão de Listagem:** Todas as listagens respondem com `data`, `pagination` (`page`, `per_page`, `total_items`, `total_pages`, `has_next`, `has_prev`), `filters_applied` (com os padrões aplicados) e `sort` (`by`, `order`). `facets` e `summary` só aparecem quando pedidos em `include` (hoje só em `GET /tasks`). A paginação é por página: `page` começa em 1, `per_page` vai de 1 a 100 (padrão 20), e uma página além da última devolve `data` vazio com os totais. Não há `offset`, `limit` nem `size`. Cada listagem tem uma ordem padrão estável, informada em `sort`, e ecoa seus filtros em `filters_applied` (vazio quando não tem filtros).
+* **Referências Resumidas:** Entidades relacionadas vêm como objetos pequenos de formato fixo, em um nível só:
+  * pessoa (`user`): `id`, `username`, `full_name` (nunca e-mail);
+  * perfil: `id`, `name`, `active`;
+  * instituição (`institution`): `id`, `name`, `active`;
+  * laboratório (`laboratory`): `id`, `name`, `active` e `institution`;
+  * template (`template`): `key`, `name`, `version`;
+  * processo (`process`): `id`, `code`, `title`; etapa (`phase`): `key`, `order`.
+
+  Aparecem em designações de participante, convites, laboratórios, afiliações, processos, etiquetas e tarefas. Campos de auditoria (`created_by`, `assigned_by`, `accepted_by` e similares) continuam como identificadores.
 * **Convenções de Erro:**
 * `401 Unauthorized`: Sessão inexistente ou expirada.
 * `403 Forbidden`: Falta de permissão global, concessão de ver sem concessão de editar na atividade, ou conflito de interesse ativo.
@@ -179,6 +187,7 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
 
 ### Participantes e Conflito de Interesses
 
+* **Designações e convites:** cada designação traz `process`, `user` e `laboratory` (nulo fora dos cargos de laboratório) como referências resumidas; cada convite traz `process` e `laboratory`. As listagens de participantes, histórico e convites seguem o padrão de listagem.
 * **Papéis Locais Suportados:**
 * Técnicos: `group_manager`, `study_manager`, `statistician`, `adhoc_evaluator`, `peer_reviewer`.
 * Proponente: `proponent` (atribuído ao criador do processo).
@@ -202,7 +211,7 @@ Atividade `sample_definition` da Fase 2 (Spec 031, RF038 e RF050). Abre quando a
 * **Códigos cegos:** cada cadastro gera um código de 8 caracteres (`23456789ABCDEFGHJKMNPQRSTUVWXYZ`, sem `0/O/1/I/L`) por laboratório com designação ativa de `participating_laboratory`. O código é aleatório, único no processo e não carrega informação da substância ou do laboratório. O laboratório líder não recebe código por ser líder.
 * **SDS:** `PUT/GET /processes/{id}/samples/{substance_id}/sds`, só PDF, com o limite de `ATTACHMENT_MAX_SIZE_MB`. Substituir a SDS descarta a anterior.
 * **Conclusão:** `POST /processes/{id}/samples/complete` exige ao menos uma substância, SDS em todas e ao menos um laboratório (`422 no_substances`, `missing_sds`, `no_laboratories`). Gera os códigos que faltam, descarta os de laboratórios que saíram e conclui a atividade. Depois disso, toda alteração responde `409 invalid_transition`.
-* **Etiquetas:** `GET /processes/{id}/samples/labels` devolve, por frasco, estudo, laboratório, código, lote, `qr_url` e `qr_svg` (data URI SVG gerado com `segno`). O frontend monta o layout e imprime.
+* **Etiquetas:** `GET /processes/{id}/samples/labels` devolve, no padrão de listagem, por frasco, estudo, laboratório (`laboratory`, referência resumida), código, lote, `qr_url` e `qr_svg` (data URI SVG gerado com `segno`). O QR só é gerado para a página pedida. O frontend monta o layout e imprime.
 * **QR code:** contém só `{SAMPLE_QR_BASE_URL}/amostras/{process_id}/frascos/{code}`, rota do frontend que chama `GET /processes/{id}/samples/vials/{code}`. Essa rota exige login e devolve só código, lote e instruções de manuseio, nunca nome químico, CAS ou SDS.
 * **Auditoria:** eventos `SAMPLE_*` na linha do tempo guardam só identificadores e contagens.
 * O acesso dos laboratórios participantes aos próprios códigos fica para o recebimento de amostras (issue #28).
@@ -220,14 +229,9 @@ Atividade `sample_definition` da Fase 2 (Spec 031, RF038 e RF050). Abre quando a
 
 ### Observabilidade de Logs
 
-Administradores podem consultar os registros recentes pelos endpoints
-`GET /admin/logs/operational` e `GET /admin/logs/ai`. O primeiro aceita filtros
-por status e tipo de operação; o segundo aceita `correlation_id` para consultar
-etapas de uma execução.
-
-`demos/operational-index/` consulta o histórico sob demanda ou a cada cinco
-segundos, quando a atualização automática está ativa. `demos/ai-pipeline/`
-consulta o histórico quando o usuário solicita.
+As consultas `GET /admin/logs/operational` e `GET /admin/logs/ai` ainda
+respondem a administradores, mas estão fora da documentação da API e serão
+removidas.
 
 ---
 

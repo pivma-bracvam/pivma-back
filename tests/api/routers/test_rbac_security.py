@@ -68,7 +68,7 @@ def test_read_permission_allows_catalog(client, read_user):
     response = client.get('/rbac/permissions')
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == [
+    assert response.json()['data'] == [
         {'code': 'rbac.read', 'description': 'Read RBAC'}
     ]
 
