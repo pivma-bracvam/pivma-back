@@ -61,7 +61,7 @@ async def test_labels_second_page(session, client):
 
     assert len(body['data']) == 2  # noqa: PLR2004
     assert body['pagination']['total_items'] == 6  # noqa: PLR2004
-    assert all(label['qr_svg'] for label in body['data'])
+    assert all('qr_svg' not in label for label in body['data'])
 
 
 @pytest.mark.asyncio

@@ -122,6 +122,37 @@ async def get_sample_vial(
         raise _http_error(exc) from exc
 
 
+@router.get(
+    '/{id}/samples/vials/{code}/qr.svg',
+    response_class=Response,
+    responses={
+        200: {
+            'content': {'image/svg+xml': {}},
+            'description': 'Imagem SVG do QR do frasco, para a etiqueta.',
+        }
+    },
+)
+async def get_sample_vial_qr(
+    id: UUID,
+    code: str,
+    session: Session,
+    current_user: CurrentUser,
+    settings: SettingsDependency,
+):
+    try:
+        svg = await svc.vial_qr_svg(
+            session, settings, id, code, current_user.id
+        )
+    except _DOMAIN_ERRORS as exc:
+        raise _http_error(exc) from exc
+    # A imagem só muda se o código mudar; a sessão continua exigida.
+    return Response(
+        content=svg,
+        media_type='image/svg+xml',
+        headers={'Cache-Control': 'private, max-age=3600'},
+    )
+
+
 @router.post(
     '/{id}/samples',
     response_model=SampleSubstance,

@@ -1459,8 +1459,12 @@ class SampleLabel(BaseModel):
     study_code: str
     laboratory: LaboratoryRef = Field(description='Laboratório destinatário')
     lot: str
-    qr_url: str
-    qr_svg: str
+    qr_url: str = Field(
+        description=(
+            'URL do frasco gravada no QR; a imagem vem de '
+            'GET /processes/{id}/samples/vials/{code}/qr.svg'
+        )
+    )
 
 
 class BlindVial(BaseModel):

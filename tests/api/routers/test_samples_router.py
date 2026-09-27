@@ -1,6 +1,5 @@
 """Rotas de amostras cegas do Grupo de Seleção (Spec 031)."""
 
-import base64
 import json
 from datetime import UTC, datetime
 from http import HTTPStatus
@@ -908,16 +907,6 @@ def _labels(client, process_id):
     return response.json()['data']
 
 
-def _svg(data_uri):
-    header, _, payload = data_uri.partition(',')
-    assert header.startswith('data:image/svg+xml')
-    if header.endswith(';base64'):
-        return base64.b64decode(payload).decode()
-    from urllib.parse import unquote  # noqa: PLC0415
-
-    return unquote(payload)
-
-
 @pytest.mark.asyncio
 async def test_labels_return_one_per_vial(session, client):
     ctx = await _ready(session, client)
@@ -935,20 +924,50 @@ async def test_labels_return_one_per_vial(session, client):
         assert label['laboratory']['name'] == names[label['laboratory']['id']]
         assert label['lot'] == 'L-2026-04'
         assert label['qr_url']
-        assert label['qr_svg']
+        assert 'qr_svg' not in label
     assert [(lb['laboratory']['name'], lb['code']) for lb in labels] == sorted(
         (lb['laboratory']['name'], lb['code']) for lb in labels
     )
 
 
 @pytest.mark.asyncio
-async def test_label_qr_svg_is_valid_svg_data_uri(session, client):
+async def test_vial_qr_route_returns_svg(session, client):
+    ctx = await _ready(session, client, lab_count=1)
+    _created(client, ctx.process_id)
+    (label,) = _labels(client, ctx.process_id)
+
+    response = client.get(
+        _url(ctx.process_id, f'/vials/{label["code"]}/qr.svg')
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.headers['content-type'].startswith('image/svg+xml')
+    assert response.text.lstrip().startswith(('<?xml', '<svg'))
+
+
+@pytest.mark.asyncio
+async def test_vial_qr_route_unknown_code_is_404(session, client):
     ctx = await _ready(session, client, lab_count=1)
     _created(client, ctx.process_id)
 
+    response = client.get(_url(ctx.process_id, '/vials/ZZZZZZZZ/qr.svg'))
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert response.json()['detail']['code'] == 'not_found'
+
+
+@pytest.mark.asyncio
+async def test_vial_qr_route_hidden_from_laboratory(session, client):
+    ctx = await _ready(session, client, lab_count=1)
+    _created(client, ctx.process_id)
     (label,) = _labels(client, ctx.process_id)
 
-    assert '<svg' in _svg(label['qr_svg'])
+    authenticate(client, ctx.lab_users[0])
+    response = client.get(
+        _url(ctx.process_id, f'/vials/{label["code"]}/qr.svg')
+    )
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
 
 
 @pytest.mark.asyncio
@@ -961,7 +980,8 @@ async def test_label_qr_contains_only_vial_url(session, client):
     assert label['qr_url'].endswith(
         f'/amostras/{ctx.process_id}/frascos/{label["code"]}'
     )
-    for blob in (label['qr_url'], _svg(label['qr_svg'])):
+    qr = client.get(_url(ctx.process_id, f'/vials/{label["code"]}/qr.svg'))
+    for blob in (label['qr_url'], qr.text):
         for secret in (
             substance['chemical_name'],
             substance['cas_number'],

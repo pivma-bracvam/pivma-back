@@ -9,6 +9,7 @@ leituras: admin e BraCVAM veem a atividade (Spec 030), mas não o conteúdo
 nunca nome químico, CAS, lote ou código (research R9).
 """
 
+import io
 import re
 import secrets
 from pathlib import Path
@@ -784,7 +785,7 @@ async def list_labels(  # noqa: PLR0913
 ) -> tuple[list[dict[str, Any]], int]:
     """Dados de etiqueta de cada frasco, com QR em SVG (FR-015, FR-018).
 
-    Paginada no banco (Spec 033): o QR só é gerado para a página.
+    Paginada no banco (Spec 033). A imagem do QR vem de `vial_qr_svg`.
     """
     await _sample_activity(session, process_id, user_id)
     process = await session.get(ProcessInstance, process_id)
@@ -827,7 +828,6 @@ async def list_labels(  # noqa: PLR0913
             'laboratory': laboratories[code.laboratory_id],
             'lot': lot,
             'qr_url': url,
-            'qr_svg': segno.make(url, error='m').svg_data_uri(),
         })
     return labels, total or 0
 
@@ -868,3 +868,32 @@ async def get_blind_vial(
         'lot': row.lot,
         'safe_handling_instructions': row.safe_handling_instructions,
     }
+
+
+async def vial_qr_svg(  # noqa: PLR0913
+    session: AsyncSession,
+    settings: Settings,
+    process_id: UUID,
+    code: str,
+    user_id: UUID,
+) -> str:
+    """Imagem SVG do QR de um frasco, para a etiqueta.
+
+    Mesmo acesso das etiquetas. O QR contém só a URL do frasco
+    (`vial_qr_url`), sem nada que identifique a substância.
+    """
+    await _sample_activity(session, process_id, user_id)
+    exists = await session.scalar(
+        select(BlindSampleCode.id).where(
+            BlindSampleCode.process_instance_id == process_id,
+            BlindSampleCode.code == code,
+            BlindSampleCode.deleted_at.is_(None),
+        )
+    )
+    if exists is None:
+        raise NotFoundError('Frasco não encontrado.')
+    buffer = io.BytesIO()
+    segno.make(vial_qr_url(settings, process_id, code), error='m').save(
+        buffer, kind='svg'
+    )
+    return buffer.getvalue().decode()
