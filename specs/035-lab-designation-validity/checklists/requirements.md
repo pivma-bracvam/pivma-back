@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -35,5 +35,5 @@
   (`lead_laboratory`, `participating_laboratory`) porque a issue #60 e as specs
   anteriores usam esses nomes como vocabulário do domínio. Não há decisão de
   implementação (módulos, consultas, esquema) na spec.
-- Dois marcadores [NEEDS CLARIFICATION] aguardam resposta: vínculo
-  restabelecido (história 5) e tarefas sem responsável efetivo (Edge Cases).
+- Os dois marcadores [NEEDS CLARIFICATION] foram resolvidos em 2026-09-30 (Q1: A, Q2: A): vínculo
+  restabelecido volta a valer sozinho; tarefa sem responsável efetivo só fica aberta.

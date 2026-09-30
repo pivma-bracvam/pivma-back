@@ -49,7 +49,14 @@ recebimentos e resultados.
 
 ### Session 2026-09-30
 
-*(a preencher em `/speckit-clarify`)*
+- Q: Quando a pessoa recebe um novo vínculo ativo com o mesmo laboratório, a
+  designação ainda ativa volta a valer? → A: Sim, automaticamente, com evento
+  na trilha. Segue a decisão 6 da Spec 006: o ciclo não é reescrito e a
+  efetividade é recalculada a cada pedido (FR-012).
+- Q: Se quem perde a validade era a única pessoa efetiva no cargo, o sistema
+  sinaliza a atividade? → A: Não. A tarefa fica aberta; o gestor vê a
+  designação como não efetiva e designa outra pessoa. Uma sinalização de
+  "sem responsável efetivo" fica fora do escopo (Edge Cases).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -172,9 +179,9 @@ em dois processos e confirmar um evento na trilha de cada processo.
 
 ### User Story 5 - Vínculo restabelecido (Priority: P2)
 
-A pessoa volta a ter vínculo ativo com o Laboratório A (novo vínculo), ou o
-laboratório ou a instituição são reativados. O que acontece com a designação
-ainda ativa no processo segue a regra decidida nesta spec.
+A pessoa volta a ter vínculo ativo com o Laboratório A (novo vínculo). A
+designação ainda ativa no processo volta a valer sozinha, e a volta fica na
+trilha.
 
 **Why this priority**: a issue pede a regra explícita. Afeta menos casos que a
 perda de acesso.
@@ -186,12 +193,14 @@ novo vínculo com o mesmo laboratório e verificar o acesso conforme a regra.
 
 1. **Given** uma designação ativa que deixou de ser efetiva por fim de
    vínculo, **When** a pessoa recebe um novo vínculo ativo com o mesmo
-   laboratório, **Then** [NEEDS CLARIFICATION: a designação volta a ser efetiva
-   automaticamente (decisão 6 da Spec 006: o ciclo não é reescrito, a
-   efetividade é recalculada a cada pedido), ou só uma nova designação feita
-   por quem gere participantes devolve o acesso?]
-2. **Given** a regra escolhida, **When** a validade volta, **Then** a trilha do
-   processo registra o evento correspondente.
+   laboratório, **Then** a designação volta a ser efetiva automaticamente no
+   pedido seguinte, sem nova designação.
+2. **Given** que a validade volta, **When** o novo vínculo é criado, **Then** a
+   trilha de cada processo afetado registra um evento de volta da validade.
+3. **Given** uma designação não efetiva por laboratório ou instituição
+   inativos, **When** a pessoa recebe um novo vínculo, **Then** a designação
+   continua não efetiva, porque o laboratório ou a instituição seguem
+   inativos.
 
 ---
 
@@ -199,12 +208,9 @@ novo vínculo com o mesmo laboratório e verificar o acesso conforme a regra.
 
 - **Tarefas em andamento do cargo**: tarefas são atribuídas ao cargo, não à
   pessoa (Spec 018). Quando alguém perde a efetividade, a tarefa, os rascunhos
-  e os dados já enviados permanecem; outra pessoa com o mesmo cargo efetivo no
-  processo continua a partir deles. [NEEDS CLARIFICATION: quando a pessoa que
-  perde a validade era a única com o cargo efetivo no processo, o sistema só
-  mantém a tarefa aberta (o gestor vê a designação como não efetiva e designa
-  outra pessoa), ou deve também sinalizar a atividade como sem responsável
-  efetivo?]
+  e os dados já enviados permanecem; outra pessoa com o mesmo cargo efetivo no  processo continua a partir deles. Se ela era a única com o cargo efetivo, a
+  tarefa só fica aberta: o gestor vê a designação como não efetiva e designa
+  outra pessoa. Não há sinalização de "sem responsável efetivo".
 - Vínculo encerrado durante uma edição em curso: o pedido de gravação seguinte
   já é negado. O que foi gravado antes permanece.
 - Pessoa com dois cargos laboratoriais no mesmo processo por laboratórios
@@ -269,9 +275,14 @@ novo vínculo com o mesmo laboratório e verificar o acesso conforme a regra.
 
 **Vínculo restabelecido**
 
-- **FR-012**: A volta da validade MUST seguir a regra decidida para a história
-  5 e MUST ser registrada na trilha do processo com o mesmo conjunto de dados
-  do FR-009.
+- **FR-012**: Uma designação ativa que volta a cumprir o FR-001 por um novo
+  vínculo ativo com o mesmo laboratório MUST voltar a conceder acesso no
+  pedido seguinte, sem nova designação.
+- **FR-012a**: Ao concluir a criação de um vínculo, o sistema MUST registrar,
+  na trilha de cada processo afetado, um evento por designação ativa que voltou
+  a ser efetiva, com os dados do FR-009 (motivo: vínculo restabelecido) e na
+  mesma transação da criação (FR-011). Não há evento para designação que já
+  era efetiva.
 
 **Preservação**
 
@@ -321,6 +332,9 @@ novo vínculo com o mesmo laboratório e verificar o acesso conforme a regra.
   atividades.
 - A inativação do usuário já retira o acesso hoje (Spec 028, desativação de
   conta) e fica fora desta spec, exceto pela definição única do FR-001.
+- Laboratórios e instituições inativados não podem ser reativados hoje (Spec
+  005). A volta da validade só acontece por novo vínculo. Se uma reativação for
+  criada no futuro, ela deve seguir o FR-012a.
 - Não há notificação assíncrona (e-mail, alerta) da perda de validade; o
   registro fica na trilha e na efetividade exibida.
 - Isolamento de dados entre laboratórios (#59) e execução por laboratório
