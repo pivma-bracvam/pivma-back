@@ -86,6 +86,9 @@ PARTICIPANT_EVENT_TYPES = frozenset({
     'PARTICIPANT_ASSIGNED',
     'PARTICIPANT_REVOKED',
     'CONFLICT_DECLARED',
+    # Spec 035: perda e volta da validade de designação laboratorial.
+    'PARTICIPANT_EFFECTIVENESS_LOST',
+    'PARTICIPANT_EFFECTIVENESS_RESTORED',
 })
 
 

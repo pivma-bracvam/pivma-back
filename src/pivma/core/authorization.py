@@ -333,22 +333,61 @@ async def ensure_administrator_remains(session: AsyncSession) -> None:
 async def has_active_laboratory_affiliation(
     session: AsyncSession, user_id: UUID, laboratory_id: UUID
 ) -> bool:
-    result = await session.scalar(
-        select(UserInstitutionalAffiliation.id)
-        .join(User, User.id == UserInstitutionalAffiliation.user_id)
-        .join(
-            Institution,
-            Institution.id == UserInstitutionalAffiliation.institution_id,
+    """Usuário ativo com vínculo ativo no laboratório (Spec 035, FR-003).
+
+    Mesma regra de vínculo de `effective_assignment_clause`.
+    """
+    user_active = exists(
+        select(User.id).where(User.id == user_id, User.deleted_at.is_(None))
+    )
+    return bool(
+        await session.scalar(
+            select(
+                and_(
+                    user_active,
+                    _active_laboratory_affiliation(user_id, laboratory_id),
+                )
+            )
         )
+    )
+
+
+def _active_laboratory_affiliation(user_id, laboratory_id):
+    """`EXISTS` de vínculo ativo com o laboratório (Spec 035, FR-001).
+
+    Vínculo, laboratório e instituição do laboratório ativos. Aceita
+    colunas, para correlacionar com `Assignment`, ou valores.
+    """
+    return exists(
+        select(UserInstitutionalAffiliation.id)
+        .join(
+            Laboratory,
+            Laboratory.id == UserInstitutionalAffiliation.laboratory_id,
+        )
+        .join(Institution, Institution.id == Laboratory.institution_id)
         .where(
             UserInstitutionalAffiliation.user_id == user_id,
             UserInstitutionalAffiliation.laboratory_id == laboratory_id,
             UserInstitutionalAffiliation.deleted_at.is_(None),
-            User.deleted_at.is_(None),
+            Laboratory.deleted_at.is_(None),
             Institution.deleted_at.is_(None),
         )
     )
-    return result is not None
+
+
+def effective_assignment_clause() -> ColumnElement[bool]:
+    """Designação efetiva além de ativa (Spec 035, FR-001; Spec 006, FR-008).
+
+    Cargo laboratorial só vale com vínculo ativo do usuário com o laboratório
+    da designação. Revogação, exclusão e usuário ativo ficam com quem chama.
+    Única regra usada pela autorização e pela exibição de `effective`.
+    """
+    return or_(
+        Assignment.role_key.not_in(sorted(LABORATORY_ROLE_KEYS)),
+        _active_laboratory_affiliation(
+            Assignment.user_id, Assignment.laboratory_id
+        ),
+    )
 
 
 async def is_effective_group_manager(
@@ -412,6 +451,7 @@ def active_participant_process_scope(user_id: UUID):
 
     em qualquer `role_key` (irmã de `active_proponent_process_scope`, que
     filtra só `proponent`) — usada pelos cargos `Padrão` (Spec 018, FR-004).
+    Designação laboratorial sem vínculo ativo não conta (Spec 035).
     """
     return (
         select(Assignment.process_instance_id)
@@ -421,6 +461,7 @@ def active_participant_process_scope(user_id: UUID):
             Assignment.revoked_at.is_(None),
             Assignment.deleted_at.is_(None),
             User.deleted_at.is_(None),
+            effective_assignment_clause(),
         )
     )
 
@@ -428,7 +469,8 @@ def active_participant_process_scope(user_id: UUID):
 def process_cargos_scope(user_id: UUID):
     """Subquery dos `role_key` ativos do usuário, correlacionável por
 
-    `Assignment.process_instance_id` (Spec 030, R4/R12).
+    `Assignment.process_instance_id` (Spec 030, R4/R12). Só designações
+    efetivas: cargo laboratorial exige vínculo ativo (Spec 035, FR-004).
     """
     return (
         select(Assignment.role_key)
@@ -438,6 +480,7 @@ def process_cargos_scope(user_id: UUID):
             Assignment.revoked_at.is_(None),
             Assignment.deleted_at.is_(None),
             User.deleted_at.is_(None),
+            effective_assignment_clause(),
         )
     )
 
@@ -542,75 +585,42 @@ async def participant_read_scope(
 async def compute_effectiveness_map(
     session: AsyncSession, assignments: Sequence[Assignment]
 ) -> dict[UUID, bool]:
+    """Efetividade exibida em `/auth/me` e na listagem de participantes.
+
+    Consulta a mesma regra aplicada pela autorização
+    (`effective_assignment_clause`), para que as duas nunca divirjam
+    (Spec 035, FR-002).
+    """
     if not assignments:
         return {}
+    effective_ids = await effective_assignment_ids(
+        session, [a.id for a in assignments]
+    )
+    return {a.id: a.id in effective_ids for a in assignments}
 
-    user_ids = {assignment.user_id for assignment in assignments}
-    laboratory_ids = {
-        assignment.laboratory_id
-        for assignment in assignments
-        if assignment.laboratory_id is not None
-    }
 
-    active_user_ids = set(
+async def effective_assignment_ids(
+    session: AsyncSession, assignment_ids: Iterable[UUID]
+) -> set[UUID]:
+    """Ids efetivos entre `assignment_ids`: ativa, usuário ativo e
+    `effective_assignment_clause` (Spec 035, FR-001).
+    """
+    ids = list(assignment_ids)
+    if not ids:
+        return set()
+    return set(
         await session.scalars(
-            select(User.id).where(
-                User.id.in_(user_ids), User.deleted_at.is_(None)
+            select(Assignment.id)
+            .join(User, User.id == Assignment.user_id)
+            .where(
+                Assignment.id.in_(ids),
+                Assignment.revoked_at.is_(None),
+                Assignment.deleted_at.is_(None),
+                User.deleted_at.is_(None),
+                effective_assignment_clause(),
             )
         )
     )
-
-    active_laboratory_ids: set[UUID] = set()
-    active_affiliation_pairs: set[tuple[UUID, UUID]] = set()
-    if laboratory_ids:
-        active_laboratory_ids = set(
-            await session.scalars(
-                select(Laboratory.id).where(
-                    Laboratory.id.in_(laboratory_ids),
-                    Laboratory.deleted_at.is_(None),
-                )
-            )
-        )
-        affiliation_rows = await session.execute(
-            select(
-                UserInstitutionalAffiliation.user_id,
-                UserInstitutionalAffiliation.laboratory_id,
-            )
-            .join(User, User.id == UserInstitutionalAffiliation.user_id)
-            .where(
-                UserInstitutionalAffiliation.user_id.in_(user_ids),
-                UserInstitutionalAffiliation.laboratory_id.in_(laboratory_ids),
-                UserInstitutionalAffiliation.deleted_at.is_(None),
-                User.deleted_at.is_(None),
-            )
-        )
-        active_affiliation_pairs = {
-            (row.user_id, row.laboratory_id) for row in affiliation_rows
-        }
-
-    effectiveness: dict[UUID, bool] = {}
-    for assignment in assignments:
-        if (
-            assignment.revoked_at is not None
-            or assignment.deleted_at is not None
-        ):
-            effectiveness[assignment.id] = False
-            continue
-        if assignment.user_id not in active_user_ids:
-            effectiveness[assignment.id] = False
-            continue
-        if assignment.role_key in LABORATORY_ROLE_KEYS:
-            if assignment.laboratory_id not in active_laboratory_ids:
-                effectiveness[assignment.id] = False
-                continue
-            if (
-                assignment.user_id,
-                assignment.laboratory_id,
-            ) not in active_affiliation_pairs:
-                effectiveness[assignment.id] = False
-                continue
-        effectiveness[assignment.id] = True
-    return effectiveness
 
 
 async def latest_declarations_map(
