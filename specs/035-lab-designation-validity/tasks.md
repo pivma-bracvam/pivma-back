@@ -99,13 +99,13 @@ ator das ações institucionais (tem todas as permissões, Spec 023), com
 
 ### Testes
 
-- [ ] T021 [P] [US2] Teste: após `DELETE /institutional/laboratories/{id}`, `require_activity_access(..., 'view')` sobre `lab_bench` levanta `NotFoundError`, em `tests/api/routers/test_lab_designation_validity.py`
-- [ ] T022 [P] [US2] Teste: após `DELETE /institutional/institutions/{id}` da instituição do laboratório, `require_activity_access(..., 'view')` sobre `lab_bench` levanta `NotFoundError`, em `tests/api/routers/test_lab_designation_validity.py`
-- [ ] T023 [P] [US2] Teste: inativar o Laboratório A não afeta a designação de outra pessoa pelo Laboratório B, em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T021 [P] [US2] Teste: após `DELETE /institutional/laboratories/{id}`, `require_activity_access(..., 'view')` sobre `lab_bench` levanta `NotFoundError`, em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T022 [P] [US2] Teste: após `DELETE /institutional/institutions/{id}` da instituição do laboratório, `require_activity_access(..., 'view')` sobre `lab_bench` levanta `NotFoundError`, em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T023 [P] [US2] Teste: inativar o Laboratório A não afeta a designação de outra pessoa pelo Laboratório B, em `tests/api/routers/test_lab_designation_validity.py`
 
 ### Implementação
 
-- [ ] T024 [US2] Confirmar que T021–T023 passam só com T009 e T019–T020; nenhum código novo esperado (registrar no checkpoint se algum ajuste for necessário)
+- [X] T024 [US2] Confirmar que T021–T023 passam só com T009 e T019–T020; nenhum código novo esperado (confirmado: nenhum ajuste necessário)
 
 ---
 
@@ -115,15 +115,15 @@ ator das ações institucionais (tem todas as permissões, Spec 023), com
 
 ### Testes
 
-- [ ] T025 [P] [US3] Teste: com a instituição do laboratório inativa, `GET /processes/{id}/participants` mostra `effective: false`, em `tests/api/routers/test_lab_designation_validity.py`
-- [ ] T026 [P] [US3] Teste: com a instituição do laboratório inativa, `GET /auth/me` não inclui o escopo daquela designação em `access_scopes`, em `tests/api/routers/test_lab_designation_validity.py`
-- [ ] T027 [P] [US3] Teste parametrizado: para vínculo ativo, vínculo encerrado, laboratório inativo e instituição inativa, o `effective` da listagem de participantes coincide com o resultado de `require_activity_access` sobre `lab_bench` (SC-002), em `tests/api/routers/test_lab_designation_validity.py`
-- [ ] T028 [P] [US3] Teste: `has_active_laboratory_affiliation` retorna `False` quando o vínculo está ativo mas o laboratório está inativo, em `tests/integration/database/test_lab_designation_effectiveness.py`
+- [X] T025 [P] [US3] Teste: com a instituição do laboratório inativa, `GET /processes/{id}/participants` mostra `effective: false`, em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T026 [P] [US3] Teste: com a instituição do laboratório inativa, `GET /auth/me` não inclui o escopo daquela designação em `access.scopes`, em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T027 [P] [US3] Teste parametrizado: para vínculo ativo, vínculo encerrado, laboratório inativo e instituição inativa, o `effective` da listagem de participantes coincide com o resultado de `require_activity_access` sobre `lab_bench` (SC-002), em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T028 [P] [US3] Teste: `has_active_laboratory_affiliation` retorna `False` quando o vínculo está ativo mas o laboratório está inativo, em `tests/integration/database/test_lab_designation_effectiveness.py`
 
 ### Implementação
 
-- [ ] T029 [US3] Reescrever `compute_effectiveness_map` em `src/pivma/core/authorization.py` para consultar os ids efetivos com `effective_assignment_clause()` (mais não revogada, não excluída, usuário ativo), mantendo a assinatura e o retorno `dict[UUID, bool]`
-- [ ] T030 [US3] Fazer `has_active_laboratory_affiliation` em `src/pivma/core/authorization.py` usar a mesma subconsulta de vínculo ativo do predicado (vínculo, usuário, laboratório e instituição ativos)
+- [X] T029 [US3] Reescrever `compute_effectiveness_map` em `src/pivma/core/authorization.py` para consultar os ids efetivos com `effective_assignment_clause()` (mais não revogada, não excluída, usuário ativo), mantendo a assinatura e o retorno `dict[UUID, bool]`
+- [X] T030 [US3] Fazer `has_active_laboratory_affiliation` em `src/pivma/core/authorization.py` usar a mesma subconsulta de vínculo ativo do predicado (vínculo, usuário, laboratório e instituição ativos)
 
 ---
 

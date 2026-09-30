@@ -346,3 +346,101 @@ async def test_ended_affiliation_keeps_designation_and_task(
     assert world.assignment.revoked_at is None
     assert world.assignment.deleted_at is None
     assert task.status == status_before
+
+
+# --- US2: laboratório ou instituição inativados -----------------------------
+
+
+@pytest.mark.asyncio
+async def test_deactivated_laboratory_denies_activity_view(
+    client, session, world
+):
+    deactivate_laboratory(client, world)
+
+    assert not await can_view(session, world.lab_user, world.process)
+
+
+@pytest.mark.asyncio
+async def test_deactivated_institution_denies_activity_view(
+    client, session, world
+):
+    deactivate_institution(client, world)
+
+    assert not await can_view(session, world.lab_user, world.process)
+
+
+@pytest.mark.asyncio
+async def test_other_laboratory_designation_is_unaffected(
+    client, session, world
+):
+    other_user = UserFactory()
+    session.add(other_user)
+    await session.commit()
+    institution_b, laboratory_b = await new_laboratory(session)
+    await new_affiliation(session, other_user, institution_b, laboratory_b)
+    await designate_laboratory(
+        session, world.process, other_user, laboratory_b
+    )
+
+    deactivate_laboratory(client, world)
+
+    assert await can_view(session, other_user, world.process)
+
+
+# --- US3: exibição e autorização dizem a mesma coisa ------------------------
+
+
+def listed_effective(client, world) -> bool:
+    authenticate(client, world.actor)
+    response = client.get(f'/processes/{world.process.id}/participants')
+    assert response.status_code == HTTPStatus.OK, response.text
+    (item,) = [
+        item
+        for item in response.json()['data']
+        if item['user']['id'] == str(world.lab_user.id)
+    ]
+    return item['effective']
+
+
+@pytest.mark.asyncio
+async def test_inactive_institution_lists_designation_as_not_effective(
+    client, world
+):
+    deactivate_institution(client, world)
+
+    assert listed_effective(client, world) is False
+
+
+@pytest.mark.asyncio
+async def test_inactive_institution_drops_scope_from_auth_me(client, world):
+    authenticate(client, world.lab_user)
+    before = client.get('/auth/me').json()['access']['scopes']
+    assert str(world.process.id) in {s['process_id'] for s in before}
+
+    deactivate_institution(client, world)
+
+    authenticate(client, world.lab_user)
+    after = client.get('/auth/me').json()['access']['scopes']
+    assert str(world.process.id) not in {s['process_id'] for s in after}
+
+
+@pytest.mark.parametrize(
+    'change',
+    [None, end_affiliation, deactivate_laboratory, deactivate_institution],
+    ids=[
+        'active',
+        'affiliation_ended',
+        'lab_inactive',
+        'institution_inactive',
+    ],
+)
+@pytest.mark.asyncio
+async def test_listed_effective_matches_authorization(
+    client, session, world, change
+):
+    if change is not None:
+        change(client, world)
+
+    assert listed_effective(client, world) == await can_view(
+        session, world.lab_user, world.process
+    )

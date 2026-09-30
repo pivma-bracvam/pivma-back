@@ -23,7 +23,7 @@ nunca teve o cargo (FR-005), no formato da Spec 034.
 
 | Endpoint | Mudança |
 |---|---|
-| `GET /auth/me` | `access_scopes` omite a designação não efetiva por instituição inativa (antes só omitia por laboratório ou vínculo) |
+| `GET /auth/me` | `access.scopes` omite a designação não efetiva por instituição inativa (antes só omitia por laboratório ou vínculo) |
 | `GET /processes/{id}/participants` | `effective` passa a ser `false` também quando a instituição do laboratório está inativa |
 | `POST /processes/{id}/participants`, `POST /invites/{token}/accept` | inalterados: já recusam laboratório inativo e vínculo ausente; a checagem passa a usar a mesma regra do FR-001 |
 
