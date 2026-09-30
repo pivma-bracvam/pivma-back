@@ -57,6 +57,10 @@ recebimentos e resultados.
   sinaliza a atividade? → A: Não. A tarefa fica aberta; o gestor vê a
   designação como não efetiva e designa outra pessoa. Uma sinalização de
   "sem responsável efetivo" fica fora do escopo (Edge Cases).
+- Q: O evento de perda ou volta da validade vai também para a trilha de
+  processos que já terminaram (encerrados, cancelados, arquivados ou
+  excluídos)? → A: Não. Só para processos em andamento. Nos terminados o
+  acesso é negado do mesmo jeito, sem evento (FR-008a).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -225,6 +229,9 @@ novo vínculo com o mesmo laboratório e verificar o acesso conforme a regra.
 - Designações que já estavam não efetivas antes desta entrega (vínculos
   encerrados no passado): passam a ter o acesso negado a partir da entrega, sem
   eventos retroativos na trilha.
+- Processo terminado (encerrado, cancelado, arquivado ou excluído): a pessoa
+  perde o acesso que dependia do cargo, inclusive de consulta, mas a trilha
+  desse processo não recebe evento de validade (FR-008a).
 - Conflito de interesse: a checagem de conflito (Spec 006) continua valendo
   sobre as designações ativas; esta spec não muda o bloqueio por conflito.
 
@@ -264,6 +271,10 @@ novo vínculo com o mesmo laboratório e verificar o acesso conforme a regra.
   laboratório ou a inativação de instituição, o sistema MUST registrar, na
   trilha de cada processo afetado, um evento por designação ativa que deixou de
   ser efetiva por essa ação.
+- **FR-008a**: "Processo afetado", no FR-008 e no FR-012a, é só o processo em
+  andamento: não excluído e fora dos status terminais (`CLOSED`, `CANCELLED`,
+  `ARCHIVED`). Processos terminados não recebem evento de validade; a negação
+  de acesso (FR-004) vale para eles do mesmo jeito.
 - **FR-009**: O evento MUST identificar o processo, a designação, o usuário
   designado, o cargo, o laboratório, o motivo (fim de vínculo, laboratório
   inativado ou instituição inativada), o responsável pela ação institucional e
@@ -313,9 +324,10 @@ novo vínculo com o mesmo laboratório e verificar o acesso conforme a regra.
 - **SC-002**: Para toda combinação de estado de usuário, vínculo, laboratório,
   instituição e revogação, `/auth/me`, a listagem de participantes e a
   autorização apresentam o mesmo resultado para a mesma designação.
-- **SC-003**: 100% das designações ativas que perdem a efetividade por ação
-  institucional têm um evento correspondente na trilha do processo, sem
-  duplicatas.
+- **SC-003**: 100% das designações ativas em processos em andamento que perdem
+  ou recuperam a efetividade por ação institucional têm um evento
+  correspondente na trilha do processo, sem duplicatas; processos terminados
+  não recebem nenhum.
 - **SC-004**: Nenhuma designação, tarefa, rascunho ou dado enviado é apagado
   ou alterado pela perda de efetividade.
 - **SC-005**: Os testes existentes de designação, convite, atividades, tarefas
