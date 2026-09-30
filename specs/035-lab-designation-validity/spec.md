@@ -220,8 +220,8 @@ novo vínculo com o mesmo laboratório e verificar o acesso conforme a regra.
 - Pessoa com dois cargos laboratoriais no mesmo processo por laboratórios
   diferentes: cada designação é avaliada pelo próprio laboratório; perder um
   vínculo não afeta a outra designação.
-- Pessoa com mais de um vínculo ativo com o mesmo laboratório: a designação
-  continua efetiva enquanto existir ao menos um vínculo ativo com ele.
+- Pessoa com mais de um vínculo com o mesmo laboratório: só um pode estar
+  ativo por vez (Spec 005); vínculos encerrados anteriores não contam.
 - Admin e BraCVAM: o acesso global vem do perfil, não da designação, e não
   muda com esta spec.
 - Designação revogada: continua sem efeito, como hoje. A perda de validade não
