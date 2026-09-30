@@ -29,16 +29,16 @@ Laboratório A:
 2. Autenticado como `L`, abrir uma atividade que concede ver a
    `participating_laboratory`. **Esperado**: `200`.
 3. Como Admin, encerrar o vínculo:
-   `DELETE /users/{L}/affiliations/{affiliation_id}`.
+   `DELETE /institutional/users/{L}/affiliations/{affiliation_id}`.
 4. Como `L`, repetir o passo 2. **Esperado**: `404 not_found`. `GET /tasks`
    não lista as tarefas do cargo e `GET /processes` não lista o processo.
 5. Como Admin, `GET /processes/{id}/participants`. **Esperado**: designação
    ativa com `effective: false`. `GET /processes/{id}/timeline` traz
    `PARTICIPANT_EFFECTIVENESS_LOST` com `reason: affiliation_ended`.
 6. Como Admin, criar novo vínculo de `L` com o Laboratório A
-   (`POST /users/{L}/affiliations`). **Esperado**: `L` volta a ver a
+   (`POST /institutional/users/{L}/affiliations`). **Esperado**: `L` volta a ver a
    atividade; a linha do tempo traz `PARTICIPANT_EFFECTIVENESS_RESTORED`.
-7. Como Admin, `DELETE /institutions/{instituição do Laboratório A}`.
+7. Como Admin, `DELETE /institutional/institutions/{instituição do Laboratório A}`.
    **Esperado**: `L` perde o acesso de novo; o evento traz
    `reason: institution_deactivated`.
 8. Repetir o passo 3 num processo encerrado. **Esperado**: acesso negado e

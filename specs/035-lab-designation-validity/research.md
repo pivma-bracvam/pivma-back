@@ -89,10 +89,10 @@ institucional.
 
 | Ação | Laboratórios atingidos | Filtro de usuário | Evento possível |
 |---|---|---|---|
-| `DELETE /users/{user_id}/affiliations/{id}` | o do vínculo (se houver) | o usuário | perda |
-| `POST /users/{user_id}/affiliations` | o do vínculo (se houver) | o usuário | volta |
-| `DELETE /laboratories/{id}` | o laboratório | nenhum | perda |
-| `DELETE /institutions/{id}` | os laboratórios da instituição | nenhum | perda |
+| `DELETE /institutional/users/{user_id}/affiliations/{id}` | o do vínculo (se houver) | o usuário | perda |
+| `POST /institutional/users/{user_id}/affiliations` | o do vínculo (se houver) | o usuário | volta |
+| `DELETE /institutional/laboratories/{id}` | o laboratório | nenhum | perda |
+| `DELETE /institutional/institutions/{id}` | os laboratórios da instituição | nenhum | perda |
 
 **Justificativa**: comparar o antes e o depois cobre sozinho os casos da spec.
 Designação que já não valia não gera evento (FR-010), assim como a revogada,

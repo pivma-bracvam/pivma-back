@@ -33,10 +33,10 @@ Sem mudança de request, response ou status:
 
 | Endpoint | Evento gravado (FR-008, FR-012a) |
 |---|---|
-| `DELETE /users/{user_id}/affiliations/{affiliation_id}` | `PARTICIPANT_EFFECTIVENESS_LOST`, `reason = affiliation_ended` |
-| `POST /users/{user_id}/affiliations` | `PARTICIPANT_EFFECTIVENESS_RESTORED`, `reason = affiliation_created` |
-| `DELETE /laboratories/{laboratory_id}` | `PARTICIPANT_EFFECTIVENESS_LOST`, `reason = laboratory_deactivated` |
-| `DELETE /institutions/{institution_id}` | `PARTICIPANT_EFFECTIVENESS_LOST`, `reason = institution_deactivated` |
+| `DELETE /institutional/users/{user_id}/affiliations/{affiliation_id}` | `PARTICIPANT_EFFECTIVENESS_LOST`, `reason = affiliation_ended` |
+| `POST /institutional/users/{user_id}/affiliations` | `PARTICIPANT_EFFECTIVENESS_RESTORED`, `reason = affiliation_created` |
+| `DELETE /institutional/laboratories/{laboratory_id}` | `PARTICIPANT_EFFECTIVENESS_LOST`, `reason = laboratory_deactivated` |
+| `DELETE /institutional/institutions/{institution_id}` | `PARTICIPANT_EFFECTIVENESS_LOST`, `reason = institution_deactivated` |
 
 Um evento por designação que mudou de estado, só em processos em andamento
 (FR-008a).

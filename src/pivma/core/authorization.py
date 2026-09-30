@@ -351,6 +351,44 @@ async def has_active_laboratory_affiliation(
     return result is not None
 
 
+def _active_laboratory_affiliation(user_id, laboratory_id):
+    """`EXISTS` de vínculo ativo com o laboratório (Spec 035, FR-001).
+
+    Vínculo, laboratório e instituição do laboratório ativos. Aceita
+    colunas, para correlacionar com `Assignment`, ou valores.
+    """
+    return exists(
+        select(UserInstitutionalAffiliation.id)
+        .join(
+            Laboratory,
+            Laboratory.id == UserInstitutionalAffiliation.laboratory_id,
+        )
+        .join(Institution, Institution.id == Laboratory.institution_id)
+        .where(
+            UserInstitutionalAffiliation.user_id == user_id,
+            UserInstitutionalAffiliation.laboratory_id == laboratory_id,
+            UserInstitutionalAffiliation.deleted_at.is_(None),
+            Laboratory.deleted_at.is_(None),
+            Institution.deleted_at.is_(None),
+        )
+    )
+
+
+def effective_assignment_clause() -> ColumnElement[bool]:
+    """Designação efetiva além de ativa (Spec 035, FR-001; Spec 006, FR-008).
+
+    Cargo laboratorial só vale com vínculo ativo do usuário com o laboratório
+    da designação. Revogação, exclusão e usuário ativo ficam com quem chama.
+    Única regra usada pela autorização e pela exibição de `effective`.
+    """
+    return or_(
+        Assignment.role_key.not_in(sorted(LABORATORY_ROLE_KEYS)),
+        _active_laboratory_affiliation(
+            Assignment.user_id, Assignment.laboratory_id
+        ),
+    )
+
+
 async def is_effective_group_manager(
     session: AsyncSession, user_id: UUID, process_id: UUID
 ) -> bool:
@@ -412,6 +450,7 @@ def active_participant_process_scope(user_id: UUID):
 
     em qualquer `role_key` (irmã de `active_proponent_process_scope`, que
     filtra só `proponent`) — usada pelos cargos `Padrão` (Spec 018, FR-004).
+    Designação laboratorial sem vínculo ativo não conta (Spec 035).
     """
     return (
         select(Assignment.process_instance_id)
@@ -421,6 +460,7 @@ def active_participant_process_scope(user_id: UUID):
             Assignment.revoked_at.is_(None),
             Assignment.deleted_at.is_(None),
             User.deleted_at.is_(None),
+            effective_assignment_clause(),
         )
     )
 
@@ -428,7 +468,8 @@ def active_participant_process_scope(user_id: UUID):
 def process_cargos_scope(user_id: UUID):
     """Subquery dos `role_key` ativos do usuário, correlacionável por
 
-    `Assignment.process_instance_id` (Spec 030, R4/R12).
+    `Assignment.process_instance_id` (Spec 030, R4/R12). Só designações
+    efetivas: cargo laboratorial exige vínculo ativo (Spec 035, FR-004).
     """
     return (
         select(Assignment.role_key)
@@ -438,6 +479,7 @@ def process_cargos_scope(user_id: UUID):
             Assignment.revoked_at.is_(None),
             Assignment.deleted_at.is_(None),
             User.deleted_at.is_(None),
+            effective_assignment_clause(),
         )
     )
 
