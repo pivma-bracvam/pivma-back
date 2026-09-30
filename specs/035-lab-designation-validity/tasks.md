@@ -133,24 +133,24 @@ ator das ações institucionais (tem todas as permissões, Spec 023), com
 
 ### Testes
 
-- [ ] T031 [P] [US4] Teste: `DELETE /institutional/users/{id}/affiliations/{id}` com designações efetivas em dois processos em andamento grava um `PARTICIPANT_EFFECTIVENESS_LOST` em cada processo, em `tests/api/routers/test_lab_designation_validity.py`
-- [ ] T032 [P] [US4] Teste: o evento traz `user_id` do ator e `context_data` com `assignment_id`, `participant_user_id`, `role_key`, `laboratory_id`, `result: success`, `source: institutional` e `reason: affiliation_ended`, em `tests/api/routers/test_lab_designation_validity.py`
-- [ ] T033 [P] [US4] Teste: `DELETE /institutional/laboratories/{id}` grava o evento com `reason: laboratory_deactivated`, em `tests/api/routers/test_lab_designation_validity.py`
-- [ ] T034 [P] [US4] Teste: `DELETE /institutional/institutions/{id}` grava o evento com `reason: institution_deactivated` para designações de todos os laboratórios da instituição, em `tests/api/routers/test_lab_designation_validity.py`
-- [ ] T035 [P] [US4] Teste: inativar o laboratório de uma designação que já não valia (vínculo encerrado antes) não grava evento novo (FR-010), em `tests/api/routers/test_lab_designation_validity.py`
-- [ ] T036 [P] [US4] Teste: designação revogada não gera evento ao encerrar o vínculo (FR-010), em `tests/api/routers/test_lab_designation_validity.py`
-- [ ] T037 [P] [US4] Teste: processo com status `CLOSED` não recebe evento, e a pessoa perde o acesso a ele mesmo assim (FR-008a), em `tests/api/routers/test_lab_designation_validity.py`
-- [ ] T038 [P] [US4] Teste: processo excluído logicamente não recebe evento (FR-008a), em `tests/api/routers/test_lab_designation_validity.py`
-- [ ] T039 [P] [US4] Teste: encerrar vínculo sem laboratório ou sem designação afetada não grava evento de processo, em `tests/api/routers/test_lab_designation_validity.py`
-- [ ] T040 [P] [US4] Teste: na linha do tempo, quem gere participantes vê o evento e outro participante sem gestão não o vê (visibilidade de `PARTICIPANT_EVENT_TYPES`), em `tests/api/routers/test_lab_designation_validity.py`
-- [ ] T041 [P] [US4] Teste: `DELETE` concorrente do vínculo e do laboratório sobre a mesma designação resulta em exatamente um `PARTICIPANT_EFFECTIVENESS_LOST`, em `tests/api/routers/test_lab_designation_concurrency.py` (padrão de `tests/api/routers/test_participant_concurrency.py`: sessões independentes, `Barrier`, limpeza explícita)
+- [X] T031 [P] [US4] Teste: `DELETE /institutional/users/{id}/affiliations/{id}` com designações efetivas em dois processos em andamento grava um `PARTICIPANT_EFFECTIVENESS_LOST` em cada processo, em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T032 [P] [US4] Teste: o evento traz `user_id` do ator e `context_data` com `assignment_id`, `participant_user_id`, `role_key`, `laboratory_id`, `result: success`, `source: institutional` e `reason: affiliation_ended`, em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T033 [P] [US4] Teste: `DELETE /institutional/laboratories/{id}` grava o evento com `reason: laboratory_deactivated`, em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T034 [P] [US4] Teste: `DELETE /institutional/institutions/{id}` grava o evento com `reason: institution_deactivated` para designações de todos os laboratórios da instituição, em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T035 [P] [US4] Teste: inativar o laboratório de uma designação que já não valia (vínculo encerrado antes) não grava evento novo (FR-010), em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T036 [P] [US4] Teste: designação revogada não gera evento ao encerrar o vínculo (FR-010), em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T037 [P] [US4] Teste: processo com status `CLOSED` não recebe evento, e a pessoa perde o acesso a ele mesmo assim (FR-008a), em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T038 [P] [US4] Teste: processo excluído logicamente não recebe evento (FR-008a), em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T039 [P] [US4] Teste: encerrar vínculo sem laboratório ou sem designação afetada não grava evento de processo, em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T040 [P] [US4] Teste: na linha do tempo, quem gere participantes vê o evento e outro participante sem gestão não o vê (visibilidade de `PARTICIPANT_EVENT_TYPES`), em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T041 [P] [US4] Teste: `DELETE` concorrente do vínculo e do laboratório sobre a mesma designação resulta em exatamente um `PARTICIPANT_EFFECTIVENESS_LOST`, em `tests/api/routers/test_lab_designation_concurrency.py` (padrão de `tests/api/routers/test_participant_concurrency.py`: sessões independentes, `Barrier`, limpeza explícita)
 
 ### Implementação
 
-- [ ] T042 [US4] Em `src/pivma/core/participant_service.py`, criar a captura de efetividade: selecionar e travar (`FOR UPDATE` em `Assignment`) as designações ativas de cargo laboratorial dos laboratórios informados (e do usuário, quando informado) em processos não excluídos com status fora de `IMMUTABLE_PROCESS_STATUSES`, e devolver os ids efetivos entre elas pelo predicado
-- [ ] T043 [US4] Em `src/pivma/core/participant_service.py`, criar o registro das transições: recalcular os ids efetivos após `flush` e gravar `AuditEvent` com `event_type` `PARTICIPANT_EFFECTIVENESS_LOST` ou `PARTICIPANT_EFFECTIVENESS_RESTORED` ("cabem em `String(64)`"), `user_id` do ator, `context_data` de `_assignment_event_context(result='success', source='institutional')` mais `reason`
-- [ ] T044 [US4] Chamar a captura e o registro em `deactivate_affiliation`, `deactivate_laboratory` e `deactivate_institution` em `src/pivma/routers/institutional.py`, antes do `commit` (reasons `affiliation_ended`, `laboratory_deactivated`, `institution_deactivated`; na instituição, os laboratórios dela)
-- [ ] T045 [US4] Incluir os dois tipos novos em `PARTICIPANT_EVENT_TYPES` em `src/pivma/routers/processes.py`
+- [X] T042 [US4] Em `src/pivma/core/participant_service.py`, criar a captura de efetividade: selecionar e travar (`FOR UPDATE` em `Assignment`) as designações ativas de cargo laboratorial dos laboratórios informados (e do usuário, quando informado) em processos não excluídos com status fora de `IMMUTABLE_PROCESS_STATUSES`, e devolver os ids efetivos entre elas pelo predicado
+- [X] T043 [US4] Em `src/pivma/core/participant_service.py`, criar o registro das transições: recalcular os ids efetivos após `flush` e gravar `AuditEvent` com `event_type` `PARTICIPANT_EFFECTIVENESS_LOST` ou `PARTICIPANT_EFFECTIVENESS_RESTORED` ("cabem em `String(64)`"), `user_id` do ator, `context_data` de `_assignment_event_context(result='success', source='institutional')` mais `reason`
+- [X] T044 [US4] Chamar a captura e o registro em `deactivate_affiliation`, `deactivate_laboratory` e `deactivate_institution` em `src/pivma/routers/institutional.py`, antes do `commit` (reasons `affiliation_ended`, `laboratory_deactivated`, `institution_deactivated`; na instituição, os laboratórios dela)
+- [X] T045 [US4] Incluir os dois tipos novos em `PARTICIPANT_EVENT_TYPES` em `src/pivma/routers/processes.py`
 
 ---
 
@@ -160,13 +160,13 @@ ator das ações institucionais (tem todas as permissões, Spec 023), com
 
 ### Testes
 
-- [ ] T046 [P] [US5] Teste: após encerrar e recriar o vínculo com o mesmo laboratório (`POST /institutional/users/{id}/affiliations`), `require_activity_access(..., 'edit')` sobre `lab_bench` volta a passar, em `tests/api/routers/test_lab_designation_validity.py`
-- [ ] T047 [P] [US5] Teste: a recriação grava um `PARTICIPANT_EFFECTIVENESS_RESTORED` com `reason: affiliation_created` por processo em andamento, em `tests/api/routers/test_lab_designation_validity.py`
-- [ ] T048 [P] [US5] Teste: criar vínculo para quem já tinha a designação efetiva (outro laboratório, ou vínculo sem laboratório) não grava evento, em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T046 [P] [US5] Teste: após encerrar e recriar o vínculo com o mesmo laboratório (`POST /institutional/users/{id}/affiliations`), `require_activity_access(..., 'edit')` sobre `lab_bench` volta a passar, em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T047 [P] [US5] Teste: a recriação grava um `PARTICIPANT_EFFECTIVENESS_RESTORED` com `reason: affiliation_created` por processo em andamento, em `tests/api/routers/test_lab_designation_validity.py`
+- [X] T048 [P] [US5] Teste: criar vínculo para quem já tinha a designação efetiva (outro laboratório, ou vínculo sem laboratório) não grava evento, em `tests/api/routers/test_lab_designation_validity.py`
 
 ### Implementação
 
-- [ ] T049 [US5] Chamar a captura e o registro de T042–T043 em `create_affiliation` em `src/pivma/routers/institutional.py`, depois do `flush` do vínculo e antes do `commit`, com `reason` `affiliation_created`, só quando `laboratory_id` for informado
+- [X] T049 [US5] Chamar a captura e o registro de T042–T043 em `create_affiliation` em `src/pivma/routers/institutional.py`, depois do `flush` do vínculo e antes do `commit`, com `reason` `affiliation_created`, só quando `laboratory_id` for informado
 
 ---
 

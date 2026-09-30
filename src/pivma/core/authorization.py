@@ -593,12 +593,27 @@ async def compute_effectiveness_map(
     """
     if not assignments:
         return {}
-    effective_ids = set(
+    effective_ids = await effective_assignment_ids(
+        session, [a.id for a in assignments]
+    )
+    return {a.id: a.id in effective_ids for a in assignments}
+
+
+async def effective_assignment_ids(
+    session: AsyncSession, assignment_ids: Iterable[UUID]
+) -> set[UUID]:
+    """Ids efetivos entre `assignment_ids`: ativa, usuário ativo e
+    `effective_assignment_clause` (Spec 035, FR-001).
+    """
+    ids = list(assignment_ids)
+    if not ids:
+        return set()
+    return set(
         await session.scalars(
             select(Assignment.id)
             .join(User, User.id == Assignment.user_id)
             .where(
-                Assignment.id.in_([a.id for a in assignments]),
+                Assignment.id.in_(ids),
                 Assignment.revoked_at.is_(None),
                 Assignment.deleted_at.is_(None),
                 User.deleted_at.is_(None),
@@ -606,7 +621,6 @@ async def compute_effectiveness_map(
             )
         )
     )
-    return {a.id: a.id in effective_ids for a in assignments}
 
 
 async def latest_declarations_map(

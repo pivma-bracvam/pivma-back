@@ -22,6 +22,7 @@ from pivma.core.database.models import (
     ActivityInstance,
     ActivityRun,
     Assignment,
+    AuditEvent,
     Task,
 )
 from pivma.core.process_engine import (
@@ -444,3 +445,230 @@ async def test_listed_effective_matches_authorization(
     assert listed_effective(client, world) == await can_view(
         session, world.lab_user, world.process
     )
+
+
+# --- US4: a perda da validade fica na trilha --------------------------------
+
+LOST = 'PARTICIPANT_EFFECTIVENESS_LOST'
+RESTORED = 'PARTICIPANT_EFFECTIVENESS_RESTORED'
+
+
+async def validity_events(session, process, event_type=LOST):
+    return list(
+        await session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.process_instance_id == process.id,
+                AuditEvent.event_type == event_type,
+            )
+        )
+    )
+
+
+async def second_designation(session, world, **process_fields):
+    process = await new_process(session, world.proponent, 'Processo 2')
+    assignment = await designate_laboratory(
+        session, process, world.lab_user, world.laboratory
+    )
+    for field, value in process_fields.items():
+        setattr(process, field, value)
+    await session.commit()
+    return process, assignment
+
+
+@pytest.mark.asyncio
+async def test_ended_affiliation_records_one_event_per_process(
+    client, session, world
+):
+    other_process, _ = await second_designation(session, world)
+
+    end_affiliation(client, world)
+
+    assert len(await validity_events(session, world.process)) == 1
+    assert len(await validity_events(session, other_process)) == 1
+
+
+@pytest.mark.asyncio
+async def test_lost_event_identifies_designation_actor_and_reason(
+    client, session, world
+):
+    end_affiliation(client, world)
+
+    (event,) = await validity_events(session, world.process)
+    assert event.user_id == world.actor.id
+    assert event.activity_run_id is None
+    assert event.context_data == {
+        'assignment_id': str(world.assignment.id),
+        'participant_user_id': str(world.lab_user.id),
+        'role_key': 'participating_laboratory',
+        'laboratory_id': str(world.laboratory.id),
+        'result': 'success',
+        'source': 'institutional',
+        'reason': 'affiliation_ended',
+    }
+
+
+@pytest.mark.asyncio
+async def test_deactivated_laboratory_records_reason(client, session, world):
+    deactivate_laboratory(client, world)
+
+    (event,) = await validity_events(session, world.process)
+    assert event.context_data['reason'] == 'laboratory_deactivated'
+
+
+@pytest.mark.asyncio
+async def test_deactivated_institution_records_every_laboratory(
+    client, session, world
+):
+    second_lab = LaboratoryFactory(institution=world.institution)
+    session.add(second_lab)
+    await session.commit()
+    other_user = UserFactory()
+    session.add(other_user)
+    await session.commit()
+    await new_affiliation(session, other_user, world.institution, second_lab)
+    await designate_laboratory(session, world.process, other_user, second_lab)
+
+    deactivate_institution(client, world)
+
+    events = await validity_events(session, world.process)
+    assert {e.context_data['laboratory_id'] for e in events} == {
+        str(world.laboratory.id),
+        str(second_lab.id),
+    }
+    assert {e.context_data['reason'] for e in events} == {
+        'institution_deactivated'
+    }
+
+
+@pytest.mark.asyncio
+async def test_already_ineffective_designation_records_no_new_event(
+    client, session, world
+):
+    end_affiliation(client, world)
+
+    deactivate_laboratory(client, world)
+
+    (event,) = await validity_events(session, world.process)
+    assert event.context_data['reason'] == 'affiliation_ended'
+
+
+@pytest.mark.asyncio
+async def test_revoked_designation_records_no_event(client, session, world):
+    world.assignment.revoked_at = world.assignment.assigned_at
+    await session.commit()
+
+    end_affiliation(client, world)
+
+    assert await validity_events(session, world.process) == []
+
+
+@pytest.mark.asyncio
+async def test_closed_process_records_no_event_but_denies_access(
+    client, session, world
+):
+    closed, _ = await second_designation(session, world, status='CLOSED')
+
+    end_affiliation(client, world)
+
+    assert await validity_events(session, closed) == []
+    assert not await can_view(session, world.lab_user, closed)
+
+
+@pytest.mark.asyncio
+async def test_deleted_process_records_no_event(client, session, world):
+    deleted, _ = await second_designation(
+        session,
+        world,
+        status='CANCELLED',
+        deleted_at=world.assignment.assigned_at,
+    )
+
+    end_affiliation(client, world)
+
+    assert await validity_events(session, deleted) == []
+
+
+@pytest.mark.asyncio
+async def test_affiliation_without_laboratory_records_no_event(
+    client, session, world
+):
+    institution_only = await new_affiliation(
+        session, world.lab_user, world.institution, None
+    )
+
+    end_affiliation(client, world, institution_only)
+
+    assert await validity_events(session, world.process) == []
+    assert await can_view(session, world.lab_user, world.process)
+
+
+def timeline_types(client, user, process):
+    authenticate(client, user)
+    response = client.get(f'/processes/{process.id}/timeline')
+    assert response.status_code == HTTPStatus.OK, response.text
+    return {item['event_type'] for item in response.json()['data']}
+
+
+@pytest.mark.asyncio
+async def test_timeline_shows_event_to_manager_only(client, session, world):
+    statistician = UserFactory()
+    session.add(statistician)
+    await session.commit()
+    await grant_cargo(
+        session,
+        process_id=world.process.id,
+        user=statistician,
+        role_key='statistician',
+    )
+
+    end_affiliation(client, world)
+
+    assert LOST in timeline_types(client, world.actor, world.process)
+    assert LOST not in timeline_types(client, statistician, world.process)
+
+
+# --- US5: vínculo restabelecido ---------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_recreated_affiliation_restores_access(client, session, world):
+    end_affiliation(client, world)
+    assert not await can_view(session, world.lab_user, world.process)
+
+    recreate_affiliation(client, world)
+
+    await require_activity_access(
+        session,
+        world.lab_user.id,
+        await activity(session, world.process, 'lab_bench'),
+        'edit',
+    )
+
+
+@pytest.mark.asyncio
+async def test_recreated_affiliation_records_restored_event(
+    client, session, world
+):
+    other_process, _ = await second_designation(session, world)
+    end_affiliation(client, world)
+
+    recreate_affiliation(client, world)
+
+    for process in (world.process, other_process):
+        (event,) = await validity_events(session, process, RESTORED)
+        assert event.context_data['reason'] == 'affiliation_created'
+        assert event.user_id == world.actor.id
+
+
+@pytest.mark.asyncio
+async def test_affiliation_for_already_effective_designation_records_no_event(
+    client, session, world
+):
+    as_actor(client, world)
+    response = client.post(
+        f'/institutional/users/{world.lab_user.id}/affiliations',
+        json={'institution_id': str(world.institution.id)},
+    )
+    assert response.status_code == HTTPStatus.CREATED, response.text
+
+    assert await validity_events(session, world.process, RESTORED) == []

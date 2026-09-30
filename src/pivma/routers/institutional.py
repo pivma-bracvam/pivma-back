@@ -27,6 +27,10 @@ from pivma.core.listing import (
     paginate_items,
     paginate_query,
 )
+from pivma.core.participant_service import (
+    record_laboratory_validity_changes,
+    snapshot_laboratory_designations,
+)
 from pivma.core.references import institution_ref, laboratory_ref, user_refs
 from pivma.dependencies import (
     CurrentUser,
@@ -119,6 +123,10 @@ def laboratory_public(
         deleted_by=item.deleted_by,
         deleted_at=item.deleted_at,
     )
+
+
+def _laboratory_ids(laboratory_id: UUID | None) -> list[UUID]:
+    return [] if laboratory_id is None else [laboratory_id]
 
 
 def record_change(
@@ -298,9 +306,18 @@ async def deactivate_institution(
     item = await get_institution(session, institution_id)
     if item.deleted_at is not None:
         raise inactive('Instituição inativa.')
+    snapshot = await snapshot_laboratory_designations(
+        session,
+        laboratory_ids=await session.scalars(
+            select(Laboratory.id).where(Laboratory.institution_id == item.id)
+        ),
+    )
     item.set_deletion_audit(actor.id)
     record_change(
         session, 'institution.deactivated', 'institution', item.id, actor.id
+    )
+    await record_laboratory_validity_changes(
+        session, snapshot, actor_id=actor.id, reason='institution_deactivated'
     )
     await session.commit()
     return Response(status_code=HTTPStatus.NO_CONTENT)
@@ -419,9 +436,15 @@ async def deactivate_laboratory(
     item = await get_laboratory(session, laboratory_id)
     if item.deleted_at is not None:
         raise inactive('Laboratório inativo.')
+    snapshot = await snapshot_laboratory_designations(
+        session, laboratory_ids=[item.id]
+    )
     item.set_deletion_audit(actor.id)
     record_change(
         session, 'laboratory.deactivated', 'laboratory', item.id, actor.id
+    )
+    await record_laboratory_validity_changes(
+        session, snapshot, actor_id=actor.id, reason='laboratory_deactivated'
     )
     await session.commit()
     return Response(status_code=HTTPStatus.NO_CONTENT)
@@ -488,6 +511,11 @@ async def create_affiliation(
             raise conflict(
                 'O laboratório não pertence à instituição informada.'
             )
+    snapshot = await snapshot_laboratory_designations(
+        session,
+        laboratory_ids=_laboratory_ids(payload.laboratory_id),
+        user_id=user.id,
+    )
     item = UserInstitutionalAffiliation(
         user_id=user.id,
         institution_id=institution.id,
@@ -498,6 +526,9 @@ async def create_affiliation(
     await flush_or_conflict(session, 'O usuário já tem esta afiliação ativa.')
     record_change(
         session, 'affiliation.created', 'affiliation', item.id, actor.id
+    )
+    await record_laboratory_validity_changes(
+        session, snapshot, actor_id=actor.id, reason='affiliation_created'
     )
     await commit_or_conflict(session, 'O usuário já tem esta afiliação ativa.')
     await session.refresh(item)
@@ -525,9 +556,17 @@ async def deactivate_affiliation(
         raise not_found('Afiliação não encontrada.')
     if item.deleted_at is not None:
         raise inactive('Afiliação inativa.')
+    snapshot = await snapshot_laboratory_designations(
+        session,
+        laboratory_ids=_laboratory_ids(item.laboratory_id),
+        user_id=user_id,
+    )
     item.set_deletion_audit(actor.id)
     record_change(
         session, 'affiliation.deactivated', 'affiliation', item.id, actor.id
+    )
+    await record_laboratory_validity_changes(
+        session, snapshot, actor_id=actor.id, reason='affiliation_ended'
     )
     await session.commit()
     return Response(status_code=HTTPStatus.NO_CONTENT)
