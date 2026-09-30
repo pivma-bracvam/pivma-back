@@ -172,8 +172,8 @@ ator das ações institucionais (tem todas as permissões, Spec 023), com
 
 ## Phase 8: Polish
 
-- [ ] T050 Atualizar `README.md` (seção "Participantes e Conflito de Interesses"): regra de designação efetiva, perda de acesso sem revogação e os dois eventos novos
-- [ ] T051 Rodar `poetry run ruff check .` e `poetry run ruff format --check .` sem erros
+- [X] T050 Atualizar `README.md` (seção "Participantes e Conflito de Interesses"): regra de designação efetiva, perda de acesso sem revogação e os dois eventos novos
+- [X] T051 Rodar `poetry run ruff check .` e `poetry run ruff format --check .` sem erros
 - [ ] T052 Rodar a suíte completa `poetry run pytest -q`; ajustar só testes que dependiam do defeito corrigido, registrando cada ajuste (SC-005)
 - [ ] T053 Marcar as tarefas concluídas neste arquivo e registrar no PR os resultados reais de T051–T052
 

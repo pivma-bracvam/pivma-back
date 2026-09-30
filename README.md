@@ -198,6 +198,12 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
 * Laboratoriais: `lead_laboratory`, `participating_laboratory` (exigem vínculo institucional ativo do usuário com o respectivo laboratório).
 * Fase 2: `sponsor`, `sample_selection_group`, `regulatory_observer`, `collaborator`.
 
+* **Designação efetiva (Spec 035):**
+* Uma designação ativa (não revogada) só concede acesso quando é efetiva: usuário ativo e, nos cargos laboratoriais, vínculo ativo do usuário com o laboratório da designação, com laboratório e instituição ativos.
+* Encerrar o vínculo ou inativar o laboratório ou a instituição retira no pedido seguinte o acesso que dependia do cargo (atividades, tarefas, amostras, linha do tempo e visibilidade do processo), sem revogar a designação nem mexer em tarefas ou dados. Um novo vínculo com o mesmo laboratório devolve o acesso.
+* A mesma regra (`effective_assignment_clause` em `core/authorization.py`) decide a autorização, o `effective` da listagem de participantes, os escopos de `GET /auth/me` e a validação de nova designação.
+* Nos processos em andamento, cada mudança de efetividade causada por ação institucional grava `PARTICIPANT_EFFECTIVENESS_LOST` ou `PARTICIPANT_EFFECTIVENESS_RESTORED` na linha do tempo, com `reason` (`affiliation_ended`, `laboratory_deactivated`, `institution_deactivated` ou `affiliation_created`). Processos encerrados, cancelados, arquivados ou excluídos não recebem esses eventos.
+
 
 * **Regras de Conflito de Interesse:**
 * Histórico *append-only* em `ConflictInterestDeclaration`.
