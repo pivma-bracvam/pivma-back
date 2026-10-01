@@ -43,6 +43,7 @@ from pivma.core.process_engine import (
     utc_now,
 )
 from pivma.core.references import laboratory_refs, user_refs
+from pivma.notifications import ChannelUnavailableError
 from pivma.dependencies import (
     CurrentUser,
     Session,
@@ -509,11 +510,14 @@ async def create_participant_invite(
             channel=payload.channel,
             actor_id=current_user.id,
             expiration_hours=settings.INVITE_EXPIRATION_HOURS,
+            settings=settings,
         )
     except NotFoundError as e:
         raise not_found(str(e)) from e
     except ConflictError as e:
         raise domain_conflict(e) from e
+    except ChannelUnavailableError as e:
+        raise conflict(str(e), 'channel_unavailable') from e
 
     await session.commit()
     await session.refresh(invite)
@@ -592,9 +596,12 @@ async def resend_participant_invite(
             invite,
             actor_id=current_user.id,
             expiration_hours=settings.INVITE_EXPIRATION_HOURS,
+            settings=settings,
         )
     except ConflictError as e:
         raise domain_conflict(e) from e
+    except ChannelUnavailableError as e:
+        raise conflict(str(e), 'channel_unavailable') from e
 
     await session.commit()
     await session.refresh(invite)

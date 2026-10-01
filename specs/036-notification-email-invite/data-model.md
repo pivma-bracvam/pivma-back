@@ -13,6 +13,7 @@ Um envio de mensagem para um destinatário por um canal. Herda `AuditMixin`
 | `kind` | `String(64)` | Tipo de aviso. Nesta entrega: `invite_email` |
 | `channel` | `String(16)` | Nesta entrega: `email` |
 | `recipient` | `String(320)` | Endereço de destino |
+| `requested_at` | `DateTime` | Momento do pedido, calculado na aplicação; ordena os envios do mesmo objeto |
 | `subject_type` | `String(32)`, nulo | Objeto de negócio de origem. Aqui: `role_assignment_invite` |
 | `subject_id` | UUID, nulo | Id do objeto de origem |
 | `process_instance_id` | UUID FK `process_instances.id`, nulo | Processo para a trilha de auditoria |

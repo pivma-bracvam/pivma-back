@@ -65,3 +65,42 @@ def test_settings_rejects_invalid_authentication_origin(
 
     with pytest.raises(ValidationError, match='valid origins'):
         Settings()
+
+
+# --- Spec 036: INVITE_URL_TEMPLATE (FR-018) ---
+
+
+@pytest.mark.parametrize(
+    'template',
+    [
+        'https://app.example.com/convites',
+        'https://app.example.com/{token}/convites/{token}',
+    ],
+)
+def test_settings_rejects_invite_url_template_without_single_token(
+    monkeypatch, template
+):
+    monkeypatch.setenv('INVITE_URL_TEMPLATE', template)
+
+    with pytest.raises(ValidationError, match='INVITE_URL_TEMPLATE'):
+        Settings()
+
+
+def test_settings_accepts_invite_url_template_with_one_token(monkeypatch):
+    monkeypatch.setenv(
+        'INVITE_URL_TEMPLATE', 'https://app.example.com/convites/{token}'
+    )
+
+    settings = Settings()
+
+    assert settings.INVITE_URL_TEMPLATE == (
+        'https://app.example.com/convites/{token}'
+    )
+
+
+def test_settings_accepts_missing_invite_url_template(monkeypatch):
+    monkeypatch.delenv('INVITE_URL_TEMPLATE', raising=False)
+
+    settings = Settings()
+
+    assert settings.INVITE_URL_TEMPLATE is None

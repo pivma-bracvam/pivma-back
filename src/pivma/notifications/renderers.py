@@ -1,0 +1,95 @@
+"""Modelo de cada tipo de aviso (Spec 036, research R12).
+
+Um renderizador recebe o conteúdo decifrado e devolve assunto, texto simples
+e HTML. Valores entram no HTML sempre escapados.
+"""
+
+from collections.abc import Callable
+from datetime import datetime
+from html import escape
+from typing import Any
+
+Renderer = Callable[[dict[str, Any]], tuple[str, str, str]]
+
+RENDERERS: dict[str, Renderer] = {}
+
+INVITE_EMAIL = 'invite_email'
+
+
+def get_renderer(kind: str) -> Renderer:
+    try:
+        return RENDERERS[kind]
+    except KeyError:
+        raise ValueError(
+            f'Nenhum renderizador registrado para o kind {kind!r}.'
+        ) from None
+
+
+# --- Convite de designação (Spec 028 + Spec 036) ---
+
+# Nomes dos papéis como aparecem nas atividades de atribuição de cargo dos
+# templates; papéis fora dos templates usam o nome do Plano de Trabalho.
+ROLE_LABELS = {
+    'sponsor': 'Patrocinador',
+    'group_manager': 'Grupo Gestor',
+    'sample_selection_group': 'Grupo de Seleção de Amostras',
+    'lead_laboratory': 'Laboratório Líder',
+    'participating_laboratory': 'Laboratório Participante',
+    'statistician': 'Estatístico',
+    'collaborator': 'Colaboradores e Observadores',
+    'adhoc_evaluator': 'Especialistas Temáticos (Comitê ADHOC)',
+    'study_manager': 'Gerente do Estudo',
+    'peer_reviewer': 'Revisor',
+    'proponent': 'Proponente',
+    'regulatory_observer': 'Observador Regulatório',
+}
+
+
+def _format_deadline(value: str) -> str:
+    return datetime.fromisoformat(value).strftime('%d/%m/%Y %H:%M (UTC)')
+
+
+def render_invite_email(payload: dict[str, Any]) -> tuple[str, str, str]:
+    role = ROLE_LABELS.get(payload['role_key'], payload['role_key'])
+    process = f'{payload["process_code"]} — {payload["process_title"]}'
+    deadline = _format_deadline(payload['expires_at'])
+    url = payload['invite_url']
+    laboratory = payload.get('laboratory_name')
+
+    lines = [
+        'Você foi convidado para participar de um processo na pi*VMA.',
+        '',
+        f'Processo: {process}',
+        f'Papel: {role}',
+    ]
+    if laboratory:
+        lines.append(f'Laboratório: {laboratory}')
+    lines += [
+        f'Válido até: {deadline}',
+        '',
+        'Para aceitar, acesse o link abaixo e entre com este e-mail:',
+        url,
+        '',
+        'Se você não esperava este convite, ignore esta mensagem.',
+    ]
+
+    def item(label: str, value: str) -> str:
+        return f'<li><strong>{label}:</strong> {escape(value)}</li>'
+
+    items = [item('Processo', process), item('Papel', role)]
+    if laboratory:
+        items.append(item('Laboratório', laboratory))
+    items.append(item('Válido até', deadline))
+    safe_url = escape(url, quote=True)
+    html = (
+        '<p>Você foi convidado para participar de um processo na pi*VMA.</p>'
+        f'<ul>{"".join(items)}</ul>'
+        '<p>Para aceitar, acesse o link abaixo e entre com este e-mail:</p>'
+        f'<p><a href="{safe_url}">{safe_url}</a></p>'
+        '<p>Se você não esperava este convite, ignore esta mensagem.</p>'
+    )
+    subject = f'Convite para o processo {payload["process_code"]} na pi*VMA'
+    return subject, '\n'.join(lines), html
+
+
+RENDERERS[INVITE_EMAIL] = render_invite_email

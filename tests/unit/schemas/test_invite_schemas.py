@@ -23,13 +23,21 @@ def test_invite_create_accepts_default_channel():
     assert invite.channel == 'link'
 
 
-def test_invite_create_rejects_channel_outside_link():
-    """U-I01"""
+def test_invite_create_accepts_email_channel():
+    """Spec 036, FR-011."""
+    invite = InviteCreate(
+        email='a@exemplo.org', role_key='statistician', channel='email'
+    )
+    assert invite.channel == 'email'
+
+
+def test_invite_create_rejects_channel_outside_link_and_email():
+    """U-I01 (canais aceitos ampliados pela Spec 036)."""
     with pytest.raises(ValidationError):
         InviteCreate(
             email='a@exemplo.org',
             role_key='statistician',
-            channel='email',
+            channel='whatsapp',
         )
 
 

@@ -33,11 +33,23 @@ from pivma.core.process_engine import (
     _maybe_close_role_assignment_activity,  # noqa: PLC2701
 )
 from pivma.core.references import laboratory_refs
-from pivma.schemas import InvitePublic, ProcessRef
+from pivma.core.settings import Settings
+from pivma.notifications.channels import email_channel_available
+from pivma.notifications.renderers import INVITE_EMAIL
+from pivma.notifications.service import (
+    ChannelUnavailableError,
+    cancel_pending_notifications,
+    enqueue_notification,
+    latest_by_subject,
+)
+from pivma.schemas import InviteDeliveryPublic, InvitePublic, ProcessRef
 
 PENDING = 'pending'
 ACCEPTED = 'accepted'
 REVOKED = 'revoked'
+
+EMAIL_CHANNEL = 'email'
+INVITE_SUBJECT = 'role_assignment_invite'
 
 
 def generate_invite_token() -> str:
@@ -86,7 +98,8 @@ async def invite_public_kwargs(
     """
     process = await session.get(ProcessInstance, invite.process_instance_id)
     laboratories = await laboratory_refs(session, [invite.laboratory_id])
-    return _invite_fields(invite, process, laboratories)
+    deliveries = await latest_by_subject(session, INVITE_SUBJECT, [invite.id])
+    return _invite_fields(invite, process, laboratories, deliveries)
 
 
 async def invite_publics(
@@ -98,13 +111,31 @@ async def invite_publics(
     laboratories = await laboratory_refs(
         session, [invite.laboratory_id for invite in invites]
     )
+    deliveries = await latest_by_subject(
+        session, INVITE_SUBJECT, [invite.id for invite in invites]
+    )
     return [
-        InvitePublic(**_invite_fields(invite, process, laboratories))
+        InvitePublic(
+            **_invite_fields(invite, process, laboratories, deliveries)
+        )
         for invite in invites
     ]
 
 
-def _invite_fields(invite, process, laboratories) -> dict:
+def _delivery(notification) -> InviteDeliveryPublic | None:
+    """Situação do envio mais recente do convite (Spec 036, FR-017)."""
+    if notification is None:
+        return None
+    return InviteDeliveryPublic(
+        status=notification.status,
+        attempts=notification.attempts,
+        last_attempt_at=notification.last_attempt_at,
+        sent_at=notification.sent_at,
+        error_code=notification.error_code,
+    )
+
+
+def _invite_fields(invite, process, laboratories, deliveries) -> dict:
     return {
         'id': invite.id,
         'process': ProcessRef(
@@ -123,7 +154,57 @@ def _invite_fields(invite, process, laboratories) -> dict:
         'accepted_by': invite.accepted_by,
         'revoked_at': invite.revoked_at,
         'revoked_by': invite.revoked_by,
+        'delivery': _delivery(deliveries.get(invite.id)),
     }
+
+
+def _require_email_channel(settings: Settings) -> None:
+    """FR-019: convite por e-mail exige canal e modelo de link."""
+    if not (email_channel_available(settings) and settings.INVITE_URL_TEMPLATE):
+        raise ChannelUnavailableError(
+            'O envio de convites por e-mail não está configurado.'
+        )
+
+
+async def _queue_invite_email(  # noqa: PLR0913, PLR0917
+    session: AsyncSession,
+    settings: Settings,
+    invite: RoleAssignmentInvite,
+    process: ProcessInstance,
+    token: str,
+    actor_id: UUID,
+) -> None:
+    """Registra o envio do link (Spec 036, FR-012/FR-013). Não comita.
+
+    O link com o token bruto só existe cifrado no envio (FR-009); o
+    convite continua guardando apenas o hash.
+    """
+    laboratory = (
+        await session.get(Laboratory, invite.laboratory_id)
+        if invite.laboratory_id
+        else None
+    )
+    await enqueue_notification(
+        session,
+        settings,
+        kind=INVITE_EMAIL,
+        channel=EMAIL_CHANNEL,
+        recipient=invite.email,
+        payload={
+            'invite_url': settings.INVITE_URL_TEMPLATE.replace(
+                '{token}', token
+            ),
+            'process_code': process.code,
+            'process_title': process.title,
+            'role_key': invite.role_key,
+            'laboratory_name': laboratory.name if laboratory else None,
+            'expires_at': invite.expires_at.isoformat(),
+        },
+        actor_id=actor_id,
+        subject=(INVITE_SUBJECT, invite.id),
+        process_instance_id=invite.process_instance_id,
+        expires_at=invite.expires_at,
+    )
 
 
 async def create_invite(  # noqa: PLR0913, PLR0917
@@ -136,12 +217,16 @@ async def create_invite(  # noqa: PLR0913, PLR0917
     channel: str,
     actor_id: UUID,
     expiration_hours: int,
+    settings: Settings,
 ) -> tuple[RoleAssignmentInvite, str]:
     """Cria um convite (FR-002 a FR-007). Não comita.
 
     Retorna o convite e o token bruto — quem chama devolve o token só nesta
-    resposta (e na de reenvio); ele nunca é lido de volta do banco.
+    resposta (e na de reenvio); ele nunca é lido de volta do banco. Com o
+    canal `email`, registra também o envio do link (Spec 036).
     """
+    if channel == EMAIL_CHANNEL:
+        _require_email_channel(settings)
     if role_key in LABORATORY_ROLE_KEYS:
         laboratory = await session.get(Laboratory, laboratory_id)
         if laboratory is None:
@@ -185,6 +270,10 @@ async def create_invite(  # noqa: PLR0913, PLR0917
             },
         )
     )
+    if channel == EMAIL_CHANNEL:
+        await _queue_invite_email(
+            session, settings, invite, process, token, actor_id
+        )
     return invite, token
 
 
@@ -215,8 +304,15 @@ async def resend_invite(
     *,
     actor_id: UUID,
     expiration_hours: int,
+    settings: Settings,
 ) -> tuple[RoleAssignmentInvite, str]:
-    """Renova token/prazo na mesma linha (FR-012, research.md R2)."""
+    """Renova token/prazo na mesma linha (FR-012, research.md R2).
+
+    Com o canal `email`, cancela o envio anterior ainda pendente e registra
+    um novo com o novo link (Spec 036, FR-013).
+    """
+    if invite.channel == EMAIL_CHANNEL:
+        _require_email_channel(settings)
     if invite.status != PENDING:
         raise ConflictError(
             'Convite não está mais pendente.', code='invite_not_pending'
@@ -244,6 +340,19 @@ async def resend_invite(
             },
         )
     )
+    if invite.channel == EMAIL_CHANNEL:
+        await cancel_pending_notifications(
+            session,
+            subject=(INVITE_SUBJECT, invite.id),
+            reason='cancelled_resent',
+            actor_id=actor_id,
+        )
+        process = await session.get(
+            ProcessInstance, invite.process_instance_id
+        )
+        await _queue_invite_email(
+            session, settings, invite, process, token, actor_id
+        )
     return invite, token
 
 
@@ -275,6 +384,12 @@ async def revoke_invite(
                 'role_key': invite.role_key,
             },
         )
+    )
+    await cancel_pending_notifications(
+        session,
+        subject=(INVITE_SUBJECT, invite.id),
+        reason='cancelled_revoked',
+        actor_id=actor_id,
     )
     return invite
 
@@ -337,6 +452,12 @@ async def accept_invite(
                 'assignment_id': str(assignment.id),
             },
         )
+    )
+    await cancel_pending_notifications(
+        session,
+        subject=(INVITE_SUBJECT, invite.id),
+        reason='cancelled_accepted',
+        actor_id=current_user.id,
     )
     # `create_assignment` já chama `_maybe_close_role_assignment_activity`,
     # mas naquele momento este convite ainda estava `pending` (FR-017) — se
