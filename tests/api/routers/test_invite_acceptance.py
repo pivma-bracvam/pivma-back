@@ -389,3 +389,32 @@ async def test_accept_closes_activity_when_last_pending_invite(
         t for t in tasks if t['title'] == 'Definir o Patrocinador'
     )
     assert sponsor_task['status'] == 'COMPLETED'
+
+
+# --- Spec 036: aceite cancela o envio pendente (FR-015) ---
+
+
+@pytest.mark.asyncio
+async def test_accept_email_invite_cancels_pending_delivery(
+    client, session, bracvam_user, email_invite_settings
+):
+    process_id, proponente = await _process_in_planning_phase(
+        client, session, bracvam_user
+    )
+    authenticate(client, proponente)
+    created = create_invite(
+        client, process_id, 'aceita@exemplo.org', 'sponsor', channel='email'
+    )
+    token = created.json()['token']
+    new_user = UserFactory(email='aceita@exemplo.org')
+    session.add(new_user)
+    await session.commit()
+    authenticate(client, new_user)
+
+    resp = accept_invite_req(client, token)
+
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json()['invite']['delivery']['status'] == 'cancelled'
+    assert resp.json()['invite']['delivery']['error_code'] == (
+        'cancelled_accepted'
+    )

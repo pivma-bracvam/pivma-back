@@ -941,7 +941,7 @@ class ParticipantHistoryItem(BaseModel):
 # ROLE ASSIGNMENT INVITES (Spec 028)
 # ==========================================
 
-InviteChannel = Literal['link']
+InviteChannel = Literal['link', 'email']
 
 
 class InviteCreate(BaseModel):
@@ -976,6 +976,18 @@ class InviteCreate(BaseModel):
         return value
 
 
+class InviteDeliveryPublic(BaseModel):
+    """Situação do envio automático do convite (Spec 036, FR-017)."""
+
+    model_config = ConfigDict(extra='forbid')
+
+    status: Literal['pending', 'sent', 'failed', 'cancelled']
+    attempts: int
+    last_attempt_at: datetime | None
+    sent_at: datetime | None
+    error_code: str | None
+
+
 class InvitePublic(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
@@ -998,6 +1010,13 @@ class InvitePublic(BaseModel):
     accepted_by: UUID | None
     revoked_at: datetime | None
     revoked_by: UUID | None
+    delivery: InviteDeliveryPublic | None = Field(
+        default=None,
+        description=(
+            'Situação do envio mais recente do convite (Spec 036); nulo no '
+            'canal `link`'
+        ),
+    )
 
 
 class InviteCreatedResponse(InvitePublic):

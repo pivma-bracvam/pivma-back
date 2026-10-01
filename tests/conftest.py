@@ -236,3 +236,36 @@ async def process_retirement_factory(session):
     )
 
     return ProcessRetirementFactory(session)
+
+
+def email_settings(**overrides):
+    """Settings com o canal de e-mail falso configurado (Spec 036)."""
+    from cryptography.fernet import Fernet  # noqa: PLC0415
+
+    values = {
+        'NOTIFICATION_EMAIL_BACKEND': 'fake',
+        'NOTIFICATION_FROM_ADDRESS': 'nao-responda@pivma.test',
+        'NOTIFICATION_ENCRYPTION_KEY': Fernet.generate_key().decode(),
+        'INVITE_URL_TEMPLATE': 'https://front.test/convites/{token}',
+        **overrides,
+    }
+    return Settings(**values)
+
+
+@pytest.fixture
+def use_settings():
+    """Troca as `Settings` injetadas na API; devolve a função de troca."""
+    from pivma.core.settings import get_settings  # noqa: PLC0415
+
+    def _use(settings):
+        app.dependency_overrides[get_settings] = lambda: settings
+        return settings
+
+    yield _use
+    app.dependency_overrides.pop(get_settings, None)
+
+
+@pytest.fixture
+def email_invite_settings(use_settings):
+    """API com convite por e-mail disponível (canal falso)."""
+    return use_settings(email_settings())

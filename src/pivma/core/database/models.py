@@ -1693,3 +1693,81 @@ class EvaluationTestRun(AuditMixin):
             column('created_at').desc(),
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Spec 036 — Base de notificações
+# ---------------------------------------------------------------------------
+
+
+@table_registry.mapped_as_dataclass
+class Notification(AuditMixin):
+    """Um envio de mensagem: registro do pedido e item da fila.
+
+    Gravado na mesma transação da operação de negócio que o pede (FR-002) e
+    processado por `pivma.notifications.worker`. O conteúdo fica cifrado em
+    `payload_encrypted` e é apagado quando o envio chega a um estado final
+    (`sent`, `failed`, `cancelled`), FR-009.
+    """
+
+    __tablename__ = 'notifications'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    kind: Mapped[str] = mapped_column(String(64))
+    channel: Mapped[str] = mapped_column(String(16))
+    recipient: Mapped[str] = mapped_column(String(320))
+    next_attempt_at: Mapped[datetime] = mapped_column()
+    payload_encrypted: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+    # Ordem dos pedidos do mesmo objeto, calculada na aplicação: em uma
+    # transação longa `created_at` (now() do banco) seria igual para todos.
+    requested_at: Mapped[datetime] = mapped_column(
+        default_factory=datetime.utcnow
+    )
+    subject_type: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, default=None
+    )
+    subject_id: Mapped[UUID | None] = mapped_column(
+        nullable=True, default=None
+    )
+    process_instance_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey('process_instances.id'), nullable=True, default=None
+    )
+    status: Mapped[str] = mapped_column(String(16), default='pending')
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    expires_at: Mapped[datetime | None] = mapped_column(
+        nullable=True, default=None
+    )
+    last_attempt_at: Mapped[datetime | None] = mapped_column(
+        nullable=True, default=None
+    )
+    sent_at: Mapped[datetime | None] = mapped_column(
+        nullable=True, default=None
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(
+        nullable=True, default=None
+    )
+    error_code: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, default=None
+    )
+    error_detail: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, default=None
+    )
+
+    __table_args__ = (
+        Index(
+            'ix_notifications_pending_due',
+            'next_attempt_at',
+            postgresql_where=(
+                (column('status') == 'pending')
+                & column('deleted_at').is_(None)
+            ),
+        ),
+        Index('ix_notifications_subject', 'subject_type', 'subject_id'),
+    )

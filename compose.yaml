@@ -25,5 +25,25 @@ services:
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
       DATABASE_URL: postgresql+psycopg://db_user:db_password@db:5432/db
 
+  # Processo de envio de notificações (Spec 036). Mesma imagem da API, sem
+  # rodar migrações: quem migra é a `api`.
+  worker:
+    image: pivma_api
+    command: python -m pivma.notifications.worker
+    depends_on:
+      - db
+      - api
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://db_user:db_password@db:5432/db
+
+  # Servidor SMTP falso para desenvolvimento: caixa em http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
+
 volumes:
   pgdata:

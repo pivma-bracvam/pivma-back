@@ -23,6 +23,7 @@ A documentação interativa das rotas, esquemas de entrada/saída e testes de re
   - [Participantes e Conflito de Interesses](#participantes-e-conflito-de-interesses)
   - [Amostras Cegas](#amostras-cegas)
   - [Avaliação Configurável por IA](#avaliação-configurável-por-ia)
+  - [Notificações](#notificações)
   - [Observabilidade de Logs](#observabilidade-de-logs)
 - [Comandos Úteis (`poetry` e `uv`)](#comandos-úteis-poetry-e-uv)
 - [Práticas de Desenvolvimento e Testes](#práticas-de-desenvolvimento-e-testes)
@@ -53,6 +54,11 @@ As configurações são validadas pela classe `Settings` em `src/pivma/core/sett
 | `AI_PROVIDER` | Provedor de IA para pré-avaliação (`openai` ou `fake` em CI/testes) | `fake` |
 | `OPENAI_API_KEY` | Chave de API da OpenAI (necessária se `AI_PROVIDER=openai`) | `sk-...` |
 | `SAMPLE_QR_BASE_URL` | Base da URL do frontend gravada no QR code dos frascos. Sem valor, usa a primeira origem de `AUTH_ALLOWED_ORIGINS` | `https://pivma.exemplo` |
+| `NOTIFICATION_EMAIL_BACKEND` | Canal de e-mail: `smtp`, `fake` (testes) ou vazio (envio por e-mail desativado) | `smtp` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY`, `SMTP_USERNAME`, `SMTP_PASSWORD` | Servidor SMTP de qualquer provedor. `SMTP_SECURITY`: `starttls` (padrão, 587), `ssl` (465) ou `none` | `mailpit`, `1025`, `none` |
+| `NOTIFICATION_FROM_ADDRESS`, `NOTIFICATION_FROM_NAME` | Remetente das mensagens | `nao-responda@pivma.exemplo` |
+| `NOTIFICATION_ENCRYPTION_KEY` | Chave Fernet que cifra o conteúdo dos envios pendentes | ver [Notificações](#notificações) |
+| `INVITE_URL_TEMPLATE` | Endereço da página de aceite do convite no frontend, com `{token}` | `https://pivma.exemplo/convites/{token}` |
 
 Gere o arquivo local:
 
@@ -138,7 +144,7 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
   * `403 forbidden`: falta de permissão global, concessão de ver sem concessão de editar na atividade, ou conflito de interesse ativo. Também `invalid_origin` (mutação de origem não confiável), `admin_only` e `invite_email_mismatch`.
   * `404 not_found`: recurso inexistente ou sem concessão de ver. Um processo sem atribuição ativa (para quem não é Admin/BraCVAM) e uma atividade sem concessão de ver respondem 404, sem revelar que existem.
   * `405 method_not_allowed`.
-  * `409 conflict`: regra de negócio. Códigos específicos: `duplicate`, `inactive_entity`, `process_closed`, `invalid_transition`, `form_submitted`, `invite_expired`, `invite_not_pending`, `self_deactivation`, `last_administrator`, `duplicate_cas`.
+  * `409 conflict`: regra de negócio. Códigos específicos: `duplicate`, `inactive_entity`, `process_closed`, `invalid_transition`, `form_submitted`, `invite_expired`, `invite_not_pending`, `self_deactivation`, `last_administrator`, `duplicate_cas`, `channel_unavailable`.
   * `413 payload_too_large` (anexo acima do limite: `file_too_large`).
   * `422 validation_error`: validação de entrada, com `fields`. Formulário dinâmico: `invalid_form_values` e `invalid_submission_values`, também com `fields` (`field: values.<chave>`). Outros específicos: `extension_not_allowed`, `not_a_file_field`, `invalid_cas`, `no_substances`, `missing_sds` (com `substance_ids`), `no_laboratories`.
   * `500 internal_error` e `503 service_unavailable` (`ai_unavailable` quando o provedor de IA falha).
@@ -192,6 +198,7 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
 ### Participantes e Conflito de Interesses
 
 * **Designações e convites:** cada designação traz `process`, `user` e `laboratory` (nulo fora dos cargos de laboratório) como referências resumidas; cada convite traz `process` e `laboratory`. As listagens de participantes, histórico e convites seguem o padrão de listagem.
+* **Convite por e-mail (Spec 036):** `channel` aceita `link` (padrão, link compartilhado manualmente) ou `email`. Com `email`, a criação e o reenvio registram o envio do link para o e-mail do convite; a resposta continua trazendo o `token`. Revogar ou aceitar cancela o envio pendente. Cada convite traz `delivery` (`status`, `attempts`, `last_attempt_at`, `sent_at`, `error_code`), nulo no canal `link`. Sem o canal de e-mail ou sem `INVITE_URL_TEMPLATE` configurados, `channel: "email"` responde `409 channel_unavailable`.
 * **Papéis Locais Suportados:**
 * Técnicos: `group_manager`, `study_manager`, `statistician`, `adhoc_evaluator`, `peer_reviewer`.
 * Proponente: `proponent` (atribuído ao criador do processo).
@@ -236,6 +243,18 @@ Atividade `sample_definition` da Fase 2 (Spec 031, RF038 e RF050). Abre quando a
 
 
 * A IA não emite decisões regulatórias finais; o processo decisório permanece sob responsabilidade de triadores humanos.
+
+### Notificações
+
+Base de envio de mensagens (Spec 036). O primeiro uso é o convite por e-mail.
+
+* **Pedir um envio:** `enqueue_notification` (`pivma.notifications`) grava o pedido na mesma transação da operação de negócio, sem comitar. Se a operação for desfeita, nada é enviado. Cada tipo de aviso (`kind`) tem um renderizador em `notifications/renderers.py` que devolve assunto, texto e HTML.
+* **Processo de envio:** `python -m pivma.notifications.worker` (serviço `worker` do compose). Pega um envio pendente por vez com `FOR UPDATE SKIP LOCKED`, envia e grava o resultado. Erro temporário (4xx, conexão, timeout) tenta de novo em 30 s, 60 s, 120 s… até 900 s, no máximo `NOTIFICATION_MAX_ATTEMPTS` (5) vezes. Erro permanente (5xx, destinatário recusado) falha na hora. Envio com prazo vencido (o do convite) falha como `expired` sem enviar.
+* **Situação:** `pending`, `sent`, `failed` ou `cancelled`, com `error_code` (`smtp_permanent`, `smtp_temporary`, `connection`, `max_attempts`, `expired`, `decrypt`, `cancelled_*`). A trilha recebe `NOTIFICATION_SENT`, `NOTIFICATION_FAILED` e `NOTIFICATION_CANCELLED`, sem destinatário nem conteúdo.
+* **Conteúdo protegido:** o conteúdo fica cifrado com `NOTIFICATION_ENCRYPTION_KEY` e é apagado quando o envio termina. Logs e auditoria não registram o conteúdo. Gere a chave com `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Trocar a chave com envios pendentes faz esses envios falharem como `decrypt`.
+* **Provedor:** o envio usa SMTP; trocar de provedor (SES, Brevo, Postmark, Mailgun e outros) é trocar as variáveis `SMTP_*`. O sistema só envia: não precisa de caixa de entrada, mas o domínio do remetente precisa de SPF, DKIM e DMARC no DNS para as mensagens não caírem no spam.
+* **Desenvolvimento:** o serviço `mailpit` do compose recebe tudo em `http://localhost:8025` (`SMTP_HOST=mailpit`, `SMTP_PORT=1025`, `SMTP_SECURITY=none`). Nos testes, `NOTIFICATION_EMAIL_BACKEND=fake` guarda as mensagens em memória.
+* **Limite conhecido:** se o processo de envio cair depois que o servidor SMTP aceitou a mensagem e antes de gravar o resultado, a mensagem pode sair de novo.
 
 ### Observabilidade de Logs
 
@@ -311,8 +330,12 @@ docker compose up --build -d
 
 O contêiner executa automaticamente as migrações pendentes do Alembic via `entrypoint.sh` antes de inicializar o servidor.
 
+Serviços: `db`, `api`, `worker` (processo de envio de notificações, mesma imagem da API) e `mailpit` (SMTP falso para desenvolvimento). Em produção, rode o `worker` junto da API e troque o Mailpit por um provedor SMTP real.
+
 * Documentação Interativa: `http://localhost:8000/docs`
+* Caixa do Mailpit: `http://localhost:8025`
 * Logs da API: `docker compose logs -f api`
+* Logs do envio de notificações: `docker compose logs -f worker`
 * Encerrar serviços: `docker compose down`
 
 ---

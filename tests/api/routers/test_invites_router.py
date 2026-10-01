@@ -413,3 +413,253 @@ async def test_resend_and_revoke_without_trusted_origin_are_forbidden(
     )
     assert resend_resp.status_code == HTTPStatus.FORBIDDEN
     assert revoke_resp.status_code == HTTPStatus.FORBIDDEN
+
+
+# --- Spec 036: convite por e-mail (US1) ---
+
+
+async def _notifications_of(session, invite_id):
+    from sqlalchemy import select  # noqa: PLC0415
+
+    from pivma.core.database.models import Notification  # noqa: PLC0415
+
+    return (
+        await session.scalars(
+            select(Notification)
+            .where(Notification.subject_id == invite_id)
+            .order_by(Notification.requested_at)
+        )
+    ).all()
+
+
+@pytest.mark.asyncio
+async def test_email_invite_returns_token_and_pending_delivery(
+    client, session, bracvam_user, email_invite_settings
+):
+    """US1-1 / FR-012, FR-016: 201 com token e envio pendente."""
+    process_id, proponente = await _process_in_planning_phase(
+        client, session, bracvam_user
+    )
+    authenticate(client, proponente)
+
+    resp = create_invite(
+        client, process_id, 'mail@exemplo.org', 'sponsor', channel='email'
+    )
+
+    assert resp.status_code == HTTPStatus.CREATED
+    body = resp.json()
+    assert body['channel'] == 'email'
+    assert len(body['token']) >= 32
+    assert body['delivery'] == {
+        'status': 'pending',
+        'attempts': 0,
+        'last_attempt_at': None,
+        'sent_at': None,
+        'error_code': None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_resend_email_invite_cancels_previous_and_queues_new(
+    client, session, bracvam_user, email_invite_settings
+):
+    """US1-2 / FR-013: reenvio cancela o envio anterior e registra outro."""
+    from uuid import UUID  # noqa: PLC0415
+
+    from pivma.notifications.channels import FakeEmailChannel  # noqa: PLC0415
+    from pivma.notifications.worker import process_next  # noqa: PLC0415
+
+    process_id, proponente = await _process_in_planning_phase(
+        client, session, bracvam_user
+    )
+    authenticate(client, proponente)
+    created = create_invite(
+        client, process_id, 're@exemplo.org', 'sponsor', channel='email'
+    )
+    invite_id = created.json()['id']
+    old_token = created.json()['token']
+
+    resp = resend_invite_req(client, process_id, invite_id)
+
+    assert resp.status_code == HTTPStatus.OK
+    new_token = resp.json()['token']
+    assert resp.json()['delivery']['status'] == 'pending'
+    old, new = await _notifications_of(session, UUID(invite_id))
+    assert old.status == 'cancelled'
+    assert old.error_code == 'cancelled_resent'
+    assert new.status == 'pending'
+    channel = FakeEmailChannel()
+    await process_next(session, channel, email_invite_settings)
+    [message] = channel.sent
+    assert f'/convites/{new_token}' in message.text
+    assert old_token not in message.text
+    assert client.get(f'/invites/{old_token}').status_code == (
+        HTTPStatus.NOT_FOUND
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('channel', [None, 'link'])
+async def test_link_invite_has_no_delivery_and_queues_nothing(
+    client, session, bracvam_user, email_invite_settings, channel
+):
+    """US1-4 / SC-007: canal `link` continua igual, sem envio."""
+    from uuid import UUID  # noqa: PLC0415
+
+    process_id, proponente = await _process_in_planning_phase(
+        client, session, bracvam_user
+    )
+    authenticate(client, proponente)
+
+    created = create_invite(
+        client, process_id, 'link@exemplo.org', 'sponsor', channel=channel
+    )
+    invite_id = created.json()['id']
+    resent = resend_invite_req(client, process_id, invite_id)
+    listed = list_invites(client, process_id).json()['data']
+
+    assert created.json()['channel'] == 'link'
+    assert created.json()['delivery'] is None
+    assert resent.json()['delivery'] is None
+    assert [i['delivery'] for i in listed if i['id'] == invite_id] == [None]
+    assert await _notifications_of(session, UUID(invite_id)) == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'overrides',
+    [
+        {'NOTIFICATION_EMAIL_BACKEND': None},
+        {'INVITE_URL_TEMPLATE': None},
+    ],
+    ids=['no-backend', 'no-url-template'],
+)
+async def test_email_invite_without_configuration_is_conflict(  # noqa: PLR0913, PLR0917
+    client, session, bracvam_user, use_settings, overrides
+):
+    """FR-019: canal ou modelo de link ausente → 409, convite não criado."""
+    from tests.conftest import email_settings  # noqa: PLC0415
+
+    use_settings(email_settings(**overrides))
+    process_id, proponente = await _process_in_planning_phase(
+        client, session, bracvam_user
+    )
+    authenticate(client, proponente)
+
+    resp = create_invite(
+        client, process_id, 'off@exemplo.org', 'sponsor', channel='email'
+    )
+
+    assert resp.status_code == HTTPStatus.CONFLICT
+    assert resp.json()['detail']['code'] == 'channel_unavailable'
+    emails = [
+        i['email'] for i in list_invites(client, process_id).json()['data']
+    ]
+    assert 'off@exemplo.org' not in emails
+
+
+@pytest.mark.asyncio
+async def test_resend_email_invite_after_channel_removed_is_conflict(
+    client, session, bracvam_user, use_settings
+):
+    """FR-019 no reenvio: 409 e convite com token e prazo inalterados."""
+    from tests.conftest import email_settings  # noqa: PLC0415
+
+    use_settings(email_settings())
+    process_id, proponente = await _process_in_planning_phase(
+        client, session, bracvam_user
+    )
+    authenticate(client, proponente)
+    created = create_invite(
+        client, process_id, 'gone@exemplo.org', 'sponsor', channel='email'
+    )
+    invite_id = created.json()['id']
+    token = created.json()['token']
+    use_settings(email_settings(NOTIFICATION_EMAIL_BACKEND=None))
+
+    resp = resend_invite_req(client, process_id, invite_id)
+
+    assert resp.status_code == HTTPStatus.CONFLICT
+    assert resp.json()['detail']['code'] == 'channel_unavailable'
+    [item] = [
+        i
+        for i in list_invites(client, process_id).json()['data']
+        if i['id'] == invite_id
+    ]
+    assert item['expires_at'] == created.json()['expires_at']
+    assert client.get(f'/invites/{token}').status_code == HTTPStatus.OK
+
+
+@pytest.mark.asyncio
+async def test_unauthorized_person_denied_creating_email_invite(
+    client, session, bracvam_user, email_invite_settings
+):
+    """FR-020: autorização da Spec 028 inalterada para o canal e-mail."""
+    process_id, _proponente = await _process_in_planning_phase(
+        client, session, bracvam_user
+    )
+    stranger = UserFactory()
+    session.add(stranger)
+    await session.commit()
+    authenticate(client, stranger)
+
+    resp = create_invite(
+        client, process_id, 'x@exemplo.org', 'statistician', channel='email'
+    )
+
+    assert resp.status_code == HTTPStatus.FORBIDDEN
+
+
+# --- Spec 036: falha e cancelamento do envio (US2) ---
+
+
+@pytest.mark.asyncio
+async def test_revoke_email_invite_cancels_pending_delivery(
+    client, session, bracvam_user, email_invite_settings
+):
+    """US2-5 / FR-014: revogar cancela o envio; nada sai depois."""
+    from pivma.notifications.channels import FakeEmailChannel  # noqa: PLC0415
+    from pivma.notifications.worker import process_next  # noqa: PLC0415
+
+    process_id, proponente = await _process_in_planning_phase(
+        client, session, bracvam_user
+    )
+    authenticate(client, proponente)
+    created = create_invite(
+        client, process_id, 'rev@exemplo.org', 'sponsor', channel='email'
+    )
+
+    resp = revoke_invite_req(client, process_id, created.json()['id'])
+
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json()['delivery']['status'] == 'cancelled'
+    assert resp.json()['delivery']['error_code'] == 'cancelled_revoked'
+    channel = FakeEmailChannel()
+    assert await process_next(session, channel, email_invite_settings) is False
+    assert channel.sent == []
+
+
+@pytest.mark.asyncio
+async def test_listing_shows_delivery_only_for_visible_invites(
+    client, session, bracvam_user, email_invite_settings
+):
+    """FR-017: `delivery` segue o filtro por cargo da Spec 028."""
+    process_id, proponente = await _process_in_planning_phase(
+        client, session, bracvam_user
+    )
+    authenticate(client, proponente)
+    create_invite(
+        client, process_id, 'a@exemplo.org', 'sponsor', channel='email'
+    )
+    await grant_participants_management(session, bracvam_user)
+    authenticate(client, bracvam_user)
+    create_invite(
+        client, process_id, 'b@exemplo.org', 'adhoc_evaluator', channel='email'
+    )
+
+    authenticate(client, proponente)
+    items = list_invites(client, process_id).json()['data']
+
+    assert [(i['role_key'], i['delivery']['status']) for i in items] == [
+        ('sponsor', 'pending')
+    ]

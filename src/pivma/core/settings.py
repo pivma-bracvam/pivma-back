@@ -1,3 +1,4 @@
+from typing import Literal
 from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator
@@ -42,6 +43,42 @@ class Settings(BaseSettings):
     # Amostras cegas (Spec 031). Base da URL do frontend gravada no QR code
     # do frasco; sem valor, usa a primeira origem de `AUTH_ALLOWED_ORIGINS`.
     SAMPLE_QR_BASE_URL: str | None = Field(default=None)
+
+    # Notificações (Spec 036). Sem `NOTIFICATION_EMAIL_BACKEND`, o canal de
+    # e-mail fica indisponível e convites por e-mail são recusados (FR-019).
+    # SMTP é aceito por praticamente todos os provedores: trocar de provedor
+    # é trocar estas variáveis (FR-008).
+    NOTIFICATION_EMAIL_BACKEND: Literal['smtp', 'fake'] | None = Field(
+        default=None
+    )
+    SMTP_HOST: str | None = Field(default=None)
+    SMTP_PORT: int = Field(default=587)
+    SMTP_USERNAME: str | None = Field(default=None)
+    SMTP_PASSWORD: str | None = Field(default=None)
+    SMTP_SECURITY: Literal['starttls', 'ssl', 'none'] = Field(
+        default='starttls'
+    )
+    SMTP_TIMEOUT_SECONDS: int = Field(default=15)
+    NOTIFICATION_FROM_ADDRESS: str | None = Field(default=None)
+    NOTIFICATION_FROM_NAME: str = Field(default='pi*VMA')
+    # Chave Fernet que cifra o conteúdo dos envios pendentes (FR-009).
+    NOTIFICATION_ENCRYPTION_KEY: str | None = Field(default=None)
+    NOTIFICATION_MAX_ATTEMPTS: int = Field(default=5, ge=1)
+    NOTIFICATION_RETRY_BASE_SECONDS: int = Field(default=30, ge=1)
+    NOTIFICATION_RETRY_MAX_SECONDS: int = Field(default=900, ge=1)
+    NOTIFICATION_POLL_SECONDS: int = Field(default=5, ge=1)
+    # Endereço completo da página de aceite do convite no frontend, com o
+    # marcador `{token}` (Spec 036, FR-018).
+    INVITE_URL_TEMPLATE: str | None = Field(default=None)
+
+    @field_validator('INVITE_URL_TEMPLATE')
+    @classmethod
+    def validate_invite_url_template(cls, value):
+        if value is not None and value.count('{token}') != 1:
+            raise ValueError(
+                'INVITE_URL_TEMPLATE must contain {token} exactly once'
+            )
+        return value
 
     @field_validator('JWT_SECRET_KEY')
     @classmethod
