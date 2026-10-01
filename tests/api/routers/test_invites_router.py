@@ -552,7 +552,9 @@ async def test_email_invite_without_configuration_is_conflict(  # noqa: PLR0913,
 
     assert resp.status_code == HTTPStatus.CONFLICT
     assert resp.json()['detail']['code'] == 'channel_unavailable'
-    emails = [i['email'] for i in list_invites(client, process_id).json()['data']]
+    emails = [
+        i['email'] for i in list_invites(client, process_id).json()['data']
+    ]
     assert 'off@exemplo.org' not in emails
 
 
@@ -633,9 +635,7 @@ async def test_revoke_email_invite_cancels_pending_delivery(
     assert resp.json()['delivery']['status'] == 'cancelled'
     assert resp.json()['delivery']['error_code'] == 'cancelled_revoked'
     channel = FakeEmailChannel()
-    assert (
-        await process_next(session, channel, email_invite_settings) is False
-    )
+    assert await process_next(session, channel, email_invite_settings) is False
     assert channel.sent == []
 
 

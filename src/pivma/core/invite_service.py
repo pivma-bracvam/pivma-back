@@ -160,7 +160,9 @@ def _invite_fields(invite, process, laboratories, deliveries) -> dict:
 
 def _require_email_channel(settings: Settings) -> None:
     """FR-019: convite por e-mail exige canal e modelo de link."""
-    if not (email_channel_available(settings) and settings.INVITE_URL_TEMPLATE):
+    if not (
+        email_channel_available(settings) and settings.INVITE_URL_TEMPLATE
+    ):
         raise ChannelUnavailableError(
             'O envio de convites por e-mail não está configurado.'
         )
@@ -287,9 +289,7 @@ async def _role_assignment_activity_is_completed(
     convite existir (papel sem titularidade única, FR-019, aceita convite
     "tardio" mesmo já preenchido). `status == 'pending'` sozinho não basta.
     """
-    process = await session.get(
-        ProcessInstance, invite.process_instance_id
-    )
+    process = await session.get(ProcessInstance, invite.process_instance_id)
     if process is None:
         return False
     act = await _find_role_assignment_activity(

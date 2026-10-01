@@ -1733,7 +1733,9 @@ class Notification(AuditMixin):
     subject_type: Mapped[str | None] = mapped_column(
         String(32), nullable=True, default=None
     )
-    subject_id: Mapped[UUID | None] = mapped_column(nullable=True, default=None)
+    subject_id: Mapped[UUID | None] = mapped_column(
+        nullable=True, default=None
+    )
     process_instance_id: Mapped[UUID | None] = mapped_column(
         ForeignKey('process_instances.id'), nullable=True, default=None
     )

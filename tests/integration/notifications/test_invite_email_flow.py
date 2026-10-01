@@ -86,7 +86,10 @@ async def test_temporary_failures_until_limit_end_as_failed(
 
     for step in range(3):
         await process_next(
-            session, channel, settings, now=start + timedelta(minutes=10 * step)
+            session,
+            channel,
+            settings,
+            now=start + timedelta(minutes=10 * step),
         )
         if step < 2:
             delivery = _delivery(client, process_id, invite['id'])

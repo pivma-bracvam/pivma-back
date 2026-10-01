@@ -33,13 +33,17 @@ async def test_cancel_only_affects_pending_notifications_of_the_subject(
 ):
     target = ('role_assignment_invite', uuid4())
     other = ('role_assignment_invite', uuid4())
-    finished = await _enqueue(session, notification_settings, echo_kind, target)
+    finished = await _enqueue(
+        session, notification_settings, echo_kind, target
+    )
     fake_email_channel.failures.append(
         PermanentDeliveryError('smtp_permanent', '550')
     )
     await process_next(session, fake_email_channel, notification_settings)
     pending = await _enqueue(session, notification_settings, echo_kind, target)
-    untouched = await _enqueue(session, notification_settings, echo_kind, other)
+    untouched = await _enqueue(
+        session, notification_settings, echo_kind, other
+    )
 
     cancelled = await cancel_pending_notifications(
         session, subject=target, reason='cancelled_resent', actor_id=None

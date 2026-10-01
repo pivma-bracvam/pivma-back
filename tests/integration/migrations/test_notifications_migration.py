@@ -48,10 +48,13 @@ async def test_upgrade_creates_notifications_table_and_indexes(
             )
         )
         indexdefs = {row.indexname: row.indexdef for row in rows}
-    assert "WHERE (((status)::text = 'pending'::text) AND (deleted_at IS NULL))" in (
-        indexdefs['ix_notifications_pending_due']
+    assert (
+        "WHERE (((status)::text = 'pending'::text) AND (deleted_at IS NULL))"
+        in (indexdefs['ix_notifications_pending_due'])
     )
-    assert '(subject_type, subject_id)' in indexdefs['ix_notifications_subject']
+    assert (
+        '(subject_type, subject_id)' in indexdefs['ix_notifications_subject']
+    )
 
 
 @pytest.mark.asyncio

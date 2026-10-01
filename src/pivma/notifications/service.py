@@ -1,4 +1,6 @@
-"""Pedido e cancelamento de envios (Spec 036, contracts/notifications-module.md).
+"""Pedido e cancelamento de envios (Spec 036).
+
+Contrato em `contracts/notifications-module.md` da spec.
 
 `enqueue_notification` só adiciona a linha à sessão de quem chama: o envio
 existe se, e somente se, a transação da operação de negócio for confirmada

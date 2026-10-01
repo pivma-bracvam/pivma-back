@@ -49,6 +49,7 @@ class OutgoingEmail:
     text: str
     html: str
 
+
 class EmailChannel(Protocol):
     async def send(self, message: OutgoingEmail) -> None: ...
 ```
@@ -61,7 +62,9 @@ class EmailChannel(Protocol):
 ## Renderizador
 
 ```python
-Renderer = Callable[[dict[str, Any]], tuple[str, str, str]]  # assunto, texto, html
+Renderer = Callable[
+    [dict[str, Any]], tuple[str, str, str]
+]  # assunto, texto, html
 ```
 
 Registrado por `kind`. Um `kind` sem renderizador é erro de programação e

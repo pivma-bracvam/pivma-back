@@ -43,13 +43,13 @@ from pivma.core.process_engine import (
     utc_now,
 )
 from pivma.core.references import laboratory_refs, user_refs
-from pivma.notifications import ChannelUnavailableError
 from pivma.dependencies import (
     CurrentUser,
     Session,
     SettingsDependency,
     TrustedOrigin,
 )
+from pivma.notifications import ChannelUnavailableError
 from pivma.schemas import (
     ConflictDeclarationCreate,
     ConflictDeclarationPublic,

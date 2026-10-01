@@ -39,7 +39,7 @@ Este arquivo organiza as referências atuais do projeto. Ele não cria uma nova 
 | Contrato testado de criação de usuário | [`tests/routers/test_user.py`](../tests/routers/test_user.py) |
 | Fixtures, banco isolado e factories | [`tests/conftest.py`](../tests/conftest.py) |
 | Dependências e comandos do projeto | [`pyproject.toml`](../pyproject.toml) |
-| PostgreSQL/pgvector e API em containers | [`compose.yaml`](../compose.yaml) |
+| PostgreSQL/pgvector, API, processo de envio de notificações e Mailpit em containers | [`compose.yaml`](../compose.yaml) |
 | Migrações | [`alembic.ini`](../alembic.ini) e diretório [`migrations/`](../migrations/) |
 
 Esses arquivos devem ser lidos em conjunto antes de alterar o exemplo existente. Os testes registram o contrato atual e devem continuar passando, salvo mudança de comportamento aprovada na especificação.

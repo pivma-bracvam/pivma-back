@@ -125,22 +125,22 @@
 
 ### Testes da US3
 
-- [ ] T052 [P] [US3] Teste de integração em `tests/integration/notifications/test_smtp_channel_mailpit.py`: `SmtpEmailChannel` com `SMTP_SECURITY=none` envia para um contêiner `axllent/mailpit` (`testcontainers` `DockerContainer`); a API HTTP do Mailpit mostra destinatário, remetente (`NOTIFICATION_FROM_NAME <NOTIFICATION_FROM_ADDRESS>`), assunto, texto e HTML
-- [ ] T053 [P] [US3] Teste de integração em `tests/integration/notifications/test_smtp_channel_mailpit.py`: `SmtpEmailChannel` apontando para porta sem servidor levanta `TemporaryDeliveryError`
-- [ ] T054 [P] [US3] Teste de unidade em `tests/unit/notifications/test_email_channel_selection.py`: `get_email_channel` devolve `SmtpEmailChannel` com `smtp`, `FakeEmailChannel` com `fake` e `None` sem backend, sem remetente, sem chave ou com `smtp` sem `SMTP_HOST`
+- [X] T052 [P] [US3] Teste de integração em `tests/integration/notifications/test_smtp_channel_mailpit.py`: `SmtpEmailChannel` com `SMTP_SECURITY=none` envia para um contêiner `axllent/mailpit` (`testcontainers` `DockerContainer`); a API HTTP do Mailpit mostra destinatário, remetente (`NOTIFICATION_FROM_NAME <NOTIFICATION_FROM_ADDRESS>`), assunto, texto e HTML
+- [X] T053 [P] [US3] Teste de integração em `tests/integration/notifications/test_smtp_channel_mailpit.py`: `SmtpEmailChannel` apontando para porta sem servidor levanta `TemporaryDeliveryError`
+- [X] T054 [P] [US3] Teste de unidade em `tests/unit/notifications/test_email_channel_selection.py`: `get_email_channel` devolve `SmtpEmailChannel` com `smtp`, `FakeEmailChannel` com `fake` e `None` sem backend, sem remetente, sem chave ou com `smtp` sem `SMTP_HOST`
 
 ### Implementação da US3
 
-- [ ] T055 [US3] Ajustar o que T052–T054 apontarem em `src/pivma/notifications/channels.py` (cabeçalhos `From`, `To`, `Subject`, `Date`, `Message-ID`; corpo `multipart/alternative`)
+- [X] T055 [US3] Ajustar o que T052–T054 apontarem em `src/pivma/notifications/channels.py` (cabeçalhos `From`, `To`, `Subject`, `Date`, `Message-ID`; corpo `multipart/alternative`)
 
 ---
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T056 [P] Atualizar `README.md`: seção de notificações (como pedir um envio, serviço `worker`, Mailpit, variáveis novas, geração da chave Fernet, efeito de trocar a chave com envios pendentes, limite de duplicidade em queda do processo) e contrato de `delivery` nos convites
-- [ ] T057 [P] Atualizar `docs/` se a documentação de implantação citar os serviços do `compose.yaml`
-- [ ] T058 Rodar `poetry run ruff check`, `poetry run ruff format --check` e a suíte completa (`poetry run pytest`), incluindo os testes da Spec 028 sem alteração
-- [ ] T059 Executar o `quickstart.md` com `docker compose` (cenários 1 a 6) e registrar o resultado no PR
+- [X] T056 [P] Atualizar `README.md`: seção de notificações (como pedir um envio, serviço `worker`, Mailpit, variáveis novas, geração da chave Fernet, efeito de trocar a chave com envios pendentes, limite de duplicidade em queda do processo) e contrato de `delivery` nos convites
+- [X] T057 [P] Atualizar `docs/` se a documentação de implantação citar os serviços do `compose.yaml`
+- [X] T058 Rodar `poetry run ruff check`, `poetry run ruff format --check` e a suíte completa (`poetry run pytest`), incluindo os testes da Spec 028 sem alteração
+- [X] T059 Executar o `quickstart.md` com `docker compose` (cenários 1 a 6) e registrar o resultado no PR
 
 ---
 

@@ -92,7 +92,10 @@ async def _deliver(
     try:
         await channel.send(
             OutgoingEmail(
-                to=notification.recipient, subject=subject, text=text, html=html
+                to=notification.recipient,
+                subject=subject,
+                text=text,
+                html=html,
             )
         )
     except DeliveryError as exc:
