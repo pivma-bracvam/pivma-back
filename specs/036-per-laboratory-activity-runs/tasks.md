@@ -432,11 +432,11 @@ Rotas de mutação usam `Origin: https://testserver`. O `bracvam_user` e o
 
 ## Phase 10: Polish & Cross-Cutting Concerns
 
-- [ ] T169 Rodar o cenário de aceite de `specs/036-per-laboratory-activity-runs/quickstart.md` (passos 0 a 8) como teste de jornada em `tests/integration/journeys/test_per_laboratory_journey.py`
-- [ ] T170 Suíte completa sem regressão: `poetry run pytest` (SC-008)
-- [ ] T171 `poetry run ruff check . && poetry run ruff format --check .`
-- [ ] T172 Atualizar `README.md`: o motor por laboratório (`execution_scope`, `custody`, estados da execução), as duas rotas novas, os campos novos de `/tasks`, a visibilidade entre laboratórios, os eventos novos e a recusa das rotas de formulário em atividade por laboratório. Revisar o texto com a skill `stop-slop`.
-- [ ] T173 Marcar as tarefas concluídas em `specs/036-per-laboratory-activity-runs/tasks.md` e registrar em `specs/036-per-laboratory-activity-runs/checklists/requirements.md` o que foi validado
+- [X] T169 Rodar o cenário de aceite de `specs/036-per-laboratory-activity-runs/quickstart.md` (passos 0 a 8) como teste de jornada em `tests/integration/journeys/etapa_3_execucao_validacao/test_per_laboratory_journey.py` (pasta da Etapa 3, como as demais jornadas)
+- [X] T170 Suíte completa sem regressão: `poetry run pytest` (SC-008). Verde na branch da Spec 037 (1539 passed, 1 skipped), depois da revisão de merge que une as heads de migração deixadas por #67 e #68
+- [X] T171 `poetry run ruff check . && poetry run ruff format --check .`. `ruff check .` passa; `ruff format --check .` aponta só dois arquivos anteriores a esta spec (`specs/028-role-assignment-invites/data-model.md`, `tests/api/routers/test_user_router.py`), deixados fora do escopo
+- [X] T172 Atualizar `README.md`: o motor por laboratório (`execution_scope`, `custody`, estados da execução), as duas rotas novas, os campos novos de `/tasks`, a visibilidade entre laboratórios, os eventos novos e a recusa das rotas de formulário em atividade por laboratório. Revisar o texto com a skill `stop-slop`.
+- [X] T173 Marcar as tarefas concluídas em `specs/036-per-laboratory-activity-runs/tasks.md` e registrar em `specs/036-per-laboratory-activity-runs/checklists/requirements.md` o que foi validado
 
 ---
 
