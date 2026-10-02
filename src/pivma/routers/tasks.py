@@ -11,6 +11,8 @@ from sqlalchemy.orm import aliased, selectinload
 from pivma.core.authorization import (
     current_conflict_clause,
     global_cargos,
+    laboratory_member_clause,
+    laboratory_run_visibility_clause,
     process_cargos_scope,
 )
 from pivma.core.database.models import (
@@ -68,13 +70,22 @@ async def _can_act_clause(session, user_id):
     Mesma regra de `require_activity_access(..., 'edit')`: algum cargo do
     usuário (atribuição ativa no processo ou cargo global) está em
     `edit_roles`, e ele não tem conflito de interesse vigente no processo.
+    Na execução de um laboratório, a designação tem de ser por esse
+    laboratório (Spec 036, R8).
     """
-    by_assignment = exists(
+    by_role = exists(
         process_cargos_scope(user_id).where(
             Assignment.process_instance_id
             == ActivityInstance.process_instance_id,
             Assignment.role_key == any_(ActivityInstance.edit_roles),
         )
+    )
+    by_assignment = or_(
+        and_(ActivityRun.laboratory_id.is_(None), by_role),
+        and_(
+            ActivityRun.laboratory_id.is_not(None),
+            laboratory_member_clause(user_id),
+        ),
     )
     cargos = await global_cargos(session, user_id)
     granted = (
@@ -183,6 +194,13 @@ async def list_tasks(  # noqa: PLR0913, PLR0917
     activity_visibility = await activity_view_clause(session, current_user.id)
     if activity_visibility is not None:
         filtered = filtered.where(activity_visibility)
+    # Spec 036 (R13): tarefa de execução de laboratório só para o próprio
+    # laboratório e os gestores do processo.
+    laboratory_visibility = await laboratory_run_visibility_clause(
+        session, current_user.id
+    )
+    if laboratory_visibility is not None:
+        filtered = filtered.where(laboratory_visibility)
     if status:
         filtered = filtered.where(Task.status.in_(status))
     if activity_key:
@@ -307,6 +325,11 @@ async def get_task_detail(
     visibility = await process_visibility_clause(session, current_user.id)
     if visibility is not None:
         stmt = stmt.where(visibility)
+    laboratory_visibility = await laboratory_run_visibility_clause(
+        session, current_user.id
+    )
+    if laboratory_visibility is not None:
+        stmt = stmt.where(laboratory_visibility)
     t = (await session.execute(stmt)).scalar_one_or_none()
     if not t:
         raise http_error(HTTPStatus.NOT_FOUND, 'Tarefa não encontrada.')

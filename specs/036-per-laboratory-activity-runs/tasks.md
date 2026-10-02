@@ -179,47 +179,47 @@ Rotas de mutação usam `Origin: https://testserver`. O `bracvam_user` e o
 
 ### Testes de autorização (antes da implementação)
 
-- [ ] T037 [P] [US2] Teste: usuário do Lab A em `complete_laboratory_run` para o Lab B levanta `AuthorizationError` e a execução do Lab B continua `IN_PROGRESS` (SC-007), em `tests/integration/database/test_laboratory_run_access.py`
-- [ ] T038 [P] [US2] Teste: usuário do Lab A com vínculo institucional encerrado (designação não efetiva, Spec 035) levanta `AuthorizationError` na execução do Lab A, que continua `IN_PROGRESS`, em `tests/integration/database/test_laboratory_run_access.py`
-- [ ] T039 [P] [US2] Teste: `group_manager` efetivo, embora em `edit_roles` de `receipt`, levanta `AuthorizationError` ao concluir a execução de um laboratório (FR-008), em `tests/integration/database/test_laboratory_run_access.py`
-- [ ] T040 [P] [US2] Teste: `admin_user` (cargo global em `edit_roles` de `receipt`) conclui a execução de qualquer laboratório, em `tests/integration/database/test_laboratory_run_access.py`
-- [ ] T041 [P] [US2] Teste: usuário do Lab A com conflito de interesse vigente no processo levanta `AuthorizationError`, em `tests/integration/database/test_laboratory_run_access.py`
-- [ ] T042 [P] [US2] Teste: usuário sem nenhum cargo que veja `receipt` levanta `NotFoundError`, em `tests/integration/database/test_laboratory_run_access.py`
-- [ ] T043 [P] [US2] Teste: `GET /tasks?activity_key=receipt` como `group_manager` traz `can_act = false` nas tarefas de laboratório (FR-009), em `tests/api/routers/test_tasks_laboratory.py`
-- [ ] T044 [P] [US2] Teste: `GET /tasks?activity_key=receipt` como usuário do Lab A traz `can_act = true` na tarefa do Lab A, em `tests/api/routers/test_tasks_laboratory.py`
+- [X] T037 [P] [US2] Teste: usuário do Lab A em `complete_laboratory_run` para o Lab B levanta `AuthorizationError` e a execução do Lab B continua `IN_PROGRESS` (SC-007), em `tests/integration/database/test_laboratory_run_access.py`
+- [X] T038 [P] [US2] Teste: usuário do Lab A com vínculo institucional encerrado (designação não efetiva, Spec 035) levanta `NotFoundError`, a mesma resposta de quem nunca teve o cargo (Spec 035, FR-005), na execução do Lab A, que continua `IN_PROGRESS`, em `tests/integration/database/test_laboratory_run_access.py`
+- [X] T039 [P] [US2] Teste: `group_manager` efetivo, embora em `edit_roles` de `receipt`, levanta `AuthorizationError` ao concluir a execução de um laboratório (FR-008), em `tests/integration/database/test_laboratory_run_access.py`
+- [X] T040 [P] [US2] Teste: `admin_user` (cargo global em `edit_roles` de `receipt`) conclui a execução de qualquer laboratório, em `tests/integration/database/test_laboratory_run_access.py`
+- [X] T041 [P] [US2] Teste: usuário do Lab A com conflito de interesse vigente no processo levanta `AuthorizationError`, em `tests/integration/database/test_laboratory_run_access.py`
+- [X] T042 [P] [US2] Teste: usuário sem nenhum cargo que veja `receipt` levanta `NotFoundError`, em `tests/integration/database/test_laboratory_run_access.py`
+- [X] T043 [P] [US2] Teste: `GET /tasks?activity_key=receipt` como `group_manager` traz `can_act = false` nas tarefas de laboratório (FR-009), em `tests/api/routers/test_tasks_laboratory.py`
+- [X] T044 [P] [US2] Teste: `GET /tasks?activity_key=receipt` como usuário do Lab A traz `can_act = true` na tarefa do Lab A, em `tests/api/routers/test_tasks_laboratory.py`
 
 ### Testes de isolamento (antes da implementação)
 
-- [ ] T045 [P] [US2] Teste: `GET /tasks?activity_key=receipt` como usuário do Lab A traz só a tarefa do Lab A; as dos Labs B e C não aparecem e `pagination.total = 1` (FR-036, SC-009), em `tests/api/routers/test_laboratory_isolation.py`
-- [ ] T046 [P] [US2] Teste: `GET /tasks?include=facets` como usuário do Lab A conta só as tarefas do Lab A nas facetas, em `tests/api/routers/test_laboratory_isolation.py`
-- [ ] T047 [P] [US2] Teste: `GET /tasks/{id}` da tarefa do Lab B como usuário do Lab A → 404 "Tarefa não encontrada." (FR-036), em `tests/api/routers/test_laboratory_isolation.py`
-- [ ] T048 [P] [US2] Teste: `GET /tasks?activity_key=receipt` como `statistician` (tem visão de `receipt`) não traz nenhuma tarefa de laboratório, em `tests/api/routers/test_laboratory_isolation.py`
-- [ ] T049 [P] [US2] Teste: `GET /tasks?activity_key=receipt` como usuário `lead_laboratory` de outro laboratório não traz tarefas de laboratório (FR-035), em `tests/api/routers/test_laboratory_isolation.py`
-- [ ] T050 [P] [US2] Teste: `GET /tasks?activity_key=receipt` como `group_manager` traz as tarefas dos três laboratórios, em `tests/api/routers/test_laboratory_isolation.py`
-- [ ] T051 [P] [US2] Teste: `GET /tasks?activity_key=receipt` como `bracvam_user` traz as tarefas dos três laboratórios, em `tests/api/routers/test_laboratory_isolation.py`
-- [ ] T052 [P] [US2] Teste: pessoa com `participating_laboratory` pelo Lab A e `group_manager` no mesmo processo vê as tarefas dos três laboratórios (FR-035), em `tests/api/routers/test_laboratory_isolation.py`
-- [ ] T053 [P] [US2] Teste: usuário do Lab A com vínculo encerrado (Spec 035) não recebe nem a tarefa do Lab A, em `tests/api/routers/test_laboratory_isolation.py`
-- [ ] T054 [P] [US2] Teste: tarefas de `statistics` (execução única) continuam visíveis ao `statistician` como hoje (FR-032), em `tests/api/routers/test_laboratory_isolation.py`
-- [ ] T055 [P] [US2] Teste: depois de o Lab B concluir `receipt`, `GET /processes/{id}/timeline` como usuário do Lab A não traz o `LABORATORY_RUN_COMPLETED` do Lab B e traz o do Lab A (FR-037), em `tests/api/routers/test_laboratory_isolation.py`
-- [ ] T056 [P] [US2] Teste: a mesma trilha como `group_manager` traz os eventos de conclusão dos três laboratórios, em `tests/api/routers/test_laboratory_isolation.py`
-- [ ] T057 [P] [US2] Teste: eventos `PARTICIPANT_ASSIGNED` com `laboratory_id` no contexto seguem a regra atual (gestor de participantes vê todos; a pessoa vê o próprio) (FR-037), em `tests/api/routers/test_laboratory_isolation.py`
+- [X] T045 [P] [US2] Teste: `GET /tasks?activity_key=receipt` como usuário do Lab A traz só a tarefa do Lab A; as dos Labs B e C não aparecem e `pagination.total = 1` (FR-036, SC-009), em `tests/api/routers/test_laboratory_isolation.py`
+- [X] T046 [P] [US2] Teste: `GET /tasks?include=facets` como usuário do Lab A conta só as tarefas do Lab A nas facetas, em `tests/api/routers/test_laboratory_isolation.py`
+- [X] T047 [P] [US2] Teste: `GET /tasks/{id}` da tarefa do Lab B como usuário do Lab A → 404 "Tarefa não encontrada." (FR-036), em `tests/api/routers/test_laboratory_isolation.py`
+- [X] T048 [P] [US2] Teste: `GET /tasks?activity_key=receipt` como `statistician` (tem visão de `receipt`) não traz nenhuma tarefa de laboratório, em `tests/api/routers/test_laboratory_isolation.py`
+- [X] T049 [P] [US2] Teste: `GET /tasks?activity_key=receipt` como usuário `lead_laboratory` de outro laboratório não traz tarefas de laboratório (FR-035), em `tests/api/routers/test_laboratory_isolation.py`
+- [X] T050 [P] [US2] Teste: `GET /tasks?activity_key=receipt` como `group_manager` traz as tarefas dos três laboratórios, em `tests/api/routers/test_laboratory_isolation.py`
+- [X] T051 [P] [US2] Teste: `GET /tasks?activity_key=receipt` como `bracvam_user` traz as tarefas dos três laboratórios, em `tests/api/routers/test_laboratory_isolation.py`
+- [X] T052 [P] [US2] Teste: pessoa com `participating_laboratory` pelo Lab A e `group_manager` no mesmo processo vê as tarefas dos três laboratórios (FR-035), em `tests/api/routers/test_laboratory_isolation.py`
+- [X] T053 [P] [US2] Teste: usuário do Lab A com vínculo encerrado (Spec 035) não recebe nem a tarefa do Lab A, em `tests/api/routers/test_laboratory_isolation.py`
+- [X] T054 [P] [US2] Teste: tarefas de `statistics` (execução única) continuam visíveis ao `statistician` como hoje (FR-032), em `tests/api/routers/test_laboratory_isolation.py`
+- [X] T055 [P] [US2] Teste: depois de o Lab B concluir `receipt`, `GET /processes/{id}/timeline` como usuário do Lab A não traz o `LABORATORY_RUN_COMPLETED` do Lab B e traz o do Lab A (FR-037), em `tests/api/routers/test_laboratory_isolation.py`
+- [X] T056 [P] [US2] Teste: a mesma trilha como `group_manager` traz os eventos de conclusão dos três laboratórios, em `tests/api/routers/test_laboratory_isolation.py`
+- [X] T057 [P] [US2] Teste: eventos `PARTICIPANT_ASSIGNED` com `laboratory_id` no contexto seguem a regra atual (gestor de participantes vê todos; a pessoa vê o próprio) (FR-037), em `tests/api/routers/test_laboratory_isolation.py`
 
 ### Testes das rotas de formulário (antes da implementação)
 
-- [ ] T058 [P] [US2] Teste: `GET /processes/{id}/activities/upload/form` responde 409 `invalid_transition` (FR-034), em `tests/api/routers/test_form_per_laboratory_guard.py`
-- [ ] T059 [P] [US2] Teste: `POST /processes/{id}/activities/upload/form` responde 409 `invalid_transition` e nenhuma execução ou `FormInstance` muda (FR-034), em `tests/api/routers/test_form_per_laboratory_guard.py`
-- [ ] T060 [P] [US2] Teste: `PUT /processes/{id}/activities/upload/form` (rascunho) responde 409 `invalid_transition`, em `tests/api/routers/test_form_per_laboratory_guard.py`
-- [ ] T061 [P] [US2] Teste: `POST .../activities/upload/form/fields/raw_data/attachment` responde 409 `invalid_transition`, em `tests/api/routers/test_form_per_laboratory_guard.py`
+- [X] T058 [P] [US2] Teste: `GET /processes/{id}/activities/upload/form` responde 409 `invalid_transition` (FR-034), em `tests/api/routers/test_form_per_laboratory_guard.py`
+- [X] T059 [P] [US2] Teste: `POST /processes/{id}/activities/upload/form` responde 409 `invalid_transition` e nenhuma execução ou `FormInstance` muda (FR-034), em `tests/api/routers/test_form_per_laboratory_guard.py`
+- [X] T060 [P] [US2] Teste: `PUT /processes/{id}/activities/upload/form` (rascunho) responde 409 `invalid_transition`, em `tests/api/routers/test_form_per_laboratory_guard.py`
+- [X] T061 [P] [US2] Teste: `POST .../activities/upload/form/fields/raw_data/attachment` responde 409 `invalid_transition`, em `tests/api/routers/test_form_per_laboratory_guard.py`
 
 ### Implementação
 
-- [ ] T062 [US2] `require_laboratory_run_access(session, user_id, act, run)`. Aplica `require_activity_access(..., 'edit')`; com `run.laboratory_id`, exige cargo global em `edit_roles` ou designação efetiva `participating_laboratory` com `Assignment.laboratory_id == run.laboratory_id` via `process_cargos_scope` (R8). Usar em `complete_laboratory_run`. Arquivo: `src/pivma/core/process_engine.py`.
-- [ ] T063 [US2] `_can_act_clause`: com `ActivityRun.laboratory_id` não nulo, a concessão por designação exige `role_key = 'participating_laboratory'` e `Assignment.laboratory_id = ActivityRun.laboratory_id`; cargo global em `edit_roles` mantém a concessão (R8), em `src/pivma/routers/tasks.py`
-- [ ] T064 [US2] `laboratory_run_visibility_clause(session, user_id)` em `src/pivma/core/authorization.py` (R13): `None` para `has_platform_wide_access`; senão `ActivityRun.laboratory_id IS NULL` ou `group_manager` efetivo no processo da atividade ou `participating_laboratory` efetivo com o mesmo `laboratory_id`, via `process_cargos_scope`
-- [ ] T065 [US2] Aplicar `laboratory_run_visibility_clause` em `list_tasks` (no conjunto filtrado, antes de paginação, facetas e `summary`) e em `get_task_detail` (404 se não passar), em `src/pivma/routers/tasks.py`
-- [ ] T066 [US2] Em `_visible_events`, depois do filtro de visão da atividade: `LABORATORY_WAIVED` só para gestor do processo; evento com `activity_run_id` de execução com laboratório, `LABORATORY_RUN_COMPLETED` e `LABORATORY_RUN_REOPENED` só para gestor do processo ou `participating_laboratory` efetivo pelo `laboratory_id`; demais eventos como hoje (R13), em `src/pivma/routers/processes.py`
-- [ ] T067 [US2] `get_current_form_instance` e `get_current_activity_run` levantam `ConflictError` quando `act.execution_scope == 'per_laboratory'`, depois da checagem de acesso, em `src/pivma/core/process_engine.py`
-- [ ] T068 [US2] Mapear esse `ConflictError` para 409 `invalid_transition` nas rotas de formulário e de anexos que ainda não o mapeiam, em `src/pivma/routers/forms.py`
+- [X] T062 [US2] `require_laboratory_run_access(session, user_id, act, run)`. Aplica `require_activity_access(..., 'edit')`; com `run.laboratory_id`, exige cargo global em `edit_roles` ou designação efetiva `participating_laboratory` com `Assignment.laboratory_id == run.laboratory_id` via `process_cargos_scope` (R8). Usar em `complete_laboratory_run`. Arquivo: `src/pivma/core/process_engine.py`.
+- [X] T063 [US2] `_can_act_clause`: com `ActivityRun.laboratory_id` não nulo, a concessão por designação exige `role_key = 'participating_laboratory'` e `Assignment.laboratory_id = ActivityRun.laboratory_id`; cargo global em `edit_roles` mantém a concessão (R8), em `src/pivma/routers/tasks.py`
+- [X] T064 [US2] `laboratory_run_visibility_clause(session, user_id)` em `src/pivma/core/authorization.py` (R13): `None` para `has_platform_wide_access`; senão `ActivityRun.laboratory_id IS NULL` ou `group_manager` efetivo no processo da atividade ou `participating_laboratory` efetivo com o mesmo `laboratory_id`, via `process_cargos_scope`
+- [X] T065 [US2] Aplicar `laboratory_run_visibility_clause` em `list_tasks` (no conjunto filtrado, antes de paginação, facetas e `summary`) e em `get_task_detail` (404 se não passar), em `src/pivma/routers/tasks.py`
+- [X] T066 [US2] Em `_visible_events`, depois do filtro de visão da atividade: `LABORATORY_WAIVED` só para gestor do processo; evento com `activity_run_id` de execução com laboratório, `LABORATORY_RUN_COMPLETED` e `LABORATORY_RUN_REOPENED` só para gestor do processo ou `participating_laboratory` efetivo pelo `laboratory_id`; demais eventos como hoje (R13), em `src/pivma/routers/processes.py`
+- [X] T067 [US2] `get_current_form_instance` e `get_current_activity_run` levantam `ConflictError` quando `act.execution_scope == 'per_laboratory'`, depois da checagem de acesso, em `src/pivma/core/process_engine.py`
+- [X] T068 [US2] Mapear esse `ConflictError` para 409 `invalid_transition` nas rotas de formulário e de anexos que ainda não o mapeiam, em `src/pivma/routers/forms.py`
 
 **Checkpoint**: T037–T061 passam; `tests/api/routers/test_tasks_actionable.py`, `test_tasks_visibility.py`, `test_timeline_router.py`, `test_participant_timeline.py`, `test_form_submission.py` e `test_form_attachments.py` continuam verdes (FR-016, FR-032, FR-034).
 

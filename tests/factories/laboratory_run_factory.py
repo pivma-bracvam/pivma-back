@@ -49,7 +49,7 @@ LAB_RUN_TEMPLATE = {
                     'execution_scope': 'per_laboratory',
                     'access': {
                         'edit': [LAB_ROLE, 'group_manager', 'admin'],
-                        'view': ['statistician'],
+                        'view': ['statistician', 'lead_laboratory'],
                     },
                     'dependencies': [
                         {'required_activity_key': 'sample_definition'}
@@ -261,4 +261,21 @@ async def complete_statistics(session, ctx):
     await _advance_dependent_activities(
         session, process, act, ctx.statistician.id
     )
+    await session.commit()
+
+
+async def end_affiliation(session, user) -> None:
+    """Encerra o vínculo institucional do usuário (Spec 035)."""
+    from datetime import datetime  # noqa: PLC0415
+
+    from pivma.core.database.models import (  # noqa: PLC0415
+        UserInstitutionalAffiliation,
+    )
+
+    for affiliation in await session.scalars(
+        select(UserInstitutionalAffiliation).where(
+            UserInstitutionalAffiliation.user_id == user.id
+        )
+    ):
+        affiliation.deleted_at = datetime.utcnow()
     await session.commit()

@@ -12,6 +12,7 @@ from sqlalchemy.sql import ColumnElement
 from pivma.core.authorization import (
     ACTIVITY_CARGOS,
     GLOBAL_ACTIVITY_CARGOS,
+    PARTICIPATING_LABORATORY_ROLE_KEY,
     active_participant_process_scope,
     global_cargos,
     has_current_conflict,
@@ -101,6 +102,8 @@ IMMUTABLE_PROCESS_STATUSES = frozenset({
 
 # Alvos de avaliação por IA que se prendem a `field_keys` do formulário.
 FIELD_TARGET_TYPES = frozenset({'field', 'field_set', 'document'})
+# Atividade com uma execução por laboratório congelado (Spec 036).
+PER_LABORATORY = 'per_laboratory'
 # Execuções que nenhuma transição altera, nem o cancelamento do processo
 # (Spec 036, R14): o histórico de dispensa e substituição é preservado.
 IMMUTABLE_RUN_STATUSES = frozenset({
@@ -823,6 +826,12 @@ async def get_current_form_instance(
         raise NotFoundError(f'Atividade {activity_key!r} não encontrada.')
     if user_id is not None:
         await require_activity_access(session, user_id, act, access)
+    if act.execution_scope == PER_LABORATORY:
+        # Rota única de formulário escolheria a execução de um laboratório
+        # qualquer; as issues da Etapa 3 estendem quando precisarem (R7).
+        raise ConflictError(
+            f'Atividade {activity_key!r} é executada por laboratório.'
+        )
 
     runs = sorted(
         [r for r in act.runs if r.deleted_at is None],
@@ -898,6 +907,12 @@ async def get_current_activity_run(
         raise NotFoundError(f'Atividade {activity_key!r} não encontrada.')
     if user_id is not None:
         await require_activity_access(session, user_id, act, access)
+    if act.execution_scope == PER_LABORATORY:
+        # Rota única de formulário escolheria a execução de um laboratório
+        # qualquer; as issues da Etapa 3 estendem quando precisarem (R7).
+        raise ConflictError(
+            f'Atividade {activity_key!r} é executada por laboratório.'
+        )
 
     runs = sorted(
         [r for r in act.runs if r.deleted_at is None],
@@ -1969,7 +1984,6 @@ async def _complete_activity_run(
 # Execução por laboratório (Spec 036)
 # ---------------------------------------------------------------------------
 
-PER_LABORATORY = 'per_laboratory'
 # Execução de laboratório que conta como resolvida para a conclusão da
 # atividade e para as dependências por laboratório (FR-011, FR-013).
 RESOLVED_RUN_STATUSES = frozenset({'COMPLETED', 'WAIVED'})
@@ -2337,6 +2351,37 @@ async def _unblock_laboratory(
         )
 
 
+async def require_laboratory_run_access(
+    session: AsyncSession,
+    user_id: UUID,
+    act: ActivityInstance,
+    run: ActivityRun,
+) -> None:
+    """Só o próprio laboratório age na execução dele (R8, FR-008).
+
+    Além da concessão de editar a atividade: cargo global em `edit_roles`
+    ou designação efetiva de `participating_laboratory` pelo laboratório.
+    """
+    await require_activity_access(session, user_id, act, 'edit')
+    if run.laboratory_id is None:
+        return
+    if await global_cargos(session, user_id) & set(act.edit_roles):
+        return
+    member = await session.scalar(
+        process_cargos_scope(user_id)
+        .where(
+            Assignment.process_instance_id == act.process_instance_id,
+            Assignment.role_key == PARTICIPATING_LABORATORY_ROLE_KEY,
+            Assignment.laboratory_id == run.laboratory_id,
+        )
+        .limit(1)
+    )
+    if member is None:
+        raise AuthorizationError(
+            'Só o próprio laboratório age na execução dele.'
+        )
+
+
 async def _laboratory_activity_by_key(
     session: AsyncSession, process_id: UUID, activity_key: str
 ) -> ActivityInstance:
@@ -2377,6 +2422,7 @@ async def complete_laboratory_run(
     run = await _current_laboratory_run(session, act.id, laboratory_id)
     if run is None:
         raise NotFoundError('Execução do laboratório não encontrada.')
+    await require_laboratory_run_access(session, user_id, act, run)
     if run.status != 'IN_PROGRESS':
         raise ConflictError(
             f'Execução do laboratório em status {run.status!r} não pode ser '
