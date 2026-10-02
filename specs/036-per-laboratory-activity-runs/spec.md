@@ -88,6 +88,12 @@ visão por laboratório).
 - Q: É permitido dispensar todos os laboratórios? → A: Sim (Edge Cases).
 - Q: Como o grupo gestor acompanha cada laboratório? → A: Pela lista de
   tarefas, com o laboratório em cada tarefa, sem painel novo (FR-028).
+- Q: Esta entrega cria uma rota para o laboratório concluir a própria
+  execução, ou adapta as rotas de formulário? → A: Nenhuma das duas. O motor
+  oferece a conclusão e as issues #28 a #31 a usam nas próprias rotas. As
+  rotas de formulário existentes não mudam para atividades de execução única
+  e recusam atividade por laboratório até a issue consumidora estendê-las
+  (FR-016, FR-034).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -482,6 +488,9 @@ laboratório e o estado de cada um.
   laboratório entre laboratórios; o isolamento de visão fica com a #59.
 - **FR-033**: Esta feature MUST NOT alterar os códigos cegos nem o conjunto
   congelado da Spec 031.
+- **FR-034**: As rotas de formulário existentes MUST manter o comportamento
+  atual em atividades de execução única e MUST recusar, como transição
+  inválida, o uso em atividade por laboratório, sem alterar nenhuma execução.
 
 ### Key Entities
 
