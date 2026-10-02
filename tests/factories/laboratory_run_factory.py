@@ -6,6 +6,7 @@ laboratório, uma avaliação estatística única e um retorno por laboratório
 que só é ativado depois da estatística.
 """
 
+from copy import deepcopy
 from types import SimpleNamespace
 
 from sqlalchemy import select
@@ -18,10 +19,15 @@ from pivma.core.database.models import (
     StudySubstance,
     Task,
 )
+from tests.factories.institutional_factory import (
+    UserInstitutionalAffiliationFactory,
+)
 from tests.factories.participant_factory import grant_cargo
 from tests.factories.sample_factory import (
     SAMPLE_TEMPLATE,
     _user,
+    assign_lab,
+    lab_user,
     sample_process,
     substance_payload,
 )
@@ -124,6 +130,18 @@ LAB_RUN_TEMPLATE = {
 }
 
 
+# Spec 037 (R4): o recebimento concede ver a cargos que não veem execuções de
+# laboratório, para que a matriz prove o filtro de laboratório e não o da
+# atividade.
+LAB_ACCESS_TEMPLATE = deepcopy(LAB_RUN_TEMPLATE)
+LAB_ACCESS_TEMPLATE['process_template']['key'] = 'lab_access_probe'
+LAB_ACCESS_TEMPLATE['phases'][1]['activities'][0]['access']['view'] = [
+    'statistician',
+    'lead_laboratory',
+    'sample_selection_group',
+]
+
+
 async def freeze_samples(session, ctx) -> None:
     """Cadastra uma substância com SDS e conclui `sample_definition`."""
     await sample_service.create_substance(
@@ -158,12 +176,14 @@ async def freeze_samples(session, ctx) -> None:
 
 
 async def frozen_lab_process(
-    session, *, lab_count: int = 3, freeze: bool = True
+    session,
+    *,
+    lab_count: int = 3,
+    freeze: bool = True,
+    template: dict = LAB_RUN_TEMPLATE,
 ) -> SimpleNamespace:
     """Processo com laboratórios, Grupo Gestor e estatístico designados."""
-    ctx = await sample_process(
-        session, lab_count=lab_count, template=LAB_RUN_TEMPLATE
-    )
+    ctx = await sample_process(session, lab_count=lab_count, template=template)
     ctx.group_manager = await _user(session)
     await grant_cargo(
         session,
@@ -318,3 +338,38 @@ async def reopen(session, ctx, key, index, reason='Controle positivo fora.'):
 async def all_labs_done(session, ctx, keys=('receipt', 'upload')):
     for index in range(len(ctx.labs)):
         await complete_chain(session, ctx, index, keys)
+
+
+async def affiliate(session, user, laboratory) -> None:
+    """Vínculo institucional adicional do usuário com o laboratório."""
+    session.add(
+        UserInstitutionalAffiliationFactory(
+            user=user,
+            institution=SimpleNamespace(id=laboratory.institution_id),
+            laboratory=laboratory,
+        )
+    )
+    await session.commit()
+
+
+async def lead_of_lab(session, ctx, index):
+    """Laboratório líder designado pelo laboratório participante `index`."""
+    user = await lab_user(session, ctx.labs[index])
+    await assign_lab(
+        session,
+        ctx.process_id,
+        ctx.labs[index],
+        role_key='lead_laboratory',
+        user=user,
+    )
+    return user
+
+
+async def lead_and_participant(session, ctx, lead_index, participant_index):
+    """Líder por um laboratório e participante por outro (Spec 037)."""
+    user = await lead_of_lab(session, ctx, lead_index)
+    await affiliate(session, user, ctx.labs[participant_index])
+    await assign_lab(
+        session, ctx.process_id, ctx.labs[participant_index], user=user
+    )
+    return user

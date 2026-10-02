@@ -504,6 +504,19 @@ def laboratory_member_clause(user_id: UUID) -> ColumnElement[bool]:
     )
 
 
+async def is_process_manager(
+    session: AsyncSession, user_id: UUID, process_id: UUID
+) -> bool:
+    """Gestão do processo: Admin, BraCVAM ou `group_manager` efetivo.
+
+    Vê toda execução de laboratório (Spec 037, R1). A versão SQL da mesma
+    regra, para o filtro de `/tasks`, é `laboratory_run_visibility_clause`.
+    """
+    return await has_platform_wide_access(
+        session, user_id
+    ) or await is_effective_group_manager(session, user_id, process_id)
+
+
 async def laboratory_run_visibility_clause(
     session: AsyncSession, user_id: UUID
 ) -> ColumnElement[bool] | None:
@@ -512,6 +525,7 @@ async def laboratory_run_visibility_clause(
     `None` para Admin/BraCVAM. Os demais veem tarefas de execução única e,
     de execução de laboratório, só as do próprio laboratório, salvo o
     `group_manager` efetivo do processo, que vê todas (FR-035, FR-036).
+    Mesma regra de `is_process_manager`, em SQL.
     """
     if await has_platform_wide_access(session, user_id):
         return None

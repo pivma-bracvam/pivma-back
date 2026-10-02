@@ -36,7 +36,7 @@ async def test_lab_a_cannot_complete_lab_b_run(session):
     ctx = await frozen_lab_process(session)
     lab_b = ctx.labs[1].id
 
-    with pytest.raises(AuthorizationError):
+    with pytest.raises(NotFoundError):
         await _complete(session, ctx, 1, ctx.lab_users[0].id)
     await session.rollback()
 

@@ -19,6 +19,7 @@ from pivma.core.authorization import (
     has_platform_wide_access,
     has_process_review_access,
     is_active_effective_proponent,
+    is_process_manager,
     process_cargos_scope,
     user_cargos,
 )
@@ -2590,6 +2591,10 @@ async def waive_laboratory(  # noqa: PLR0913, PLR0917
 
 REBLOCKED_REASON = 'Aguardando a nova execução de um laboratório.'
 
+# Spec 037 (R2): mesma resposta para a execução de outro laboratório e para
+# a execução que não existe.
+LABORATORY_RUN_NOT_FOUND = 'Execução do laboratório não encontrada.'
+
 
 async def _close_open_run(
     session: AsyncSession, run: ActivityRun, status: str, user_id: UUID
@@ -2776,16 +2781,17 @@ async def require_laboratory_run_access(
     user_id: UUID,
     act: ActivityInstance,
     run: ActivityRun,
+    level: AccessLevel = 'edit',
 ) -> None:
-    """Só o próprio laboratório age na execução dele (R8, FR-008).
+    """Acesso à execução de um laboratório (Spec 036 R8; Spec 037 R2).
 
-    Além da concessão de editar a atividade: cargo global em `edit_roles`
-    ou designação efetiva de `participating_laboratory` pelo laboratório.
+    Primeiro a concessão da atividade (Spec 030). Depois: o participante
+    efetivo pelo laboratório da execução lê e age; a gestão do processo lê,
+    e só age com o cargo global em `edit_roles`. Para os demais a execução
+    não existe: mesma resposta de um laboratório sem execução (FR-001).
     """
-    await require_activity_access(session, user_id, act, 'edit')
+    await require_activity_access(session, user_id, act, level)
     if run.laboratory_id is None:
-        return
-    if await global_cargos(session, user_id) & set(act.edit_roles):
         return
     member = await session.scalar(
         process_cargos_scope(user_id)
@@ -2796,10 +2802,15 @@ async def require_laboratory_run_access(
         )
         .limit(1)
     )
-    if member is None:
-        raise AuthorizationError(
-            'Só o próprio laboratório age na execução dele.'
-        )
+    if member is not None:
+        return
+    if not await is_process_manager(session, user_id, act.process_instance_id):
+        raise NotFoundError(LABORATORY_RUN_NOT_FOUND)
+    if level == 'view' or await global_cargos(session, user_id) & set(
+        act.edit_roles
+    ):
+        return
+    raise AuthorizationError('Só o próprio laboratório age na execução dele.')
 
 
 async def _laboratory_activity_by_key(
@@ -2841,7 +2852,7 @@ async def complete_laboratory_run(
         )
     run = await _current_laboratory_run(session, act.id, laboratory_id)
     if run is None:
-        raise NotFoundError('Execução do laboratório não encontrada.')
+        raise NotFoundError(LABORATORY_RUN_NOT_FOUND)
     await require_laboratory_run_access(session, user_id, act, run)
     if run.status != 'IN_PROGRESS':
         raise ConflictError(

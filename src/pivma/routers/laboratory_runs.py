@@ -10,10 +10,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
-from pivma.core.authorization import (
-    has_platform_wide_access,
-    is_effective_group_manager,
-)
+from pivma.core.authorization import is_process_manager
 from pivma.core.database.models import (
     ActivityInstance,
     Phase,
@@ -65,10 +62,7 @@ async def _require_process_manager(session, user_id, process_id) -> None:
         stmt = stmt.where(visibility)
     if await session.scalar(stmt) is None:
         raise http_error(HTTPStatus.NOT_FOUND, 'Processo não encontrado.')
-    if not (
-        await has_platform_wide_access(session, user_id)
-        or await is_effective_group_manager(session, user_id, process_id)
-    ):
+    if not await is_process_manager(session, user_id, process_id):
         raise http_error(
             HTTPStatus.FORBIDDEN, 'Só o gestor do processo pode fazer isso.'
         )
