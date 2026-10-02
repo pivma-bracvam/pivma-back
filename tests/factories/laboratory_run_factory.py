@@ -222,3 +222,43 @@ async def tasks_of(session, run_id) -> list[Task]:
             .execution_options(populate_existing=True)
         )
     )
+
+
+async def complete_lab(session, ctx, key, index):
+    """O usuário do laboratório `index` conclui a própria execução."""
+    from pivma.core.process_engine import (  # noqa: PLC0415
+        complete_laboratory_run,
+    )
+
+    run = await complete_laboratory_run(
+        session,
+        ctx.process_id,
+        key,
+        ctx.labs[index].id,
+        ctx.lab_users[index].id,
+    )
+    await session.commit()
+    return run
+
+
+async def complete_chain(session, ctx, index, keys=('receipt', 'upload')):
+    for key in keys:
+        await complete_lab(session, ctx, key, index)
+
+
+async def complete_statistics(session, ctx):
+    """Conclui a avaliação estatística (atividade única) e avança."""
+    from pivma.core.database.models import ProcessInstance  # noqa: PLC0415
+    from pivma.core.process_engine import (  # noqa: PLC0415
+        _advance_dependent_activities,  # noqa: PLC2701
+        _complete_activity_run,  # noqa: PLC2701
+    )
+
+    act = await activity(session, ctx.process_id, 'statistics')
+    run = (await runs_by_lab(session, ctx.process_id, 'statistics'))[None]
+    process = await session.get(ProcessInstance, ctx.process_id)
+    await _complete_activity_run(session, run, act, ctx.statistician.id)
+    await _advance_dependent_activities(
+        session, process, act, ctx.statistician.id
+    )
+    await session.commit()
