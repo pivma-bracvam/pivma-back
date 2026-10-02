@@ -279,3 +279,19 @@ async def end_affiliation(session, user) -> None:
     ):
         affiliation.deleted_at = datetime.utcnow()
     await session.commit()
+
+
+async def waive(session, ctx, index, reason='Equipamento quebrado.'):
+    """O Grupo Gestor dispensa o laboratório `index` na fase de execução."""
+    from pivma.core.process_engine import waive_laboratory  # noqa: PLC0415
+
+    result = await waive_laboratory(
+        session,
+        ctx.process_id,
+        'phase_execution',
+        ctx.labs[index].id,
+        reason,
+        ctx.group_manager.id,
+    )
+    await session.commit()
+    return result

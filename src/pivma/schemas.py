@@ -1585,3 +1585,35 @@ class ReferenceListResponse(ListPage[ReferencePublic, NoFilters]):
 
 class SampleLabelListResponse(ListPage[SampleLabel, NoFilters]):
     """Etiquetas dos frascos, só para o Grupo de Seleção de Amostras."""
+
+
+# ==========================================
+# EXECUÇÃO POR LABORATÓRIO (Spec 036)
+# ==========================================
+
+Reason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
+class LaboratoryWaiverCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    laboratory_id: UUID = Field(
+        description='Laboratório congelado a dispensar'
+    )
+    reason: Reason = Field(description='Motivo da dispensa')
+
+
+class LaboratoryWaiverPublic(BaseModel):
+    id: UUID
+    process_id: UUID
+    phase: PhaseRef
+    laboratory: LaboratoryRef
+    reason: str
+    waived_by: UserRef
+    created_at: datetime
+    waived_activity_keys: list[str] = Field(
+        description=(
+            'Atividades cujas execuções do laboratório foram dispensadas '
+            'nesta chamada, na ordem da fase'
+        )
+    )

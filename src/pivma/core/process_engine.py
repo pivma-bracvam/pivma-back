@@ -39,6 +39,7 @@ from pivma.core.database.models import (
     FormTemplate,
     FormValue,
     Laboratory,
+    LaboratoryWaiver,
     Phase,
     ProcessInstance,
     ProcessTemplate,
@@ -2166,6 +2167,61 @@ async def _new_laboratory_run(
     return run
 
 
+async def _laboratory_waived(
+    session: AsyncSession, phase_id: UUID, laboratory_id: UUID
+) -> bool:
+    return (
+        await session.scalar(
+            select(LaboratoryWaiver.id).where(
+                LaboratoryWaiver.phase_id == phase_id,
+                LaboratoryWaiver.laboratory_id == laboratory_id,
+                LaboratoryWaiver.deleted_at.is_(None),
+            )
+        )
+        is not None
+    )
+
+
+async def _waive_laboratory_run(
+    session: AsyncSession,
+    act: ActivityInstance,
+    a_data: dict[str, Any],
+    run: ActivityRun,
+    user_id: UUID,
+) -> None:
+    """Marca a execução como dispensada (FR-007, FR-018).
+
+    Toda execução dispensada tem uma tarefa cancelada: as abertas são
+    canceladas e a execução bloqueada, que não tinha tarefa, ganha uma.
+    """
+    now = utc_now()
+    run.status = 'WAIVED'
+    run.completed_at = now
+    run.set_update_audit(user_id)
+    tasks = (
+        await session.scalars(
+            select(Task).where(
+                Task.activity_run_id == run.id, Task.deleted_at.is_(None)
+            )
+        )
+    ).all()
+    for task in tasks:
+        if task.status == 'READY':
+            task.status = STATUS_CANCELLED
+            task.completed_at = now
+            task.set_update_audit(user_id)
+    if not tasks:
+        task = Task(
+            activity_run_id=run.id,
+            title=act.name,
+            assigned_role=_resolve_activity_cargo(a_data),
+            status=STATUS_CANCELLED,
+            completed_at=now,
+        )
+        task.set_creation_audit(user_id)
+        session.add(task)
+
+
 async def _try_start_laboratory_run(
     session: AsyncSession,
     act: ActivityInstance,
@@ -2175,12 +2231,18 @@ async def _try_start_laboratory_run(
 ) -> bool:
     """Desbloqueia a execução vigente do laboratório se a cadeia permitir.
 
-    Devolve `True` quando a execução passou a resolvida, o que pode
-    destravar os dependentes por laboratório.
+    Laboratório dispensado na fase, fora da custódia, tem a execução
+    dispensada (FR-007). Devolve `True` quando a execução passou a
+    resolvida, o que pode destravar os dependentes por laboratório.
     """
     run = await _current_laboratory_run(session, act.id, laboratory_id)
     if run is None or run.status != 'BLOCKED':
         return False
+    if not act.is_custody and await _laboratory_waived(
+        session, act.phase_id, laboratory_id
+    ):
+        await _waive_laboratory_run(session, act, a_data, run, user_id)
+        return True
     if not await _laboratory_dependencies_resolved(
         session, act, laboratory_id
     ):
@@ -2319,9 +2381,13 @@ async def _advance_laboratory_activity(  # noqa: PLR0913, PLR0917
             )
         return
     for laboratory_id in await _frozen_laboratory_ids(session, process.id):
-        await _try_start_laboratory_run(
+        resolved = await _try_start_laboratory_run(
             session, act, a_data, laboratory_id, user_id
         )
+        if resolved:
+            await _unblock_laboratory(
+                session, process, act, laboratory_id, user_id
+            )
     await _refresh_laboratory_activity(session, process, act, user_id)
 
 
@@ -2349,6 +2415,120 @@ async def _unblock_laboratory(
         await _refresh_laboratory_activity(
             session, process, dependent, user_id
         )
+
+
+SAMPLE_DEFINITION_ACTIVITY_TYPE = 'sample_definition'
+
+
+async def waive_laboratory(  # noqa: PLR0913, PLR0917
+    session: AsyncSession,
+    process_id: UUID,
+    phase_key: str,
+    laboratory_id: UUID,
+    reason: str,
+    user_id: UUID,
+) -> tuple[LaboratoryWaiver, list[str]]:
+    """Dispensa o laboratório na fase (R9). Sem autorização e sem commit.
+
+    Exige as amostras congeladas (FR-017a). Marca como dispensadas as
+    execuções abertas ou bloqueadas do laboratório nas atividades por
+    laboratório da fase, fora da custódia (FR-018), e devolve as chaves
+    dessas atividades na ordem da fase.
+    """
+    process = await _lock_process(session, process_id)
+    await ensure_process_mutable(session, process_id)
+    phase = await session.scalar(
+        select(Phase).where(
+            Phase.process_instance_id == process_id,
+            Phase.key == phase_key,
+            Phase.deleted_at.is_(None),
+        )
+    )
+    if phase is None:
+        raise NotFoundError(f'Fase {phase_key!r} não encontrada.')
+    sample_status = await session.scalar(
+        select(ActivityInstance.status).where(
+            ActivityInstance.process_instance_id == process_id,
+            ActivityInstance.activity_type == SAMPLE_DEFINITION_ACTIVITY_TYPE,
+            ActivityInstance.deleted_at.is_(None),
+        )
+    )
+    if sample_status != 'COMPLETED':
+        raise ConflictError(
+            'Não é permitido registrar dispensa de ensaio antes do '
+            'congelamento e expedição das amostras.',
+            code='sample_definition_not_frozen',
+        )
+    if laboratory_id not in await _frozen_laboratory_ids(session, process_id):
+        raise ValidationError(
+            'O laboratório não está no conjunto congelado do processo.',
+            code='laboratory_not_frozen',
+        )
+    if await _laboratory_waived(session, phase.id, laboratory_id):
+        raise ConflictError(
+            'O laboratório já foi dispensado nesta fase.',
+            code='already_waived',
+        )
+    waiver = LaboratoryWaiver(
+        process_instance_id=process_id,
+        phase_id=phase.id,
+        laboratory_id=laboratory_id,
+        reason=reason,
+    )
+    waiver.set_creation_audit(user_id)
+    session.add(waiver)
+    await session.flush()
+
+    acts = (
+        await session.scalars(
+            select(ActivityInstance)
+            .where(
+                ActivityInstance.phase_id == phase.id,
+                ActivityInstance.execution_scope == PER_LABORATORY,
+                ActivityInstance.is_custody.is_(False),
+                ActivityInstance.deleted_at.is_(None),
+            )
+            .order_by(ActivityInstance.order_index, ActivityInstance.id)
+            .execution_options(populate_existing=True)
+        )
+    ).all()
+    context = {
+        'phase_key': phase.key,
+        'laboratory_id': str(laboratory_id),
+        'reason': reason,
+    }
+    waived_keys = []
+    for act in acts:
+        run = await _current_laboratory_run(session, act.id, laboratory_id)
+        if run is None or run.status not in {'IN_PROGRESS', 'BLOCKED'}:
+            continue
+        a_data = await _template_activity_data(session, process_id, act.key)
+        await _waive_laboratory_run(session, act, a_data, run, user_id)
+        waived_keys.append(act.key)
+        session.add(
+            AuditEvent(
+                process_instance_id=process_id,
+                activity_run_id=run.id,
+                user_id=user_id,
+                event_type='LABORATORY_WAIVED',
+                context_data={**context, 'activity_key': act.key},
+            )
+        )
+    if not waived_keys:
+        session.add(
+            AuditEvent(
+                process_instance_id=process_id,
+                user_id=user_id,
+                event_type='LABORATORY_WAIVED',
+                context_data=context,
+            )
+        )
+    for act in acts:
+        await _unblock_laboratory(
+            session, process, act, laboratory_id, user_id
+        )
+        await _refresh_laboratory_activity(session, process, act, user_id)
+    return waiver, waived_keys
 
 
 async def require_laboratory_run_access(

@@ -17,8 +17,13 @@ from pivma.core.database.models import (
     ActivityInstance,
     ActivityRun,
     AuditEvent,
+    LaboratoryWaiver,
 )
-from pivma.core.process_engine import complete_laboratory_run
+from pivma.core.process_engine import (
+    ConflictError,
+    complete_laboratory_run,
+    waive_laboratory,
+)
 from tests.factories.laboratory_run_factory import (
     complete_chain,
     complete_lab,
@@ -217,3 +222,38 @@ async def test_last_two_labs_completing_together_open_statistics_once(
         assert upload_status == 'COMPLETED'
         assert statistics_runs == 1
         assert unblocked == 1
+
+
+async def _waive_in_new_session(engine, ctx):
+    async with AsyncSession(engine, expire_on_commit=False) as sess:
+        try:
+            await waive_laboratory(
+                sess,
+                ctx.process_id,
+                'phase_execution',
+                ctx.labs[2].id,
+                'Desistência formal.',
+                ctx.group_manager.id,
+            )
+            await sess.commit()
+        except ConflictError as exc:
+            return exc.code
+        return 'ok'
+
+
+@pytest.mark.asyncio
+async def test_concurrent_waivers_of_same_lab_keep_one(engine):
+    async with committed_lab_process(engine) as ctx:
+        results = await asyncio.gather(
+            _waive_in_new_session(engine, ctx),
+            _waive_in_new_session(engine, ctx),
+        )
+
+        async with AsyncSession(engine) as check:
+            waivers = await check.scalar(
+                select(func.count())
+                .select_from(LaboratoryWaiver)
+                .where(LaboratoryWaiver.process_instance_id == ctx.process_id)
+            )
+        assert sorted(results) == ['already_waived', 'ok']
+        assert waivers == 1

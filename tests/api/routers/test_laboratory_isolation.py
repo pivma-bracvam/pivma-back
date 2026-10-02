@@ -14,6 +14,7 @@ from tests.factories.laboratory_run_factory import (
     end_affiliation,
     frozen_lab_process,
     runs_by_lab,
+    waive,
 )
 from tests.factories.participant_factory import grant_cargo
 from tests.factories.sample_factory import assign_lab, new_laboratory
@@ -229,3 +230,34 @@ async def test_participant_events_with_laboratory_keep_current_rule(
 
     assert len(assigned(lab_b_user)) == 1
     assert assigned(ctx.lab_users[0]) == []
+
+
+def _waived(events):
+    return [e for e in events if e['event_type'] == 'LABORATORY_WAIVED']
+
+
+@pytest.mark.asyncio
+async def test_group_manager_sees_waiver_events(client, session):
+    ctx = await frozen_lab_process(session)
+    await waive(session, ctx, 2)
+
+    events = _waived(_timeline(client, ctx.group_manager, ctx.process_id))
+
+    assert len(events) == 2
+    assert {e['activity_run_id'] for e in events} != {None}
+
+
+@pytest.mark.asyncio
+async def test_waived_lab_does_not_see_waiver_events(client, session):
+    ctx = await frozen_lab_process(session)
+    await waive(session, ctx, 2)
+
+    assert _waived(_timeline(client, ctx.lab_users[2], ctx.process_id)) == []
+
+
+@pytest.mark.asyncio
+async def test_other_lab_does_not_see_waiver_events(client, session):
+    ctx = await frozen_lab_process(session)
+    await waive(session, ctx, 2)
+
+    assert _waived(_timeline(client, ctx.lab_users[0], ctx.process_id)) == []

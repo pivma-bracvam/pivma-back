@@ -257,45 +257,45 @@ Rotas de mutação usam `Origin: https://testserver`. O `bracvam_user` e o
 
 ### Testes do motor (antes da implementação)
 
-- [ ] T077 [P] [US4] Teste: com Labs A e B concluídos em `receipt` e `upload`, dispensar o Lab C na `phase_execution` deixa as execuções do Lab C em `receipt` (`IN_PROGRESS`) e `upload` (`BLOCKED`) como `WAIVED`, `upload` `COMPLETED` e `statistics` aberta (história 4, cenário 1), em `tests/integration/database/test_laboratory_waiver_engine.py`
-- [ ] T078 [P] [US4] Teste: na mesma dispensa, a tarefa do Lab C em `receipt` fica `CANCELLED` e a execução do Lab C em `upload` (que não tinha tarefa) ganha uma `Task` `CANCELLED` (FR-007, FR-018), em `tests/integration/database/test_laboratory_waiver_engine.py`
-- [ ] T079 [P] [US4] Teste: após a dispensa do Lab C, a execução do Lab C em `material_return` (custódia) passa de `BLOCKED` a `IN_PROGRESS` com `Task` `READY` (FR-019, SC-005), em `tests/integration/database/test_laboratory_waiver_engine.py`
-- [ ] T080 [P] [US4] Teste: `material_return` só fica `COMPLETED` depois que o Lab C dispensado conclui a própria devolução (FR-019), em `tests/integration/database/test_laboratory_waiver_engine.py`
-- [ ] T081 [P] [US4] Teste: execução do Lab C já `COMPLETED` em `receipt` continua `COMPLETED` após a dispensa, com tarefa e eventos intactos (FR-018), em `tests/integration/database/test_laboratory_waiver_engine.py`
-- [ ] T082 [P] [US4] Teste: com o Lab C dispensado antes de `lab_feedback` ser ativada, concluir `statistics` ativa `lab_feedback` com a execução do Lab C `WAIVED` e `Task` `CANCELLED`, e as dos Labs A e B `IN_PROGRESS` (FR-007), em `tests/integration/database/test_laboratory_waiver_engine.py`
-- [ ] T083 [P] [US4] Teste: dispensar os três laboratórios (três chamadas) conclui `receipt` e `upload`, abre `statistics` e deixa `material_return` `IN_PROGRESS` para todos (Edge Cases, M1), em `tests/integration/database/test_laboratory_waiver_engine.py`
-- [ ] T084 [P] [US4] Teste: a dispensa grava um `LABORATORY_WAIVED` por execução marcada, cada um com o `activity_run_id` dela e `context_data` com `phase_key`, `activity_key`, `laboratory_id` e `reason` (FR-021), em `tests/integration/database/test_laboratory_waiver_engine.py`
-- [ ] T085 [P] [US4] Teste: dispensa do Lab A depois de ele concluir `receipt` e `upload` (`lab_feedback` ainda não ativada) não marca nenhuma execução e grava um único `LABORATORY_WAIVED` sem `activity_run_id`; `waived_activity_keys` vem vazio (FR-021), em `tests/integration/database/test_laboratory_waiver_engine.py`
-- [ ] T086 [P] [US4] Teste: `BlindSampleCode` do processo ficam idênticos antes e depois da dispensa (FR-033), em `tests/integration/database/test_laboratory_waiver_engine.py`
-- [ ] T087 [P] [US4] Teste de concorrência: duas dispensas simultâneas do mesmo laboratório e fase → uma grava, a outra recebe conflito; uma única `LaboratoryWaiver` ativa (FR-020), em `tests/integration/database/test_per_laboratory_concurrency.py`
+- [X] T077 [P] [US4] Teste: com Labs A e B concluídos em `receipt` e `upload`, dispensar o Lab C na `phase_execution` deixa as execuções do Lab C em `receipt` (`IN_PROGRESS`) e `upload` (`BLOCKED`) como `WAIVED`, `upload` `COMPLETED` e `statistics` aberta (história 4, cenário 1), em `tests/integration/database/test_laboratory_waiver_engine.py`
+- [X] T078 [P] [US4] Teste: na mesma dispensa, a tarefa do Lab C em `receipt` fica `CANCELLED` e a execução do Lab C em `upload` (que não tinha tarefa) ganha uma `Task` `CANCELLED` (FR-007, FR-018), em `tests/integration/database/test_laboratory_waiver_engine.py`
+- [X] T079 [P] [US4] Teste: após a dispensa do Lab C, a execução do Lab C em `material_return` (custódia) passa de `BLOCKED` a `IN_PROGRESS` com `Task` `READY` (FR-019, SC-005), em `tests/integration/database/test_laboratory_waiver_engine.py`
+- [X] T080 [P] [US4] Teste: `material_return` só fica `COMPLETED` depois que o Lab C dispensado conclui a própria devolução (FR-019), em `tests/integration/database/test_laboratory_waiver_engine.py`
+- [X] T081 [P] [US4] Teste: execução do Lab C já `COMPLETED` em `receipt` continua `COMPLETED` após a dispensa, com tarefa e eventos intactos (FR-018), em `tests/integration/database/test_laboratory_waiver_engine.py`
+- [X] T082 [P] [US4] Teste: com o Lab C dispensado antes de `lab_feedback` ser ativada, concluir `statistics` ativa `lab_feedback` com a execução do Lab C `WAIVED` e `Task` `CANCELLED`, e as dos Labs A e B `IN_PROGRESS` (FR-007), em `tests/integration/database/test_laboratory_waiver_engine.py`
+- [X] T083 [P] [US4] Teste: dispensar os três laboratórios (três chamadas) conclui `receipt` e `upload`, abre `statistics` e deixa `material_return` `IN_PROGRESS` para todos (Edge Cases, M1), em `tests/integration/database/test_laboratory_waiver_engine.py`
+- [X] T084 [P] [US4] Teste: a dispensa grava um `LABORATORY_WAIVED` por execução marcada, cada um com o `activity_run_id` dela e `context_data` com `phase_key`, `activity_key`, `laboratory_id` e `reason` (FR-021), em `tests/integration/database/test_laboratory_waiver_engine.py`
+- [X] T085 [P] [US4] Teste: dispensa do Lab A depois de ele concluir `receipt` e `upload` (`lab_feedback` ainda não ativada) não marca nenhuma execução e grava um único `LABORATORY_WAIVED` sem `activity_run_id`; `waived_activity_keys` vem vazio (FR-021), em `tests/integration/database/test_laboratory_waiver_engine.py`
+- [X] T086 [P] [US4] Teste: `BlindSampleCode` do processo ficam idênticos antes e depois da dispensa (FR-033), em `tests/integration/database/test_laboratory_waiver_engine.py`
+- [X] T087 [P] [US4] Teste de concorrência: duas dispensas simultâneas do mesmo laboratório e fase → uma grava, a outra recebe conflito; uma única `LaboratoryWaiver` ativa (FR-020), em `tests/integration/database/test_per_laboratory_concurrency.py`
 
 ### Testes de API (antes da implementação)
 
-- [ ] T088 [P] [US4] Teste: `POST /processes/{id}/phases/phase_execution/laboratory-waivers` como `group_manager` → 201 com o corpo `LaboratoryWaiver` do contrato, `waived_activity_keys = ["receipt", "upload"]`, na ordem das atividades na fase (M3, L6), em `tests/api/routers/test_laboratory_waivers.py`
-- [ ] T089 [P] [US4] Teste: a mesma rota como `bracvam_user` → 201, em `tests/api/routers/test_laboratory_waivers.py`
-- [ ] T090 [P] [US4] Teste: a mesma rota como `admin_user` → 201, em `tests/api/routers/test_laboratory_waivers.py`
-- [ ] T091 [P] [US4] Teste: como usuário `participating_laboratory` → 403 e nenhuma linha em `laboratory_waivers` (FR-017), em `tests/api/routers/test_laboratory_waivers.py`
-- [ ] T092 [P] [US4] Teste: como `statistician` → 403, em `tests/api/routers/test_laboratory_waivers.py`
-- [ ] T093 [P] [US4] Teste: como proponente (`creator`) → 403, em `tests/api/routers/test_laboratory_waivers.py`
-- [ ] T094 [P] [US4] Teste: `group_manager` com designação revogada → 403, em `tests/api/routers/test_laboratory_waivers.py`
-- [ ] T095 [P] [US4] Teste: usuário sem nenhuma designação no processo → 404, em `tests/api/routers/test_laboratory_waivers.py`
-- [ ] T096 [P] [US4] Teste: sem login → 401, em `tests/api/routers/test_laboratory_waivers.py`
-- [ ] T097 [P] [US4] Teste: com `frozen_lab_process(freeze=False)`, a dispensa → 409 `sample_definition_not_frozen` com a mensagem do contrato, e nenhuma linha em `laboratory_waivers` (FR-017a), em `tests/api/routers/test_laboratory_waivers.py`
-- [ ] T098 [P] [US4] Teste: `reason` ausente → 422 `validation_error`, em `tests/api/routers/test_laboratory_waivers.py`
-- [ ] T099 [P] [US4] Teste: `reason` só com espaços → 422 `validation_error`, em `tests/api/routers/test_laboratory_waivers.py`
-- [ ] T100 [P] [US4] Teste: laboratório designado depois do congelamento → 422 `laboratory_not_frozen`, em `tests/api/routers/test_laboratory_waivers.py`
-- [ ] T101 [P] [US4] Teste: `phase_key` inexistente no processo → 404, em `tests/api/routers/test_laboratory_waivers.py`
-- [ ] T102 [P] [US4] Teste: segunda dispensa do mesmo laboratório e fase → 409 `already_waived`, em `tests/api/routers/test_laboratory_waivers.py`
-- [ ] T103 [P] [US4] Teste: processo `CLOSED` → 409 `invalid_transition` (FR-031), em `tests/api/routers/test_laboratory_waivers.py`
-- [ ] T104 [P] [US4] Teste: `DELETE` na rota de dispensas → 405, sem forma de reverter (FR-020a), em `tests/api/routers/test_laboratory_waivers.py`
-- [ ] T105 [P] [US4] Teste: após a dispensa, `GET /processes/{id}/timeline` como `group_manager` traz os `LABORATORY_WAIVED` (FR-038), em `tests/api/routers/test_laboratory_isolation.py`
-- [ ] T106 [P] [US4] Teste: a mesma trilha como usuário do Lab C (dispensado) não traz nenhum `LABORATORY_WAIVED` (FR-038), em `tests/api/routers/test_laboratory_isolation.py`
-- [ ] T107 [P] [US4] Teste: a mesma trilha como usuário do Lab A não traz nenhum `LABORATORY_WAIVED` (FR-038), em `tests/api/routers/test_laboratory_isolation.py`
+- [X] T088 [P] [US4] Teste: `POST /processes/{id}/phases/phase_execution/laboratory-waivers` como `group_manager` → 201 com o corpo `LaboratoryWaiver` do contrato, `waived_activity_keys = ["receipt", "upload"]`, na ordem das atividades na fase (M3, L6), em `tests/api/routers/test_laboratory_waivers.py`
+- [X] T089 [P] [US4] Teste: a mesma rota como `bracvam_user` → 201, em `tests/api/routers/test_laboratory_waivers.py`
+- [X] T090 [P] [US4] Teste: a mesma rota como `admin_user` → 201, em `tests/api/routers/test_laboratory_waivers.py`
+- [X] T091 [P] [US4] Teste: como usuário `participating_laboratory` → 403 e nenhuma linha em `laboratory_waivers` (FR-017), em `tests/api/routers/test_laboratory_waivers.py`
+- [X] T092 [P] [US4] Teste: como `statistician` → 403, em `tests/api/routers/test_laboratory_waivers.py`
+- [X] T093 [P] [US4] Teste: como proponente (`creator`) → 403, em `tests/api/routers/test_laboratory_waivers.py`
+- [X] T094 [P] [US4] Teste: `group_manager` com designação revogada → 403, em `tests/api/routers/test_laboratory_waivers.py`
+- [X] T095 [P] [US4] Teste: usuário sem nenhuma designação no processo → 404, em `tests/api/routers/test_laboratory_waivers.py`
+- [X] T096 [P] [US4] Teste: sem login → 401, em `tests/api/routers/test_laboratory_waivers.py`
+- [X] T097 [P] [US4] Teste: com `frozen_lab_process(freeze=False)`, a dispensa → 409 `sample_definition_not_frozen` com a mensagem do contrato, e nenhuma linha em `laboratory_waivers` (FR-017a), em `tests/api/routers/test_laboratory_waivers.py`
+- [X] T098 [P] [US4] Teste: `reason` ausente → 422 `validation_error`, em `tests/api/routers/test_laboratory_waivers.py`
+- [X] T099 [P] [US4] Teste: `reason` só com espaços → 422 `validation_error`, em `tests/api/routers/test_laboratory_waivers.py`
+- [X] T100 [P] [US4] Teste: laboratório designado depois do congelamento → 422 `laboratory_not_frozen`, em `tests/api/routers/test_laboratory_waivers.py`
+- [X] T101 [P] [US4] Teste: `phase_key` inexistente no processo → 404, em `tests/api/routers/test_laboratory_waivers.py`
+- [X] T102 [P] [US4] Teste: segunda dispensa do mesmo laboratório e fase → 409 `already_waived`, em `tests/api/routers/test_laboratory_waivers.py`
+- [X] T103 [P] [US4] Teste: processo `CLOSED` → 409 `invalid_transition` (FR-031), em `tests/api/routers/test_laboratory_waivers.py`
+- [X] T104 [P] [US4] Teste: `DELETE` na rota de dispensas → 405, sem forma de reverter (FR-020a), em `tests/api/routers/test_laboratory_waivers.py`
+- [X] T105 [P] [US4] Teste: após a dispensa, `GET /processes/{id}/timeline` como `group_manager` traz os `LABORATORY_WAIVED` (FR-038), em `tests/api/routers/test_laboratory_isolation.py`
+- [X] T106 [P] [US4] Teste: a mesma trilha como usuário do Lab C (dispensado) não traz nenhum `LABORATORY_WAIVED` (FR-038), em `tests/api/routers/test_laboratory_isolation.py`
+- [X] T107 [P] [US4] Teste: a mesma trilha como usuário do Lab A não traz nenhum `LABORATORY_WAIVED` (FR-038), em `tests/api/routers/test_laboratory_isolation.py`
 
 ### Implementação
 
-- [ ] T108 [US4] Em `_activate_laboratory_activity` e `_unblock_laboratory`, laboratório com `LaboratoryWaiver` ativa na fase e atividade sem `is_custody` recebe execução `WAIVED` com `Task` `CANCELLED` (FR-007). Na ativação em cadeia, decidir as atividades a montante antes das a jusante, para que a custódia do dispensado nasça `IN_PROGRESS` (M1). Arquivo: `src/pivma/core/process_engine.py`.
-- [ ] T109 [US4] `waive_laboratory(session, process_id, phase_key, laboratory_id, reason, user_id) -> tuple[LaboratoryWaiver, list[str]]` em `src/pivma/core/process_engine.py`, sem commit. Faz, em ordem:
+- [X] T108 [US4] Em `_activate_laboratory_activity` e `_unblock_laboratory`, laboratório com `LaboratoryWaiver` ativa na fase e atividade sem `is_custody` recebe execução `WAIVED` com `Task` `CANCELLED` (FR-007). Na ativação em cadeia, decidir as atividades a montante antes das a jusante, para que a custódia do dispensado nasça `IN_PROGRESS` (M1). Arquivo: `src/pivma/core/process_engine.py`.
+- [X] T109 [US4] `waive_laboratory(session, process_id, phase_key, laboratory_id, reason, user_id) -> tuple[LaboratoryWaiver, list[str]]` em `src/pivma/core/process_engine.py`, sem commit. Faz, em ordem:
   1. `ensure_process_mutable` e `_lock_process`;
   2. busca a fase (`NotFoundError`);
   3. exige a atividade `activity_type == 'sample_definition'` do processo em `COMPLETED`, senão conflito `sample_definition_not_frozen` (FR-017a);
@@ -305,8 +305,8 @@ Rotas de mutação usam `Origin: https://testserver`. O `bracvam_user` e o
   7. grava um `LABORATORY_WAIVED` por execução marcada, ou um sem execução se nenhuma (FR-021);
   8. roda `_unblock_laboratory` e `_refresh_laboratory_activity` nas atividades tocadas;
   9. devolve a dispensa e as chaves das atividades marcadas (`waived_activity_keys`, M3).
-- [ ] T110 [P] [US4] Schemas `LaboratoryWaiverCreate` (`laboratory_id: UUID`; `reason: str` com `strip` e `min_length=1`, `extra='forbid'`) e `LaboratoryWaiverPublic` (contrato, com `waived_activity_keys: list[str]`), em `src/pivma/schemas.py`
-- [ ] T111 [US4] Roteador `src/pivma/routers/laboratory_runs.py` (prefixo `/processes`) com `POST /{id}/phases/{phase_key}/laboratory-waivers`. Autoriza gestor do processo (`is_effective_group_manager` ou `has_platform_wide_access`, 403); quem não vê o processo recebe 404 por `process_visibility_clause`. Exige `TrustedOrigin`, faz commit e mapeia os erros do contrato, incluindo `sample_definition_not_frozen` com a mensagem dele. Registrar em `src/pivma/__init__.py`.
+- [X] T110 [P] [US4] Schemas `LaboratoryWaiverCreate` (`laboratory_id: UUID`; `reason: str` com `strip` e `min_length=1`, `extra='forbid'`) e `LaboratoryWaiverPublic` (contrato, com `waived_activity_keys: list[str]`), em `src/pivma/schemas.py`
+- [X] T111 [US4] Roteador `src/pivma/routers/laboratory_runs.py` (prefixo `/processes`) com `POST /{id}/phases/{phase_key}/laboratory-waivers`. Autoriza gestor do processo (`is_effective_group_manager` ou `has_platform_wide_access`, 403); quem não vê o processo recebe 404 por `process_visibility_clause`. Exige `TrustedOrigin`, faz commit e mapeia os erros do contrato, incluindo `sample_definition_not_frozen` com a mensagem dele. Registrar em `src/pivma/__init__.py`.
 
 **Checkpoint**: T077–T107 passam; US1–US3 continuam verdes.
 

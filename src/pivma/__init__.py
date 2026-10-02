@@ -15,6 +15,7 @@ from pivma.routers import (
     forms,
     institutional,
     invites,
+    laboratory_runs,
     pre_evaluation,
     process_participants,
     processes,
@@ -73,6 +74,7 @@ app.include_router(pre_evaluation.router)
 app.include_router(pre_evaluation.admin_router)
 app.include_router(return_review.router)
 app.include_router(samples.router)
+app.include_router(laboratory_runs.router)
 
 
 @app.get('/')
