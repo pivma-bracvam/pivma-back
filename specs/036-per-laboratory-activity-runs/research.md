@@ -120,10 +120,19 @@ referem-se à `develop` em 2026-10-02.
     `CANCELLED` se o Lab X está dispensado na fase e a atividade não é de
     custódia. A propagação continua para os dependentes deles enquanto
     houver mudança.
+  - **Desbloqueio ao passar a `IN_PROGRESS`**: `started_at` da execução passa
+    a ser o momento do desbloqueio, e o prazo da tarefa é calculado a partir
+    dele (Spec 024), não da criação da execução `BLOCKED` (FR-011).
   - **Pontos de chamada**: `_advance_dependent_activities` (dependente
-    `per_laboratory` ainda `BLOCKED` → ativação; a condição atual "só se
-    `BLOCKED`" continua valendo para atividade única), conclusão (R7) e
-    dispensa (R9).
+    `per_laboratory` ainda `BLOCKED` → ativação; dependente `per_laboratory`
+    já ativado → desbloqueio para cada laboratório congelado, porque uma
+    dependência de atividade única pode ter voltado a ser satisfeita depois
+    de uma reabertura; a condição atual "só se `BLOCKED`" continua valendo
+    para atividade única), conclusão (R7) e dispensa (R9).
+  - **Evento**: a ativação de atividade por laboratório grava um
+    `ACTIVITY_UNBLOCKED` sem `activity_run_id` (ligado ao processo, com
+    `activity_key` no contexto), visível a quem vê a atividade; nenhum
+    laboratório fica de fora por o evento apontar para a execução de outro.
   - Ao chegar a `COMPLETED`, a atividade chama
     `_advance_dependent_activities` para os dependentes de atividade única.
 - **Rationale**: a ativação em cadeia cria todas as execuções de uma vez,
@@ -251,7 +260,9 @@ referem-se à `develop` em 2026-10-02.
          concluída fica como está. A cadeia segue nos dependentes dele para
          todos os laboratórios.
        - Ao final, o status de cada atividade por laboratório tocada é
-         recalculado (R5).
+         recalculado (R5). Uma atividade por laboratório reabloqueada continua
+         ativada; quando a atividade única de que depende conclui de novo,
+         `_advance_dependent_activities` roda o desbloqueio dela (R6).
     5. Grava `LABORATORY_RUN_REOPENED`, com `activity_run_id` da execução
        nova, `laboratory_id`, os números anterior e novo, `reason` e as chaves
        reabloqueadas.

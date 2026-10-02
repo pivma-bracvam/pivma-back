@@ -446,7 +446,7 @@ laboratório e o estado de cada um.
   atividade por laboratório sem `participating_laboratory` entre os cargos que
   editam; marcação de custódia em atividade que não é por laboratório.
 
-**Abertura**
+**Ativação**
 
 - **FR-004**: Ao ativar uma atividade por laboratório, o sistema MUST criar,
   na mesma operação, uma execução para cada laboratório do conjunto congelado
@@ -456,7 +456,7 @@ laboratório e o estado de cada um.
 - **FR-004a**: Uma atividade por laboratório MUST ser ativada quando todas as
   dependências de atividade única estiverem satisfeitas e todas as
   dependências por laboratório já estiverem ativadas.
-- **FR-005**: As designações ativas no momento da abertura MUST NOT alterar o
+- **FR-005**: As designações ativas no momento da ativação MUST NOT alterar o
   conjunto de execuções: um laboratório designado depois do congelamento não
   recebe execução, e um laboratório que perdeu a designação recebe.
 - **FR-006**: Se o conjunto congelado não tiver laboratório, a ativação MUST
@@ -480,11 +480,14 @@ laboratório e o estado de cada um.
 
 - **FR-010**: Concluir a execução de um laboratório MUST concluir só essa
   execução e a tarefa dela.
-- **FR-011**: Quando uma atividade por laboratório depende de outra atividade
-  por laboratório, a execução bloqueada do Lab X na dependente MUST passar a
-  em andamento, com tarefa, quando todas as dependências estiverem resolvidas
-  para o Lab X (concluídas ou dispensadas), independentemente dos outros
-  laboratórios.
+- **FR-011**: A execução bloqueada do Lab X numa atividade por laboratório
+  MUST passar a em andamento, com tarefa, quando todas as dependências dela
+  estiverem resolvidas para o Lab X: as de atividade por laboratório pela
+  execução do Lab X (concluída ou dispensada), as de atividade única pelo
+  status da atividade. Isso vale independentemente dos outros laboratórios e
+  também quando uma dependência de atividade única volta a ser satisfeita
+  depois de uma reabertura. O prazo da tarefa MUST contar a partir desse
+  momento, não da criação da execução bloqueada.
 - **FR-012**: Uma atividade por laboratório MUST constar bloqueada antes da
   ativação e em andamento a partir dela, até concluir.
 - **FR-013**: Uma atividade por laboratório MUST concluir se, e somente se,
@@ -540,8 +543,9 @@ laboratório e o estado de cada um.
   novo, elas abrem nova execução. Nas atividades por laboratório, a execução
   vigente do laboratório MUST ser encerrada (cancelada se em andamento,
   substituída se concluída) e uma nova execução bloqueada do laboratório,
-  com o número seguinte, MUST tomar o lugar dela. Os dados das execuções
-  encerradas MUST ser preservados.
+  com o número seguinte, MUST tomar o lugar dela; execuções bloqueadas ou
+  dispensadas ficam como estão. Os dados das execuções encerradas MUST ser
+  preservados.
 - **FR-026**: A reabertura MUST ser recusada quando o laboratório não tem
   execução vigente concluída na atividade (sem execução, em andamento,
   bloqueada, cancelada ou substituída) e para execução não de custódia de
@@ -562,6 +566,20 @@ laboratório e o estado de cada um.
   laboratório MUST trazer o laboratório e a execução na trilha do processo
   (salvo o caso sem execução do FR-021).
 
+**Preservação**
+
+- **FR-031**: Dispensa e reabertura MUST ser recusadas em processo encerrado,
+  cancelado ou arquivado (Spec 030).
+- **FR-032**: Esta feature MUST NOT alterar a visibilidade de atividades,
+  tarefas e eventos que não sejam de execução de laboratório. O isolamento do
+  conteúdo das atividades por laboratório (dados enviados, anexos) fica com a
+  #59.
+- **FR-033**: Esta feature MUST NOT alterar os códigos cegos nem o conjunto
+  congelado da Spec 031.
+- **FR-034**: As rotas de formulário existentes MUST manter o comportamento
+  atual em atividades de execução única e MUST recusar, como transição
+  inválida, o uso em atividade por laboratório, sem alterar nenhuma execução.
+
 **Isolamento entre laboratórios**
 
 - **FR-035**: "Gestor do processo", nesta spec, é quem tem designação efetiva
@@ -580,19 +598,8 @@ laboratório e o estado de cada um.
 - **FR-038**: Os eventos de dispensa MUST aparecer só para o gestor do
   processo.
 
-**Preservação**
+**Estados terminais**
 
-- **FR-031**: Dispensa e reabertura MUST ser recusadas em processo encerrado,
-  cancelado ou arquivado (Spec 030).
-- **FR-032**: Esta feature MUST NOT alterar a visibilidade de atividades,
-  tarefas e eventos que não sejam de execução de laboratório. O isolamento do
-  conteúdo das atividades por laboratório (dados enviados, anexos) fica com a
-  #59.
-- **FR-033**: Esta feature MUST NOT alterar os códigos cegos nem o conjunto
-  congelado da Spec 031.
-- **FR-034**: As rotas de formulário existentes MUST manter o comportamento
-  atual em atividades de execução única e MUST recusar, como transição
-  inválida, o uso em atividade por laboratório, sem alterar nenhuma execução.
 - **FR-039**: Execuções concluídas, canceladas, dispensadas e substituídas
   são terminais. O cancelamento ou a exclusão do processo MUST encerrar como
   canceladas só as execuções em andamento ou bloqueadas.
@@ -630,14 +637,15 @@ laboratório e o estado de cada um.
   idênticos aos de antes da reabertura.
 - **SC-007**: 100% das tentativas de agir na execução de outro laboratório são
   recusadas.
+- **SC-008**: Os cinco templates padrão carregam sem mudança de comportamento e
+  os testes existentes de motor, tarefas, amostras e templates continuam
+  passando.
 - **SC-009**: Em 100% das consultas de lista de tarefas, detalhe de tarefa e
   trilha feitas por pessoa de laboratório, nenhum dado de outro laboratório
   aparece (identidade, tarefa ou evento).
 - **SC-010**: Nenhum cancelamento ou exclusão de processo altera execução
   concluída, dispensada ou substituída.
-- **SC-008**: Os cinco templates padrão carregam sem mudança de comportamento e
-  os testes existentes de motor, tarefas, amostras e templates continuam
-  passando.
+
 
 ## Assumptions
 
@@ -658,5 +666,9 @@ laboratório e o estado de cada um.
   de tarefas e eventos entre laboratórios entra nesta spec (FR-035 a FR-038)
   porque esta spec cria esses dados.
 - `lead_laboratory` não é gestor do processo nesta spec (FR-035).
+- O isolamento soma-se à regra de visão da atividade (Spec 030). Para o grupo
+  gestor acompanhar uma atividade por laboratório, o template precisa dar
+  visão a `group_manager` nela; os templates das issues #28 a #31 devem fazer
+  isso.
 - O ajuste da unicidade de CAS e de códigos cegos por fase (comentário da
   issue, item 5) fica para issue posterior da Spec 031.

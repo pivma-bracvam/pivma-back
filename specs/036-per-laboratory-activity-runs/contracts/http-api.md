@@ -42,8 +42,11 @@ Dispensa um laboratório na fase (FR-017 a FR-021).
 `waived_activity_keys`: atividades cujas execuções do laboratório foram
 marcadas como dispensadas nesta chamada; vazio se nenhuma mudou.
 
-Ordem das validações: processo mutável → fase existe →
-`sample_definition` concluída → laboratório congelado → motivo → duplicada.
+Ordem das validações: o corpo (`reason` não vazio, `laboratory_id` válido)
+é validado primeiro, com 422. Depois, as regras de domínio: processo mutável
+→ fase existe → `sample_definition` concluída → laboratório congelado →
+duplicada. `waived_activity_keys` segue a ordem das atividades na fase
+(`order_index`).
 O código `sample_definition_not_frozen` segue a convenção minúscula da Spec
 034.
 

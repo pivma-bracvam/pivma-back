@@ -78,7 +78,7 @@ specs 031 a 035. Os gates são os de `AGENTS.md`:
 | Gate | Situação |
 |---|---|
 | Fonte de requisito rastreável | ✅ Issue #58 e os 2 comentários; RF039, RF040, RF044, RF046; Spec 031 FR-013; Spec 035 FR-001 |
-| Conflito de requisito resolvido com o usuário antes de implementar | ✅ 18 decisões em Clarifications (duas sessões, a segunda vinda do `/speckit-analyze`); a mudança do item 3 da issue (dependência por laboratório) foi aprovada pelo usuário |
+| Conflito de requisito resolvido com o usuário antes de implementar | ✅ 17 decisões em Clarifications (duas sessões, a segunda vinda do `/speckit-analyze`); a mudança do item 3 da issue (dependência por laboratório) foi aprovada pelo usuário |
 | Preservar autorização, auditoria, isolamento e cegamento | ✅ Só o próprio laboratório age (R8) e vê as próprias tarefas e eventos (R13); dispensa só visível a gestores. Dispensa e reabertura só para gestores. Execuções terminais imutáveis, inclusive no cancelamento (R14). Códigos cegos só lidos. O isolamento do conteúdo das atividades fica com a #59 (FR-032) |
 | Mudança cirúrgica, sem abstração preventiva | ✅ Sem rota genérica de conclusão (R7); estado da tarefa inalterado (R5); sem filtro novo em `/tasks` (R11) |
 | Testes por `$fastapi-testing-methodology`, granularizados por risco | ⏭ Aplicado no `/speckit-tasks` |

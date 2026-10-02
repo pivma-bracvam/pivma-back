@@ -61,8 +61,9 @@ receipt ─┬─▶ material_return (per_laboratory, custody) ◀── upload
    laboratório na rodada vigente, com `laboratory` e `activity_run_status`
    (`COMPLETED`, `IN_PROGRESS`, `WAIVED`). A trilha do Grupo Gestor traz os
    eventos `LABORATORY_WAIVED`; a do Lab C (dispensado) não traz.
-8. Arquivar o processo. → execuções `WAIVED` e `SUPERSEDED` continuam como
-   estavam; só as `IN_PROGRESS` e `BLOCKED` viram `CANCELLED` (SC-010).
+8. Excluir o processo (`DELETE /processes/{id}`). → execuções `WAIVED` e
+   `SUPERSEDED` continuam como estavam; só as `IN_PROGRESS` e `BLOCKED` viram
+   `CANCELLED` (SC-010). O arquivamento não mexe em execuções.
 
 ## Regressão dos templates padrão
 

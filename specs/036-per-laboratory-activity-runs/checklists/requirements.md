@@ -52,3 +52,9 @@
   FR-004a, FR-013, FR-017a, FR-021, FR-035 a FR-039, SC-009, SC-010), na
   pesquisa (R5, R6, R9 a R11, R13, R14), no data-model, no contrato e no
   `tasks.md`.
+- Segundo `/speckit-analyze` (2026-10-02): 0 críticos, 1 alto (G1, atividade
+  por laboratório sem desbloqueio após reabertura de dependência única), 3
+  médios (I1 visão do grupo gestor no template de teste, I2 premissa errada
+  sobre arquivamento, U1 prazo contado da execução bloqueada) e 7 baixos.
+  Todos tratados: FR-011, FR-025, Assumptions, R6, R10, contrato, quickstart
+  e quatro testes novos no `tasks.md` (173 tarefas).
