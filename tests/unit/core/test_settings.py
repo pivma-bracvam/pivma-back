@@ -104,3 +104,45 @@ def test_settings_accepts_missing_invite_url_template(monkeypatch):
     settings = Settings()
 
     assert settings.INVITE_URL_TEMPLATE is None
+
+
+# --- Spec 039: PASSWORD_RESET_URL_TEMPLATE ---
+
+
+@pytest.mark.parametrize(
+    'template',
+    [
+        'https://app.example.com/redefinir-senha',
+        'https://app.example.com/{token}/redefinir-senha/{token}',
+    ],
+)
+def test_settings_rejects_password_reset_url_template_without_single_token(
+    monkeypatch, template
+):
+    monkeypatch.setenv('PASSWORD_RESET_URL_TEMPLATE', template)
+
+    with pytest.raises(ValidationError, match='PASSWORD_RESET_URL_TEMPLATE'):
+        Settings()
+
+
+def test_settings_accepts_password_reset_url_template_with_one_token(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        'PASSWORD_RESET_URL_TEMPLATE',
+        'https://app.example.com/redefinir-senha/{token}',
+    )
+
+    settings = Settings()
+
+    assert settings.PASSWORD_RESET_URL_TEMPLATE == (
+        'https://app.example.com/redefinir-senha/{token}'
+    )
+
+
+def test_settings_accepts_missing_password_reset_url_template(monkeypatch):
+    monkeypatch.delenv('PASSWORD_RESET_URL_TEMPLATE', raising=False)
+
+    settings = Settings(_env_file=None)
+
+    assert settings.PASSWORD_RESET_URL_TEMPLATE is None

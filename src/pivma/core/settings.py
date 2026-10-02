@@ -1,7 +1,7 @@
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator
+from pydantic import Field, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 MIN_JWT_SECRET_BYTES = 32
@@ -70,13 +70,15 @@ class Settings(BaseSettings):
     # Endereço completo da página de aceite do convite no frontend, com o
     # marcador `{token}` (Spec 036, FR-018).
     INVITE_URL_TEMPLATE: str | None = Field(default=None)
+    # Página de redefinição de senha no frontend, com `{token}` (Spec 039).
+    PASSWORD_RESET_URL_TEMPLATE: str | None = Field(default=None)
 
-    @field_validator('INVITE_URL_TEMPLATE')
+    @field_validator('INVITE_URL_TEMPLATE', 'PASSWORD_RESET_URL_TEMPLATE')
     @classmethod
-    def validate_invite_url_template(cls, value):
+    def validate_url_template(cls, value, info: ValidationInfo):
         if value is not None and value.count('{token}') != 1:
             raise ValueError(
-                'INVITE_URL_TEMPLATE must contain {token} exactly once'
+                f'{info.field_name} must contain {{token}} exactly once'
             )
         return value
 

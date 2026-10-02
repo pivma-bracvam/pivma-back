@@ -20,6 +20,11 @@ from pivma.core.database.models import (
     User,
 )
 from pivma.core.errors import api_error
+from pivma.core.password_reset_service import (
+    NEUTRAL_MESSAGE,
+    request_password_reset,
+    reset_password,
+)
 from pivma.core.security import (
     ACCESS_TOKEN_TTL,
     DUMMY_PASSWORD_HASH,
@@ -37,9 +42,12 @@ from pivma.schemas import (
     AccessScope,
     CurrentUserAccess,
     CurrentUserResponse,
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
     LoginCredentials,
     LoginResponse,
     ProfileRef,
+    ResetPasswordRequest,
     SelfUserUpdate,
     UserIdentity,
     UserPublic,
@@ -264,3 +272,50 @@ async def logout(
         secure=True,
         samesite='strict',
     )
+
+
+@router.post(
+    '/forgot-password',
+    status_code=HTTPStatus.OK,
+    response_model=ForgotPasswordResponse,
+    operation_id='forgotPassword',
+)
+async def forgot_password(
+    payload: ForgotPasswordRequest,
+    session: Session,
+    settings: SettingsDependency,
+) -> ForgotPasswordResponse:
+    await request_password_reset(session, settings, payload.email)
+    await session.commit()
+    return ForgotPasswordResponse(message=NEUTRAL_MESSAGE)
+
+
+@router.post(
+    '/reset-password',
+    status_code=HTTPStatus.NO_CONTENT,
+    operation_id='resetPassword',
+    responses={
+        HTTPStatus.BAD_REQUEST: {
+            'description': (
+                'Token inválido, expirado, usado, substituído ou de conta '
+                'inativa.'
+            ),
+        },
+    },
+)
+async def reset_password_with_token(
+    payload: ResetPasswordRequest,
+    session: Session,
+) -> None:
+    # O hash vem antes da validação do token: a transação com o bloqueio
+    # fica curta e o tempo não distingue token válido de recusado.
+    new_password_hash = await run_in_threadpool(
+        hash_password, payload.new_password
+    )
+    if not await reset_password(session, payload.token, new_password_hash):
+        raise api_error(
+            HTTPStatus.BAD_REQUEST,
+            'invalid_reset_token',
+            'Link de redefinição inválido ou expirado.',
+        )
+    await session.commit()

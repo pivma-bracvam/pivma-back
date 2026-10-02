@@ -1,7 +1,14 @@
 import pytest
 from pydantic import ValidationError
 
-from pivma.schemas import SelfUserUpdate, UserPublic, UserSchema, UserUpdate
+from pivma.schemas import (
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    SelfUserUpdate,
+    UserPublic,
+    UserSchema,
+    UserUpdate,
+)
 
 MAX_FULL_NAME_LENGTH = 255
 
@@ -246,3 +253,66 @@ def test_self_update_rejects_too_long_current_password():
     assert [error['loc'] for error in exc_info.value.errors()] == [
         ('current_password',)
     ]
+
+
+# --- Spec 039: recuperação de senha ---
+
+
+def test_forgot_password_request_trims_email_and_preserves_case():
+    payload = ForgotPasswordRequest(email='  Maria@Exemplo.org  ')
+
+    assert payload.email == 'Maria@Exemplo.org'
+
+
+def test_forgot_password_request_rejects_invalid_email():
+    with pytest.raises(ValidationError) as exc_info:
+        ForgotPasswordRequest(email='nao-e-email')
+
+    assert [error['loc'] for error in exc_info.value.errors()] == [('email',)]
+
+
+def test_forgot_password_request_rejects_extra_field():
+    with pytest.raises(ValidationError) as exc_info:
+        ForgotPasswordRequest(email='a@b.org', username='x')
+
+    assert [error['loc'] for error in exc_info.value.errors()] == [
+        ('username',)
+    ]
+
+
+def test_reset_password_request_accepts_token_and_valid_password():
+    payload = ResetPasswordRequest(token='t', new_password='NovaSenha-2026')
+
+    assert payload.token == 't'
+    assert payload.new_password == 'NovaSenha-2026'
+
+
+@pytest.mark.parametrize(
+    'new_password',
+    ['a' * 7, 'a' * 129, 'Nova Senha-2026'],
+    ids=['too_short', 'too_long', 'with_space'],
+)
+def test_reset_password_request_rejects_invalid_new_password(new_password):
+    with pytest.raises(ValidationError) as exc_info:
+        ResetPasswordRequest(token='t', new_password=new_password)
+
+    assert [error['loc'] for error in exc_info.value.errors()] == [
+        ('new_password',)
+    ]
+
+
+@pytest.mark.parametrize('token', ['', 'a' * 129], ids=['empty', 'too_long'])
+def test_reset_password_request_rejects_invalid_token(token):
+    with pytest.raises(ValidationError) as exc_info:
+        ResetPasswordRequest(token=token, new_password='NovaSenha-2026')
+
+    assert [error['loc'] for error in exc_info.value.errors()] == [('token',)]
+
+
+def test_reset_password_request_rejects_extra_field():
+    with pytest.raises(ValidationError) as exc_info:
+        ResetPasswordRequest(
+            token='t', new_password='NovaSenha-2026', email='a@b.org'
+        )
+
+    assert [error['loc'] for error in exc_info.value.errors()] == [('email',)]

@@ -1140,6 +1140,38 @@ class RoleAssignmentInvite(AuditMixin):
 
 
 @table_registry.mapped_as_dataclass
+class PasswordResetToken(AuditMixin):
+    """Token de redefinição de senha (Spec 039).
+
+    Só o hash SHA-256 é persistido. O estado é derivado: válido enquanto
+    `used_at`, `deleted_at` (substituído por um pedido mais recente) forem
+    nulos e `expires_at` estiver no futuro.
+    """
+
+    __tablename__ = 'password_reset_tokens'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    user_id: Mapped[UUID] = mapped_column(ForeignKey('users.id'))
+    token_hash: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column()
+    used_at: Mapped[datetime | None] = mapped_column(
+        nullable=True, default=None
+    )
+
+    __table_args__ = (
+        Index(
+            'uq_password_reset_tokens_token_hash', 'token_hash', unique=True
+        ),
+        Index('ix_password_reset_tokens_user_id', 'user_id'),
+    )
+
+
+@table_registry.mapped_as_dataclass
 class AuditEvent(AuditMixin):
     __tablename__ = 'audit_events'
 
