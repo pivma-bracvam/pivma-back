@@ -198,7 +198,9 @@ async def _role_assignment_activity_is_completed(
     convite existir (papel sem titularidade única, FR-019, aceita convite
     "tardio" mesmo já preenchido). `status == 'pending'` sozinho não basta.
     """
-    process = await session.get(ProcessInstance, invite.process_instance_id)
+    process = await session.get(
+        ProcessInstance, invite.process_instance_id
+    )
     if process is None:
         return False
     act = await _find_role_assignment_activity(
