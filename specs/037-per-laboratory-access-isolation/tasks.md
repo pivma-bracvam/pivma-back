@@ -74,8 +74,8 @@ um comportamento existente que a spec torna regra (marcado "regra existente").
 
 - [X] T021 Atualizar a seção "Arquitetura de Permissões e Acesso" do README.md com as regras de contracts/access-matrix.md (skill `stop-slop`)
 - [X] T022 `ruff check` e `ruff format --check` só nos arquivos alterados pela branch
-- [ ] T023 Rodar a suíte completa
-- [ ] T024 Atualizar checklists/requirements.md com as notas de validação e marcar as tarefas concluídas
+- [X] T023 Rodar a suíte completa (1539 passed, 1 skipped). A validação exigiu dois ajustes fora das tarefas: a jornada tests/integration/journeys/etapa_3_execucao_validacao/test_per_laboratory_journey.py passa a esperar `NotFoundError` (FR-001), e a migração de merge migrations/versions/5af69c71be3c_merge_notifications_and_lab_runs.py une as duas heads que a develop herdou dos PRs #67 e #68
+- [X] T024 Atualizar checklists/requirements.md com as notas de validação e marcar as tarefas concluídas
 
 ## Dependencies
 
