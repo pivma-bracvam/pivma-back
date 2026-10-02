@@ -750,6 +750,10 @@ class ActivityCompletionResponse(BaseModel):
 
 
 TaskStatus = Literal['READY', 'COMPLETED', 'CANCELLED']
+# Execução que tem tarefa; a bloqueada não tem (Spec 036, R11).
+ActivityRunStatus = Literal[
+    'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'WAIVED', 'SUPERSEDED'
+]
 
 
 class TaskSummary(BaseModel):
@@ -769,6 +773,15 @@ class TaskSummary(BaseModel):
             'O usuário pode agir nesta tarefa: tem concessão de editar a '
             'atividade e não tem conflito de interesse vigente no processo'
         )
+    )
+    laboratory: LaboratoryRef | None = Field(
+        default=None,
+        description=(
+            'Laboratório da execução; nulo em atividade de execução única'
+        ),
+    )
+    activity_run_status: ActivityRunStatus = Field(
+        description='Status da execução da tarefa'
     )
     model_config = ConfigDict(from_attributes=True)
 
@@ -823,6 +836,15 @@ class TaskDetail(BaseModel):
     is_blocked: bool
     blocked_reason: str | None = None
     due_date: datetime | None = None
+    laboratory: LaboratoryRef | None = Field(
+        default=None,
+        description=(
+            'Laboratório da execução; nulo em atividade de execução única'
+        ),
+    )
+    activity_run_status: ActivityRunStatus = Field(
+        description='Status da execução da tarefa'
+    )
 
 
 class TimelineEvent(BaseModel):
@@ -1604,3 +1626,52 @@ class ReferenceListResponse(ListPage[ReferencePublic, NoFilters]):
 
 class SampleLabelListResponse(ListPage[SampleLabel, NoFilters]):
     """Etiquetas dos frascos, só para o Grupo de Seleção de Amostras."""
+
+
+# ==========================================
+# EXECUÇÃO POR LABORATÓRIO (Spec 036)
+# ==========================================
+
+Reason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
+class LaboratoryWaiverCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    laboratory_id: UUID = Field(
+        description='Laboratório congelado a dispensar'
+    )
+    reason: Reason = Field(description='Motivo da dispensa')
+
+
+class LaboratoryWaiverPublic(BaseModel):
+    id: UUID
+    process_id: UUID
+    phase: PhaseRef
+    laboratory: LaboratoryRef
+    reason: str
+    waived_by: UserRef
+    created_at: datetime
+    waived_activity_keys: list[str] = Field(
+        description=(
+            'Atividades cujas execuções do laboratório foram dispensadas '
+            'nesta chamada, na ordem da fase'
+        )
+    )
+
+
+class LaboratoryRunReopenRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    reason: Reason = Field(description='Motivo da reabertura')
+
+
+class LaboratoryRunReopened(BaseModel):
+    activity_key: str
+    laboratory: LaboratoryRef
+    previous_run_number: int = Field(description='Execução substituída')
+    run_number: int = Field(description='Execução nova do laboratório')
+    activity_status: str = Field(description='Status da atividade agora')
+    reblocked_activity_keys: list[str] = Field(
+        description='Atividades que voltaram a ficar bloqueadas, em cadeia'
+    )

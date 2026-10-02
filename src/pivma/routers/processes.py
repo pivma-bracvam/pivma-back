@@ -11,7 +11,10 @@ from sqlalchemy.orm import selectinload
 from pivma.core.authorization import (
     can_manage_participants,
     can_manage_process_templates,
+    effective_laboratory_ids,
+    has_platform_wide_access,
     has_process_review_access,
+    is_effective_group_manager,
     user_cargos,
 )
 from pivma.core.database.models import (
@@ -138,6 +141,64 @@ async def _events_of_visible_activities(
     return [e for e in events if e.activity_run_id not in hidden]
 
 
+# Spec 036 (R13): eventos que expõem um laboratório aos demais.
+LABORATORY_WAIVED_EVENT = 'LABORATORY_WAIVED'
+LABORATORY_RUN_EVENT_TYPES = frozenset({
+    'LABORATORY_RUN_COMPLETED',
+    'LABORATORY_RUN_REOPENED',
+})
+
+
+async def _events_of_visible_laboratories(
+    session: Session,
+    user_id,
+    process_id,
+    events: list[AuditEvent],
+) -> list[AuditEvent]:
+    """Isola os eventos de execução de laboratório (Spec 036, R13).
+
+    Dispensa: só gestor do processo (FR-038). Evento de execução de
+    laboratório: gestor do processo ou o próprio laboratório (FR-037).
+    Demais eventos, inclusive os de designação, não mudam.
+    """
+    if await has_platform_wide_access(
+        session, user_id
+    ) or await is_effective_group_manager(session, user_id, process_id):
+        return events
+    run_ids = {e.activity_run_id for e in events if e.activity_run_id}
+    run_labs = (
+        dict(
+            (
+                await session.execute(
+                    select(ActivityRun.id, ActivityRun.laboratory_id).where(
+                        ActivityRun.id.in_(run_ids),
+                        ActivityRun.laboratory_id.is_not(None),
+                    )
+                )
+            ).all()
+        )
+        if run_ids
+        else {}
+    )
+    own_labs = {
+        str(lab_id)
+        for lab_id in await effective_laboratory_ids(
+            session, user_id, process_id
+        )
+    }
+    visible = []
+    for event in events:
+        if event.event_type == LABORATORY_WAIVED_EVENT:
+            continue
+        laboratory_id = run_labs.get(event.activity_run_id)
+        if event.event_type in LABORATORY_RUN_EVENT_TYPES:
+            laboratory_id = (event.context_data or {}).get('laboratory_id')
+        if laboratory_id is not None and str(laboratory_id) not in own_labs:
+            continue
+        visible.append(event)
+    return visible
+
+
 async def _visible_events(
     session: Session,
     current_user: UserModel,
@@ -145,6 +206,9 @@ async def _visible_events(
     events: list[AuditEvent],
 ) -> list[AuditEvent]:
     events = await _events_of_visible_activities(
+        session, current_user.id, process_id, events
+    )
+    events = await _events_of_visible_laboratories(
         session, current_user.id, process_id, events
     )
     manages_participants = await can_manage_participants(

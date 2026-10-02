@@ -160,6 +160,10 @@ async def get_activity_form(
         )
     except NotFoundError as e:
         raise domain_error(HTTPStatus.NOT_FOUND, e) from e
+    except ConflictError as e:
+        raise api_error(
+            HTTPStatus.CONFLICT, 'invalid_transition', str(e)
+        ) from e
 
     field_map = {f.id: f for f in fields}
     values_dict: dict[str, Any] = {}
@@ -322,6 +326,10 @@ async def _load_file_field(  # noqa: PLR0913
         raise domain_error(HTTPStatus.NOT_FOUND, e) from e
     except AuthorizationError as e:
         raise domain_error(HTTPStatus.FORBIDDEN, e) from e
+    except ConflictError as e:
+        raise api_error(
+            HTTPStatus.CONFLICT, 'invalid_transition', str(e)
+        ) from e
 
     field = next((f for f in fields if f.field_key == field_key), None)
     if field is None:

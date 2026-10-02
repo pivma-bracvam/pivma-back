@@ -404,6 +404,8 @@ async def test_pending_triage_still_decidable_after_upgrade(
             profile_id=profile_id,
         )
     await run_migration(REVISION)
+    # O motor usa os modelos atuais: completa a cadeia até o esquema deles.
+    await run_migration('head')
 
     async with AsyncSession(
         migration_database, expire_on_commit=False

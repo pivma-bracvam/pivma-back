@@ -9,6 +9,7 @@ from pivma.core.database.models import (
     AccessProfile,
     AccessProfilePermission,
     ActivityInstance,
+    ActivityRun,
     Assignment,
     ConflictInterestDeclaration,
     Institution,
@@ -481,6 +482,70 @@ def process_cargos_scope(user_id: UUID):
             Assignment.deleted_at.is_(None),
             User.deleted_at.is_(None),
             effective_assignment_clause(),
+        )
+    )
+
+
+PARTICIPATING_LABORATORY_ROLE_KEY = 'participating_laboratory'
+
+
+def laboratory_member_clause(user_id: UUID) -> ColumnElement[bool]:
+    """O usuário é, efetivamente, do laboratório da execução (Spec 036, R8).
+
+    Correlaciona com `ActivityInstance` e `ActivityRun` da consulta externa.
+    """
+    return exists(
+        process_cargos_scope(user_id).where(
+            Assignment.process_instance_id
+            == ActivityInstance.process_instance_id,
+            Assignment.role_key == PARTICIPATING_LABORATORY_ROLE_KEY,
+            Assignment.laboratory_id == ActivityRun.laboratory_id,
+        )
+    )
+
+
+async def laboratory_run_visibility_clause(
+    session: AsyncSession, user_id: UUID
+) -> ColumnElement[bool] | None:
+    """Quem vê a tarefa de uma execução de laboratório (Spec 036, R13).
+
+    `None` para Admin/BraCVAM. Os demais veem tarefas de execução única e,
+    de execução de laboratório, só as do próprio laboratório, salvo o
+    `group_manager` efetivo do processo, que vê todas (FR-035, FR-036).
+    """
+    if await has_platform_wide_access(session, user_id):
+        return None
+    manager = exists(
+        process_cargos_scope(user_id).where(
+            Assignment.process_instance_id
+            == ActivityInstance.process_instance_id,
+            Assignment.role_key == GROUP_MANAGER_ROLE_KEY,
+        )
+    )
+    return or_(
+        ActivityRun.laboratory_id.is_(None),
+        manager,
+        laboratory_member_clause(user_id),
+    )
+
+
+async def effective_laboratory_ids(
+    session: AsyncSession, user_id: UUID, process_id: UUID
+) -> set[UUID]:
+    """Laboratórios pelos quais o usuário é participante efetivo."""
+    return set(
+        await session.scalars(
+            select(Assignment.laboratory_id)
+            .join(User, User.id == Assignment.user_id)
+            .where(
+                Assignment.process_instance_id == process_id,
+                Assignment.user_id == user_id,
+                Assignment.role_key == PARTICIPATING_LABORATORY_ROLE_KEY,
+                Assignment.revoked_at.is_(None),
+                Assignment.deleted_at.is_(None),
+                User.deleted_at.is_(None),
+                effective_assignment_clause(),
+            )
         )
     )
 

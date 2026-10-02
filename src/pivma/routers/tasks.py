@@ -11,6 +11,8 @@ from sqlalchemy.orm import aliased, selectinload
 from pivma.core.authorization import (
     current_conflict_clause,
     global_cargos,
+    laboratory_member_clause,
+    laboratory_run_visibility_clause,
     process_cargos_scope,
 )
 from pivma.core.database.models import (
@@ -29,8 +31,10 @@ from pivma.core.process_engine import (
     process_visibility_clause,
     require_activity_access,
 )
+from pivma.core.references import laboratory_refs
 from pivma.dependencies import CurrentUser, Session
 from pivma.schemas import (
+    LaboratoryRef,
     PhaseRef,
     ProcessRef,
     SortApplied,
@@ -50,12 +54,18 @@ _SORT_COLUMNS = {'due_date': Task.due_date, 'created_at': Task.created_at}
 
 
 def _current_run_clause():
-    """Só a execução de maior número de cada atividade (Spec 032, R3)."""
+    """Só a execução de maior número de cada atividade (Spec 032, R3).
+
+    Em atividade por laboratório, a de cada laboratório (Spec 036, R11).
+    """
     newer = aliased(ActivityRun)
     return ActivityRun.run_number == (
         select(func.max(newer.run_number))
         .where(
             newer.activity_instance_id == ActivityRun.activity_instance_id,
+            newer.laboratory_id.is_not_distinct_from(
+                ActivityRun.laboratory_id
+            ),
             newer.deleted_at.is_(None),
         )
         .scalar_subquery()
@@ -68,13 +78,22 @@ async def _can_act_clause(session, user_id):
     Mesma regra de `require_activity_access(..., 'edit')`: algum cargo do
     usuário (atribuição ativa no processo ou cargo global) está em
     `edit_roles`, e ele não tem conflito de interesse vigente no processo.
+    Na execução de um laboratório, a designação tem de ser por esse
+    laboratório (Spec 036, R8).
     """
-    by_assignment = exists(
+    by_role = exists(
         process_cargos_scope(user_id).where(
             Assignment.process_instance_id
             == ActivityInstance.process_instance_id,
             Assignment.role_key == any_(ActivityInstance.edit_roles),
         )
+    )
+    by_assignment = or_(
+        and_(ActivityRun.laboratory_id.is_(None), by_role),
+        and_(
+            ActivityRun.laboratory_id.is_not(None),
+            laboratory_member_clause(user_id),
+        ),
     )
     cargos = await global_cargos(session, user_id)
     granted = (
@@ -183,6 +202,13 @@ async def list_tasks(  # noqa: PLR0913, PLR0917
     activity_visibility = await activity_view_clause(session, current_user.id)
     if activity_visibility is not None:
         filtered = filtered.where(activity_visibility)
+    # Spec 036 (R13): tarefa de execução de laboratório só para o próprio
+    # laboratório e os gestores do processo.
+    laboratory_visibility = await laboratory_run_visibility_clause(
+        session, current_user.id
+    )
+    if laboratory_visibility is not None:
+        filtered = filtered.where(laboratory_visibility)
     if status:
         filtered = filtered.where(Task.status.in_(status))
     if activity_key:
@@ -233,8 +259,18 @@ async def list_tasks(  # noqa: PLR0913, PLR0917
         )
     ).all()
 
+    laboratories = await laboratory_refs(
+        session, (task.activity_run.laboratory_id for task, _ in rows)
+    )
     return TaskListResponse(
-        data=[_task_summary(task, can_act=flag) for task, flag in rows],
+        data=[
+            _task_summary(
+                task,
+                can_act=flag,
+                laboratory=laboratories.get(task.activity_run.laboratory_id),
+            )
+            for task, flag in rows
+        ],
         pagination=build_pagination(page, per_page, total),
         filters_applied=TaskFiltersApplied(
             status=status,
@@ -260,7 +296,9 @@ async def list_tasks(  # noqa: PLR0913, PLR0917
     )
 
 
-def _task_summary(task: Task, *, can_act: bool) -> TaskSummary:
+def _task_summary(
+    task: Task, *, can_act: bool, laboratory: LaboratoryRef | None = None
+) -> TaskSummary:
     run = task.activity_run
     activity = run.activity_instance
     process = activity.process_instance
@@ -279,6 +317,8 @@ def _task_summary(task: Task, *, can_act: bool) -> TaskSummary:
         status=task.status,
         due_date=task.due_date,
         can_act=can_act,
+        laboratory=laboratory,
+        activity_run_status=run.status,
     )
 
 
@@ -307,6 +347,11 @@ async def get_task_detail(
     visibility = await process_visibility_clause(session, current_user.id)
     if visibility is not None:
         stmt = stmt.where(visibility)
+    laboratory_visibility = await laboratory_run_visibility_clause(
+        session, current_user.id
+    )
+    if laboratory_visibility is not None:
+        stmt = stmt.where(laboratory_visibility)
     t = (await session.execute(stmt)).scalar_one_or_none()
     if not t:
         raise http_error(HTTPStatus.NOT_FOUND, 'Tarefa não encontrada.')
@@ -328,4 +373,8 @@ async def get_task_detail(
         is_blocked=is_blocked,
         blocked_reason=act.blocked_reason,
         due_date=t.due_date,
+        laboratory=(
+            await laboratory_refs(session, [t.activity_run.laboratory_id])
+        ).get(t.activity_run.laboratory_id),
+        activity_run_status=t.activity_run.status,
     )

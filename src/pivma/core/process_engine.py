@@ -12,6 +12,7 @@ from sqlalchemy.sql import ColumnElement
 from pivma.core.authorization import (
     ACTIVITY_CARGOS,
     GLOBAL_ACTIVITY_CARGOS,
+    PARTICIPATING_LABORATORY_ROLE_KEY,
     active_participant_process_scope,
     global_cargos,
     has_current_conflict,
@@ -28,6 +29,7 @@ from pivma.core.database.models import (
     Artifact,
     Assignment,
     AuditEvent,
+    BlindSampleCode,
     Decision,
     EvaluationAssignment,
     EvaluationRun,
@@ -36,6 +38,8 @@ from pivma.core.database.models import (
     FormInstance,
     FormTemplate,
     FormValue,
+    Laboratory,
+    LaboratoryWaiver,
     Phase,
     ProcessInstance,
     ProcessTemplate,
@@ -99,6 +103,18 @@ IMMUTABLE_PROCESS_STATUSES = frozenset({
 
 # Alvos de avaliação por IA que se prendem a `field_keys` do formulário.
 FIELD_TARGET_TYPES = frozenset({'field', 'field_set', 'document'})
+# Atividade com uma execução por laboratório congelado (Spec 036).
+PER_LABORATORY = 'per_laboratory'
+EXECUTION_SCOPES = frozenset({'process', PER_LABORATORY})
+SAMPLE_DEFINITION_ACTIVITY_TYPE = 'sample_definition'
+# Execuções que nenhuma transição altera, nem o cancelamento do processo
+# (Spec 036, R14): o histórico de dispensa e substituição é preservado.
+IMMUTABLE_RUN_STATUSES = frozenset({
+    'COMPLETED',
+    STATUS_CANCELLED,
+    'WAIVED',
+    'SUPERSEDED',
+})
 
 # Título de tarefa da triagem preservado do antigo caminho bespoke
 # (`_unblock_triage_activity`, removido na Issue #22) — o motor genérico
@@ -387,7 +403,7 @@ async def _cancel_pending_children(
         )
     )
     for run in runs:
-        if run.status not in {'COMPLETED', STATUS_CANCELLED}:
+        if run.status not in IMMUTABLE_RUN_STATUSES:
             run.status = STATUS_CANCELLED
             run.completed_at = run.completed_at or utc_now()
             run.set_update_audit(user_id)
@@ -532,6 +548,64 @@ def resolve_activity_access(
     return sorted(view), sorted(edit)
 
 
+def validate_execution_scopes(data: dict[str, Any]) -> None:
+    """Recusa declaração de execução por laboratório que travaria (R2).
+
+    Modo desconhecido; atividade por laboratório sem caminho de
+    dependências até a definição das amostras, ou que o laboratório
+    participante não edita; custódia fora de atividade por laboratório
+    (FR-003).
+    """
+    template_key = data.get('process_template', {}).get('key')
+    activities = {
+        a['key']: a
+        for phase in data.get('phases', [])
+        for a in phase.get('activities', [])
+    }
+
+    def fail(key: str, message: str) -> None:
+        raise ValidationError(
+            f'Template {template_key!r}, atividade {key!r}: {message}'
+        )
+
+    def reaches_sample_definition(key: str | None, seen: set[str]) -> bool:
+        a_data = activities.get(key)
+        if a_data is None or key in seen:
+            return False
+        if a_data.get('activity_type') == SAMPLE_DEFINITION_ACTIVITY_TYPE:
+            return True
+        seen.add(key)
+        return any(
+            reaches_sample_definition(dep.get('required_activity_key'), seen)
+            for dep in a_data.get('dependencies') or []
+        )
+
+    for key, a_data in activities.items():
+        scope = a_data.get('execution_scope', 'process')
+        if scope not in EXECUTION_SCOPES:
+            fail(key, f'modo de execução desconhecido {scope!r}.')
+        if scope != PER_LABORATORY:
+            if a_data.get('custody'):
+                fail(key, 'custódia só vale em atividade por laboratório.')
+            continue
+        if not any(
+            reaches_sample_definition(dep.get('required_activity_key'), set())
+            for dep in a_data.get('dependencies') or []
+        ):
+            fail(
+                key,
+                'atividade por laboratório precisa depender da definição '
+                'das amostras.',
+            )
+        _, edit = resolve_activity_access(a_data)
+        if PARTICIPATING_LABORATORY_ROLE_KEY not in edit:
+            fail(
+                key,
+                'atividade por laboratório precisa ser editável por '
+                f'{PARTICIPATING_LABORATORY_ROLE_KEY!r}.',
+            )
+
+
 async def generate_process_code(session: AsyncSession) -> str:
     year = datetime.now(UTC).year
     return f'VAL-{year}-{secrets.token_hex(8)}'
@@ -570,6 +644,8 @@ async def _create_phases_and_activities(
                 status='BLOCKED',
                 blocked_reason=None,
                 activity_type=a_data.get('activity_type', 'form'),
+                execution_scope=a_data.get('execution_scope', 'process'),
+                is_custody=bool(a_data.get('custody', False)),
             )
             act.view_roles, act.edit_roles = resolve_activity_access(a_data)
             act.set_creation_audit(creator_id)
@@ -811,6 +887,12 @@ async def get_current_form_instance(
         raise NotFoundError(f'Atividade {activity_key!r} não encontrada.')
     if user_id is not None:
         await require_activity_access(session, user_id, act, access)
+    if act.execution_scope == PER_LABORATORY:
+        # Rota única de formulário escolheria a execução de um laboratório
+        # qualquer; as issues da Etapa 3 estendem quando precisarem (R7).
+        raise ConflictError(
+            f'Atividade {activity_key!r} é executada por laboratório.'
+        )
 
     runs = sorted(
         [r for r in act.runs if r.deleted_at is None],
@@ -886,6 +968,12 @@ async def get_current_activity_run(
         raise NotFoundError(f'Atividade {activity_key!r} não encontrada.')
     if user_id is not None:
         await require_activity_access(session, user_id, act, access)
+    if act.execution_scope == PER_LABORATORY:
+        # Rota única de formulário escolheria a execução de um laboratório
+        # qualquer; as issues da Etapa 3 estendem quando precisarem (R7).
+        raise ConflictError(
+            f'Atividade {activity_key!r} é executada por laboratório.'
+        )
 
     runs = sorted(
         [r for r in act.runs if r.deleted_at is None],
@@ -1868,6 +1956,19 @@ async def _advance_dependent_activities(
         dependent_act = await session.get(
             ActivityInstance, dependency.dependent_activity_id
         )
+        if (
+            dependent_act is not None
+            and dependent_act.execution_scope == PER_LABORATORY
+        ):
+            await _advance_laboratory_activity(
+                session,
+                process,
+                dependent_act,
+                activities_by_key.get(dependent_act.key, {}),
+                user_id,
+                unblocked_by=completed_act.key,
+            )
+            continue
         if dependent_act is None or dependent_act.status != 'BLOCKED':
             continue
 
@@ -1938,6 +2039,843 @@ async def _complete_activity_run(
         t.status = 'COMPLETED'
         t.completed_at = utc_now()
         t.set_update_audit(user_id)
+
+
+# ---------------------------------------------------------------------------
+# Execução por laboratório (Spec 036)
+# ---------------------------------------------------------------------------
+
+# Execução de laboratório que conta como resolvida para a conclusão da
+# atividade e para as dependências por laboratório (FR-011, FR-013).
+RESOLVED_RUN_STATUSES = frozenset({'COMPLETED', 'WAIVED'})
+
+
+async def _frozen_laboratory_ids(
+    session: AsyncSession, process_id: UUID
+) -> list[UUID]:
+    """Laboratórios congelados: os dos códigos cegos ativos (R3).
+
+    Inclui laboratório inativado depois do congelamento: a execução dele
+    continua (Edge Cases).
+    """
+    return list(
+        await session.scalars(
+            select(Laboratory.id)
+            .where(
+                Laboratory.id.in_(
+                    select(BlindSampleCode.laboratory_id).where(
+                        BlindSampleCode.process_instance_id == process_id,
+                        BlindSampleCode.deleted_at.is_(None),
+                    )
+                )
+            )
+            .order_by(Laboratory.name, Laboratory.id)
+            .execution_options(skip_soft_delete_filter=True)
+        )
+    )
+
+
+async def _lock_process(
+    session: AsyncSession, process_id: UUID
+) -> ProcessInstance:
+    """Trava o processo: serializa as transições por laboratório (R12)."""
+    process = await session.scalar(
+        select(ProcessInstance)
+        .where(ProcessInstance.id == process_id)
+        .with_for_update()
+        .execution_options(
+            skip_soft_delete_filter=True, populate_existing=True
+        )
+    )
+    if process is None:
+        raise NotFoundError('Processo não encontrado.')
+    return process
+
+
+async def _current_laboratory_run(
+    session: AsyncSession, act_id: UUID, laboratory_id: UUID
+) -> ActivityRun | None:
+    """Execução vigente do laboratório: a de maior número (R4)."""
+    return await session.scalar(
+        select(ActivityRun)
+        .where(
+            ActivityRun.activity_instance_id == act_id,
+            ActivityRun.laboratory_id == laboratory_id,
+            ActivityRun.deleted_at.is_(None),
+        )
+        .order_by(ActivityRun.run_number.desc())
+        .limit(1)
+        .execution_options(populate_existing=True)
+    )
+
+
+async def _activity_dependencies(
+    session: AsyncSession, act: ActivityInstance
+) -> list[tuple[ActivityDependency, ActivityInstance]]:
+    deps = (
+        await session.scalars(
+            select(ActivityDependency).where(
+                ActivityDependency.dependent_activity_id == act.id,
+                ActivityDependency.deleted_at.is_(None),
+                ActivityDependency.required_activity_id.is_not(None),
+            )
+        )
+    ).all()
+    pairs = []
+    for dep in deps:
+        required = await session.scalar(
+            select(ActivityInstance)
+            .where(ActivityInstance.id == dep.required_activity_id)
+            .execution_options(populate_existing=True)
+        )
+        pairs.append((dep, required))
+    return pairs
+
+
+async def _laboratory_activity_activatable(
+    session: AsyncSession, act: ActivityInstance
+) -> bool:
+    """FR-004a: dependências únicas satisfeitas e por laboratório ativadas."""
+    for dep, required in await _activity_dependencies(session, act):
+        if required.execution_scope == PER_LABORATORY:
+            if required.status == 'BLOCKED':
+                return False
+        elif required.status != dep.required_status:
+            return False
+    return True
+
+
+async def _laboratory_dependencies_resolved(
+    session: AsyncSession, act: ActivityInstance, laboratory_id: UUID
+) -> bool:
+    """Dependências resolvidas para o laboratório (R6, FR-011)."""
+    for dep, required in await _activity_dependencies(session, act):
+        if required.execution_scope == PER_LABORATORY:
+            run = await _current_laboratory_run(
+                session, required.id, laboratory_id
+            )
+            if run is None or run.status not in RESOLVED_RUN_STATUSES:
+                return False
+        elif required.status != dep.required_status:
+            return False
+    return True
+
+
+async def _start_laboratory_run(
+    session: AsyncSession,
+    act: ActivityInstance,
+    a_data: dict[str, Any],
+    run: ActivityRun,
+    user_id: UUID,
+) -> None:
+    """Põe a execução em andamento, com tarefa e formulário (FR-004).
+
+    O início conta do momento em que o laboratório pode agir, não da
+    criação da execução bloqueada: o prazo da tarefa deriva dele (FR-011).
+    """
+    run.status = 'IN_PROGRESS'
+    run.started_at = datetime.utcnow()
+    run.set_update_audit(user_id)
+    task = Task(
+        activity_run_id=run.id,
+        title=act.name,
+        assigned_role=_resolve_activity_cargo(a_data),
+        status='READY',
+        due_date=_compute_activity_due_date(
+            run_started_at=run.started_at,
+            sla_hours=a_data.get('sla_hours'),
+        ),
+    )
+    task.set_creation_audit(user_id)
+    session.add(task)
+    f_key = a_data.get('form_template_key')
+    if f_key:
+        f_template = await session.scalar(
+            select(FormTemplate).where(
+                FormTemplate.key == f_key, FormTemplate.deleted_at.is_(None)
+            )
+        )
+        if f_template:
+            form_inst = FormInstance(
+                form_template_id=f_template.id,
+                activity_run_id=run.id,
+                is_submitted=False,
+            )
+            form_inst.set_creation_audit(user_id)
+            session.add(form_inst)
+
+
+async def _new_laboratory_run(
+    session: AsyncSession,
+    act: ActivityInstance,
+    laboratory_id: UUID,
+    user_id: UUID,
+    reason: str,
+) -> ActivityRun:
+    """Execução nova e bloqueada, com o número seguinte do laboratório."""
+    previous = await _current_laboratory_run(session, act.id, laboratory_id)
+    run = ActivityRun(
+        activity_instance_id=act.id,
+        run_number=(previous.run_number if previous else 0) + 1,
+        status='BLOCKED',
+        execution_reason=reason,
+        laboratory_id=laboratory_id,
+    )
+    run.set_creation_audit(user_id)
+    session.add(run)
+    await session.flush()
+    return run
+
+
+async def _laboratory_waived(
+    session: AsyncSession, phase_id: UUID, laboratory_id: UUID
+) -> bool:
+    return (
+        await session.scalar(
+            select(LaboratoryWaiver.id).where(
+                LaboratoryWaiver.phase_id == phase_id,
+                LaboratoryWaiver.laboratory_id == laboratory_id,
+                LaboratoryWaiver.deleted_at.is_(None),
+            )
+        )
+        is not None
+    )
+
+
+async def _waive_laboratory_run(
+    session: AsyncSession,
+    act: ActivityInstance,
+    a_data: dict[str, Any],
+    run: ActivityRun,
+    user_id: UUID,
+) -> None:
+    """Marca a execução como dispensada (FR-007, FR-018).
+
+    Toda execução dispensada tem uma tarefa cancelada: as abertas são
+    canceladas e a execução bloqueada, que não tinha tarefa, ganha uma.
+    """
+    now = utc_now()
+    run.status = 'WAIVED'
+    run.completed_at = now
+    run.set_update_audit(user_id)
+    tasks = (
+        await session.scalars(
+            select(Task).where(
+                Task.activity_run_id == run.id, Task.deleted_at.is_(None)
+            )
+        )
+    ).all()
+    for task in tasks:
+        if task.status == 'READY':
+            task.status = STATUS_CANCELLED
+            task.completed_at = now
+            task.set_update_audit(user_id)
+    if not tasks:
+        task = Task(
+            activity_run_id=run.id,
+            title=act.name,
+            assigned_role=_resolve_activity_cargo(a_data),
+            status=STATUS_CANCELLED,
+            completed_at=now,
+        )
+        task.set_creation_audit(user_id)
+        session.add(task)
+
+
+async def _try_start_laboratory_run(
+    session: AsyncSession,
+    act: ActivityInstance,
+    a_data: dict[str, Any],
+    laboratory_id: UUID,
+    user_id: UUID,
+) -> bool:
+    """Desbloqueia a execução vigente do laboratório se a cadeia permitir.
+
+    Laboratório dispensado na fase, fora da custódia, tem a execução
+    dispensada (FR-007). Devolve `True` quando a execução passou a
+    resolvida, o que pode destravar os dependentes por laboratório.
+    """
+    run = await _current_laboratory_run(session, act.id, laboratory_id)
+    if run is None or run.status != 'BLOCKED':
+        return False
+    if not act.is_custody and await _laboratory_waived(
+        session, act.phase_id, laboratory_id
+    ):
+        await _waive_laboratory_run(session, act, a_data, run, user_id)
+        return True
+    if not await _laboratory_dependencies_resolved(
+        session, act, laboratory_id
+    ):
+        return False
+    await _start_laboratory_run(session, act, a_data, run, user_id)
+    return False
+
+
+async def _refresh_laboratory_activity(
+    session: AsyncSession,
+    process: ProcessInstance,
+    act: ActivityInstance,
+    user_id: UUID,
+) -> None:
+    """Status agregado contra a lista congelada (R5, FR-013).
+
+    `COMPLETED` se e somente se todo laboratório congelado tem execução
+    vigente concluída ou dispensada. Ao concluir, destrava os dependentes.
+    """
+    if act.status == 'BLOCKED':
+        return
+    lab_ids = await _frozen_laboratory_ids(session, process.id)
+    resolved = True
+    for laboratory_id in lab_ids:
+        run = await _current_laboratory_run(session, act.id, laboratory_id)
+        if run is None or run.status not in RESOLVED_RUN_STATUSES:
+            resolved = False
+            break
+    status = 'COMPLETED' if resolved else 'IN_PROGRESS'
+    if status == act.status:
+        return
+    act.status = status
+    act.set_update_audit(user_id)
+    if status == 'COMPLETED':
+        await _advance_dependent_activities(session, process, act, user_id)
+
+
+async def _laboratory_dependents(
+    session: AsyncSession, act: ActivityInstance
+) -> list[ActivityInstance]:
+    dependent_ids = (
+        await session.scalars(
+            select(ActivityDependency.dependent_activity_id).where(
+                ActivityDependency.required_activity_id == act.id,
+                ActivityDependency.deleted_at.is_(None),
+            )
+        )
+    ).all()
+    dependents = []
+    for dependent_id in dict.fromkeys(dependent_ids):
+        dependent = await session.scalar(
+            select(ActivityInstance)
+            .where(ActivityInstance.id == dependent_id)
+            .execution_options(populate_existing=True)
+        )
+        if dependent and dependent.execution_scope == PER_LABORATORY:
+            dependents.append(dependent)
+    return dependents
+
+
+async def _activate_laboratory_activity(  # noqa: PLR0913, PLR0917
+    session: AsyncSession,
+    process: ProcessInstance,
+    act: ActivityInstance,
+    a_data: dict[str, Any],
+    user_id: UUID,
+    unblocked_by: str,
+) -> None:
+    """Ativa a atividade com uma execução por laboratório congelado (R6).
+
+    A execução nasce em andamento quando as dependências do laboratório
+    estão resolvidas, senão bloqueada e sem tarefa (FR-004). Ativa em
+    cascata os dependentes por laboratório (FR-004a).
+    """
+    lab_ids = await _frozen_laboratory_ids(session, process.id)
+    if not lab_ids:
+        raise ConflictError(
+            'O processo não tem laboratório no conjunto congelado.',
+            code='no_frozen_laboratories',
+        )
+    act.status = 'IN_PROGRESS'
+    act.blocked_reason = None
+    act.set_update_audit(user_id)
+    phase = await session.get(Phase, act.phase_id)
+    if phase is not None and phase.status == 'NOT_STARTED':
+        phase.status = 'IN_PROGRESS'
+        phase.set_update_audit(user_id)
+    reason = f'Ativação após a dependência {unblocked_by!r}.'
+    for laboratory_id in lab_ids:
+        await _new_laboratory_run(session, act, laboratory_id, user_id, reason)
+        await _try_start_laboratory_run(
+            session, act, a_data, laboratory_id, user_id
+        )
+    session.add(
+        AuditEvent(
+            process_instance_id=process.id,
+            user_id=user_id,
+            event_type='ACTIVITY_UNBLOCKED',
+            context_data={
+                'activity_key': act.key,
+                'activity_type': act.activity_type,
+                'unblocked_by': unblocked_by,
+            },
+        )
+    )
+    for dependent in await _laboratory_dependents(session, act):
+        await _advance_laboratory_activity(
+            session,
+            process,
+            dependent,
+            await _template_activity_data(session, process.id, dependent.key),
+            user_id,
+            unblocked_by=act.key,
+        )
+    await _refresh_laboratory_activity(session, process, act, user_id)
+
+
+async def _advance_laboratory_activity(  # noqa: PLR0913, PLR0917
+    session: AsyncSession,
+    process: ProcessInstance,
+    act: ActivityInstance,
+    a_data: dict[str, Any],
+    user_id: UUID,
+    unblocked_by: str,
+) -> None:
+    """Ativa a atividade por laboratório, ou desbloqueia as execuções dela.
+
+    Já ativada, roda o desbloqueio para cada laboratório: uma dependência
+    de atividade única pode ter voltado a ser satisfeita depois de uma
+    reabertura (R6).
+    """
+    if act.status == 'BLOCKED':
+        if await _laboratory_activity_activatable(session, act):
+            await _activate_laboratory_activity(
+                session, process, act, a_data, user_id, unblocked_by
+            )
+        return
+    for laboratory_id in await _frozen_laboratory_ids(session, process.id):
+        resolved = await _try_start_laboratory_run(
+            session, act, a_data, laboratory_id, user_id
+        )
+        if resolved:
+            await _unblock_laboratory(
+                session, process, act, laboratory_id, user_id
+            )
+    await _refresh_laboratory_activity(session, process, act, user_id)
+
+
+async def _unblock_laboratory(
+    session: AsyncSession,
+    process: ProcessInstance,
+    act: ActivityInstance,
+    laboratory_id: UUID,
+    user_id: UUID,
+) -> None:
+    """Desbloqueia a cadeia do laboratório nos dependentes de `act` (R6)."""
+    for dependent in await _laboratory_dependents(session, act):
+        if dependent.status == 'BLOCKED':
+            continue
+        a_data = await _template_activity_data(
+            session, process.id, dependent.key
+        )
+        resolved = await _try_start_laboratory_run(
+            session, dependent, a_data, laboratory_id, user_id
+        )
+        if resolved:
+            await _unblock_laboratory(
+                session, process, dependent, laboratory_id, user_id
+            )
+        await _refresh_laboratory_activity(
+            session, process, dependent, user_id
+        )
+
+
+async def waive_laboratory(  # noqa: PLR0913, PLR0917
+    session: AsyncSession,
+    process_id: UUID,
+    phase_key: str,
+    laboratory_id: UUID,
+    reason: str,
+    user_id: UUID,
+) -> tuple[LaboratoryWaiver, list[str]]:
+    """Dispensa o laboratório na fase (R9). Sem autorização e sem commit.
+
+    Exige as amostras congeladas (FR-017a). Marca como dispensadas as
+    execuções abertas ou bloqueadas do laboratório nas atividades por
+    laboratório da fase, fora da custódia (FR-018), e devolve as chaves
+    dessas atividades na ordem da fase.
+    """
+    process = await _lock_process(session, process_id)
+    await ensure_process_mutable(session, process_id)
+    phase = await session.scalar(
+        select(Phase).where(
+            Phase.process_instance_id == process_id,
+            Phase.key == phase_key,
+            Phase.deleted_at.is_(None),
+        )
+    )
+    if phase is None:
+        raise NotFoundError(f'Fase {phase_key!r} não encontrada.')
+    sample_status = await session.scalar(
+        select(ActivityInstance.status).where(
+            ActivityInstance.process_instance_id == process_id,
+            ActivityInstance.activity_type == SAMPLE_DEFINITION_ACTIVITY_TYPE,
+            ActivityInstance.deleted_at.is_(None),
+        )
+    )
+    if sample_status != 'COMPLETED':
+        raise ConflictError(
+            'Não é permitido registrar dispensa de ensaio antes do '
+            'congelamento e expedição das amostras.',
+            code='sample_definition_not_frozen',
+        )
+    if laboratory_id not in await _frozen_laboratory_ids(session, process_id):
+        raise ValidationError(
+            'O laboratório não está no conjunto congelado do processo.',
+            code='laboratory_not_frozen',
+        )
+    if await _laboratory_waived(session, phase.id, laboratory_id):
+        raise ConflictError(
+            'O laboratório já foi dispensado nesta fase.',
+            code='already_waived',
+        )
+    waiver = LaboratoryWaiver(
+        process_instance_id=process_id,
+        phase_id=phase.id,
+        laboratory_id=laboratory_id,
+        reason=reason,
+    )
+    waiver.set_creation_audit(user_id)
+    session.add(waiver)
+    await session.flush()
+
+    acts = (
+        await session.scalars(
+            select(ActivityInstance)
+            .where(
+                ActivityInstance.phase_id == phase.id,
+                ActivityInstance.execution_scope == PER_LABORATORY,
+                ActivityInstance.is_custody.is_(False),
+                ActivityInstance.deleted_at.is_(None),
+            )
+            .order_by(ActivityInstance.order_index, ActivityInstance.id)
+            .execution_options(populate_existing=True)
+        )
+    ).all()
+    context = {
+        'phase_key': phase.key,
+        'laboratory_id': str(laboratory_id),
+        'reason': reason,
+    }
+    waived_keys = []
+    for act in acts:
+        run = await _current_laboratory_run(session, act.id, laboratory_id)
+        if run is None or run.status not in {'IN_PROGRESS', 'BLOCKED'}:
+            continue
+        a_data = await _template_activity_data(session, process_id, act.key)
+        await _waive_laboratory_run(session, act, a_data, run, user_id)
+        waived_keys.append(act.key)
+        session.add(
+            AuditEvent(
+                process_instance_id=process_id,
+                activity_run_id=run.id,
+                user_id=user_id,
+                event_type='LABORATORY_WAIVED',
+                context_data={**context, 'activity_key': act.key},
+            )
+        )
+    if not waived_keys:
+        session.add(
+            AuditEvent(
+                process_instance_id=process_id,
+                user_id=user_id,
+                event_type='LABORATORY_WAIVED',
+                context_data=context,
+            )
+        )
+    for act in acts:
+        await _unblock_laboratory(
+            session, process, act, laboratory_id, user_id
+        )
+        await _refresh_laboratory_activity(session, process, act, user_id)
+    return waiver, waived_keys
+
+
+REBLOCKED_REASON = 'Aguardando a nova execução de um laboratório.'
+
+
+async def _close_open_run(
+    session: AsyncSession, run: ActivityRun, status: str, user_id: UUID
+) -> None:
+    """Encerra a execução e cancela as tarefas abertas, sem tocar dados."""
+    now = utc_now()
+    run.status = status
+    run.completed_at = run.completed_at or now
+    run.set_update_audit(user_id)
+    for task in await session.scalars(
+        select(Task).where(
+            Task.activity_run_id == run.id,
+            Task.deleted_at.is_(None),
+            Task.status == 'READY',
+        )
+    ):
+        task.status = STATUS_CANCELLED
+        task.completed_at = now
+        task.set_update_audit(user_id)
+
+
+async def _all_dependents(
+    session: AsyncSession, act: ActivityInstance
+) -> list[ActivityInstance]:
+    dependent_ids = (
+        await session.scalars(
+            select(ActivityDependency.dependent_activity_id).where(
+                ActivityDependency.required_activity_id == act.id,
+                ActivityDependency.deleted_at.is_(None),
+            )
+        )
+    ).all()
+    dependents = []
+    for dependent_id in dict.fromkeys(dependent_ids):
+        dependent = await session.scalar(
+            select(ActivityInstance)
+            .where(ActivityInstance.id == dependent_id)
+            .execution_options(populate_existing=True)
+        )
+        if dependent is not None:
+            dependents.append(dependent)
+    return dependents
+
+
+async def _reblock_dependents(  # noqa: PLR0913, PLR0917
+    session: AsyncSession,
+    process: ProcessInstance,
+    act: ActivityInstance,
+    laboratory_id: UUID | None,
+    user_id: UUID,
+    reblocked: list[str],
+) -> None:
+    """Volta a bloquear, em cadeia, o que dependia de `act` (R10, FR-025).
+
+    Por laboratório: só a cadeia do laboratório (ou de todos, quando vem de
+    uma atividade única); a execução vigente aberta é cancelada, a
+    concluída é substituída, e uma nova bloqueada toma o lugar. Atividade
+    única: volta a `BLOCKED` e a execução aberta é cancelada.
+    """
+    for dependent in await _all_dependents(session, act):
+        if dependent.execution_scope == PER_LABORATORY:
+            if dependent.status == 'BLOCKED':
+                continue
+            lab_ids = (
+                [laboratory_id]
+                if laboratory_id is not None
+                else await _frozen_laboratory_ids(session, process.id)
+            )
+            changed = False
+            for lab_id in lab_ids:
+                run = await _current_laboratory_run(
+                    session, dependent.id, lab_id
+                )
+                if run is None or run.status not in {
+                    'IN_PROGRESS',
+                    'COMPLETED',
+                }:
+                    continue
+                await _close_open_run(
+                    session,
+                    run,
+                    'SUPERSEDED' if run.status == 'COMPLETED' else 'CANCELLED',
+                    user_id,
+                )
+                await _new_laboratory_run(
+                    session, dependent, lab_id, user_id, REBLOCKED_REASON
+                )
+                changed = True
+                await _reblock_dependents(
+                    session, process, dependent, lab_id, user_id, reblocked
+                )
+            if changed:
+                if dependent.key not in reblocked:
+                    reblocked.append(dependent.key)
+                await _refresh_laboratory_activity(
+                    session, process, dependent, user_id
+                )
+        elif dependent.status in {'IN_PROGRESS', 'COMPLETED'}:
+            dependent.status = 'BLOCKED'
+            dependent.blocked_reason = REBLOCKED_REASON
+            dependent.set_update_audit(user_id)
+            for run in await session.scalars(
+                select(ActivityRun).where(
+                    ActivityRun.activity_instance_id == dependent.id,
+                    ActivityRun.deleted_at.is_(None),
+                    ActivityRun.status == 'IN_PROGRESS',
+                )
+            ):
+                await _close_open_run(session, run, STATUS_CANCELLED, user_id)
+            if dependent.key not in reblocked:
+                reblocked.append(dependent.key)
+            await _reblock_dependents(
+                session, process, dependent, None, user_id, reblocked
+            )
+
+
+async def reopen_laboratory_run(  # noqa: PLR0913, PLR0917
+    session: AsyncSession,
+    process_id: UUID,
+    activity_key: str,
+    laboratory_id: UUID,
+    reason: str,
+    user_id: UUID,
+) -> tuple[ActivityRun, list[str]]:
+    """Reabre a execução de um laboratório (R10). Sem autorização e commit.
+
+    A execução vigente concluída vira `SUPERSEDED`, com os dados intactos
+    (FR-024), e uma nova abre com o número seguinte (FR-023). Devolve a
+    nova execução e as atividades que voltaram a ficar bloqueadas.
+    """
+    process = await _lock_process(session, process_id)
+    await ensure_process_mutable(session, process_id)
+    act = await _laboratory_activity_by_key(session, process_id, activity_key)
+    if act.execution_scope != PER_LABORATORY:
+        raise ConflictError(
+            f'Atividade {activity_key!r} não é executada por laboratório.'
+        )
+    if not act.is_custody and await _laboratory_waived(
+        session, act.phase_id, laboratory_id
+    ):
+        raise ConflictError(
+            'O laboratório foi dispensado nesta fase.',
+            code='laboratory_waived',
+        )
+    previous = await _current_laboratory_run(session, act.id, laboratory_id)
+    if previous is None or previous.status != 'COMPLETED':
+        raise ConflictError(
+            'Só a execução concluída do laboratório pode ser reaberta.'
+        )
+    previous.status = 'SUPERSEDED'
+    previous.set_update_audit(user_id)
+    run = await _new_laboratory_run(
+        session, act, laboratory_id, user_id, reason
+    )
+    a_data = await _template_activity_data(session, process_id, act.key)
+    await _start_laboratory_run(session, act, a_data, run, user_id)
+    act.status = 'IN_PROGRESS'
+    act.set_update_audit(user_id)
+    reblocked: list[str] = []
+    await _reblock_dependents(
+        session, process, act, laboratory_id, user_id, reblocked
+    )
+    session.add(
+        AuditEvent(
+            process_instance_id=process_id,
+            activity_run_id=run.id,
+            user_id=user_id,
+            event_type='LABORATORY_RUN_REOPENED',
+            context_data={
+                'activity_key': act.key,
+                'laboratory_id': str(laboratory_id),
+                'previous_run_number': previous.run_number,
+                'run_number': run.run_number,
+                'reason': reason,
+                'reblocked_activity_keys': reblocked,
+            },
+        )
+    )
+    return run, reblocked
+
+
+async def require_laboratory_run_access(
+    session: AsyncSession,
+    user_id: UUID,
+    act: ActivityInstance,
+    run: ActivityRun,
+) -> None:
+    """Só o próprio laboratório age na execução dele (R8, FR-008).
+
+    Além da concessão de editar a atividade: cargo global em `edit_roles`
+    ou designação efetiva de `participating_laboratory` pelo laboratório.
+    """
+    await require_activity_access(session, user_id, act, 'edit')
+    if run.laboratory_id is None:
+        return
+    if await global_cargos(session, user_id) & set(act.edit_roles):
+        return
+    member = await session.scalar(
+        process_cargos_scope(user_id)
+        .where(
+            Assignment.process_instance_id == act.process_instance_id,
+            Assignment.role_key == PARTICIPATING_LABORATORY_ROLE_KEY,
+            Assignment.laboratory_id == run.laboratory_id,
+        )
+        .limit(1)
+    )
+    if member is None:
+        raise AuthorizationError(
+            'Só o próprio laboratório age na execução dele.'
+        )
+
+
+async def _laboratory_activity_by_key(
+    session: AsyncSession, process_id: UUID, activity_key: str
+) -> ActivityInstance:
+    act = await session.scalar(
+        select(ActivityInstance)
+        .where(
+            ActivityInstance.process_instance_id == process_id,
+            ActivityInstance.key == activity_key,
+            ActivityInstance.deleted_at.is_(None),
+        )
+        .execution_options(populate_existing=True)
+    )
+    if act is None:
+        raise NotFoundError(f'Atividade {activity_key!r} não encontrada.')
+    return act
+
+
+async def complete_laboratory_run(
+    session: AsyncSession,
+    process_id: UUID,
+    activity_key: str,
+    laboratory_id: UUID,
+    user_id: UUID,
+) -> ActivityRun:
+    """Conclui a execução vigente de um laboratório (R7). Sem commit.
+
+    As issues da Etapa 3 chamam esta função depois de gravar os dados da
+    própria atividade.
+    """
+    process = await _lock_process(session, process_id)
+    await ensure_process_mutable(session, process_id)
+    act = await _laboratory_activity_by_key(session, process_id, activity_key)
+    await require_activity_access(session, user_id, act, 'edit')
+    if act.execution_scope != PER_LABORATORY:
+        raise ConflictError(
+            f'Atividade {activity_key!r} não é executada por laboratório.'
+        )
+    run = await _current_laboratory_run(session, act.id, laboratory_id)
+    if run is None:
+        raise NotFoundError('Execução do laboratório não encontrada.')
+    await require_laboratory_run_access(session, user_id, act, run)
+    if run.status != 'IN_PROGRESS':
+        raise ConflictError(
+            f'Execução do laboratório em status {run.status!r} não pode ser '
+            'concluída.'
+        )
+    now = utc_now()
+    run.status = 'COMPLETED'
+    run.completed_at = now
+    run.set_update_audit(user_id)
+    for task in await session.scalars(
+        select(Task).where(
+            Task.activity_run_id == run.id, Task.deleted_at.is_(None)
+        )
+    ):
+        task.status = 'COMPLETED'
+        task.completed_at = now
+        task.set_update_audit(user_id)
+    session.add(
+        AuditEvent(
+            process_instance_id=process_id,
+            activity_run_id=run.id,
+            user_id=user_id,
+            event_type='LABORATORY_RUN_COMPLETED',
+            context_data={
+                'activity_key': act.key,
+                'laboratory_id': str(laboratory_id),
+                'run_number': run.run_number,
+            },
+        )
+    )
+    await _unblock_laboratory(session, process, act, laboratory_id, user_id)
+    await _refresh_laboratory_activity(session, process, act, user_id)
+    return run
 
 
 async def _find_role_assignment_activity(
