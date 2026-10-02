@@ -126,10 +126,10 @@ specs/036-per-laboratory-activity-runs/
 src/pivma/
 ├── core/
 │   ├── database/models.py         # ActivityInstance (+execution_scope, +is_custody), ActivityRun (+laboratory_id, índice), LaboratoryWaiver (novo)
-│   ├── process_engine.py          # validate_execution_scopes, _frozen_laboratory_ids, _open_ready_laboratory_runs,
+│   ├── process_engine.py          # validate_execution_scopes, _frozen_laboratory_ids, _activate_laboratory_activity, _unblock_laboratory,
 │   │                              # complete_laboratory_run, waive_laboratory, reopen_laboratory_run, _reblock_dependents,
 │   │                              # require_laboratory_run_access; alterados: _create_phases_and_activities,
-│   │                              # _advance_dependent_activities, get_current_form_instance, get_current_activity_run
+│   │                              # _advance_dependent_activities, _cancel_pending_children (R14), get_current_form_instance, get_current_activity_run
 │   ├── authorization.py           # laboratory_run_visibility_clause (R13)
 │   └── references.py              # sem mudança (laboratory_refs reaproveitado)
 ├── bootstrap_process_templates.py # chama validate_execution_scopes
