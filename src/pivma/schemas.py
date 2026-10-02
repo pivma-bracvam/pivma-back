@@ -245,6 +245,12 @@ class LoginCredentials(BaseModel):
     password: Annotated[str, StringConstraints(min_length=8, max_length=128)]
 
 
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: Literal['bearer']
+    expires_in: int
+
+
 class UserIdentity(UserPublic):
     pass
 

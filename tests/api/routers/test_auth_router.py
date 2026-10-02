@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 
+import jwt
 import pytest
 
 from pivma.core.database.models import (
@@ -8,7 +9,12 @@ from pivma.core.database.models import (
     Assignment,
     UserAccessProfile,
 )
-from pivma.core.security import create_access_token, verify_password
+from pivma.core.security import (
+    ACCESS_TOKEN_TTL,
+    create_access_token,
+    decode_access_token,
+    verify_password,
+)
 from tests.factories.process_factory import (
     ProcessInstanceFactory,
     ProcessTemplateFactory,
@@ -26,6 +32,18 @@ def login(client, identifier, password=VALID_PASSWORD):
         '/auth/login',
         json={'identifier': identifier, 'password': password},
     )
+
+
+def bearer_headers_after_login(client, user):
+    token = login(client, user.username).json()['access_token']
+    client.cookies.clear()
+    return {'Authorization': f'Bearer {token}'}
+
+
+def tamper_signature(token):
+    header, payload, signature = token.split('.')
+    replacement = 'a' if signature[0] != 'a' else 'b'
+    return f'{header}.{payload}.{replacement}{signature[1:]}'
 
 
 def update_me(client, payload, origin=TRUSTED_ORIGIN):
@@ -46,7 +64,6 @@ def test_login_with_username_and_recognize_identity(client, user):
     response = login(client, user.username.swapcase())
 
     assert response.status_code == HTTPStatus.OK
-    assert response.content == b''
     assert 'access_token' in client.cookies
 
     identity = client.get('/auth/me')
@@ -197,10 +214,7 @@ def test_me_rejects_missing_cookie(client):
 
 def test_me_rejects_tampered_token(client, user):
     token = create_access_token(user.id, JWT_SECRET_KEY)
-    header, payload, signature = token.split('.')
-    replacement = 'a' if signature[0] != 'a' else 'b'
-    tampered_token = f'{header}.{payload}.{replacement}{signature[1:]}'
-    client.cookies.set('access_token', tampered_token)
+    client.cookies.set('access_token', tamper_signature(token))
 
     response = client.get('/auth/me')
 
@@ -248,6 +262,74 @@ def test_me_rejects_user_deleted_after_login(client, user, session):
     }
 
 
+def test_me_accepts_bearer_token_without_cookie(client, user):
+    headers = bearer_headers_after_login(client, user)
+
+    response = client.get('/auth/me', headers=headers)
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['user']['id'] == str(user.id)
+
+
+def test_me_accepts_lowercase_bearer_scheme(client, user):
+    headers = bearer_headers_after_login(client, user)
+    token = headers['Authorization'].removeprefix('Bearer ')
+
+    response = client.get(
+        '/auth/me', headers={'Authorization': f'bearer {token}'}
+    )
+
+    assert response.status_code == HTTPStatus.OK
+
+
+def test_me_rejects_tampered_bearer_token(client, user):
+    token = create_access_token(user.id, JWT_SECRET_KEY)
+
+    response = client.get(
+        '/auth/me',
+        headers={'Authorization': f'Bearer {tamper_signature(token)}'},
+    )
+
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert response.json()['detail']['code'] == 'not_authenticated'
+
+
+def test_me_rejects_expired_bearer_token(client, user):
+    token = create_access_token(
+        user.id,
+        JWT_SECRET_KEY,
+        now=datetime.now(UTC) - timedelta(hours=8, seconds=1),
+    )
+
+    response = client.get(
+        '/auth/me', headers={'Authorization': f'Bearer {token}'}
+    )
+
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert response.json()['detail']['code'] == 'not_authenticated'
+
+
+def test_me_rejects_non_bearer_authorization_scheme(client):
+    response = client.get(
+        '/auth/me', headers={'Authorization': 'Basic dXNlcjpwYXNz'}
+    )
+
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert response.json()['detail']['code'] == 'not_authenticated'
+
+
+def test_me_prefers_cookie_over_bearer(client, user, other_user):
+    assert login(client, user.username).status_code == HTTPStatus.OK
+    other_token = create_access_token(other_user.id, JWT_SECRET_KEY)
+
+    response = client.get(
+        '/auth/me', headers={'Authorization': f'Bearer {other_token}'}
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['user']['id'] == str(user.id)
+
+
 def test_login_sets_secure_cookie_for_eight_hours(client, user):
     response = login(client, user.username)
 
@@ -258,6 +340,71 @@ def test_login_sets_secure_cookie_for_eight_hours(client, user):
     assert 'samesite=strict' in cookie
     assert 'path=/' in cookie
     assert 'max-age=28800' in cookie
+
+
+def test_login_cookie_max_age_matches_expires_in(client, user):
+    response = login(client, user.username)
+
+    attributes = response.headers['set-cookie'].lower().split('; ')
+    max_age = next(
+        int(attribute.removeprefix('max-age='))
+        for attribute in attributes
+        if attribute.startswith('max-age=')
+    )
+    assert max_age == response.json()['expires_in']
+
+
+def test_login_returns_only_token_fields(client, user):
+    response = login(client, user.username)
+
+    assert response.json().keys() == {
+        'access_token',
+        'token_type',
+        'expires_in',
+    }
+
+
+def test_login_returns_bearer_token_type(client, user):
+    response = login(client, user.username)
+
+    assert response.json()['token_type'] == 'bearer'
+
+
+def test_login_returns_token_lifetime_in_seconds(client, user):
+    response = login(client, user.username)
+
+    assert response.json()['expires_in'] == int(
+        ACCESS_TOKEN_TTL.total_seconds()
+    )
+    assert response.json()['expires_in'] == timedelta(hours=8).total_seconds()
+
+
+def test_login_body_token_matches_cookie(client, user):
+    response = login(client, user.username)
+
+    assert response.json()['access_token'] == response.cookies['access_token']
+
+
+def test_login_body_token_identifies_account(client, user):
+    response = login(client, user.username)
+
+    token = response.json()['access_token']
+    assert decode_access_token(token, JWT_SECRET_KEY) == user.id
+
+
+def test_login_body_token_expires_after_expires_in(client, user):
+    response = login(client, user.username)
+
+    payload = jwt.decode(
+        response.json()['access_token'], JWT_SECRET_KEY, algorithms=['HS256']
+    )
+    assert payload['exp'] - payload['iat'] == response.json()['expires_in']
+
+
+def test_login_response_is_not_cacheable(client, user):
+    response = login(client, user.username)
+
+    assert response.headers['cache-control'] == 'no-store'
 
 
 def test_logout_removes_cookie_for_trusted_origin(client, user):
@@ -387,6 +534,89 @@ def test_openapi_declares_access_token_as_cookie_security_scheme(client):
     }
     assert not any(
         parameter['name'] == 'access_token'
+        for parameter in schema['paths']['/auth/me']['get'].get(
+            'parameters', []
+        )
+    )
+
+
+def test_openapi_login_response_references_login_schema(client):
+    schema = client.get('/openapi.json').json()
+
+    response = schema['paths']['/auth/login']['post']['responses']['200']
+    assert response['content']['application/json']['schema'] == {
+        '$ref': '#/components/schemas/LoginResponse'
+    }
+
+
+def test_openapi_login_response_documents_cookie_and_cache_headers(client):
+    schema = client.get('/openapi.json').json()
+
+    headers = schema['paths']['/auth/login']['post']['responses']['200'][
+        'headers'
+    ]
+    assert headers['Set-Cookie']['schema']['type'] == 'string'
+    assert headers['Cache-Control']['schema'] == {
+        'type': 'string',
+        'const': 'no-store',
+    }
+
+
+def test_openapi_login_schema_requires_all_fields(client):
+    schema = client.get('/openapi.json').json()
+
+    login_response = schema['components']['schemas']['LoginResponse']
+    assert login_response['required'] == [
+        'access_token',
+        'token_type',
+        'expires_in',
+    ]
+
+
+def test_openapi_login_schema_fixes_token_type(client):
+    schema = client.get('/openapi.json').json()
+
+    properties = schema['components']['schemas']['LoginResponse']['properties']
+    assert properties['token_type']['const'] == 'bearer'
+
+
+def test_openapi_login_schema_declares_integer_expires_in(client):
+    schema = client.get('/openapi.json').json()
+
+    properties = schema['components']['schemas']['LoginResponse']['properties']
+    assert properties['expires_in']['type'] == 'integer'
+
+
+def test_openapi_declares_bearer_security_scheme(client):
+    schema = client.get('/openapi.json').json()
+
+    assert schema['components']['securitySchemes']['HTTPBearer'] == {
+        'type': 'http',
+        'scheme': 'bearer',
+    }
+
+
+def test_openapi_read_current_user_accepts_cookie_or_bearer(client):
+    schema = client.get('/openapi.json').json()
+
+    security = schema['paths']['/auth/me']['get']['security']
+    assert {'APIKeyCookie': []} in security
+    assert {'HTTPBearer': []} in security
+
+
+def test_openapi_update_current_user_accepts_cookie_or_bearer(client):
+    schema = client.get('/openapi.json').json()
+
+    security = schema['paths']['/auth/me']['patch']['security']
+    assert {'APIKeyCookie': []} in security
+    assert {'HTTPBearer': []} in security
+
+
+def test_openapi_does_not_declare_authorization_header_parameter(client):
+    schema = client.get('/openapi.json').json()
+
+    assert not any(
+        parameter['name'] == 'Authorization'
         for parameter in schema['paths']['/auth/me']['get'].get(
             'parameters', []
         )
@@ -664,6 +894,150 @@ async def test_update_me_rejects_untrusted_origin(
     assert response.status_code == HTTPStatus.FORBIDDEN
     assert response.json()['detail']['code'] == 'invalid_origin'
     assert account_state(user) == before
+
+
+def test_update_me_with_bearer_skips_origin_check(client, user):
+    headers = bearer_headers_after_login(client, user)
+
+    response = client.patch(
+        '/auth/me', json={'full_name': 'Maria Silva'}, headers=headers
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()['full_name'] == 'Maria Silva'
+
+
+@pytest.mark.asyncio
+async def test_update_me_with_bearer_persists_full_name(client, user, session):
+    headers = bearer_headers_after_login(client, user)
+
+    client.patch(
+        '/auth/me', json={'full_name': 'Maria Silva'}, headers=headers
+    )
+    await session.refresh(user)
+
+    assert user.full_name == 'Maria Silva'
+
+
+def test_update_me_with_bearer_ignores_untrusted_origin(client, user):
+    headers = bearer_headers_after_login(client, user)
+
+    response = client.patch(
+        '/auth/me',
+        json={'full_name': 'Maria Silva'},
+        headers={**headers, 'Origin': 'https://attacker.example'},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+
+
+def test_logout_with_bearer_skips_origin_check(client, user):
+    headers = bearer_headers_after_login(client, user)
+
+    response = client.post('/auth/logout', headers=headers)
+
+    assert response.status_code == HTTPStatus.NO_CONTENT
+
+
+def test_update_me_with_cookie_and_bearer_requires_origin(client, user):
+    token = login(client, user.username).json()['access_token']
+
+    response = client.patch(
+        '/auth/me',
+        json={'full_name': 'Maria Silva'},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    assert response.status_code == HTTPStatus.FORBIDDEN
+    assert response.json()['detail']['code'] == 'invalid_origin'
+
+
+@pytest.mark.asyncio
+async def test_update_me_with_cookie_and_bearer_without_origin_keeps_account(
+    client, user, session
+):
+    token = login(client, user.username).json()['access_token']
+    before = account_state(user)
+
+    client.patch(
+        '/auth/me',
+        json={'full_name': 'Maria Silva'},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    await session.refresh(user)
+
+    assert account_state(user) == before
+
+
+def test_update_me_with_cookie_and_bearer_rejects_untrusted_origin(
+    client, user
+):
+    token = login(client, user.username).json()['access_token']
+
+    response = client.patch(
+        '/auth/me',
+        json={'full_name': 'Maria Silva'},
+        headers={
+            'Authorization': f'Bearer {token}',
+            'Origin': 'https://attacker.example',
+        },
+    )
+
+    assert response.status_code == HTTPStatus.FORBIDDEN
+    assert response.json()['detail']['code'] == 'invalid_origin'
+
+
+def test_logout_with_cookie_and_bearer_requires_origin(client, user):
+    token = login(client, user.username).json()['access_token']
+
+    response = client.post(
+        '/auth/logout', headers={'Authorization': f'Bearer {token}'}
+    )
+
+    assert response.status_code == HTTPStatus.FORBIDDEN
+    assert response.json()['detail']['code'] == 'invalid_origin'
+    assert 'access_token' in client.cookies
+
+
+def test_update_me_with_tampered_bearer_returns_401(client, user):
+    token = tamper_signature(create_access_token(user.id, JWT_SECRET_KEY))
+
+    response = client.patch(
+        '/auth/me',
+        json={'full_name': 'Maria Silva'},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert response.json()['detail']['code'] == 'not_authenticated'
+
+
+@pytest.mark.asyncio
+async def test_update_me_with_tampered_bearer_keeps_account(
+    client, user, session
+):
+    token = tamper_signature(create_access_token(user.id, JWT_SECRET_KEY))
+    before = account_state(user)
+
+    client.patch(
+        '/auth/me',
+        json={'full_name': 'Maria Silva'},
+        headers={'Authorization': f'Bearer {token}'},
+    )
+    await session.refresh(user)
+
+    assert account_state(user) == before
+
+
+def test_update_me_with_query_token_requires_origin(client, user):
+    token = create_access_token(user.id, JWT_SECRET_KEY)
+
+    response = client.patch(
+        '/auth/me', params={'token': token}, json={'full_name': 'Maria Silva'}
+    )
+
+    assert response.status_code == HTTPStatus.FORBIDDEN
+    assert response.json()['detail']['code'] == 'invalid_origin'
 
 
 @pytest.mark.asyncio

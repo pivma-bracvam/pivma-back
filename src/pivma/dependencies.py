@@ -4,7 +4,11 @@ from typing import Annotated
 
 import jwt
 from fastapi import Depends, HTTPException, Request, Security
-from fastapi.security import APIKeyCookie
+from fastapi.security import (
+    APIKeyCookie,
+    HTTPAuthorizationCredentials,
+    HTTPBearer,
+)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +35,7 @@ access_token_cookie = APIKeyCookie(
     name='access_token',
     auto_error=False,
 )
+bearer_token = HTTPBearer(auto_error=False)
 
 
 def not_authenticated() -> HTTPException:
@@ -46,11 +51,13 @@ async def get_current_user(
     session: Session,
     settings: SettingsDependency,
     access_token: Annotated[str | None, Security(access_token_cookie)],
+    bearer: Annotated[
+        HTTPAuthorizationCredentials | None, Security(bearer_token)
+    ],
 ) -> User:
     if access_token is None:
-        auth_header = request.headers.get('Authorization')
-        if auth_header and auth_header.startswith('Bearer '):
-            access_token = auth_header[7:].strip()
+        if bearer is not None:
+            access_token = bearer.credentials
         elif 'token' in request.query_params:
             access_token = request.query_params['token']
 
@@ -72,8 +79,16 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 async def require_trusted_origin(
-    request: Request, settings: SettingsDependency
+    request: Request,
+    settings: SettingsDependency,
+    access_token: Annotated[str | None, Security(access_token_cookie)],
+    bearer: Annotated[
+        HTTPAuthorizationCredentials | None, Security(bearer_token)
+    ],
 ) -> None:
+    # CSRF depende de credencial anexada pelo navegador, e só o cookie é.
+    if access_token is None and bearer is not None:
+        return
     if request.headers.get('Origin') not in settings.AUTH_ALLOWED_ORIGINS:
         raise api_error(
             HTTPStatus.FORBIDDEN,

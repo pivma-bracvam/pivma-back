@@ -38,6 +38,7 @@ from pivma.schemas import (
     CurrentUserAccess,
     CurrentUserResponse,
     LoginCredentials,
+    LoginResponse,
     ProfileRef,
     SelfUserUpdate,
     UserIdentity,
@@ -65,14 +66,31 @@ async def find_active_user(
 @router.post(
     '/login',
     status_code=HTTPStatus.OK,
-    response_class=Response,
+    response_model=LoginResponse,
+    responses={
+        HTTPStatus.OK: {
+            'headers': {
+                'Set-Cookie': {
+                    'description': (
+                        'Cookie access_token com HttpOnly, Secure, '
+                        'SameSite=Strict, Path=/ e Max-Age igual a expires_in.'
+                    ),
+                    'schema': {'type': 'string'},
+                },
+                'Cache-Control': {
+                    'description': 'Impede o armazenamento do token em cache.',
+                    'schema': {'type': 'string', 'const': 'no-store'},
+                },
+            }
+        }
+    },
 )
 async def login(
     credentials: LoginCredentials,
     response: Response,
     session: Session,
     settings: SettingsDependency,
-):
+) -> LoginResponse:
     user = await find_active_user(session, credentials.identifier)
     password_hash = user.password_hash if user else DUMMY_PASSWORD_HASH
     password_is_valid = await run_in_threadpool(
@@ -88,14 +106,19 @@ async def login(
         )
 
     token = create_access_token(user.id, settings.JWT_SECRET_KEY)
+    expires_in = int(ACCESS_TOKEN_TTL.total_seconds())
     response.set_cookie(
         key='access_token',
         value=token,
-        max_age=int(ACCESS_TOKEN_TTL.total_seconds()),
+        max_age=expires_in,
         httponly=True,
         secure=True,
         samesite='strict',
         path='/',
+    )
+    response.headers['Cache-Control'] = 'no-store'
+    return LoginResponse(
+        access_token=token, token_type='bearer', expires_in=expires_in
     )
 
 
