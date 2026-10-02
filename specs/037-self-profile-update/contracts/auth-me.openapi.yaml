@@ -1,0 +1,143 @@
+openapi: 3.1.0
+info:
+  title: pi*VMA Self Account Update API
+  version: 1.0.0
+  description: Autogestão do nome completo e da senha da conta da sessão (Spec 037).
+security:
+  - cookieAuth: []
+paths:
+  /auth/me:
+    patch:
+      summary: Atualiza o nome e/ou a senha da própria conta
+      operationId: updateCurrentUser
+      tags: [auth]
+      description: >-
+        Exige o cabeçalho Origin com um valor de AUTH_ALLOWED_ORIGINS,
+        conferido pela dependência TrustedOrigin (não aparece como parâmetro
+        no OpenAPI gerado).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SelfUserUpdate'
+            examples:
+              nome:
+                value: { full_name: Maria Silva }
+              senha:
+                value: { current_password: SenhaAtual123, new_password: NovaSenha456 }
+              ambos:
+                value:
+                  full_name: Maria Silva
+                  current_password: SenhaAtual123
+                  new_password: NovaSenha456
+      responses:
+        '200':
+          description: Conta atualizada. Mesma projeção de PATCH /users/{user_id}.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPublic'
+        '400':
+          description: Senha atual incorreta. Nenhum campo é alterado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: { code: invalid_current_password, message: Senha atual incorreta. }
+        '401':
+          description: Sessão ausente, inválida, vencida ou ligada a conta inativa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: { code: not_authenticated, message: Sessão ausente ou expirada. }
+        '403':
+          description: Origem ausente ou não confiável.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: { code: invalid_origin, message: Origem da requisição não confiável. }
+        '422':
+          description: >-
+            Corpo fora do contrato: campo extra, valor null, corpo vazio,
+            combinação inválida ou valor fora das regras. Erros de
+            current_password e new_password usam a mensagem "Senha inválida."
+            sem revelar a regra.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  schemas:
+    SelfUserUpdate:
+      type: object
+      additionalProperties: false
+      description: >-
+        Informe full_name, new_password ou ambos. new_password exige
+        current_password; current_password sem new_password é rejeitada.
+      properties:
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Espaços externos são removidos antes da validação.
+        current_password:
+          type: string
+          minLength: 1
+          maxLength: 128
+        new_password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          description: Sem caracteres de espaço.
+    UserPublic:
+      type: object
+      required: [id, username, email, full_name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        full_name:
+          anyOf:
+            - type: string
+            - type: 'null'
+    ErrorResponse:
+      description: Formato único de erro (Spec 034).
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            fields:
+              type: array
+              items:
+                type: object
+                required: [location, field, code, message]
+                properties:
+                  location: { type: string }
+                  field: { type: string }
+                  code: { type: string }
+                  message: { type: string }

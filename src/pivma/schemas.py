@@ -200,6 +200,35 @@ class UserUpdate(BaseModel):
         return self
 
 
+class SelfUserUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    full_name: FullNameValue = None
+    current_password: Annotated[
+        str, StringConstraints(min_length=1, max_length=128)
+    ] = None
+    new_password: Annotated[
+        str, StringConstraints(min_length=8, max_length=128)
+    ] = None
+
+    @field_validator('new_password')
+    @classmethod
+    def reject_password_whitespace(cls, value):
+        if any(character.isspace() for character in value):
+            raise ValueError('Senha inválida.')
+        return value
+
+    @model_validator(mode='after')
+    def require_update_field(self):
+        if self.current_password is not None and self.new_password is None:
+            raise ValueError('Informe a nova senha.')
+        if self.new_password is not None and self.current_password is None:
+            raise ValueError('Informe a senha atual para trocar a senha.')
+        if self.full_name is None and self.new_password is None:
+            raise ValueError('Informe o nome completo ou a nova senha.')
+        return self
+
+
 class AdminUser(UserPublic):
     active: bool
     profiles: list[ProfileRef]

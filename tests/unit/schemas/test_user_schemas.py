@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from pivma.schemas import UserPublic, UserSchema, UserUpdate
+from pivma.schemas import SelfUserUpdate, UserPublic, UserSchema, UserUpdate
 
 MAX_FULL_NAME_LENGTH = 255
 
@@ -123,3 +123,126 @@ def test_user_email_fields_keep_openapi_format():
     assert UserPublic.model_json_schema()['properties']['email']['format'] == (
         'email'
     )
+
+
+def test_self_update_trims_full_name():
+    assert SelfUserUpdate(full_name='  Maria Silva  ').full_name == (
+        'Maria Silva'
+    )
+
+
+def test_self_update_requires_full_name_or_new_password():
+    with pytest.raises(
+        ValidationError, match='Informe o nome completo ou a nova senha.'
+    ):
+        SelfUserUpdate()
+
+
+def test_self_update_rejects_null_full_name():
+    with pytest.raises(ValidationError) as exc_info:
+        SelfUserUpdate(full_name=None)
+
+    assert [error['loc'] for error in exc_info.value.errors()] == [
+        ('full_name',)
+    ]
+
+
+def test_self_update_rejects_blank_full_name():
+    with pytest.raises(ValidationError) as exc_info:
+        SelfUserUpdate(full_name='   ')
+
+    assert [error['loc'] for error in exc_info.value.errors()] == [
+        ('full_name',)
+    ]
+
+
+def test_self_update_rejects_too_long_full_name():
+    with pytest.raises(ValidationError) as exc_info:
+        SelfUserUpdate(full_name='a' * (MAX_FULL_NAME_LENGTH + 1))
+
+    assert [error['loc'] for error in exc_info.value.errors()] == [
+        ('full_name',)
+    ]
+
+
+def test_self_update_accepts_password_change():
+    payload = SelfUserUpdate(
+        current_password='atual', new_password='NovaSenha-2026'
+    )
+
+    assert payload.current_password == 'atual'
+    assert payload.new_password == 'NovaSenha-2026'
+
+
+def test_self_update_requires_current_password_for_new_password():
+    with pytest.raises(
+        ValidationError, match='Informe a senha atual para trocar a senha.'
+    ):
+        SelfUserUpdate(new_password='NovaSenha-2026')
+
+
+def test_self_update_rejects_current_password_without_new_password():
+    with pytest.raises(ValidationError, match='Informe a nova senha.'):
+        SelfUserUpdate(current_password='atual')
+
+
+def test_self_update_rejects_name_with_current_password_only():
+    with pytest.raises(ValidationError, match='Informe a nova senha.'):
+        SelfUserUpdate(full_name='Maria', current_password='atual')
+
+
+def test_self_update_rejects_too_short_new_password():
+    with pytest.raises(ValidationError) as exc_info:
+        SelfUserUpdate(current_password='atual', new_password='a' * 7)
+
+    assert [error['loc'] for error in exc_info.value.errors()] == [
+        ('new_password',)
+    ]
+
+
+def test_self_update_rejects_too_long_new_password():
+    with pytest.raises(ValidationError) as exc_info:
+        SelfUserUpdate(current_password='atual', new_password='a' * 129)
+
+    assert [error['loc'] for error in exc_info.value.errors()] == [
+        ('new_password',)
+    ]
+
+
+def test_self_update_rejects_new_password_with_whitespace():
+    with pytest.raises(ValidationError, match='Senha inválida.') as exc_info:
+        SelfUserUpdate(
+            current_password='atual', new_password='Nova Senha-2026'
+        )
+
+    assert [error['loc'] for error in exc_info.value.errors()] == [
+        ('new_password',)
+    ]
+
+
+def test_self_update_accepts_one_character_current_password():
+    payload = SelfUserUpdate(
+        current_password='x', new_password='NovaSenha-2026'
+    )
+
+    assert payload.current_password == 'x'
+
+
+def test_self_update_rejects_empty_current_password():
+    with pytest.raises(ValidationError) as exc_info:
+        SelfUserUpdate(current_password='', new_password='NovaSenha-2026')
+
+    assert [error['loc'] for error in exc_info.value.errors()] == [
+        ('current_password',)
+    ]
+
+
+def test_self_update_rejects_too_long_current_password():
+    with pytest.raises(ValidationError) as exc_info:
+        SelfUserUpdate(
+            current_password='a' * 129, new_password='NovaSenha-2026'
+        )
+
+    assert [error['loc'] for error in exc_info.value.errors()] == [
+        ('current_password',)
+    ]

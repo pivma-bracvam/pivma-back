@@ -155,3 +155,35 @@ def test_field_errors_hide_password_rule():
         'code': 'invalid',
         'message': 'Senha inválida.',
     }
+
+
+def test_field_errors_hide_current_password_rule():
+    [item] = field_errors([
+        _error(
+            ('body', 'current_password'),
+            'string_too_long',
+            ctx={'max_length': 128},
+        )
+    ])
+
+    assert item == {
+        'location': 'body',
+        'field': 'current_password',
+        'code': 'invalid',
+        'message': 'Senha inválida.',
+    }
+
+
+def test_field_errors_hide_new_password_rule():
+    [item] = field_errors([
+        _error(
+            ('body', 'new_password'), 'string_too_short', ctx={'min_length': 8}
+        )
+    ])
+
+    assert item == {
+        'location': 'body',
+        'field': 'new_password',
+        'code': 'invalid',
+        'message': 'Senha inválida.',
+    }

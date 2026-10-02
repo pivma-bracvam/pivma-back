@@ -92,7 +92,7 @@ def _field_error(error: dict[str, Any]) -> dict[str, str]:
     else:
         location, path = 'body', loc
     field = '.'.join(str(part) for part in path)
-    if 'password' in path:
+    if any(str(part).endswith('password') for part in path):
         # Não expõe a regra da senha nem o valor enviado (Spec 034, FR-010).
         return {
             'location': location,

@@ -24,6 +24,7 @@ from pivma.core.security import (
     ACCESS_TOKEN_TTL,
     DUMMY_PASSWORD_HASH,
     create_access_token,
+    hash_password,
     verify_password,
 )
 from pivma.dependencies import (
@@ -38,7 +39,9 @@ from pivma.schemas import (
     CurrentUserResponse,
     LoginCredentials,
     ProfileRef,
+    SelfUserUpdate,
     UserIdentity,
+    UserPublic,
 )
 
 router = APIRouter(prefix='/auth', tags=['auth'])
@@ -175,6 +178,53 @@ async def read_current_user(
             scopes=scopes,
         ),
     )
+
+
+@router.patch(
+    '/me',
+    operation_id='updateCurrentUser',
+    response_model=UserPublic,
+    responses={
+        HTTPStatus.BAD_REQUEST: {
+            'description': 'Senha atual incorreta. Nenhum campo é alterado.',
+        },
+        HTTPStatus.UNAUTHORIZED: {
+            'description': (
+                'Sessão ausente, inválida, vencida ou ligada a conta inativa.'
+            ),
+        },
+        HTTPStatus.FORBIDDEN: {
+            'description': 'A origem da requisição não é confiável.',
+        },
+    },
+)
+async def update_current_user(
+    payload: SelfUserUpdate,
+    current_user: CurrentUser,
+    session: Session,
+    _: TrustedOrigin,
+):
+    if payload.new_password is not None:
+        password_is_valid = await run_in_threadpool(
+            verify_password,
+            current_user.password_hash,
+            payload.current_password,
+        )
+        if not password_is_valid:
+            raise api_error(
+                HTTPStatus.BAD_REQUEST,
+                'invalid_current_password',
+                'Senha atual incorreta.',
+            )
+        current_user.password_hash = await run_in_threadpool(
+            hash_password, payload.new_password
+        )
+    if payload.full_name is not None:
+        current_user.full_name = payload.full_name
+    current_user.set_update_audit(current_user.id)
+    await session.commit()
+    await session.refresh(current_user)
+    return current_user
 
 
 @router.post('/logout', status_code=HTTPStatus.NO_CONTENT)

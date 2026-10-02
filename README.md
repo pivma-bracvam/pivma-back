@@ -178,6 +178,7 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
 
 * **Exclusão Lógica:** Contas inativadas liberam seus identificadores (`username` e `email`) para novos cadastros.
 * **Desativação de contas:** `DELETE /users/{user_id}` exige sessão ativa, origem confiável e `users.manage`. A API preserva o registro, preenche `deleted_at` e `deleted_by` e responde `204`. Autodesativação e remoção da última conta administradora ativa respondem `409`. Contas inativas não iniciam sessões nem reutilizam tokens existentes. `GET /users` lista contas ativas; `GET /users?active=false` lista contas inativas.
+* **Autogestão da conta:** `PATCH /auth/me` exige sessão ativa e origem confiável, sem permissão administrativa. Aceita `full_name`, `current_password` e `new_password`; qualquer outro campo responde `422`. A nova senha exige a senha atual e segue as regras de `password`. Senha atual incorreta responde `400` (`invalid_current_password`) sem alterar nada. Sem sessão, a resposta é `401`; com origem não confiável, `403`. A sessão atual continua válida após a troca de senha.
 
 ### Controle de Acesso (RBAC Global)
 
