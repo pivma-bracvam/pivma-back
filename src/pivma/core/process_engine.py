@@ -99,6 +99,14 @@ IMMUTABLE_PROCESS_STATUSES = frozenset({
 
 # Alvos de avaliação por IA que se prendem a `field_keys` do formulário.
 FIELD_TARGET_TYPES = frozenset({'field', 'field_set', 'document'})
+# Execuções que nenhuma transição altera, nem o cancelamento do processo
+# (Spec 036, R14): o histórico de dispensa e substituição é preservado.
+IMMUTABLE_RUN_STATUSES = frozenset({
+    'COMPLETED',
+    STATUS_CANCELLED,
+    'WAIVED',
+    'SUPERSEDED',
+})
 
 # Título de tarefa da triagem preservado do antigo caminho bespoke
 # (`_unblock_triage_activity`, removido na Issue #22) — o motor genérico
@@ -387,7 +395,7 @@ async def _cancel_pending_children(
         )
     )
     for run in runs:
-        if run.status not in {'COMPLETED', STATUS_CANCELLED}:
+        if run.status not in IMMUTABLE_RUN_STATUSES:
             run.status = STATUS_CANCELLED
             run.completed_at = run.completed_at or utc_now()
             run.set_update_audit(user_id)
@@ -570,6 +578,8 @@ async def _create_phases_and_activities(
                 status='BLOCKED',
                 blocked_reason=None,
                 activity_type=a_data.get('activity_type', 'form'),
+                execution_scope=a_data.get('execution_scope', 'process'),
+                is_custody=bool(a_data.get('custody', False)),
             )
             act.view_roles, act.edit_roles = resolve_activity_access(a_data)
             act.set_creation_audit(creator_id)

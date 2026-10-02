@@ -91,7 +91,7 @@ Rotas de mutação usam `Origin: https://testserver`. O `bracvam_user` e o
 
 ## Phase 1: Setup
 
-- [ ] T001 Confirmar a linha de base: `poetry run pytest tests/api/routers/test_samples_router.py tests/api/routers/test_tasks_router.py tests/api/routers/test_tasks_actionable.py tests/api/routers/test_tasks_visibility.py tests/api/routers/test_timeline_router.py tests/api/routers/test_form_submission.py tests/api/routers/test_form_attachments.py tests/api/routers/test_process_retirement.py tests/api/routers/test_activity_type_extension.py tests/integration/database/test_sample_concurrency.py -q` passa na branch antes de qualquer mudança
+- [X] T001 Confirmar a linha de base: `poetry run pytest tests/api/routers/test_samples_router.py tests/api/routers/test_tasks_router.py tests/api/routers/test_tasks_actionable.py tests/api/routers/test_tasks_visibility.py tests/api/routers/test_timeline_router.py tests/api/routers/test_form_submission.py tests/api/routers/test_form_attachments.py tests/api/routers/test_process_retirement.py tests/api/routers/test_activity_type_extension.py tests/integration/database/test_sample_concurrency.py -q` passa na branch antes de qualquer mudança
 
 ---
 
@@ -101,28 +101,28 @@ Rotas de mutação usam `Origin: https://testserver`. O `bracvam_user` e o
 
 ### Testes (antes da implementação)
 
-- [ ] T002 [P] Teste: após `upgrade`, toda `activity_instances` existente tem `execution_scope = 'process'` e `is_custody = false`, e toda `activity_runs` existente tem `laboratory_id` nulo, em `tests/integration/migrations/test_per_laboratory_migration.py`
-- [ ] T003 [P] Teste: o índice `uq_activity_runs_number_active` recusa duas execuções ativas com o mesmo `(activity_instance_id, run_number)` e `laboratory_id` nulo (`NULLS NOT DISTINCT`), em `tests/integration/migrations/test_per_laboratory_migration.py`
-- [ ] T004 [P] Teste: o mesmo índice aceita duas execuções com o mesmo `(activity_instance_id, run_number)` e laboratórios diferentes, em `tests/integration/migrations/test_per_laboratory_migration.py`
-- [ ] T005 [P] Teste: `laboratory_waivers` recusa uma segunda linha ativa com o mesmo `(phase_id, laboratory_id)`, em `tests/integration/migrations/test_per_laboratory_migration.py`
-- [ ] T006 [P] Teste: `downgrade` seguido de `upgrade` sem dados por laboratório termina sem erro e restaura o esquema, em `tests/integration/migrations/test_per_laboratory_migration.py`
-- [ ] T007 [P] Teste: a instanciação copia `execution_scope: "per_laboratory"` e `custody: true` do template para `ActivityInstance.execution_scope`/`is_custody`; atividade sem as chaves fica `'process'`/`False`, em `tests/integration/database/test_per_laboratory_opening.py`
-- [ ] T008 [P] Teste: `_cancel_pending_children` com execuções em `WAIVED`, `SUPERSEDED`, `COMPLETED` e `CANCELLED` (gravadas direto no modelo) não muda nenhuma delas e não as conta em `activity_runs` (FR-039, SC-010), em `tests/integration/database/test_run_terminal_statuses.py`
-- [ ] T009 [P] Teste: excluir o processo (`delete_process`) com as mesmas execuções não muda nenhuma delas, em `tests/integration/database/test_run_terminal_statuses.py`
-- [ ] T010 [P] Teste: o cancelamento do processo muda para `CANCELLED` as execuções `IN_PROGRESS` e `BLOCKED` e as tarefas abertas delas, em `tests/integration/database/test_run_terminal_statuses.py`
+- [X] T002 [P] Teste: após `upgrade`, toda `activity_instances` existente tem `execution_scope = 'process'` e `is_custody = false`, e toda `activity_runs` existente tem `laboratory_id` nulo, em `tests/integration/migrations/test_per_laboratory_migration.py`
+- [X] T003 [P] Teste: o índice `uq_activity_runs_number_active` recusa duas execuções ativas com o mesmo `(activity_instance_id, run_number)` e `laboratory_id` nulo (`NULLS NOT DISTINCT`), em `tests/integration/migrations/test_per_laboratory_migration.py`
+- [X] T004 [P] Teste: o mesmo índice aceita duas execuções com o mesmo `(activity_instance_id, run_number)` e laboratórios diferentes, em `tests/integration/migrations/test_per_laboratory_migration.py`
+- [X] T005 [P] Teste: `laboratory_waivers` recusa uma segunda linha ativa com o mesmo `(phase_id, laboratory_id)`, em `tests/integration/migrations/test_per_laboratory_migration.py`
+- [X] T006 [P] Teste: `downgrade` seguido de `upgrade` sem dados por laboratório termina sem erro e restaura o esquema, em `tests/integration/migrations/test_per_laboratory_migration.py`
+- [X] T007 [P] Teste: a instanciação copia `execution_scope: "per_laboratory"` e `custody: true` do template para `ActivityInstance.execution_scope`/`is_custody`; atividade sem as chaves fica `'process'`/`False`, em `tests/integration/database/test_per_laboratory_opening.py`
+- [X] T008 [P] Teste: `_cancel_pending_children` com execuções em `WAIVED`, `SUPERSEDED`, `COMPLETED` e `CANCELLED` (gravadas direto no modelo) não muda nenhuma delas e não as conta em `activity_runs` (FR-039, SC-010), em `tests/integration/database/test_run_terminal_statuses.py`
+- [X] T009 [P] Teste: excluir o processo (`delete_process`) com as mesmas execuções não muda nenhuma delas, em `tests/integration/database/test_run_terminal_statuses.py`
+- [X] T010 [P] Teste: o cancelamento do processo muda para `CANCELLED` as execuções `IN_PROGRESS` e `BLOCKED` e as tarefas abertas delas, em `tests/integration/database/test_run_terminal_statuses.py`
 
 ### Implementação
 
-- [ ] T011 Modelos em `src/pivma/core/database/models.py`:
+- [X] T011 Modelos em `src/pivma/core/database/models.py`:
   - `ActivityInstance.execution_scope`: `String(32)`, `NOT NULL`, padrão `'process'`.
   - `ActivityInstance.is_custody`: `Boolean`, `NOT NULL`, padrão `False`.
   - `ActivityRun.laboratory_id`: `ForeignKey('laboratories.id')`, nulo, padrão `None`.
   - Índice `uq_activity_runs_number_active` passa a `(activity_instance_id, laboratory_id, run_number)` com `postgresql_nulls_not_distinct=True` e `deleted_at IS NULL`.
   - Modelo novo `LaboratoryWaiver` (`laboratory_waivers`): `process_instance_id`, `phase_id`, `laboratory_id` (todos FK `NOT NULL`), `reason` (`Text NOT NULL`), `AuditMixin` e índice único parcial `(phase_id, laboratory_id)` com `deleted_at IS NULL`.
-- [ ] T012 [P] Criar `tests/factories/laboratory_run_factory.py` com `LAB_RUN_TEMPLATE` e `frozen_lab_process` (cabeçalho deste arquivo). Adicionar o parâmetro `template=SAMPLE_TEMPLATE` em `sample_process` de `tests/factories/sample_factory.py`, sem mudar o comportamento padrão.
-- [ ] T013 Migração Alembic encadeada em `cc6c65843305`, em `migrations/versions/<rev>_per_laboratory_activity_runs.py`. Usar `server_default` para as colunas novas e recriar o índice no `upgrade` e no `downgrade` (data-model.md).
-- [ ] T014 `IMMUTABLE_RUN_STATUSES = frozenset({'COMPLETED', 'CANCELLED', 'WAIVED', 'SUPERSEDED'})` e `_cancel_pending_children` passa a cancelar só execuções fora desse conjunto (R14), em `src/pivma/core/process_engine.py`
-- [ ] T015 Copiar `execution_scope` (padrão `'process'`) e `custody` (padrão `False`) de `a_data` para a `ActivityInstance` em `_create_phases_and_activities`, em `src/pivma/core/process_engine.py`
+- [X] T012 [P] Criar `tests/factories/laboratory_run_factory.py` com `LAB_RUN_TEMPLATE` e `frozen_lab_process` (cabeçalho deste arquivo). Adicionar o parâmetro `template=SAMPLE_TEMPLATE` em `sample_process` de `tests/factories/sample_factory.py`, sem mudar o comportamento padrão.
+- [X] T013 Migração Alembic encadeada em `cc6c65843305`, em `migrations/versions/<rev>_per_laboratory_activity_runs.py`. Usar `server_default` para as colunas novas e recriar o índice no `upgrade` e no `downgrade` (data-model.md).
+- [X] T014 `IMMUTABLE_RUN_STATUSES = frozenset({'COMPLETED', 'CANCELLED', 'WAIVED', 'SUPERSEDED'})` e `_cancel_pending_children` passa a cancelar só execuções fora desse conjunto (R14), em `src/pivma/core/process_engine.py`
+- [X] T015 Copiar `execution_scope` (padrão `'process'`) e `custody` (padrão `False`) de `a_data` para a `ActivityInstance` em `_create_phases_and_activities`, em `src/pivma/core/process_engine.py`
 
 **Checkpoint**: T002–T010 passam; suíte da linha de base (T001) continua verde.
 

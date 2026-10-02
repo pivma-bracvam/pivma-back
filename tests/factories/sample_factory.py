@@ -147,9 +147,11 @@ async def add_participating_lab(
     )
 
 
-async def sample_process(session, *, lab_count: int = 3) -> SimpleNamespace:
+async def sample_process(
+    session, *, lab_count: int = 3, template: dict = SAMPLE_TEMPLATE
+) -> SimpleNamespace:
     """Processo com `sample_definition` aberta, Grupo de Seleção e labs."""
-    _, version, _ = await sync_template_from_dict(session, SAMPLE_TEMPLATE)
+    _, version, _ = await sync_template_from_dict(session, template)
     creator = await _user(session)
     process = await instantiate_process(
         session, version, 'Estudo cego', creator.id

@@ -18,6 +18,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     column,
+    false,
     func,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
@@ -648,6 +649,14 @@ class ActivityInstance(AuditMixin):
     edit_roles: Mapped[list[str]] = mapped_column(
         ARRAY(String(64)), nullable=False, default_factory=list
     )
+    # Execução por laboratório (Spec 036): copiadas do template na
+    # instanciação. `process` = uma execução no processo inteiro.
+    execution_scope: Mapped[str] = mapped_column(
+        String(32), server_default='process', default='process'
+    )
+    is_custody: Mapped[bool] = mapped_column(
+        Boolean, server_default=false(), default=False
+    )
 
     process_instance: Mapped[ProcessInstance] = relationship(
         back_populates='activities', init=False
@@ -722,6 +731,11 @@ class ActivityRun(AuditMixin):
     execution_reason: Mapped[str | None] = mapped_column(
         Text, nullable=True, default=None
     )
+    # Laboratório da execução em atividade por laboratório (Spec 036); a
+    # numeração (`run_number`) conta por laboratório dentro da atividade.
+    laboratory_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey('laboratories.id'), nullable=True, default=None
+    )
 
     activity_instance: Mapped[ActivityInstance] = relationship(
         back_populates='runs', init=False
@@ -743,8 +757,10 @@ class ActivityRun(AuditMixin):
         Index(
             'uq_activity_runs_number_active',
             'activity_instance_id',
+            'laboratory_id',
             'run_number',
             unique=True,
+            postgresql_nulls_not_distinct=True,
             postgresql_where=column('deleted_at').is_(None),
         ),
     )
@@ -1248,6 +1264,39 @@ class BlindSampleCode(AuditMixin):
         Index(
             'uq_blind_sample_codes_substance_lab_active',
             'substance_id',
+            'laboratory_id',
+            unique=True,
+            postgresql_where=column('deleted_at').is_(None),
+        ),
+    )
+
+
+@table_registry.mapped_as_dataclass
+class LaboratoryWaiver(AuditMixin):
+    """Dispensa de um laboratório congelado numa fase (Spec 036).
+
+    Irreversível (FR-020a): no máximo uma ativa por fase e laboratório.
+    """
+
+    __tablename__ = 'laboratory_waivers'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    process_instance_id: Mapped[UUID] = mapped_column(
+        ForeignKey('process_instances.id')
+    )
+    phase_id: Mapped[UUID] = mapped_column(ForeignKey('phases.id'))
+    laboratory_id: Mapped[UUID] = mapped_column(ForeignKey('laboratories.id'))
+    reason: Mapped[str] = mapped_column(Text)
+
+    __table_args__ = (
+        Index(
+            'uq_laboratory_waivers_phase_lab_active',
+            'phase_id',
             'laboratory_id',
             unique=True,
             postgresql_where=column('deleted_at').is_(None),
