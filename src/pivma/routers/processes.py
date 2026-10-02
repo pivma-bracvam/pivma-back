@@ -12,9 +12,8 @@ from pivma.core.authorization import (
     can_manage_participants,
     can_manage_process_templates,
     effective_laboratory_ids,
-    has_platform_wide_access,
     has_process_review_access,
-    is_effective_group_manager,
+    is_process_manager,
     user_cargos,
 )
 from pivma.core.database.models import (
@@ -161,9 +160,7 @@ async def _events_of_visible_laboratories(
     laboratório: gestor do processo ou o próprio laboratório (FR-037).
     Demais eventos, inclusive os de designação, não mudam.
     """
-    if await has_platform_wide_access(
-        session, user_id
-    ) or await is_effective_group_manager(session, user_id, process_id):
+    if await is_process_manager(session, user_id, process_id):
         return events
     run_ids = {e.activity_run_id for e in events if e.activity_run_id}
     run_labs = (

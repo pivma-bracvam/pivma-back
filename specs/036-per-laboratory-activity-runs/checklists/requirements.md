@@ -58,3 +58,15 @@
   sobre arquivamento, U1 prazo contado da execução bloqueada) e 7 baixos.
   Todos tratados: FR-011, FR-025, Assumptions, R6, R10, contrato, quickstart
   e quatro testes novos no `tasks.md` (173 tarefas).
+
+## Validação da implementação (2026-10-02)
+
+- Jornada de aceite (quickstart, passos 0 a 8):
+  `tests/integration/journeys/etapa_3_execucao_validacao/test_per_laboratory_journey.py`.
+- Suíte completa verde (1539 passed, 1 skipped), medida na branch da Spec 037.
+  A `develop` saiu do merge desta spec com duas heads de migração (esta e a
+  de notificações, #67); a revisão `5af69c71be3c` as une.
+- A Spec 037 trocou o erro de "laboratório A conclui a execução de B" de 403
+  para 404 (FR-001 dela); a jornada e `test_laboratory_run_access.py` foram
+  ajustados lá.
+- README: seção "Execução por Laboratório".

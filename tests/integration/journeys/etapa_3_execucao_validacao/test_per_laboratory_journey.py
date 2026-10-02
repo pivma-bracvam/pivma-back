@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from pivma.core.database.models import ActivityRun
 from pivma.core.process_engine import (
-    AuthorizationError,
+    NotFoundError,
     complete_laboratory_run,
     delete_process,
 )
@@ -68,8 +68,8 @@ async def test_three_labs_waiver_reopen_and_deletion(  # noqa: PLR0915
     assert upload[lab_a].status == 'IN_PROGRESS'
     assert {upload[lab_b].status, upload[lab_c].status} == {'BLOCKED'}
 
-    # 3. Lab A não age pelo Lab B nem enxerga o Lab B.
-    with pytest.raises(AuthorizationError):
+    # 3. Lab A não age pelo Lab B nem enxerga o Lab B (Spec 037: 404).
+    with pytest.raises(NotFoundError):
         await complete_laboratory_run(
             session, ctx.process_id, 'receipt', lab_b, ctx.lab_users[0].id
         )

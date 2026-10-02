@@ -101,11 +101,22 @@ uv run fastapi dev src/pivma/__init__.py
 
 ## Arquitetura de Permissões e Acesso
 
-A aplicação divide autorização em três níveis:
+A aplicação divide autorização em quatro níveis:
 
 1. **Perfis Globais (RBAC):** Definem permissões transversais no sistema (ex.: `Administrador`, `BraCVAM`, `Grupo Gestor`).
 2. **Papéis Locais de Processo:** Definem atribuições dentro de instâncias específicas de processo (`ProcessInstance`).
 3. **Concessões por Atividade:** Cada atividade de processo lista os cargos que podem vê-la (`view_roles`) e editá-la (`edit_roles`). As concessões valem para cargos, nunca para usuários. Um usuário tem um cargo no processo por atribuição ativa ou, no caso de `admin` e `bracvam`, pelo perfil global. `admin` e `bracvam` veem todas as atividades; editar exige que o cargo esteja em `edit_roles`. As concessões vêm da chave `access` dos templates (ver `src/pivma/templates_data/README.md`).
+4. **Isolamento por Laboratório:** Nas atividades executadas por laboratório (ver [Execução por Laboratório](#execução-por-laboratório)), a concessão da atividade não basta. Cada laboratório lê e age só na própria execução.
+
+| Perfil | Lê a execução de um laboratório | Age na execução |
+|---|---|---|
+| `participating_laboratory` efetivo pelo laboratório da execução | Sim | Sim, com concessão de edição |
+| `participating_laboratory` de outro laboratório | Não (`404`) | Não (`404`) |
+| `lead_laboratory`, `sample_selection_group`, `statistician` e demais cargos | Não (`404`) | Não |
+| `group_manager` efetivo | Sim | Não (`403`) |
+| Admin, BraCVAM | Sim | Só se o template der edição a `admin`/`bracvam` |
+
+A designação de `lead_laboratory` não dá acesso a execução nenhuma, nem à do laboratório da própria designação. Quem é líder por um laboratório e participante por outro vê só as execuções do segundo. A execução de outro laboratório responde com o mesmo `404` e a mesma mensagem da execução inexistente, então a resposta não revela que o laboratório existe no processo. O motor aplica a regra em `require_laboratory_run_access(..., level='view' | 'edit')`, que as rotas de conteúdo e anexo da Etapa 3 chamam; `GET /tasks`, `GET /tasks/{id}` e a linha do tempo aplicam a mesma regra. Um usuário tem no máximo uma designação ativa de `participating_laboratory` por processo: a segunda, por qualquer laboratório, responde `409 duplicate`.
 
 ### Bootstrap do Administrador Inicial
 
