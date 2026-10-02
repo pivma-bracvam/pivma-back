@@ -105,6 +105,8 @@ IMMUTABLE_PROCESS_STATUSES = frozenset({
 FIELD_TARGET_TYPES = frozenset({'field', 'field_set', 'document'})
 # Atividade com uma execução por laboratório congelado (Spec 036).
 PER_LABORATORY = 'per_laboratory'
+EXECUTION_SCOPES = frozenset({'process', PER_LABORATORY})
+SAMPLE_DEFINITION_ACTIVITY_TYPE = 'sample_definition'
 # Execuções que nenhuma transição altera, nem o cancelamento do processo
 # (Spec 036, R14): o histórico de dispensa e substituição é preservado.
 IMMUTABLE_RUN_STATUSES = frozenset({
@@ -544,6 +546,64 @@ def resolve_activity_access(
             f'{", ".join(unknown)}.'
         )
     return sorted(view), sorted(edit)
+
+
+def validate_execution_scopes(data: dict[str, Any]) -> None:
+    """Recusa declaração de execução por laboratório que travaria (R2).
+
+    Modo desconhecido; atividade por laboratório sem caminho de
+    dependências até a definição das amostras, ou que o laboratório
+    participante não edita; custódia fora de atividade por laboratório
+    (FR-003).
+    """
+    template_key = data.get('process_template', {}).get('key')
+    activities = {
+        a['key']: a
+        for phase in data.get('phases', [])
+        for a in phase.get('activities', [])
+    }
+
+    def fail(key: str, message: str) -> None:
+        raise ValidationError(
+            f'Template {template_key!r}, atividade {key!r}: {message}'
+        )
+
+    def reaches_sample_definition(key: str | None, seen: set[str]) -> bool:
+        a_data = activities.get(key)
+        if a_data is None or key in seen:
+            return False
+        if a_data.get('activity_type') == SAMPLE_DEFINITION_ACTIVITY_TYPE:
+            return True
+        seen.add(key)
+        return any(
+            reaches_sample_definition(dep.get('required_activity_key'), seen)
+            for dep in a_data.get('dependencies') or []
+        )
+
+    for key, a_data in activities.items():
+        scope = a_data.get('execution_scope', 'process')
+        if scope not in EXECUTION_SCOPES:
+            fail(key, f'modo de execução desconhecido {scope!r}.')
+        if scope != PER_LABORATORY:
+            if a_data.get('custody'):
+                fail(key, 'custódia só vale em atividade por laboratório.')
+            continue
+        if not any(
+            reaches_sample_definition(dep.get('required_activity_key'), set())
+            for dep in a_data.get('dependencies') or []
+        ):
+            fail(
+                key,
+                'atividade por laboratório precisa depender da definição '
+                'das amostras.',
+            )
+        _, edit = resolve_activity_access(a_data)
+        if PARTICIPATING_LABORATORY_ROLE_KEY not in edit:
+            fail(
+                key,
+                'atividade por laboratório precisa ser editável por '
+                f'{PARTICIPATING_LABORATORY_ROLE_KEY!r}.',
+            )
 
 
 async def generate_process_code(session: AsyncSession) -> str:
@@ -2415,9 +2475,6 @@ async def _unblock_laboratory(
         await _refresh_laboratory_activity(
             session, process, dependent, user_id
         )
-
-
-SAMPLE_DEFINITION_ACTIVITY_TYPE = 'sample_definition'
 
 
 async def waive_laboratory(  # noqa: PLR0913, PLR0917

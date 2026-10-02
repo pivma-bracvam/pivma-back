@@ -13,7 +13,11 @@ from pivma.core.database.models import (
     ProcessTemplate,
     ProcessTemplateVersion,
 )
-from pivma.core.process_engine import ValidationError, resolve_activity_access
+from pivma.core.process_engine import (
+    ValidationError,
+    resolve_activity_access,
+    validate_execution_scopes,
+)
 from pivma.core.settings import get_settings
 
 
@@ -165,6 +169,7 @@ async def sync_template_from_dict(
     session: AsyncSession, data: dict[str, Any]
 ) -> tuple[ProcessTemplate, ProcessTemplateVersion, list[FormTemplate]]:
     _validate_activity_access(data)
+    validate_execution_scopes(data)
     synced_forms = await _sync_forms(session, data.get('forms', []))
     process_template, version = await _sync_process_template_and_version(
         session, data

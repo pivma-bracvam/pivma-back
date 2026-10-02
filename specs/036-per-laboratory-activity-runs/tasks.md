@@ -386,19 +386,19 @@ Rotas de mutação usam `Origin: https://testserver`. O `bracvam_user` e o
 
 ### Testes (antes da implementação)
 
-- [ ] T149 [P] [US6] Teste: template sem `execution_scope` nem `custody` passa em `validate_execution_scopes`, em `tests/unit/core/test_execution_scope_validation.py`
-- [ ] T150 [P] [US6] Teste: `execution_scope: "per_lab"` levanta `ValidationError` com a chave do template e da atividade na mensagem, em `tests/unit/core/test_execution_scope_validation.py`
-- [ ] T151 [P] [US6] Teste: atividade `per_laboratory` sem caminho de dependências até uma atividade `activity_type: "sample_definition"` levanta `ValidationError`, em `tests/unit/core/test_execution_scope_validation.py`
-- [ ] T152 [P] [US6] Teste: atividade `per_laboratory` com caminho transitivo até `sample_definition` (via outra atividade) passa, em `tests/unit/core/test_execution_scope_validation.py`
-- [ ] T153 [P] [US6] Teste: atividade `per_laboratory` sem `participating_laboratory` em `access.edit` levanta `ValidationError`, em `tests/unit/core/test_execution_scope_validation.py`
-- [ ] T154 [P] [US6] Teste: `custody: true` em atividade de execução única levanta `ValidationError`, em `tests/unit/core/test_execution_scope_validation.py`
-- [ ] T155 [P] [US6] Teste: `sync_template_from_dict` com template inválido levanta `ValidationError` e não grava `ProcessTemplate` nem versão nova, em `tests/integration/bootstrap/test_execution_scope_bootstrap.py`
-- [ ] T156 [P] [US6] Teste: `bootstrap_all_templates` carrega os cinco templates padrão sem erro e nenhuma atividade deles é `per_laboratory` (SC-008), em `tests/integration/bootstrap/test_execution_scope_bootstrap.py`
+- [X] T149 [P] [US6] Teste: template sem `execution_scope` nem `custody` passa em `validate_execution_scopes`, em `tests/unit/core/test_execution_scope_validation.py`
+- [X] T150 [P] [US6] Teste: `execution_scope: "per_lab"` levanta `ValidationError` com a chave do template e da atividade na mensagem, em `tests/unit/core/test_execution_scope_validation.py`
+- [X] T151 [P] [US6] Teste: atividade `per_laboratory` sem caminho de dependências até uma atividade `activity_type: "sample_definition"` levanta `ValidationError`, em `tests/unit/core/test_execution_scope_validation.py`
+- [X] T152 [P] [US6] Teste: atividade `per_laboratory` com caminho transitivo até `sample_definition` (via outra atividade) passa, em `tests/unit/core/test_execution_scope_validation.py`
+- [X] T153 [P] [US6] Teste: atividade `per_laboratory` sem `participating_laboratory` em `access.edit` levanta `ValidationError`, em `tests/unit/core/test_execution_scope_validation.py`
+- [X] T154 [P] [US6] Teste: `custody: true` em atividade de execução única levanta `ValidationError`, em `tests/unit/core/test_execution_scope_validation.py`
+- [X] T155 [P] [US6] Teste: `sync_template_from_dict` com template inválido levanta `ValidationError` e não grava `ProcessTemplate` nem versão nova, em `tests/integration/bootstrap/test_execution_scope_bootstrap.py`
+- [X] T156 [P] [US6] Teste: `bootstrap_all_templates` carrega os cinco templates padrão sem erro e nenhuma atividade deles é `per_laboratory` (SC-008), em `tests/integration/bootstrap/test_execution_scope_bootstrap.py`
 
 ### Implementação
 
-- [ ] T157 [US6] `validate_execution_scopes(data)` pura, com as quatro regras de R2, reaproveitando `resolve_activity_access` para o conjunto de edição, em `src/pivma/core/process_engine.py`
-- [ ] T158 [US6] Chamar `validate_execution_scopes` em `sync_template_from_dict`, logo após `_validate_activity_access`, em `src/pivma/bootstrap_process_templates.py`
+- [X] T157 [US6] `validate_execution_scopes(data)` pura, com as quatro regras de R2, reaproveitando `resolve_activity_access` para o conjunto de edição, em `src/pivma/core/process_engine.py`
+- [X] T158 [US6] Chamar `validate_execution_scopes` em `sync_template_from_dict`, logo após `_validate_activity_access`, em `src/pivma/bootstrap_process_templates.py`
 
 **Checkpoint**: T149–T156 passam; `LAB_RUN_TEMPLATE` continua válido.
 
