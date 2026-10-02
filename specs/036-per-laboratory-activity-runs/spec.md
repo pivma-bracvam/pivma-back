@@ -82,6 +82,12 @@ visão por laboratório).
   atividade por laboratório que pode abrir antes do congelamento e atividade
   por laboratório que o cargo `participating_laboratory` não pode editar
   (FR-001 a FR-003).
+- Q: A dispensa pode ser revertida? → A: Não (FR-020a).
+- Q: A custódia é obrigatória para todo laboratório dispensado, inclusive o
+  que não recebeu amostras? → A: Sim (FR-019).
+- Q: É permitido dispensar todos os laboratórios? → A: Sim (Edge Cases).
+- Q: Como o grupo gestor acompanha cada laboratório? → A: Pela lista de
+  tarefas, com o laboratório em cada tarefa, sem painel novo (FR-028).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -201,7 +207,8 @@ dispensado.
    dela abrem.
 2. **Given** uma fase com atividades por laboratório ainda não abertas,
    **When** o Lab C é dispensado, **Then** essas atividades, ao abrirem, já
-   contam o Lab C como dispensado e não criam tarefa para ele.
+   criam a execução do Lab C como dispensada e a tarefa dele como cancelada,
+   e contam o Lab C como resolvido.
 3. **Given** uma atividade de custódia na fase e o Lab C dispensado, **When**
    as atividades de que ela depende ficam resolvidas para o Lab C, **Then** a
    custódia abre para o Lab C e conta para a conclusão da atividade como as
@@ -310,8 +317,9 @@ laboratório e o estado de cada um.
 **Acceptance Scenarios**:
 
 1. **Given** uma atividade por laboratório, **When** alguém lista as tarefas,
-   **Then** cada tarefa dessa atividade traz o laboratório; tarefas de
-   atividades únicas não trazem laboratório.
+   **Then** cada tarefa dessa atividade traz o laboratório e o status da
+   execução (em andamento, concluída, dispensada, substituída ou cancelada);
+   tarefas de atividades únicas não trazem laboratório.
 2. **Given** a lista de tarefas na rodada vigente, **When** um laboratório teve
    a execução reaberta, **Then** a rodada vigente é a mais recente de cada
    laboratório, e não a mais recente da atividade.
@@ -379,8 +387,10 @@ laboratório e o estado de cada um.
   recebe execução, e um laboratório que perdeu a designação recebe.
 - **FR-006**: Se o conjunto congelado não tiver laboratório, a abertura MUST
   ser recusada com erro de domínio, sem gravar nenhuma execução.
-- **FR-007**: A abertura MUST NOT criar tarefa para laboratório dispensado na
-  fase, exceto em atividade de custódia (FR-019).
+- **FR-007**: Para laboratório dispensado na fase, a abertura de atividade que
+  não seja de custódia MUST criar a execução dele já dispensada e a tarefa já
+  cancelada, para que o acompanhamento mostre o laboratório (FR-028). Em
+  atividade de custódia, a execução abre normalmente (FR-019).
 
 **Execução e autorização**
 
@@ -419,11 +429,13 @@ laboratório e o estado de cada um.
   concluídas do laboratório nas atividades por laboratório da fase que não
   sejam de custódia, e as tarefas abertas delas como canceladas. Execuções já
   concluídas MUST continuar concluídas.
-- **FR-019**: Atividades de custódia MUST continuar exigindo a execução do
-  laboratório dispensado e MUST abrir para ele quando as dependências dele
+- **FR-019**: Atividades de custódia MUST continuar exigindo a execução de
+  todo laboratório dispensado, tenha ou não recebido amostras, e MUST abrir para ele quando as dependências dele
   estiverem resolvidas (FR-011).
 - **FR-020**: Dispensar um laboratório já dispensado na mesma fase MUST ser
   recusado como conflito.
+- **FR-020a**: A dispensa MUST NOT ser revertida; o sistema MUST NOT
+  oferecer ação para desfazê-la.
 - **FR-021**: A dispensa MUST registrar na trilha do processo um evento com o
   laboratório, a fase, o motivo, o autor e o momento, na mesma transação.
 
@@ -454,7 +466,9 @@ laboratório e o estado de cada um.
 **Exposição**
 
 - **FR-028**: A lista e o detalhe de tarefas MUST trazer o laboratório nas
-  tarefas de atividades por laboratório e nenhum laboratório nas demais.
+  tarefas de atividades por laboratório e nenhum laboratório nas demais, e
+  MUST trazer o status da execução da tarefa, que distingue concluída,
+  dispensada, substituída e cancelada.
 - **FR-029**: O filtro de rodada vigente da lista de tarefas MUST considerar a
   execução mais recente de cada laboratório nas atividades por laboratório.
 - **FR-030**: Os eventos de conclusão, dispensa e reabertura de execução de
@@ -512,18 +526,13 @@ laboratório e o estado de cada um.
   atividades reais chegam com #28 a #31; aqui o comportamento é verificado com
   templates de teste.
 - "Fase" na dispensa é a fase do template em que a atividade está declarada.
-- A dispensa não é revertida nesta entrega. Um laboratório dispensado por
-  engano volta a participar por decisão formal fora do sistema, em estudo ou
-  fase posterior.
-- Se o laboratório dispensado ainda não recebeu amostras, a decisão de
-  dispensar também a custódia depende do registro de recebimento da #28 e fica
-  com a #31. Até lá a custódia continua obrigatória para todo laboratório
-  dispensado.
+- Um laboratório dispensado por engano volta a participar por decisão formal
+  fora do sistema, em estudo ou fase posterior (FR-020a).
 - A recusa de dados dentro de uma atividade (ex.: parecer do estatístico na
   #30) e a autorização dela ficam com a issue dessa atividade, que reutiliza a
   reabertura desta spec.
-- O acompanhamento por laboratório usa a lista de tarefas e a trilha do
-  processo; não há um painel novo nesta entrega.
+- O acompanhamento por laboratório usa a lista de tarefas; a trilha do
+  processo complementa com os eventos de cada laboratório. Não há painel novo.
 - Admin e BraCVAM mantêm o acesso global atual às atividades (Spec 030).
 - Isolamento de visão entre laboratórios (#59), notificações e prazos por
   laboratório ficam fora do escopo.

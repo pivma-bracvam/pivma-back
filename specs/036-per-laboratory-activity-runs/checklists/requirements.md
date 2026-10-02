@@ -39,11 +39,8 @@
   Corrigido para "a conclusão da dependência que tenta abrir a atividade".
 - Nenhum marcador [NEEDS CLARIFICATION]: as seis decisões da sessão de
   2026-10-02 estão na seção Clarifications.
-- Pressupostos que o usuário não decidiu de forma explícita e que convém
-  confirmar antes do `/speckit-plan`: dispensa sem reversão nesta entrega;
-  custódia obrigatória para todo laboratório dispensado até a #28/#31;
-  dispensa de todos os laboratórios permitida; acompanhamento pela lista de
-  tarefas e pela trilha, sem painel novo.
+- Os quatro pressupostos pendentes foram confirmados pelo usuário em
+  2026-10-02 e estão na seção Clarifications (FR-019, FR-020a, FR-028).
 - O cenário 5 da história 1 (conjunto congelado vazio) não é alcançável pelos
   fluxos atuais, porque `sample_definition` recusa concluir sem laboratório.
   Fica porque a issue pede essa recusa explicitamente.
