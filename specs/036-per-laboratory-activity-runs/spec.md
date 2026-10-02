@@ -95,6 +95,35 @@ visão por laboratório).
   e recusam atividade por laboratório até a issue consumidora estendê-las
   (FR-016, FR-034).
 
+### Session 2026-10-02 (análise de consistência)
+
+- Q: Quem vê as tarefas e os eventos de uma execução de laboratório? → A: Só
+  as pessoas do próprio laboratório e os gestores (`group_manager` efetivo,
+  Admin, BraCVAM). Os demais cargos com visão da atividade, inclusive outros
+  laboratórios e o estatístico, não veem (FR-035 a FR-038).
+- Q: O filtro da trilha vale para todo evento com laboratório no contexto? →
+  A: Não. Vale para eventos ligados a uma execução de laboratório e para os
+  tipos novos desta spec. Eventos de designação seguem as Specs 006 e 035
+  (FR-037).
+- Q: Quem vê o evento de dispensa? → A: Só os gestores. Nem o laboratório
+  dispensado nem os demais laboratórios veem. Um evento por execução que a
+  dispensa marcou, cada um com a execução e o laboratório; se nenhuma
+  execução mudou, um evento sem execução (FR-021, FR-038).
+- Q: O cancelamento do processo pode mudar uma execução dispensada ou
+  substituída? → A: Não. Execuções concluídas, canceladas, dispensadas e
+  substituídas são terminais; o cancelamento só encerra execuções abertas ou
+  bloqueadas (FR-039).
+- Q: A atividade por laboratório conclui contra as execuções existentes ou
+  contra o conjunto congelado? → A: Contra o conjunto congelado. Na ativação,
+  a atividade cria uma execução para cada laboratório congelado. A de quem
+  ainda não resolveu a dependência por laboratório nasce bloqueada, sem
+  tarefa, e passa a em andamento quando a cadeia dele se resolve (FR-004,
+  FR-011, FR-013).
+- Q: Pode haver dispensa antes do congelamento das amostras? → A: Não. Antes
+  da conclusão de `sample_definition`, a saída de um laboratório é feita pela
+  revogação da designação, e a conclusão descarta os códigos dele. A dispensa
+  só é aceita depois do congelamento (FR-017a).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Cada laboratório recebe a própria execução (Priority: P1)
@@ -110,14 +139,15 @@ Etapa 3 pode ser declarada.
 **Independent Test**: com um template de teste que declara uma atividade por
 laboratório depois de `sample_definition`, criar um processo com três
 laboratórios, concluir a definição das amostras e verificar três execuções
-abertas. Concluir duas e verificar que a atividade continua em andamento.
+em andamento. Concluir duas e verificar que a atividade continua em andamento.
 Concluir a terceira e verificar a conclusão da atividade.
 
 **Acceptance Scenarios**:
 
 1. **Given** um processo com N laboratórios no conjunto congelado, **When** a
-   atividade por laboratório abre, **Then** existem exatamente N execuções
-   abertas e N tarefas, cada uma ligada ao seu laboratório.
+   atividade por laboratório é ativada, **Then** existem exatamente N
+   execuções, cada uma ligada ao seu laboratório; as de laboratórios com a
+   dependência resolvida estão em andamento, com tarefa.
 2. **Given** três execuções abertas, **When** o Lab A conclui a sua, **Then**
    as execuções dos labs B e C continuam abertas e a atividade continua em
    andamento.
@@ -134,13 +164,16 @@ Concluir a terceira e verificar a conclusão da atividade.
 
 ---
 
-### User Story 2 - Só o próprio laboratório age na sua execução (Priority: P1)
+### User Story 2 - Só o próprio laboratório age e vê a sua execução (Priority: P1)
 
 Uma pessoa designada pelo Lab A conclui a execução do Lab A. Ela não consegue
-agir na execução do Lab B, mesmo tendo o cargo que edita a atividade.
+agir na execução do Lab B, mesmo tendo o cargo que edita a atividade, e não
+fica sabendo que os Labs B e C existem, nem o andamento deles.
 
 **Why this priority**: sem essa regra, um laboratório envia ou conclui dados
-em nome de outro, o que invalida o ensaio interlaboratorial.
+em nome de outro, o que invalida o ensaio interlaboratorial, ou descobre quem
+são e como andam os outros participantes, o que quebra o RF044 e o
+cegamento.
 
 **Independent Test**: com dois laboratórios e uma pessoa designada por cada
 um, tentar agir na execução do outro laboratório e verificar a recusa.
@@ -155,7 +188,17 @@ um, tentar agir na execução do outro laboratório e verificar a recusa.
    035), **When** ela tenta agir na execução do Lab A, **Then** a ação é
    recusada, e a execução continua pendente.
 4. **Given** a lista de tarefas, **When** a pessoa do Lab A consulta, **Then**
-   o indicador "posso agir" é verdadeiro só na tarefa do Lab A.
+   recebe só as tarefas de execução do Lab A; as dos Labs B e C não aparecem.
+5. **Given** a tarefa de execução do Lab B, **When** a pessoa do Lab A pede o
+   detalhe dela, **Then** recebe "não encontrado".
+6. **Given** um estatístico com visão da atividade por laboratório, **When**
+   ele lista as tarefas, **Then** não recebe tarefas de execução de nenhum
+   laboratório.
+7. **Given** o grupo gestor, Admin ou BraCVAM, **When** listam as tarefas,
+   **Then** recebem as tarefas de todos os laboratórios.
+8. **Given** a trilha do processo, **When** a pessoa do Lab A consulta, **Then**
+   vê os eventos das execuções do Lab A e não vê os das execuções dos Labs B
+   e C, nem nenhum evento de dispensa.
 
 ---
 
@@ -176,16 +219,19 @@ abriu só para o Lab A.
 **Acceptance Scenarios**:
 
 1. **Given** duas atividades por laboratório em sequência, **When** o Lab A
-   conclui a primeira, **Then** a segunda abre para o Lab A e continua sem
-   execução para os labs B e C.
-2. **Given** a mesma situação, **When** o Lab A conclui a primeira, **Then** a
-   segunda atividade passa a constar em andamento.
+   conclui a primeira, **Then** a execução do Lab A na segunda passa de
+   bloqueada a em andamento, com tarefa; as dos labs B e C continuam
+   bloqueadas, sem tarefa.
+2. **Given** a mesma situação, **When** a primeira atividade é ativada,
+   **Then** a segunda também é ativada, consta em andamento e tem uma execução
+   bloqueada para cada laboratório.
 3. **Given** uma atividade por laboratório que depende de duas atividades por
    laboratório, **When** o Lab A conclui só uma delas, **Then** a execução do
-   Lab A na atividade seguinte não abre.
+   Lab A na atividade seguinte continua bloqueada.
 4. **Given** uma atividade por laboratório que depende de uma atividade única
    do processo, **When** a atividade única conclui, **Then** a atividade por
-   laboratório abre para todos os laboratórios do conjunto congelado.
+   laboratório é ativada com uma execução em andamento para cada laboratório
+   do conjunto congelado.
 
 ---
 
@@ -208,13 +254,13 @@ dispensado.
 **Acceptance Scenarios**:
 
 1. **Given** dois laboratórios concluídos e o Lab C pendente, **When** o grupo
-   gestor dispensa o Lab C na fase, **Then** a execução pendente do Lab C fica
-   como dispensada, a atividade conclui e as atividades únicas que dependiam
-   dela abrem.
-2. **Given** uma fase com atividades por laboratório ainda não abertas,
-   **When** o Lab C é dispensado, **Then** essas atividades, ao abrirem, já
-   criam a execução do Lab C como dispensada e a tarefa dele como cancelada,
-   e contam o Lab C como resolvido.
+   gestor dispensa o Lab C na fase, **Then** as execuções em andamento ou
+   bloqueadas do Lab C ficam como dispensadas, a atividade conclui e as
+   atividades únicas que dependiam dela abrem.
+2. **Given** uma fase com atividades por laboratório ainda não ativadas,
+   **When** o Lab C é dispensado, **Then** essas atividades, ao serem
+   ativadas, já criam a execução do Lab C como dispensada e a tarefa dele como
+   cancelada, e contam o Lab C como resolvido.
 3. **Given** uma atividade de custódia na fase e o Lab C dispensado, **When**
    as atividades de que ela depende ficam resolvidas para o Lab C, **Then** a
    custódia abre para o Lab C e conta para a conclusão da atividade como as
@@ -222,14 +268,18 @@ dispensado.
 4. **Given** uma execução já concluída pelo Lab C, **When** o Lab C é
    dispensado, **Then** a execução concluída continua concluída, com os dados
    intactos.
-5. **Given** a dispensa, **When** alguém consulta a trilha do processo,
-   **Then** encontra um evento com o laboratório, a fase, o motivo, o autor e o
-   momento.
+5. **Given** a dispensa, **When** o grupo gestor consulta a trilha do
+   processo, **Then** encontra um evento por execução dispensada, com a
+   execução, o laboratório, a fase, o motivo, o autor e o momento. Um
+   laboratório, inclusive o dispensado, não encontra esses eventos.
 6. **Given** uma pessoa sem `group_manager` efetivo e sem perfil Admin ou
    BraCVAM, **When** ela tenta dispensar um laboratório, **Then** a ação é
    recusada e nada muda.
 7. **Given** um laboratório já dispensado na fase, **When** alguém tenta
    dispensá-lo de novo, **Then** a ação é recusada como conflito.
+8. **Given** `sample_definition` ainda não concluída, **When** o grupo gestor
+   tenta dispensar um laboratório, **Then** a ação é recusada como conflito e
+   nada é gravado.
 
 ---
 
@@ -263,7 +313,9 @@ e C intactos e a atividade de volta para em andamento.
    **Then** elas voltam a ficar bloqueadas, em cadeia, e as execuções abertas
    delas são encerradas como canceladas, com os dados preservados.
 6. **Given** atividades seguintes por laboratório, **When** a execução do Lab B
-   é reaberta, **Then** só a cadeia do Lab B volta a ficar bloqueada; as
+   é reaberta, **Then** só a cadeia do Lab B volta a ficar bloqueada: a
+   execução do Lab B em cada uma é encerrada (cancelada se aberta, substituída
+   se concluída) e uma nova execução bloqueada do Lab B toma o lugar dela; as
    cadeias dos labs A e C seguem.
 7. **Given** a reabertura, **When** alguém consulta a trilha, **Then**
    encontra um evento com o laboratório, a atividade, o número da execução
@@ -273,6 +325,9 @@ e C intactos e a atividade de volta para em andamento.
    recusada e nada muda.
 9. **Given** um laboratório dispensado na fase, **When** alguém tenta reabrir
    uma execução dele que não seja de custódia, **Then** a ação é recusada.
+10. **Given** um laboratório sem execução concluída na atividade (em
+    andamento, bloqueada ou sem execução), **When** alguém tenta reabrir,
+    **Then** a ação é recusada.
 
 ---
 
@@ -297,8 +352,8 @@ os cinco templates padrão e verificar que nada muda.
 2. **Given** uma atividade com modo de execução desconhecido, **When** o
    template é carregado, **Then** a carga é recusada.
 3. **Given** uma atividade por laboratório que não depende, direta ou
-   indiretamente, de `sample_definition`, **When** o template é carregado,
-   **Then** a carga é recusada.
+   indiretamente, de uma atividade do tipo `sample_definition`, **When** o
+   template é carregado, **Then** a carga é recusada.
 4. **Given** uma atividade por laboratório sem `participating_laboratory` entre
    os cargos que editam, **When** o template é carregado, **Then** a carga é
    recusada.
@@ -322,24 +377,24 @@ laboratório e o estado de cada um.
 
 **Acceptance Scenarios**:
 
-1. **Given** uma atividade por laboratório, **When** alguém lista as tarefas,
-   **Then** cada tarefa dessa atividade traz o laboratório e o status da
-   execução (em andamento, concluída, dispensada, substituída ou cancelada);
-   tarefas de atividades únicas não trazem laboratório.
+1. **Given** uma atividade por laboratório, **When** o grupo gestor lista as
+   tarefas, **Then** cada tarefa dessa atividade traz o laboratório e o status
+   da execução (em andamento, concluída, dispensada, substituída ou
+   cancelada); tarefas de atividades únicas não trazem laboratório.
 2. **Given** a lista de tarefas na rodada vigente, **When** um laboratório teve
    a execução reaberta, **Then** a rodada vigente é a mais recente de cada
    laboratório, e não a mais recente da atividade.
 3. **Given** a trilha do processo, **When** um laboratório conclui, é
    dispensado ou tem a execução reaberta, **Then** o evento correspondente traz
-   o laboratório.
+   o laboratório e aparece para o grupo gestor.
 
 ---
 
 ### Edge Cases
 
 - **Laboratório que perde a designação depois do congelamento**: a execução
-  dele continua pendente e a atividade não conclui. Ninguém consegue agir por
-  ele até nova designação; o grupo gestor resolve designando outra pessoa do
+  dele continua pendente e a atividade não conclui. Nenhum laboratório
+  consegue agir por ele até nova designação; o grupo gestor resolve designando outra pessoa do
   laboratório ou dispensando o laboratório.
 - **Laboratório designado depois do congelamento**: não recebe execução nas
   atividades por laboratório daquele estudo.
@@ -360,8 +415,15 @@ laboratório e o estado de cada um.
   conclui uma vez e as atividades seguintes abrem uma vez.
 - **Processo encerrado, cancelado ou arquivado**: dispensa e reabertura são
   recusadas, como as demais mudanças (Spec 030).
-- **Cancelamento do processo**: as execuções por laboratório abertas são
-  canceladas como as demais (Spec 022/030).
+- **Cancelamento do processo**: as execuções por laboratório em andamento ou
+  bloqueadas são canceladas como as demais (Spec 022/030); as concluídas,
+  dispensadas e substituídas não mudam (FR-039).
+- **Saída de laboratório antes do congelamento**: tratada pela revogação da
+  designação; a conclusão de `sample_definition` descarta os códigos dele
+  (Spec 031). A dispensa não é aceita nessa fase (FR-017a).
+- **Pessoa com cargo de laboratório e de gestão no mesmo processo**: o cargo
+  de gestão prevalece na visibilidade (FR-035); a autorização para agir na
+  execução segue o FR-008.
 - **Laboratório desativado depois do congelamento**: a execução continua; o
   acesso das pessoas segue a Spec 035.
 
@@ -379,24 +441,31 @@ laboratório e o estado de cada um.
   amostras.
 - **FR-003**: A carga do template MUST recusar, com mensagem que identifica o
   template e a atividade: modo de execução desconhecido; atividade por
-  laboratório que não dependa, direta ou indiretamente, de `sample_definition`;
+  laboratório que não dependa, direta ou indiretamente, de uma atividade do
+  tipo `sample_definition`;
   atividade por laboratório sem `participating_laboratory` entre os cargos que
   editam; marcação de custódia em atividade que não é por laboratório.
 
 **Abertura**
 
-- **FR-004**: Ao abrir uma atividade por laboratório, o sistema MUST criar uma
-  execução e uma tarefa para cada laboratório do conjunto congelado na
-  conclusão de `sample_definition` do processo, ligadas ao laboratório.
+- **FR-004**: Ao ativar uma atividade por laboratório, o sistema MUST criar,
+  na mesma operação, uma execução para cada laboratório do conjunto congelado
+  na conclusão de `sample_definition` do processo, ligada ao laboratório. A
+  execução de laboratório com as dependências resolvidas (FR-011) nasce em
+  andamento, com tarefa; a dos demais nasce bloqueada, sem tarefa.
+- **FR-004a**: Uma atividade por laboratório MUST ser ativada quando todas as
+  dependências de atividade única estiverem satisfeitas e todas as
+  dependências por laboratório já estiverem ativadas.
 - **FR-005**: As designações ativas no momento da abertura MUST NOT alterar o
   conjunto de execuções: um laboratório designado depois do congelamento não
   recebe execução, e um laboratório que perdeu a designação recebe.
-- **FR-006**: Se o conjunto congelado não tiver laboratório, a abertura MUST
+- **FR-006**: Se o conjunto congelado não tiver laboratório, a ativação MUST
   ser recusada com erro de domínio, sem gravar nenhuma execução.
-- **FR-007**: Para laboratório dispensado na fase, a abertura de atividade que
+- **FR-007**: Para laboratório dispensado na fase, a ativação de atividade que
   não seja de custódia MUST criar a execução dele já dispensada e a tarefa já
   cancelada, para que o acompanhamento mostre o laboratório (FR-028). Em
-  atividade de custódia, a execução abre normalmente (FR-019).
+  atividade de custódia, a execução segue o FR-004 (FR-019). Toda execução
+  dispensada MUST ter uma tarefa cancelada.
 
 **Execução e autorização**
 
@@ -412,14 +481,15 @@ laboratório e o estado de cada um.
 - **FR-010**: Concluir a execução de um laboratório MUST concluir só essa
   execução e a tarefa dela.
 - **FR-011**: Quando uma atividade por laboratório depende de outra atividade
-  por laboratório, a execução do Lab X na dependente MUST abrir quando todas
-  as dependências estiverem resolvidas para o Lab X (concluídas ou
-  dispensadas), independentemente dos outros laboratórios.
-- **FR-012**: Uma atividade por laboratório MUST constar em andamento a partir
-  da abertura da primeira execução de laboratório.
-- **FR-013**: Uma atividade por laboratório MUST concluir quando todas as
-  execuções vigentes do conjunto congelado estiverem concluídas ou
-  dispensadas.
+  por laboratório, a execução bloqueada do Lab X na dependente MUST passar a
+  em andamento, com tarefa, quando todas as dependências estiverem resolvidas
+  para o Lab X (concluídas ou dispensadas), independentemente dos outros
+  laboratórios.
+- **FR-012**: Uma atividade por laboratório MUST constar bloqueada antes da
+  ativação e em andamento a partir dela, até concluir.
+- **FR-013**: Uma atividade por laboratório MUST concluir se, e somente se,
+  para todo laboratório do conjunto congelado existir uma execução vigente
+  concluída ou dispensada.
 - **FR-014**: Uma atividade única do processo que depende de uma atividade por
   laboratório MUST abrir só quando esta concluir (FR-013).
 - **FR-015**: A conclusão da atividade e a abertura das seguintes MUST ocorrer
@@ -431,9 +501,13 @@ laboratório e o estado de cada um.
 - **FR-017**: `group_manager` com designação efetiva no processo, Admin e
   BraCVAM MUST poder dispensar um laboratório do conjunto congelado numa fase,
   com motivo obrigatório. Os demais MUST receber recusa.
-- **FR-018**: A dispensa MUST marcar como dispensadas as execuções não
-  concluídas do laboratório nas atividades por laboratório da fase que não
-  sejam de custódia, e as tarefas abertas delas como canceladas. Execuções já
+- **FR-017a**: A dispensa MUST ser recusada como conflito, sem gravar nada,
+  enquanto a atividade do tipo `sample_definition` do processo não estiver
+  concluída.
+- **FR-018**: A dispensa MUST marcar como dispensadas as execuções em
+  andamento ou bloqueadas do laboratório nas atividades por laboratório da
+  fase que não sejam de custódia, com as tarefas abertas canceladas e uma
+  tarefa cancelada criada para a execução que não tinha tarefa. Execuções já
   concluídas MUST continuar concluídas.
 - **FR-019**: Atividades de custódia MUST continuar exigindo a execução de
   todo laboratório dispensado, tenha ou não recebido amostras, e MUST abrir para ele quando as dependências dele
@@ -442,8 +516,10 @@ laboratório e o estado de cada um.
   recusado como conflito.
 - **FR-020a**: A dispensa MUST NOT ser revertida; o sistema MUST NOT
   oferecer ação para desfazê-la.
-- **FR-021**: A dispensa MUST registrar na trilha do processo um evento com o
-  laboratório, a fase, o motivo, o autor e o momento, na mesma transação.
+- **FR-021**: A dispensa MUST registrar na trilha do processo, na mesma
+  transação, um evento por execução marcada como dispensada, com a execução, o
+  laboratório, a fase, o motivo, o autor e o momento. Se nenhuma execução
+  mudou, MUST registrar um único evento com os mesmos dados, sem execução.
 
 **Reabertura**
 
@@ -459,12 +535,17 @@ laboratório e o estado de cada um.
 - **FR-025**: A reabertura MUST devolver a atividade para em andamento quando
   ela estava concluída e MUST voltar a bloquear, em cadeia: as atividades
   únicas que dependiam da conclusão dela; e, nas atividades por laboratório
-  seguintes, só a cadeia do laboratório reaberto. Execuções abertas dessas
-  atividades MUST ser encerradas como canceladas, com os dados preservados;
-  ao serem liberadas de novo, abrem nova execução.
-- **FR-026**: A reabertura MUST ser recusada para execução aberta, substituída
-  ou cancelada, e para execução não de custódia de laboratório dispensado na
-  fase.
+  seguintes, só a cadeia do laboratório reaberto. Nas atividades únicas, a
+  execução aberta MUST ser encerrada como cancelada e, ao serem liberadas de
+  novo, elas abrem nova execução. Nas atividades por laboratório, a execução
+  vigente do laboratório MUST ser encerrada (cancelada se em andamento,
+  substituída se concluída) e uma nova execução bloqueada do laboratório,
+  com o número seguinte, MUST tomar o lugar dela. Os dados das execuções
+  encerradas MUST ser preservados.
+- **FR-026**: A reabertura MUST ser recusada quando o laboratório não tem
+  execução vigente concluída na atividade (sem execução, em andamento,
+  bloqueada, cancelada ou substituída) e para execução não de custódia de
+  laboratório dispensado na fase.
 - **FR-027**: A reabertura MUST registrar na trilha um evento com o
   laboratório, a atividade, o número da execução substituída e da nova, o
   motivo e o autor, na mesma transação.
@@ -478,19 +559,43 @@ laboratório e o estado de cada um.
 - **FR-029**: O filtro de rodada vigente da lista de tarefas MUST considerar a
   execução mais recente de cada laboratório nas atividades por laboratório.
 - **FR-030**: Os eventos de conclusão, dispensa e reabertura de execução de
-  laboratório MUST trazer o laboratório na trilha do processo.
+  laboratório MUST trazer o laboratório e a execução na trilha do processo
+  (salvo o caso sem execução do FR-021).
+
+**Isolamento entre laboratórios**
+
+- **FR-035**: "Gestor do processo", nesta spec, é quem tem designação efetiva
+  de `group_manager` no processo ou perfil Admin ou BraCVAM. O cargo de
+  gestão prevalece sobre o de laboratório da mesma pessoa.
+- **FR-036**: A lista e o detalhe de tarefas MUST mostrar a tarefa de uma
+  execução de laboratório só ao gestor do processo e a quem tem designação
+  efetiva de `participating_laboratory` pelo mesmo laboratório, além da regra
+  de visão da atividade (Spec 030). Os demais MUST NOT recebê-la na lista e
+  MUST receber "não encontrado" no detalhe. As contagens da lista MUST seguir
+  o mesmo filtro. Tarefas de atividades de execução única não mudam.
+- **FR-037**: A trilha do processo MUST mostrar eventos ligados a uma execução
+  de laboratório, e os eventos de conclusão e reabertura desta spec, só ao
+  gestor do processo e às pessoas do mesmo laboratório. Eventos de designação
+  seguem as Specs 006 e 035.
+- **FR-038**: Os eventos de dispensa MUST aparecer só para o gestor do
+  processo.
 
 **Preservação**
 
 - **FR-031**: Dispensa e reabertura MUST ser recusadas em processo encerrado,
   cancelado ou arquivado (Spec 030).
-- **FR-032**: Esta feature MUST NOT alterar a visibilidade das atividades por
-  laboratório entre laboratórios; o isolamento de visão fica com a #59.
+- **FR-032**: Esta feature MUST NOT alterar a visibilidade de atividades,
+  tarefas e eventos que não sejam de execução de laboratório. O isolamento do
+  conteúdo das atividades por laboratório (dados enviados, anexos) fica com a
+  #59.
 - **FR-033**: Esta feature MUST NOT alterar os códigos cegos nem o conjunto
   congelado da Spec 031.
 - **FR-034**: As rotas de formulário existentes MUST manter o comportamento
   atual em atividades de execução única e MUST recusar, como transição
   inválida, o uso em atividade por laboratório, sem alterar nenhuma execução.
+- **FR-039**: Execuções concluídas, canceladas, dispensadas e substituídas
+  são terminais. O cancelamento ou a exclusão do processo MUST encerrar como
+  canceladas só as execuções em andamento ou bloqueadas.
 
 ### Key Entities
 
@@ -499,7 +604,7 @@ laboratório e o estado de cada um.
   agrega as execuções dos laboratórios.
 - **Execução** *(existente)*: passa a poder pertencer a um laboratório. O
   número da execução conta por laboratório dentro da atividade. Ganha os
-  estados dispensada e substituída.
+  estados bloqueada, dispensada e substituída.
 - **Tarefa** *(existente)*: herda o laboratório da execução.
 - **Dispensa de laboratório** *(novo)*: laboratório, fase do processo, motivo,
   autor e momento. No máximo uma vigente por laboratório e fase.
@@ -510,8 +615,8 @@ laboratório e o estado de cada um.
 
 ### Measurable Outcomes
 
-- **SC-001**: Em processo com N laboratórios congelados, 100% das aberturas de
-  atividade por laboratório criam exatamente N execuções e N tarefas, uma por
+- **SC-001**: Em processo com N laboratórios congelados, 100% das ativações
+  de atividade por laboratório criam exatamente N execuções, uma por
   laboratório.
 - **SC-002**: Em 100% dos casos testados, a conclusão, dispensa ou reabertura
   de um laboratório não altera nenhuma execução de outro laboratório.
@@ -525,6 +630,11 @@ laboratório e o estado de cada um.
   idênticos aos de antes da reabertura.
 - **SC-007**: 100% das tentativas de agir na execução de outro laboratório são
   recusadas.
+- **SC-009**: Em 100% das consultas de lista de tarefas, detalhe de tarefa e
+  trilha feitas por pessoa de laboratório, nenhum dado de outro laboratório
+  aparece (identidade, tarefa ou evento).
+- **SC-010**: Nenhum cancelamento ou exclusão de processo altera execução
+  concluída, dispensada ou substituída.
 - **SC-008**: Os cinco templates padrão carregam sem mudança de comportamento e
   os testes existentes de motor, tarefas, amostras e templates continuam
   passando.
@@ -543,7 +653,10 @@ laboratório e o estado de cada um.
 - O acompanhamento por laboratório usa a lista de tarefas; a trilha do
   processo complementa com os eventos de cada laboratório. Não há painel novo.
 - Admin e BraCVAM mantêm o acesso global atual às atividades (Spec 030).
-- Isolamento de visão entre laboratórios (#59), notificações e prazos por
-  laboratório ficam fora do escopo.
+- O isolamento do conteúdo das atividades por laboratório (#59),
+  notificações e prazos por laboratório ficam fora do escopo. A visibilidade
+  de tarefas e eventos entre laboratórios entra nesta spec (FR-035 a FR-038)
+  porque esta spec cria esses dados.
+- `lead_laboratory` não é gestor do processo nesta spec (FR-035).
 - O ajuste da unicidade de CAS e de códigos cegos por fase (comentário da
   issue, item 5) fica para issue posterior da Spec 031.

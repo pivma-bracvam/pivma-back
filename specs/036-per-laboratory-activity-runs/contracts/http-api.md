@@ -10,7 +10,7 @@ existentes. Legenda: 🟢 novo, 🟡 muda. Erros seguem o formato único da Spec
 
 | Quem | Resposta |
 |---|---|
-| `group_manager` com designação ativa no processo | acesso |
+| `group_manager` com designação efetiva no processo | acesso |
 | Admin, BraCVAM | acesso |
 | Demais participantes do processo (proponente, laboratórios, estatístico, avaliadores) | **403** |
 | Quem não vê o processo | **404** |
@@ -39,10 +39,19 @@ Dispensa um laboratório na fase (FR-017 a FR-021).
 }
 ```
 
+`waived_activity_keys`: atividades cujas execuções do laboratório foram
+marcadas como dispensadas nesta chamada; vazio se nenhuma mudou.
+
+Ordem das validações: processo mutável → fase existe →
+`sample_definition` concluída → laboratório congelado → motivo → duplicada.
+O código `sample_definition_not_frozen` segue a convenção minúscula da Spec
+034.
+
 | Situação | Status | `code` |
 |---|---|---|
 | Sucesso | 201 | |
 | `reason` ausente, vazio ou só espaços | 422 | `validation_error` |
+| `sample_definition` do processo ainda não concluída | 409 | `sample_definition_not_frozen` (mensagem: "Não é permitido registrar dispensa de ensaio antes do congelamento e expedição das amostras.") |
 | Laboratório fora do conjunto congelado | 422 | `laboratory_not_frozen` |
 | Fase inexistente no processo | 404 | `not_found` |
 | Laboratório já dispensado na fase | 409 | `already_waived` |
@@ -74,7 +83,7 @@ Reabertura administrativa da execução de um laboratório (FR-022 a FR-027).
 | `reason` ausente, vazio ou só espaços | 422 | `validation_error` |
 | Atividade inexistente no processo | 404 | `not_found` |
 | Atividade de execução única | 409 | `invalid_transition` |
-| Execução vigente do laboratório aberta, substituída, cancelada ou inexistente | 409 | `invalid_transition` |
+| Laboratório sem execução vigente concluída (sem execução, em andamento, bloqueada, cancelada ou substituída) | 409 | `invalid_transition` |
 | Laboratório dispensado na fase, atividade sem custódia | 409 | `laboratory_waived` |
 | Processo encerrado, cancelado ou arquivado | 409 | `invalid_transition` |
 | Sem autorização (tabela acima) | 403/404/401 | |
@@ -93,18 +102,33 @@ Campos novos em `TaskSummary` e `TaskDetail` (FR-028):
 
 - `laboratory`: `null` em atividade de execução única.
 - `activity_run_status`: `IN_PROGRESS`, `COMPLETED`, `CANCELLED`, `WAIVED` ou
-  `SUPERSEDED`.
+  `SUPERSEDED` (`Literal`). Execução `BLOCKED` não tem tarefa, então não
+  aparece.
 - `current_run=true` (padrão) passa a devolver a execução mais recente de
   **cada laboratório** em atividade por laboratório (FR-029).
 - `can_act` passa a exigir, em tarefa com laboratório, designação efetiva de
   `participating_laboratory` pelo mesmo laboratório ou cargo global em
   `edit_roles` (FR-009).
 
-## 🟡 Rotas de formulário e pré-avaliação
+**Visibilidade das tarefas de execução de laboratório** (FR-035, FR-036):
 
-`/processes/{id}/activities/{activity_key}/form` (GET, PUT, POST, anexos) e
-as rotas que usam `get_current_activity_run` respondem **409
-`invalid_transition`** quando a atividade é `per_laboratory` (research R7).
+| Quem | Tarefas de execução de laboratório |
+|---|---|
+| `group_manager` efetivo no processo, Admin, BraCVAM | de todos os laboratórios |
+| `participating_laboratory` efetivo pelo Lab A | só as do Lab A |
+| Demais cargos com visão da atividade (estatístico, colaborador, `lead_laboratory`, outro laboratório) | nenhuma |
+
+- Na lista, as tarefas não visíveis não aparecem; `pagination.total`,
+  `facets` e `summary` seguem o mesmo filtro.
+- No detalhe, tarefa não visível responde **404** "Tarefa não encontrada.".
+- Tarefas de atividades de execução única não mudam.
+
+## 🟡 Rotas de formulário
+
+`/processes/{id}/activities/{activity_key}/form` (GET, PUT, POST, anexos)
+respondem **409 `invalid_transition`** quando a atividade é `per_laboratory`
+(research R7, FR-034). A pré-avaliação usa a chave fixa
+`proposal_submission` e não muda.
 Hoje nenhuma atividade de template é por laboratório; as issues #28 a #31
 estendem essas rotas quando precisarem.
 
@@ -112,6 +136,16 @@ estendem essas rotas quando precisarem.
 
 Tipos novos de evento, formato inalterado: `LABORATORY_RUN_COMPLETED`,
 `LABORATORY_WAIVED`, `LABORATORY_RUN_REOPENED` (ver data-model).
+
+**Visibilidade** (FR-037, FR-038), somada à regra atual:
+
+| Evento | Quem vê |
+|---|---|
+| `LABORATORY_WAIVED` | só gestor do processo (`group_manager` efetivo, Admin, BraCVAM) |
+| ligado a execução de laboratório, `LABORATORY_RUN_COMPLETED`, `LABORATORY_RUN_REOPENED` | gestor do processo e `participating_laboratory` efetivo pelo mesmo laboratório |
+| eventos de designação (`PARTICIPANT_*`) | regra atual (Specs 006 e 035) |
+
+`pagination.total` conta só os eventos visíveis, como hoje (Spec 033).
 
 ## Funções do motor (contrato interno para #28 a #31)
 

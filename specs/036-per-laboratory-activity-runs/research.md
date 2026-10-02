@@ -68,47 +68,71 @@ referem-se à `develop` em 2026-10-02.
 
 - **Decision**:
   - Execução: os estados atuais `IN_PROGRESS`, `COMPLETED` e `CANCELLED`,
-    mais `WAIVED` (dispensada) e `SUPERSEDED` (substituída na reabertura).
-  - Tarefa: sem estado novo. A tarefa de execução dispensada ou substituída
-    fica `CANCELLED`; a de execução concluída fica `COMPLETED`.
-  - Atividade por laboratório: status derivado das execuções vigentes do
-    conjunto congelado. `BLOCKED` sem nenhuma execução viva; `COMPLETED`
-    quando todos os laboratórios têm execução vigente `COMPLETED` ou
-    `WAIVED`; `IN_PROGRESS` nos demais casos.
+    mais `BLOCKED` (laboratório com dependência por laboratório pendente,
+    sem tarefa), `WAIVED` (dispensada) e `SUPERSEDED` (substituída).
+  - Terminais: `COMPLETED`, `CANCELLED`, `WAIVED`, `SUPERSEDED`
+    (`IMMUTABLE_RUN_STATUSES`, R14). Abertos: `IN_PROGRESS`, `BLOCKED`.
+  - Tarefa: sem estado novo. Execução `BLOCKED` não tem tarefa. Execução
+    `WAIVED` sempre tem tarefa `CANCELLED` (criada se não havia). Tarefa de
+    execução substituída ou cancelada fica como estava ou `CANCELLED`.
+  - Atividade por laboratório: `BLOCKED` antes da ativação. Depois,
+    `COMPLETED` se e somente se **para todo laboratório do conjunto
+    congelado** a execução vigente está `COMPLETED` ou `WAIVED`; senão
+    `IN_PROGRESS`. Como a ativação cria uma execução para cada laboratório
+    (R6) e toda execução encerrada por cascata é substituída por uma nova
+    (R10), todo laboratório congelado tem sempre uma execução vigente depois
+    da ativação; a regra confere contra a lista congelada mesmo assim.
 - **Rationale**: o estado da tarefa já é contrato público (`TaskStatus`). O
   status da execução, exposto em `/tasks` (R11), distingue os casos (FR-028).
-  A issue cita `DISQUALIFIED` ou `WAIVED` e `REJECTED` ou `SUPERSEDED`; um
-  estado de cada basta, porque o motivo vai no evento.
+  A execução `BLOCKED` concilia "uma execução por laboratório desde a
+  ativação" (FR-004) com a cadeia por laboratório (FR-011).
 - **Alternatives considered**: estados novos em `Task` (rejeitada: muda um
-  `Literal` público sem necessidade).
+  `Literal` público); criar a execução só quando o laboratório fica pronto
+  (rejeitada pelo usuário na análise: a conclusão deve conferir contra a
+  lista congelada com execução para todos desde a ativação).
 
-## R6 — Abertura e dependências por laboratório
+## R6 — Ativação e dependências por laboratório
 
-- **Decision**: uma função idempotente `_open_ready_laboratory_runs(session,
-  process, act, a_data, user_id, reason)`. Para cada laboratório do conjunto
-  congelado sem execução vigente viva (nenhuma, `CANCELLED` ou `SUPERSEDED`)
-  cujas dependências estão resolvidas para ele, abre a execução:
-  - Dependência de atividade única: resolvida quando a atividade está no
-    `required_status`, como hoje (`_dependency_satisfied`).
-  - Dependência de atividade por laboratório: resolvida quando a execução
-    vigente do laboratório nela está `COMPLETED` ou `WAIVED` (FR-011).
-  - Laboratório dispensado na fase e atividade sem `is_custody`: a execução
-    nasce `WAIVED`, com a tarefa já `CANCELLED` (FR-007).
-  - Nos demais casos: execução `IN_PROGRESS`, `Task` `READY` e, se houver
-    `form_template_key`, uma `FormInstance` nova.
+- **Decision**:
+  - **Ativação** (`_activate_laboratory_activity`): uma atividade por
+    laboratório é ativada quando todas as dependências de atividade única
+    estão satisfeitas e todas as dependências por laboratório já estão
+    ativadas (FR-004a). Na mesma operação, cria uma execução para cada
+    laboratório do conjunto congelado, nesta ordem de decisão:
+    1. laboratório dispensado na fase e atividade sem `is_custody` →
+       `WAIVED`, com `Task` `CANCELLED` (FR-007);
+    2. dependências resolvidas para o laboratório → `IN_PROGRESS`, com `Task`
+       `READY` e `FormInstance` nova se houver `form_template_key`;
+    3. caso contrário → `BLOCKED`, sem tarefa nem formulário.
 
-  Depois recalcula o status da atividade (R5). Se ela chegou a `COMPLETED`,
-  chama `_advance_dependent_activities`. Os pontos que a chamam:
-  1. `_advance_dependent_activities`, quando o dependente é `per_laboratory`.
-     A condição atual "só se `BLOCKED`" passa a valer só para atividade única.
-  2. A conclusão e a dispensa de um laboratório (R7, R9), para cada
-     dependente por laboratório da atividade alterada.
-- **Rationale**: uma função só cobre os três casos da tabela da Clarification
-  5, e a idempotência evita controlar "já abri para este laboratório". A
-  recursão via `_advance_dependent_activities` cobre cadeias que concluem
-  sozinhas (ex.: todos os laboratórios dispensados, FR-018).
+    Levanta `ConflictError` com conjunto congelado vazio (FR-006). Depois de
+    ativar, ativa em cascata os dependentes por laboratório que ficaram
+    ativáveis e recalcula o status (R5).
+  - **Dependência resolvida para o Lab X**: de atividade única, quando ela
+    está no `required_status` (`_dependency_satisfied`); de atividade por
+    laboratório, quando a execução vigente do Lab X nela está `COMPLETED` ou
+    `WAIVED` (FR-011).
+  - **Desbloqueio por laboratório** (`_unblock_laboratory`): quando a
+    execução do Lab X numa atividade fica `COMPLETED` ou `WAIVED`, cada
+    dependente por laboratório em que a execução vigente do Lab X está
+    `BLOCKED` e cujas dependências ficaram resolvidas para o Lab X passa a
+    `IN_PROGRESS` com tarefa e formulário, ou a `WAIVED` com tarefa
+    `CANCELLED` se o Lab X está dispensado na fase e a atividade não é de
+    custódia. A propagação continua para os dependentes deles enquanto
+    houver mudança.
+  - **Pontos de chamada**: `_advance_dependent_activities` (dependente
+    `per_laboratory` ainda `BLOCKED` → ativação; a condição atual "só se
+    `BLOCKED`" continua valendo para atividade única), conclusão (R7) e
+    dispensa (R9).
+  - Ao chegar a `COMPLETED`, a atividade chama
+    `_advance_dependent_activities` para os dependentes de atividade única.
+- **Rationale**: a ativação em cadeia cria todas as execuções de uma vez,
+  como pede a conclusão contra a lista congelada, e a execução `BLOCKED`
+  mantém a cadeia por laboratório da Clarification 5. A ordem de decisão
+  resolve a custódia do laboratório dispensado sem passo extra: quando a
+  devolução é ativada, as execuções dele a montante já estão `WAIVED`.
 - **Alternatives considered**: espera por todos em toda dependência (texto
-  original da issue). Rejeitada pelo usuário na Clarification 5.
+  original da issue), rejeitada pelo usuário na Clarification 5.
 
 ## R7 — Conclusão da execução de um laboratório
 
@@ -116,10 +140,13 @@ referem-se à `develop` em 2026-10-02.
   laboratory_id, user_id) -> ActivityRun` no motor. Ela:
   1. verifica que o processo é mutável e trava o processo (R12);
   2. aplica a autorização por laboratório (R8);
-  3. exige execução vigente `IN_PROGRESS`, senão `ConflictError`;
+  3. exige execução vigente `IN_PROGRESS` (não `BLOCKED`), senão
+     `ConflictError`;
   4. conclui a execução e as tarefas;
-  5. registra `LABORATORY_RUN_COMPLETED`;
-  6. abre a cadeia do laboratório nos dependentes por laboratório (R6);
+  5. registra `LABORATORY_RUN_COMPLETED` (com `activity_run_id` e
+     `laboratory_id`);
+  6. desbloqueia a cadeia do laboratório nos dependentes por laboratório
+     (`_unblock_laboratory`, R6);
   7. recalcula a atividade.
 
   A função **não** faz commit e não tem rota HTTP nesta feature. As issues
@@ -165,24 +192,34 @@ referem-se à `develop` em 2026-10-02.
     `(phase_id, laboratory_id)` onde `deleted_at IS NULL`. Sem rota de
     reversão (FR-020a).
   - **Rota** `POST /processes/{id}/phases/{phase_key}/laboratory-waivers`.
-    - Autorização: `is_effective_group_manager` ou `has_platform_wide_access`
-      (FR-017); recusa com 403.
-    - Validações:
-      - processo mutável (409);
+    - Autorização: gestor do processo (R13); demais com visão do processo
+      recebem 403, sem visão 404.
+    - Validações, nesta ordem:
+      - processo mutável (409 `invalid_transition`);
       - fase existe no processo (404);
+      - a atividade do tipo `sample_definition` do processo está `COMPLETED`
+        (409 `sample_definition_not_frozen`, FR-017a);
       - laboratório no conjunto congelado (422 `laboratory_not_frozen`);
       - motivo não vazio (422);
       - dispensa duplicada (409 `already_waived`, pelo índice).
   - **Efeito**:
     - Nas atividades `per_laboratory` sem `is_custody` da fase, a execução
-      vigente `IN_PROGRESS` do laboratório vira `WAIVED`, com as tarefas
-      `CANCELLED`. As `COMPLETED` não mudam (FR-018).
-    - Em seguida roda R6 nos dependentes por laboratório e recalcula cada
-      atividade afetada.
-    - Grava `LABORATORY_WAIVED` com `phase_key`, `laboratory_id` e `reason`,
-      sem `activity_run_id`.
+      vigente `IN_PROGRESS` ou `BLOCKED` do laboratório vira `WAIVED`; tarefas
+      abertas viram `CANCELLED` e a execução sem tarefa ganha uma `CANCELLED`
+      (FR-018). As `COMPLETED` não mudam.
+    - Em seguida roda `_unblock_laboratory` (R6) e recalcula cada atividade
+      afetada.
+    - Grava um `LABORATORY_WAIVED` por execução marcada, com
+      `activity_run_id`; sem execução marcada, um só, sem `activity_run_id`.
+      `context_data`: `phase_key`, `activity_key` (quando há execução),
+      `laboratory_id`, `reason` (FR-021).
+    - A resposta traz `waived_activity_keys`: as chaves das atividades cujas
+      execuções foram marcadas.
 - **Rationale**: a dispensa precisa persistir para as atividades da fase que
-  ainda vão abrir (FR-007); um estado só nas execuções não cobriria isso.
+  ainda vão ser ativadas (FR-007). Exigir o congelamento evita dispensar um
+  laboratório que a conclusão de `sample_definition` ainda pode descartar, e
+  tira a disputa entre as duas rotinas: a dispensa lê um estado já imutável.
+  O código de erro segue a convenção minúscula da Spec 034.
 - **Alternatives considered**: dispensa por atividade (rejeitada pelo usuário
   na Clarification 4).
 
@@ -192,21 +229,23 @@ referem-se à `develop` em 2026-10-02.
   - **Motor**: `reopen_laboratory_run(session, process_id, activity_key,
     laboratory_id, reason, user_id) -> ActivityRun`, sem autorização própria
     (quem chama verifica) e sem commit.
-  - **Recusas** (409): atividade não `per_laboratory`; execução vigente fora de
-    `COMPLETED`; laboratório dispensado na fase em atividade sem `is_custody`
-    (FR-026).
+  - **Recusas** (409): atividade não `per_laboratory` (`invalid_transition`);
+    laboratório sem execução vigente `COMPLETED` (`invalid_transition`);
+    laboratório dispensado na fase em atividade sem `is_custody`
+    (`laboratory_waived`) (FR-026).
   - **Efeito**:
     1. A execução vigente vira `SUPERSEDED`. Valores, anexos e decisões dela
        não mudam (FR-024).
-    2. Abre uma execução nova `n + 1`, com `Task` `READY` e `FormInstance` nova
-       e vazia. O 2º comentário da issue pede um conjunto novo de valores, sem
-       sobrescrever o anterior.
+    2. Abre uma execução nova `n + 1` `IN_PROGRESS`, com `Task` `READY` e
+       `FormInstance` nova e vazia (o 2º comentário da issue pede um conjunto
+       novo de valores).
     3. A atividade volta a `IN_PROGRESS`.
     4. Roda `_reblock_dependents(act, laboratory_id)` em cadeia (FR-025):
-       - Dependente por laboratório: só a execução vigente daquele laboratório
-         muda. `IN_PROGRESS` vira `CANCELLED` (tarefas `CANCELLED`);
-         `COMPLETED` vira `SUPERSEDED`. A cadeia segue nos dependentes dele
-         para o mesmo laboratório.
+       - Dependente por laboratório: a execução vigente do laboratório
+         `IN_PROGRESS` vira `CANCELLED` (tarefas `CANCELLED`); `COMPLETED`
+         vira `SUPERSEDED`; nos dois casos cria a execução `n + 1` `BLOCKED`
+         do laboratório. `BLOCKED` e `WAIVED` ficam como estão. A cadeia segue
+         nos dependentes dele para o mesmo laboratório.
        - Dependente único em `IN_PROGRESS` ou `COMPLETED`: volta a `BLOCKED`
          com `blocked_reason`. A execução aberta dele vira `CANCELLED`; a
          concluída fica como está. A cadeia segue nos dependentes dele para
@@ -214,12 +253,15 @@ referem-se à `develop` em 2026-10-02.
        - Ao final, o status de cada atividade por laboratório tocada é
          recalculado (R5).
     5. Grava `LABORATORY_RUN_REOPENED`, com `activity_run_id` da execução
-       nova, os números anterior e novo, `reason` e as chaves reabloqueadas.
+       nova, `laboratory_id`, os números anterior e novo, `reason` e as chaves
+       reabloqueadas.
   - **Rota**: `POST /processes/{id}/activities/{activity_key}/laboratories/
     {laboratory_id}/reopen`, com a mesma autorização da dispensa (FR-022).
-- **Rationale**: a liberação seguinte reaproveita R6 (abre nova execução
-  quando a cadeia do laboratório se resolver) e `_activate_activity`, que já
-  numera `max + 1` (Issue #22).
+- **Rationale**: a nova execução `BLOCKED` mantém o invariante de R5 (todo
+  laboratório congelado tem execução vigente) e é desbloqueada por
+  `_unblock_laboratory` quando a cadeia do laboratório se resolver de novo.
+  `_activate_activity` já numera `max + 1` para as atividades únicas (Issue
+  #22).
 - **Alternatives considered**: copiar os valores da execução anterior, como
   `_open_new_submission_run`. Rejeitada para dados experimentais (BPL).
 
@@ -228,14 +270,17 @@ referem-se à `develop` em 2026-10-02.
 - **Decision**:
   - **Campos novos**: `TaskSummary` e `TaskDetail` ganham `laboratory:
     LaboratoryRef | None`, montado em lote por `references.laboratory_refs`
-    (Spec 033), e `activity_run_status: str` (FR-028).
+    (Spec 033), e `activity_run_status: Literal['IN_PROGRESS', 'COMPLETED',
+    'CANCELLED', 'WAIVED', 'SUPERSEDED']` (FR-028). `BLOCKED` não aparece
+    porque execução bloqueada não tem tarefa.
   - **Rodada vigente**: `_current_run_clause` passa a comparar com o máximo
     por `(activity_instance_id, laboratory_id)`, usando
-    `is_not_distinct_from` (FR-029).
+    `is_not_distinct_from` (FR-029). Enquanto a execução vigente do
+    laboratório está `BLOCKED`, ele não tem tarefa vigente naquela
+    atividade.
   - **Linha do tempo**: os eventos novos levam `laboratory_id` em
-    `context_data` (FR-030). Seguem a regra atual de visibilidade: com
-    `activity_run_id`, pela visão da atividade; sem ele, para quem vê o
-    processo.
+    `context_data` e, salvo o caso do FR-021, `activity_run_id` (FR-030). A
+    visibilidade segue R13.
 - **Rationale**: campos aditivos não quebram clientes. O lote evita N+1.
 - **Alternatives considered**: filtro `laboratory_id` em `/tasks`. Fica de
   fora porque a spec não pede (karpathy: nada especulativo).
@@ -250,5 +295,56 @@ referem-se à `develop` em 2026-10-02.
   serializa as transições do mesmo processo e garante FR-015 (a atividade
   conclui uma vez) sem ordenar travas por atividade. A contenção é baixa:
   dezenas de laboratórios por processo, ações humanas.
+  A dispensa exige `sample_definition` concluída (R9), então não disputa com
+  `complete_sample_definition`, que trava só a própria atividade.
 - **Alternatives considered**: travar só a `ActivityInstance` (como a Spec
   031). Rejeitada: não cobre cascatas entre atividades diferentes.
+
+## R13 — Isolamento entre laboratórios em `/tasks` e na trilha
+
+- **Decision**:
+  - **Gestor do processo** (FR-035): `is_effective_group_manager` ou
+    `has_platform_wide_access`. Um predicado SQL
+    `laboratory_run_visibility_clause(session, user_id)` em
+    `src/pivma/core/authorization.py` devolve `None` para Admin/BraCVAM e,
+    para os demais, a condição:
+    `ActivityRun.laboratory_id IS NULL` **ou** existe `group_manager`
+    efetivo do usuário no processo da atividade **ou** existe designação
+    efetiva `participating_laboratory` do usuário com
+    `Assignment.laboratory_id = ActivityRun.laboratory_id`. Usa
+    `process_cargos_scope`, que já aplica a Spec 035.
+  - **`GET /tasks`**: o predicado entra no conjunto filtrado, antes da
+    paginação, das facetas e do `summary`, somado à visão da atividade
+    (Spec 030) (FR-036).
+  - **`GET /tasks/{id}`**: o mesmo predicado; quem não passa recebe 404
+    "Tarefa não encontrada.", igual a quem não vê a atividade.
+  - **Trilha** (`_visible_events` em `src/pivma/routers/processes.py`), depois
+    do filtro atual de visão da atividade:
+    - `LABORATORY_WAIVED`: só gestor do processo (FR-038);
+    - evento cuja `activity_run_id` é de execução com laboratório, e
+      `LABORATORY_RUN_COMPLETED`/`LABORATORY_RUN_REOPENED`: gestor do
+      processo ou pessoa com `participating_laboratory` efetivo pelo
+      `laboratory_id` do evento (FR-037);
+    - os demais eventos, inclusive os de designação com `laboratory_id` no
+      contexto, seguem a regra atual (Specs 006 e 035).
+- **Rationale**: o filtro fica nos dois pontos que esta spec passa a
+  alimentar com dados de laboratório. A regra é a mesma nos dois, com um
+  predicado só, como a Spec 035 fez com a efetividade.
+- **Alternatives considered**: esconder só o nome do laboratório (rejeitada:
+  ainda mostra quantos laboratórios participam e o andamento de cada um);
+  entregar a #59 junto (rejeitada pelo usuário: escopo maior).
+
+## R14 — Estados terminais e cancelamento do processo
+
+- **Decision**: `IMMUTABLE_RUN_STATUSES = frozenset({'COMPLETED',
+  'CANCELLED', 'WAIVED', 'SUPERSEDED'})` em `process_engine.py`.
+  `_cancel_pending_children` passa a cancelar só execuções fora desse
+  conjunto (hoje `IN_PROGRESS` e `BLOCKED`) (FR-039). Tarefas e atividades
+  seguem a regra atual.
+- **Rationale**: a regra atual (`not in {'COMPLETED', 'CANCELLED'}`)
+  transformaria `WAIVED` e `SUPERSEDED` em `CANCELLED` ao cancelar ou excluir
+  o processo, apagando a rastreabilidade (BPL).
+- **Alternatives considered**: listar só os estados abertos
+  (`in {'IN_PROGRESS', 'BLOCKED'}`). Equivalente hoje; a lista de terminais
+  é a que o usuário pediu e falha de forma segura se surgir estado novo
+  aberto (ele seria cancelado).

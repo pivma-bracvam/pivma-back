@@ -37,10 +37,18 @@
   colunas, consultas, rotas) na spec.
 - Iteração 1: o cenário 5 da história 1 não dizia qual operação era recusada.
   Corrigido para "a conclusão da dependência que tenta abrir a atividade".
-- Nenhum marcador [NEEDS CLARIFICATION]: as seis decisões da sessão de
-  2026-10-02 estão na seção Clarifications.
+- Nenhum marcador [NEEDS CLARIFICATION]: as decisões estão na seção
+  Clarifications, em duas sessões de 2026-10-02 (a segunda resolve os
+  achados do `/speckit-analyze`).
 - Os quatro pressupostos pendentes foram confirmados pelo usuário em
   2026-10-02 e estão na seção Clarifications (FR-019, FR-020a, FR-028).
 - O cenário 5 da história 1 (conjunto congelado vazio) não é alcançável pelos
   fluxos atuais, porque `sample_definition` recusa concluir sem laboratório.
   Fica porque a issue pede essa recusa explicitamente.
+- `/speckit-analyze` (2026-10-02): 1 crítico (C1, identidade de laboratório
+  exposta em `/tasks` e na trilha), 3 altos (C2 estados terminais no
+  cancelamento, C3 regra de conclusão divergente, C4 dispensa antes do
+  congelamento), 3 médios e 6 baixos. Todos tratados na spec (FR-004,
+  FR-004a, FR-013, FR-017a, FR-021, FR-035 a FR-039, SC-009, SC-010), na
+  pesquisa (R5, R6, R9 a R11, R13, R14), no data-model, no contrato e no
+  `tasks.md`.
