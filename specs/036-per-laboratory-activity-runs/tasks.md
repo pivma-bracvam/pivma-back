@@ -412,19 +412,19 @@ Rotas de mutação usam `Origin: https://testserver`. O `bracvam_user` e o
 
 ### Testes (antes da implementação)
 
-- [ ] T159 [P] [US7] Teste: `GET /tasks?activity_key=receipt` como `group_manager` traz em cada tarefa `laboratory` com `id`, `name`, `active` e `institution` do laboratório certo (FR-028), em `tests/api/routers/test_tasks_laboratory.py`
-- [ ] T160 [P] [US7] Teste: tarefa de `statistics` traz `laboratory: null`, em `tests/api/routers/test_tasks_laboratory.py`
-- [ ] T161 [P] [US7] Teste: com Lab A concluído, Lab B em andamento e Lab C dispensado em `receipt`, `activity_run_status` vem `COMPLETED`, `IN_PROGRESS` e `WAIVED`, em `tests/api/routers/test_tasks_laboratory.py`
-- [ ] T162 [P] [US7] Teste: após reabrir o Lab B em `upload`, `GET /tasks?activity_key=upload` como `group_manager` (rodada vigente, padrão) traz a execução 2 do Lab B e a 1 dos Labs A e C (FR-029), em `tests/api/routers/test_tasks_laboratory.py`
-- [ ] T163 [P] [US7] Teste: com `current_run=false`, como `group_manager`, a tarefa da execução 1 do Lab B aparece com `activity_run_status: "SUPERSEDED"`, em `tests/api/routers/test_tasks_laboratory.py`
-- [ ] T164 [P] [US7] Teste: com a execução vigente do Lab B em `material_return` `BLOCKED` após a reabertura, a rodada vigente como `group_manager` não traz tarefa do Lab B em `material_return`, em `tests/api/routers/test_tasks_laboratory.py`
-- [ ] T165 [P] [US7] Teste: `GET /tasks/{id}` de tarefa de laboratório como `group_manager` traz `laboratory` e `activity_run_status`, em `tests/api/routers/test_tasks_laboratory.py`
+- [X] T159 [P] [US7] Teste: `GET /tasks?activity_key=receipt` como `group_manager` traz em cada tarefa `laboratory` com `id`, `name`, `active` e `institution` do laboratório certo (FR-028), em `tests/api/routers/test_tasks_laboratory.py`
+- [X] T160 [P] [US7] Teste: tarefa de `statistics` traz `laboratory: null`, em `tests/api/routers/test_tasks_laboratory.py`
+- [X] T161 [P] [US7] Teste: com Lab A concluído, Lab B em andamento e Lab C dispensado em `receipt`, `activity_run_status` vem `COMPLETED`, `IN_PROGRESS` e `WAIVED`, em `tests/api/routers/test_tasks_laboratory.py`
+- [X] T162 [P] [US7] Teste: após reabrir o Lab B em `upload`, `GET /tasks?activity_key=upload` como `group_manager` (rodada vigente, padrão) traz a execução 2 do Lab B e a 1 dos Labs A e C (FR-029), em `tests/api/routers/test_tasks_laboratory.py`
+- [X] T163 [P] [US7] Teste: com `current_run=false`, como `group_manager`, a tarefa da execução 1 do Lab B aparece com `activity_run_status: "SUPERSEDED"`, em `tests/api/routers/test_tasks_laboratory.py`
+- [X] T164 [P] [US7] Teste: com a execução vigente do Lab B em `material_return` `BLOCKED` após a reabertura, a rodada vigente como `group_manager` não traz tarefa do Lab B em `material_return`, em `tests/api/routers/test_tasks_laboratory.py`
+- [X] T165 [P] [US7] Teste: `GET /tasks/{id}` de tarefa de laboratório como `group_manager` traz `laboratory` e `activity_run_status`, em `tests/api/routers/test_tasks_laboratory.py`
 
 ### Implementação
 
-- [ ] T166 [P] [US7] `TaskSummary` e `TaskDetail` ganham `laboratory: LaboratoryRef | None = None` e `activity_run_status: Literal['IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'WAIVED', 'SUPERSEDED']` (L5), com `Field(description=...)`, em `src/pivma/schemas.py`
-- [ ] T167 [US7] `_current_run_clause` compara com o máximo por `(activity_instance_id, laboratory_id)` usando `is_not_distinct_from` (R11), em `src/pivma/routers/tasks.py`
-- [ ] T168 [US7] `_task_summary` e `get_task_detail` preenchem `activity_run_status` e `laboratory`; a listagem monta os laboratórios da página em lote com `references.laboratory_refs`, em `src/pivma/routers/tasks.py`
+- [X] T166 [P] [US7] `TaskSummary` e `TaskDetail` ganham `laboratory: LaboratoryRef | None = None` e `activity_run_status: Literal['IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'WAIVED', 'SUPERSEDED']` (L5), com `Field(description=...)`, em `src/pivma/schemas.py`
+- [X] T167 [US7] `_current_run_clause` compara com o máximo por `(activity_instance_id, laboratory_id)` usando `is_not_distinct_from` (R11), em `src/pivma/routers/tasks.py`
+- [X] T168 [US7] `_task_summary` e `get_task_detail` preenchem `activity_run_status` e `laboratory`; a listagem monta os laboratórios da página em lote com `references.laboratory_refs`, em `src/pivma/routers/tasks.py`
 
 **Checkpoint**: T159–T165 passam; `tests/api/routers/test_tasks_*.py` continuam verdes.
 

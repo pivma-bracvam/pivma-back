@@ -750,6 +750,10 @@ class ActivityCompletionResponse(BaseModel):
 
 
 TaskStatus = Literal['READY', 'COMPLETED', 'CANCELLED']
+# Execução que tem tarefa; a bloqueada não tem (Spec 036, R11).
+ActivityRunStatus = Literal[
+    'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'WAIVED', 'SUPERSEDED'
+]
 
 
 class TaskSummary(BaseModel):
@@ -769,6 +773,15 @@ class TaskSummary(BaseModel):
             'O usuário pode agir nesta tarefa: tem concessão de editar a '
             'atividade e não tem conflito de interesse vigente no processo'
         )
+    )
+    laboratory: LaboratoryRef | None = Field(
+        default=None,
+        description=(
+            'Laboratório da execução; nulo em atividade de execução única'
+        ),
+    )
+    activity_run_status: ActivityRunStatus = Field(
+        description='Status da execução da tarefa'
     )
     model_config = ConfigDict(from_attributes=True)
 
@@ -823,6 +836,15 @@ class TaskDetail(BaseModel):
     is_blocked: bool
     blocked_reason: str | None = None
     due_date: datetime | None = None
+    laboratory: LaboratoryRef | None = Field(
+        default=None,
+        description=(
+            'Laboratório da execução; nulo em atividade de execução única'
+        ),
+    )
+    activity_run_status: ActivityRunStatus = Field(
+        description='Status da execução da tarefa'
+    )
 
 
 class TimelineEvent(BaseModel):
