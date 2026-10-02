@@ -14,18 +14,25 @@ from pivma.core.authorization import (
     has_platform_wide_access,
     is_effective_group_manager,
 )
-from pivma.core.database.models import Phase, ProcessInstance
+from pivma.core.database.models import (
+    ActivityInstance,
+    Phase,
+    ProcessInstance,
+)
 from pivma.core.errors import api_error, domain_error, http_error
 from pivma.core.process_engine import (
     ConflictError,
     NotFoundError,
     ValidationError,
     process_visibility_clause,
+    reopen_laboratory_run,
     waive_laboratory,
 )
 from pivma.core.references import laboratory_refs, user_refs
 from pivma.dependencies import CurrentUser, Session, TrustedOrigin
 from pivma.schemas import (
+    LaboratoryRunReopened,
+    LaboratoryRunReopenRequest,
     LaboratoryWaiverCreate,
     LaboratoryWaiverPublic,
     PhaseRef,
@@ -108,4 +115,50 @@ async def create_laboratory_waiver(  # noqa: PLR0913, PLR0917
         waived_by=author,
         created_at=waiver.created_at,
         waived_activity_keys=waived_keys,
+    )
+
+
+@router.post(
+    '/{id}/activities/{activity_key}/laboratories/{laboratory_id}/reopen',
+    response_model=LaboratoryRunReopened,
+    status_code=HTTPStatus.CREATED,
+)
+async def reopen_laboratory_execution(  # noqa: PLR0913, PLR0917
+    id: UUID,
+    activity_key: str,
+    laboratory_id: UUID,
+    body: LaboratoryRunReopenRequest,
+    session: Session,
+    current_user: CurrentUser,
+    _origin: TrustedOrigin,
+):
+    await _require_process_manager(session, current_user.id, id)
+    try:
+        run, reblocked = await reopen_laboratory_run(
+            session,
+            id,
+            activity_key,
+            laboratory_id,
+            body.reason,
+            current_user.id,
+        )
+    except (NotFoundError, ConflictError, ValidationError) as exc:
+        raise _http_error(exc) from exc
+    await session.commit()
+
+    act_status = await session.scalar(
+        select(ActivityInstance.status).where(
+            ActivityInstance.id == run.activity_instance_id
+        )
+    )
+    laboratory = (await laboratory_refs(session, [laboratory_id]))[
+        laboratory_id
+    ]
+    return LaboratoryRunReopened(
+        activity_key=activity_key,
+        laboratory=laboratory,
+        previous_run_number=run.run_number - 1,
+        run_number=run.run_number,
+        activity_status=act_status,
+        reblocked_activity_keys=reblocked,
     )

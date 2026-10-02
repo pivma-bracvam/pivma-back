@@ -320,50 +320,50 @@ Rotas de mutação usam `Origin: https://testserver`. O `bracvam_user` e o
 
 ### Testes do motor (antes da implementação)
 
-- [ ] T112 [P] [US5] Teste: `reopen_laboratory_run` do Lab B em `upload` marca a execução 1 `SUPERSEDED` e cria a execução 2 `IN_PROGRESS` do Lab B com `Task` `READY` (FR-023), em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T113 [P] [US5] Teste: os `FormValue`, a `FormInstance` submetida, o `Artifact` do anexo `raw_data` (com arquivo gravado em disco) e os `AuditEvent` da execução 1 do Lab B ficam idênticos aos de antes da reabertura, e o arquivo continua no disco (SC-006, M2), em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T114 [P] [US5] Teste: a execução 2 do Lab B tem uma `FormInstance` nova, não submetida e sem valores nem anexos, em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T115 [P] [US5] Teste: execuções e tarefas dos Labs A e C em `upload` não mudam (SC-002), em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T116 [P] [US5] Teste: `upload` `COMPLETED` volta a `IN_PROGRESS` (FR-025), em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T117 [P] [US5] Teste: `statistics` `IN_PROGRESS` volta a `BLOCKED` com `blocked_reason` preenchido e a execução aberta dela fica `CANCELLED` com tarefas `CANCELLED` (FR-025), em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T118 [P] [US5] Teste: `statistics` `COMPLETED` volta a `BLOCKED` e a execução concluída continua `COMPLETED`; quando o Lab B conclui a execução 2, `statistics` abre a execução `run_number = 2`, em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T119 [P] [US5] Teste: execução do Lab B em `material_return` `IN_PROGRESS` vira `CANCELLED` e uma execução `n + 1` `BLOCKED` do Lab B, sem tarefa, toma o lugar; as dos Labs A e C não mudam (FR-025), em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T120 [P] [US5] Teste: execução do Lab B em `material_return` `COMPLETED` vira `SUPERSEDED` e uma `n + 1` `BLOCKED` toma o lugar; quando o Lab B conclui `upload` de novo, ela passa a `IN_PROGRESS`, em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T121 [P] [US5] Teste: reabrir execução vigente `IN_PROGRESS` levanta `ConflictError` (FR-026), em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T122 [P] [US5] Teste: reabrir execução vigente `BLOCKED` (ex.: Lab B em `material_return` antes de concluir `upload`) levanta `ConflictError` (FR-026), em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T123 [P] [US5] Teste: reabrir para laboratório sem execução na atividade (designado após o congelamento) levanta `ConflictError` (FR-026, L3), em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T124 [P] [US5] Teste: reabrir em `statistics` (execução única) levanta `ConflictError` (FR-026), em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T125 [P] [US5] Teste: reabrir `upload` de laboratório dispensado na fase levanta `ConflictError` com código `laboratory_waived` (FR-026), em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T126 [P] [US5] Teste: reabrir `material_return` (custódia) concluída por laboratório dispensado é aceito, em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T127 [P] [US5] Teste: a reabertura grava `LABORATORY_RUN_REOPENED` com `activity_run_id` da execução nova e `context_data` com `laboratory_id`, `previous_run_number`, `run_number`, `reason` e `reblocked_activity_keys` (FR-027), em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T128 [P] [US5] Teste: `BlindSampleCode` do processo ficam idênticos antes e depois da reabertura (FR-033), em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T129 [P] [US5] Teste: com `lab_feedback` ativada (os três laboratórios concluíram `upload` e `statistics` concluída), reabrir o Lab B em `upload` encerra as execuções `IN_PROGRESS` de `lab_feedback` dos três laboratórios como `CANCELLED` e cria uma execução `BLOCKED` para cada um (FR-025), em `tests/integration/database/test_laboratory_reopen_engine.py`
-- [ ] T130 [P] [US5] Teste: depois da reabertura anterior, o Lab B conclui a execução 2 de `upload` e `statistics` conclui de novo → as execuções `BLOCKED` de `lab_feedback` passam a `IN_PROGRESS`, com tarefa, para os três laboratórios (FR-011, G1), em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T112 [P] [US5] Teste: `reopen_laboratory_run` do Lab B em `upload` marca a execução 1 `SUPERSEDED` e cria a execução 2 `IN_PROGRESS` do Lab B com `Task` `READY` (FR-023), em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T113 [P] [US5] Teste: os `FormValue`, a `FormInstance` submetida, o `Artifact` do anexo `raw_data` (com arquivo gravado em disco) e os `AuditEvent` da execução 1 do Lab B ficam idênticos aos de antes da reabertura, e o arquivo continua no disco (SC-006, M2), em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T114 [P] [US5] Teste: a execução 2 do Lab B tem uma `FormInstance` nova, não submetida e sem valores nem anexos, em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T115 [P] [US5] Teste: execuções e tarefas dos Labs A e C em `upload` não mudam (SC-002), em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T116 [P] [US5] Teste: `upload` `COMPLETED` volta a `IN_PROGRESS` (FR-025), em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T117 [P] [US5] Teste: `statistics` `IN_PROGRESS` volta a `BLOCKED` com `blocked_reason` preenchido e a execução aberta dela fica `CANCELLED` com tarefas `CANCELLED` (FR-025), em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T118 [P] [US5] Teste: `statistics` `COMPLETED` volta a `BLOCKED` e a execução concluída continua `COMPLETED`; quando o Lab B conclui a execução 2, `statistics` abre a execução `run_number = 2`, em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T119 [P] [US5] Teste: execução do Lab B em `material_return` `IN_PROGRESS` vira `CANCELLED` e uma execução `n + 1` `BLOCKED` do Lab B, sem tarefa, toma o lugar; as dos Labs A e C não mudam (FR-025), em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T120 [P] [US5] Teste: execução do Lab B em `material_return` `COMPLETED` vira `SUPERSEDED` e uma `n + 1` `BLOCKED` toma o lugar; quando o Lab B conclui `upload` de novo, ela passa a `IN_PROGRESS`, em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T121 [P] [US5] Teste: reabrir execução vigente `IN_PROGRESS` levanta `ConflictError` (FR-026), em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T122 [P] [US5] Teste: reabrir execução vigente `BLOCKED` (ex.: Lab B em `material_return` antes de concluir `upload`) levanta `ConflictError` (FR-026), em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T123 [P] [US5] Teste: reabrir para laboratório sem execução na atividade (designado após o congelamento) levanta `ConflictError` (FR-026, L3), em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T124 [P] [US5] Teste: reabrir em `statistics` (execução única) levanta `ConflictError` (FR-026), em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T125 [P] [US5] Teste: reabrir `upload` de laboratório dispensado na fase levanta `ConflictError` com código `laboratory_waived` (FR-026), em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T126 [P] [US5] Teste: reabrir `material_return` (custódia) concluída por laboratório dispensado é aceito, em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T127 [P] [US5] Teste: a reabertura grava `LABORATORY_RUN_REOPENED` com `activity_run_id` da execução nova e `context_data` com `laboratory_id`, `previous_run_number`, `run_number`, `reason` e `reblocked_activity_keys` (FR-027), em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T128 [P] [US5] Teste: `BlindSampleCode` do processo ficam idênticos antes e depois da reabertura (FR-033), em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T129 [P] [US5] Teste: com `lab_feedback` ativada (os três laboratórios concluíram `upload` e `statistics` concluída), reabrir o Lab B em `upload` encerra as execuções `IN_PROGRESS` de `lab_feedback` dos três laboratórios como `CANCELLED` e cria uma execução `BLOCKED` para cada um (FR-025), em `tests/integration/database/test_laboratory_reopen_engine.py`
+- [X] T130 [P] [US5] Teste: depois da reabertura anterior, o Lab B conclui a execução 2 de `upload` e `statistics` conclui de novo → as execuções `BLOCKED` de `lab_feedback` passam a `IN_PROGRESS`, com tarefa, para os três laboratórios (FR-011, G1), em `tests/integration/database/test_laboratory_reopen_engine.py`
 
 ### Testes de API (antes da implementação)
 
-- [ ] T131 [P] [US5] Teste: `POST /processes/{id}/activities/upload/laboratories/{lab_b}/reopen` como `group_manager` → 201 com o corpo `LaboratoryRunReopened` do contrato, em `tests/api/routers/test_laboratory_reopen.py`
-- [ ] T132 [P] [US5] Teste: a mesma rota como `bracvam_user` → 201, em `tests/api/routers/test_laboratory_reopen.py`
-- [ ] T133 [P] [US5] Teste: a mesma rota como `admin_user` → 201, em `tests/api/routers/test_laboratory_reopen.py`
-- [ ] T134 [P] [US5] Teste: como `statistician` → 403 e nenhuma execução muda (FR-022), em `tests/api/routers/test_laboratory_reopen.py`
-- [ ] T135 [P] [US5] Teste: como usuário do próprio Lab B → 403, em `tests/api/routers/test_laboratory_reopen.py`
-- [ ] T136 [P] [US5] Teste: usuário sem designação no processo → 404, em `tests/api/routers/test_laboratory_reopen.py`
-- [ ] T137 [P] [US5] Teste: sem login → 401, em `tests/api/routers/test_laboratory_reopen.py`
-- [ ] T138 [P] [US5] Teste: `reason` só com espaços → 422 `validation_error`, em `tests/api/routers/test_laboratory_reopen.py`
-- [ ] T139 [P] [US5] Teste: `activity_key` inexistente → 404, em `tests/api/routers/test_laboratory_reopen.py`
-- [ ] T140 [P] [US5] Teste: execução vigente `IN_PROGRESS` → 409 `invalid_transition`, em `tests/api/routers/test_laboratory_reopen.py`
-- [ ] T141 [P] [US5] Teste: laboratório sem execução na atividade → 409 `invalid_transition` (L3), em `tests/api/routers/test_laboratory_reopen.py`
-- [ ] T142 [P] [US5] Teste: laboratório dispensado em atividade sem custódia → 409 `laboratory_waived`, em `tests/api/routers/test_laboratory_reopen.py`
-- [ ] T143 [P] [US5] Teste: processo `CLOSED` → 409 `invalid_transition` (FR-031), em `tests/api/routers/test_laboratory_reopen.py`
-- [ ] T144 [P] [US5] Teste: após a reabertura do Lab B, a trilha do Lab A não traz o `LABORATORY_RUN_REOPENED` e a do Lab B traz (FR-037), em `tests/api/routers/test_laboratory_isolation.py`
+- [X] T131 [P] [US5] Teste: `POST /processes/{id}/activities/upload/laboratories/{lab_b}/reopen` como `group_manager` → 201 com o corpo `LaboratoryRunReopened` do contrato, em `tests/api/routers/test_laboratory_reopen.py`
+- [X] T132 [P] [US5] Teste: a mesma rota como `bracvam_user` → 201, em `tests/api/routers/test_laboratory_reopen.py`
+- [X] T133 [P] [US5] Teste: a mesma rota como `admin_user` → 201, em `tests/api/routers/test_laboratory_reopen.py`
+- [X] T134 [P] [US5] Teste: como `statistician` → 403 e nenhuma execução muda (FR-022), em `tests/api/routers/test_laboratory_reopen.py`
+- [X] T135 [P] [US5] Teste: como usuário do próprio Lab B → 403, em `tests/api/routers/test_laboratory_reopen.py`
+- [X] T136 [P] [US5] Teste: usuário sem designação no processo → 404, em `tests/api/routers/test_laboratory_reopen.py`
+- [X] T137 [P] [US5] Teste: sem login → 401, em `tests/api/routers/test_laboratory_reopen.py`
+- [X] T138 [P] [US5] Teste: `reason` só com espaços → 422 `validation_error`, em `tests/api/routers/test_laboratory_reopen.py`
+- [X] T139 [P] [US5] Teste: `activity_key` inexistente → 404, em `tests/api/routers/test_laboratory_reopen.py`
+- [X] T140 [P] [US5] Teste: execução vigente `IN_PROGRESS` → 409 `invalid_transition`, em `tests/api/routers/test_laboratory_reopen.py`
+- [X] T141 [P] [US5] Teste: laboratório sem execução na atividade → 409 `invalid_transition` (L3), em `tests/api/routers/test_laboratory_reopen.py`
+- [X] T142 [P] [US5] Teste: laboratório dispensado em atividade sem custódia → 409 `laboratory_waived`, em `tests/api/routers/test_laboratory_reopen.py`
+- [X] T143 [P] [US5] Teste: processo `CLOSED` → 409 `invalid_transition` (FR-031), em `tests/api/routers/test_laboratory_reopen.py`
+- [X] T144 [P] [US5] Teste: após a reabertura do Lab B, a trilha do Lab A não traz o `LABORATORY_RUN_REOPENED` e a do Lab B traz (FR-037), em `tests/api/routers/test_laboratory_isolation.py`
 
 ### Implementação
 
-- [ ] T145 [US5] `_reblock_dependents(session, process, act, laboratory_id, user_id) -> list[str]` em `src/pivma/core/process_engine.py`, em cadeia (R10):
+- [X] T145 [US5] `_reblock_dependents(session, process, act, laboratory_id, user_id) -> list[str]` em `src/pivma/core/process_engine.py`, em cadeia (R10):
   - dependente `per_laboratory`: só a execução vigente do laboratório muda (`IN_PROGRESS` → `CANCELLED` com tarefas `CANCELLED`; `COMPLETED` → `SUPERSEDED`), e nos dois casos uma execução `n + 1` `BLOCKED` do laboratório toma o lugar; `BLOCKED` e `WAIVED` ficam; a cadeia continua para o mesmo laboratório;
   - dependente único em `IN_PROGRESS`/`COMPLETED`: vira `BLOCKED` com `blocked_reason`, a execução aberta dele vira `CANCELLED` e a cadeia continua para todos os laboratórios;
   - devolve as chaves reabloqueadas.
-- [ ] T146 [US5] `reopen_laboratory_run(session, process_id, activity_key, laboratory_id, reason, user_id) -> ActivityRun` em `src/pivma/core/process_engine.py`, sem autorização e sem commit. Faz, em ordem:
+- [X] T146 [US5] `reopen_laboratory_run(session, process_id, activity_key, laboratory_id, reason, user_id) -> tuple[ActivityRun, list[str]]` (execução nova e chaves reabloqueadas) em `src/pivma/core/process_engine.py`, sem autorização e sem commit. Faz, em ordem:
   1. `ensure_process_mutable` e `_lock_process`;
   2. as recusas de FR-026 (código `laboratory_waived` no caso da dispensa);
   3. `SUPERSEDED` na execução vigente;
@@ -371,8 +371,8 @@ Rotas de mutação usam `Origin: https://testserver`. O `bracvam_user` e o
   5. atividade `IN_PROGRESS`;
   6. `_reblock_dependents` e `_refresh_laboratory_activity` nas atividades tocadas;
   7. `LABORATORY_RUN_REOPENED`.
-- [ ] T147 [P] [US5] Schemas `LaboratoryRunReopenRequest` (`reason: str` com `strip` e `min_length=1`, `extra='forbid'`) e `LaboratoryRunReopened` (contrato), em `src/pivma/schemas.py`
-- [ ] T148 [US5] Rota `POST /{id}/activities/{activity_key}/laboratories/{laboratory_id}/reopen` em `src/pivma/routers/laboratory_runs.py`, com a mesma autorização, `TrustedOrigin`, commit e mapeamento de erros da dispensa
+- [X] T147 [P] [US5] Schemas `LaboratoryRunReopenRequest` (`reason: str` com `strip` e `min_length=1`, `extra='forbid'`) e `LaboratoryRunReopened` (contrato), em `src/pivma/schemas.py`
+- [X] T148 [US5] Rota `POST /{id}/activities/{activity_key}/laboratories/{laboratory_id}/reopen` em `src/pivma/routers/laboratory_runs.py`, com a mesma autorização, `TrustedOrigin`, commit e mapeamento de erros da dispensa
 
 **Checkpoint**: T112–T144 passam; US1–US4 continuam verdes.
 

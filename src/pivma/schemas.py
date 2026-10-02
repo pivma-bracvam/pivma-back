@@ -1617,3 +1617,20 @@ class LaboratoryWaiverPublic(BaseModel):
             'nesta chamada, na ordem da fase'
         )
     )
+
+
+class LaboratoryRunReopenRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    reason: Reason = Field(description='Motivo da reabertura')
+
+
+class LaboratoryRunReopened(BaseModel):
+    activity_key: str
+    laboratory: LaboratoryRef
+    previous_run_number: int = Field(description='Execução substituída')
+    run_number: int = Field(description='Execução nova do laboratório')
+    activity_status: str = Field(description='Status da atividade agora')
+    reblocked_activity_keys: list[str] = Field(
+        description='Atividades que voltaram a ficar bloqueadas, em cadeia'
+    )

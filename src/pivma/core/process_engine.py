@@ -2531,6 +2531,189 @@ async def waive_laboratory(  # noqa: PLR0913, PLR0917
     return waiver, waived_keys
 
 
+REBLOCKED_REASON = 'Aguardando a nova execução de um laboratório.'
+
+
+async def _close_open_run(
+    session: AsyncSession, run: ActivityRun, status: str, user_id: UUID
+) -> None:
+    """Encerra a execução e cancela as tarefas abertas, sem tocar dados."""
+    now = utc_now()
+    run.status = status
+    run.completed_at = run.completed_at or now
+    run.set_update_audit(user_id)
+    for task in await session.scalars(
+        select(Task).where(
+            Task.activity_run_id == run.id,
+            Task.deleted_at.is_(None),
+            Task.status == 'READY',
+        )
+    ):
+        task.status = STATUS_CANCELLED
+        task.completed_at = now
+        task.set_update_audit(user_id)
+
+
+async def _all_dependents(
+    session: AsyncSession, act: ActivityInstance
+) -> list[ActivityInstance]:
+    dependent_ids = (
+        await session.scalars(
+            select(ActivityDependency.dependent_activity_id).where(
+                ActivityDependency.required_activity_id == act.id,
+                ActivityDependency.deleted_at.is_(None),
+            )
+        )
+    ).all()
+    dependents = []
+    for dependent_id in dict.fromkeys(dependent_ids):
+        dependent = await session.scalar(
+            select(ActivityInstance)
+            .where(ActivityInstance.id == dependent_id)
+            .execution_options(populate_existing=True)
+        )
+        if dependent is not None:
+            dependents.append(dependent)
+    return dependents
+
+
+async def _reblock_dependents(  # noqa: PLR0913, PLR0917
+    session: AsyncSession,
+    process: ProcessInstance,
+    act: ActivityInstance,
+    laboratory_id: UUID | None,
+    user_id: UUID,
+    reblocked: list[str],
+) -> None:
+    """Volta a bloquear, em cadeia, o que dependia de `act` (R10, FR-025).
+
+    Por laboratório: só a cadeia do laboratório (ou de todos, quando vem de
+    uma atividade única); a execução vigente aberta é cancelada, a
+    concluída é substituída, e uma nova bloqueada toma o lugar. Atividade
+    única: volta a `BLOCKED` e a execução aberta é cancelada.
+    """
+    for dependent in await _all_dependents(session, act):
+        if dependent.execution_scope == PER_LABORATORY:
+            if dependent.status == 'BLOCKED':
+                continue
+            lab_ids = (
+                [laboratory_id]
+                if laboratory_id is not None
+                else await _frozen_laboratory_ids(session, process.id)
+            )
+            changed = False
+            for lab_id in lab_ids:
+                run = await _current_laboratory_run(
+                    session, dependent.id, lab_id
+                )
+                if run is None or run.status not in {
+                    'IN_PROGRESS',
+                    'COMPLETED',
+                }:
+                    continue
+                await _close_open_run(
+                    session,
+                    run,
+                    'SUPERSEDED' if run.status == 'COMPLETED' else 'CANCELLED',
+                    user_id,
+                )
+                await _new_laboratory_run(
+                    session, dependent, lab_id, user_id, REBLOCKED_REASON
+                )
+                changed = True
+                await _reblock_dependents(
+                    session, process, dependent, lab_id, user_id, reblocked
+                )
+            if changed:
+                if dependent.key not in reblocked:
+                    reblocked.append(dependent.key)
+                await _refresh_laboratory_activity(
+                    session, process, dependent, user_id
+                )
+        elif dependent.status in {'IN_PROGRESS', 'COMPLETED'}:
+            dependent.status = 'BLOCKED'
+            dependent.blocked_reason = REBLOCKED_REASON
+            dependent.set_update_audit(user_id)
+            for run in await session.scalars(
+                select(ActivityRun).where(
+                    ActivityRun.activity_instance_id == dependent.id,
+                    ActivityRun.deleted_at.is_(None),
+                    ActivityRun.status == 'IN_PROGRESS',
+                )
+            ):
+                await _close_open_run(session, run, STATUS_CANCELLED, user_id)
+            if dependent.key not in reblocked:
+                reblocked.append(dependent.key)
+            await _reblock_dependents(
+                session, process, dependent, None, user_id, reblocked
+            )
+
+
+async def reopen_laboratory_run(  # noqa: PLR0913, PLR0917
+    session: AsyncSession,
+    process_id: UUID,
+    activity_key: str,
+    laboratory_id: UUID,
+    reason: str,
+    user_id: UUID,
+) -> tuple[ActivityRun, list[str]]:
+    """Reabre a execução de um laboratório (R10). Sem autorização e commit.
+
+    A execução vigente concluída vira `SUPERSEDED`, com os dados intactos
+    (FR-024), e uma nova abre com o número seguinte (FR-023). Devolve a
+    nova execução e as atividades que voltaram a ficar bloqueadas.
+    """
+    process = await _lock_process(session, process_id)
+    await ensure_process_mutable(session, process_id)
+    act = await _laboratory_activity_by_key(session, process_id, activity_key)
+    if act.execution_scope != PER_LABORATORY:
+        raise ConflictError(
+            f'Atividade {activity_key!r} não é executada por laboratório.'
+        )
+    if not act.is_custody and await _laboratory_waived(
+        session, act.phase_id, laboratory_id
+    ):
+        raise ConflictError(
+            'O laboratório foi dispensado nesta fase.',
+            code='laboratory_waived',
+        )
+    previous = await _current_laboratory_run(session, act.id, laboratory_id)
+    if previous is None or previous.status != 'COMPLETED':
+        raise ConflictError(
+            'Só a execução concluída do laboratório pode ser reaberta.'
+        )
+    previous.status = 'SUPERSEDED'
+    previous.set_update_audit(user_id)
+    run = await _new_laboratory_run(
+        session, act, laboratory_id, user_id, reason
+    )
+    a_data = await _template_activity_data(session, process_id, act.key)
+    await _start_laboratory_run(session, act, a_data, run, user_id)
+    act.status = 'IN_PROGRESS'
+    act.set_update_audit(user_id)
+    reblocked: list[str] = []
+    await _reblock_dependents(
+        session, process, act, laboratory_id, user_id, reblocked
+    )
+    session.add(
+        AuditEvent(
+            process_instance_id=process_id,
+            activity_run_id=run.id,
+            user_id=user_id,
+            event_type='LABORATORY_RUN_REOPENED',
+            context_data={
+                'activity_key': act.key,
+                'laboratory_id': str(laboratory_id),
+                'previous_run_number': previous.run_number,
+                'run_number': run.run_number,
+                'reason': reason,
+                'reblocked_activity_keys': reblocked,
+            },
+        )
+    )
+    return run, reblocked
+
+
 async def require_laboratory_run_access(
     session: AsyncSession,
     user_id: UUID,

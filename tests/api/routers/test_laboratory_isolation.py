@@ -13,6 +13,7 @@ from tests.factories.laboratory_run_factory import (
     complete_lab,
     end_affiliation,
     frozen_lab_process,
+    reopen,
     runs_by_lab,
     waive,
 )
@@ -261,3 +262,24 @@ async def test_other_lab_does_not_see_waiver_events(client, session):
     await waive(session, ctx, 2)
 
     assert _waived(_timeline(client, ctx.lab_users[0], ctx.process_id)) == []
+
+
+@pytest.mark.asyncio
+async def test_reopen_event_reaches_only_reopened_lab_and_managers(
+    client, session
+):
+    ctx = await frozen_lab_process(session)
+    for index in range(3):
+        await complete_chain(session, ctx, index)
+    await reopen(session, ctx, 'upload', 1)
+
+    def reopened(user):
+        return [
+            e
+            for e in _timeline(client, user, ctx.process_id)
+            if e['event_type'] == 'LABORATORY_RUN_REOPENED'
+        ]
+
+    assert reopened(ctx.lab_users[0]) == []
+    assert len(reopened(ctx.lab_users[1])) == 1
+    assert len(reopened(ctx.group_manager)) == 1

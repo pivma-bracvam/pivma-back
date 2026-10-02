@@ -295,3 +295,26 @@ async def waive(session, ctx, index, reason='Equipamento quebrado.'):
     )
     await session.commit()
     return result
+
+
+async def reopen(session, ctx, key, index, reason='Controle positivo fora.'):
+    """O Grupo Gestor reabre a execução do laboratório `index`."""
+    from pivma.core.process_engine import (  # noqa: PLC0415
+        reopen_laboratory_run,
+    )
+
+    result = await reopen_laboratory_run(
+        session,
+        ctx.process_id,
+        key,
+        ctx.labs[index].id,
+        reason,
+        ctx.group_manager.id,
+    )
+    await session.commit()
+    return result
+
+
+async def all_labs_done(session, ctx, keys=('receipt', 'upload')):
+    for index in range(len(ctx.labs)):
+        await complete_chain(session, ctx, index, keys)
