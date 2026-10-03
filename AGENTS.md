@@ -54,16 +54,18 @@ alteração e informe somente resultados que foram realmente executados.
 
 ## Testes
 
-- Use `$fastapi-testing-methodology` como regra obrigatória ao planejar,
+- Use `$testing-methodology` como regra obrigatória ao planejar,
   especificar, gerar, implementar, revisar ou refatorar testes. Leia o
-  `SKILL.md` e consulte suas referências aplicáveis. Ao definir cobertura e
-  tarefas de teste, use especialmente a matriz de risco e os critérios de
-  parada da metodologia.
+  `SKILL.md` e consulte suas referências aplicáveis. Comece pela jornada:
+  descreva o comportamento esperado do usuário e monte o teste sobre esse
+  caminho. Ao definir os testes focados, use a matriz de risco e os critérios
+  de parada da metodologia.
 - Em features e mudanças de comportamento, inclua no `tasks.md` tarefas de
   teste para os critérios de aceitação e riscos aplicáveis, salvo quando o
-  usuário dispensar testes explicitamente. No fluxo Spec Kit, aplique
-  `$fastapi-testing-methodology` durante `$speckit-tasks`; a geração de testes
-  não depende de um pedido separado de TDD.
+  usuário dispensar testes explicitamente. Cada história de usuário tem ao
+  menos uma tarefa de jornada. No fluxo Spec Kit, aplique
+  `$testing-methodology` durante `$speckit-tasks`; a geração de testes não
+  depende de um pedido separado de TDD.
 - Granularize cada tarefa de teste por um comportamento observável ou critério
   da matriz de risco. Separe sucesso, cada erro/status, limite de autorização,
   isolamento de dados, auditoria, ordenação, paginação e concorrência quando
@@ -74,19 +76,35 @@ alteração e informe somente resultados que foram realmente executados.
 
 ## Skills obrigatórias
 
-- Use `$andrej-karpathy-skills:karpathy-guidelines` ao gerar, implementar,
-  modificar, revisar ou refatorar código. Durante `$speckit-implement`, aplique
-  a skill a cada tarefa de código: explicite suposições e critérios verificáveis,
-  escolha a solução mais simples que atende ao pedido e mantenha as mudanças
-  cirúrgicas e dentro do escopo. Se uma ambiguidade puder alterar o resultado,
-  peça esclarecimento antes de implementar.
-- Use `stop-slop` somente ao redigir, editar ou revisar texto de documentação,
-  como `README.md` e arquivos em `docs/`. Não a aplique ao código.
+As skills do projeto ficam versionadas em `.agents/skills/`, com links em
+`.claude/skills/` para o Claude Code. No Claude Code, carregue cada uma com a
+ferramenta `Skill` antes da tarefa; citar o nome não basta.
+
+- Use `$karpathy-guidelines` ao gerar, implementar, modificar, revisar ou
+  refatorar código. Durante `$speckit-implement`, aplique a skill a cada
+  tarefa de código: explicite suposições e critérios verificáveis, escolha a
+  solução mais simples que atende ao pedido e mantenha as mudanças cirúrgicas
+  e dentro do escopo. Se uma ambiguidade puder alterar o resultado, peça
+  esclarecimento antes de implementar.
+- Use `$stop-slop` somente ao redigir, editar ou revisar texto em prosa, como
+  `README.md`, `manual/` e `docs/`. Não a aplique ao código.
+- Use `$testing-methodology` nas tarefas de teste (ver "Testes").
+
+`karpathy-guidelines` e `stop-slop` são cópias de projetos MIT; a origem e o
+commit estão em `SOURCE.md` dentro de cada pasta.
 
 ## Documentação do repositório
 
-Após cada implementação, revise e atualize o [`README.md`](README.md) para
-refletir o estado atual do projeto, incluindo instalação, execução, contratos
-de API, módulos disponíveis e convenções técnicas quando afetados. Reestruture
-ou reduza o README quando isso tornar a documentação mais fácil de consultar,
-sem remover informações necessárias.
+A documentação do estado atual fica em [`manual/`](manual/index.md), um site
+MkDocs organizado em tutorial, guias, referência e explicação. Após cada
+implementação, atualize as páginas afetadas: contratos de API, erros, estados,
+eventos, permissões, variáveis de ambiente e o escopo em
+`manual/explicacao/escopo.md`. Descreva o comportamento atual, sem histórico
+de mudanças; o histórico fica em `specs/`. Confirme com `poe docs-build`, que
+falha em link ou âncora quebrados.
+
+O [`README.md`](README.md) cobre só instalação, execução, tarefas,
+dependências, Docker, testes e contribuição, e aponta para o manual. Não
+duplique no README o que está no manual.
+
+`docs/` guarda as fontes de requisito e não descreve o estado do código.

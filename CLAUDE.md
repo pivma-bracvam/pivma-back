@@ -1,6 +1,8 @@
 # Instruções do projeto
 
-Antes de qualquer tarefa neste repositório, consulte e siga integralmente as diretrizes normativas do projeto. Elas definem o escopo, as skills obrigatórias, a precedência de fontes, o fluxo do Spec Kit, o estado técnico confirmado, as regras de teste, a autenticação planejada, o fluxo de git/branches e os critérios de conclusão.
+@AGENTS.md
+
+Antes de qualquer tarefa neste repositório, consulte e siga integralmente as diretrizes normativas do projeto, em `AGENTS.md` (importado acima) e na constituição `.specify/memory/constitution.md`. Elas definem o escopo, as skills obrigatórias, a precedência de fontes, o fluxo do Spec Kit, o estado técnico confirmado, as regras de teste, a autenticação planejada, o fluxo de git/branches e os critérios de conclusão.
 
 Não resuma nem substitua as diretrizes normativas por este arquivo: consulte a documentação oficial sempre que for atualizada, pois as regras de referência não são copiadas nem versionadas aqui.
 
@@ -10,7 +12,7 @@ As diretrizes do projeto determinam skills obrigatórias assumindo o carregament
 
 Equivalências confirmadas neste ambiente:
 
-- `andrej-karpathy-skills:karpathy-guidelines` (exigida em toda tarefa de código, revisão, correção, refatoração e planejamento técnico) → plugin global disponível para Claude Code com esse mesmo nome. Chame `Skill({skill: "andrej-karpathy-skills:karpathy-guidelines"})` no início dessas tarefas.
-- `fastapi-testing-methodology` (exigida ao criar ou alterar testes) → disponível para Claude Code com esse mesmo nome via `.claude/skills` (symlink para `.agents/skills/`). Chame `Skill({skill: "fastapi-testing-methodology"})` antes de escrever ou alterar testes.
+- `karpathy-guidelines` (exigida em toda tarefa de código, revisão, correção, refatoração e planejamento técnico) → versionada em `.agents/skills/` e disponível via `.claude/skills` (symlink). Chame `Skill({skill: "karpathy-guidelines"})` no início dessas tarefas. Quem tiver o plugin global `andrej-karpathy-skills` pode usar `andrej-karpathy-skills:karpathy-guidelines`, que tem o mesmo conteúdo.
+- `testing-methodology` (exigida ao criar ou alterar testes) → disponível via `.claude/skills` (symlink para `.agents/skills/`). Chame `Skill({skill: "testing-methodology"})` antes de escrever ou alterar testes.
 - `speckit-*` (fluxo do Spec Kit) → disponíveis para Claude Code com os mesmos nomes via `.claude/skills`; normalmente acionadas pelo usuário via `/speckit-*`, mas Claude também pode chamá-las diretamente pela ferramenta `Skill` quando o fluxo exigir.
-- `stop-slop` (exigida ao criar ou revisar relatórios, documentação e textos em prosa) → **sem equivalente instalado para Claude Code neste ambiente.** Não existe plugin nem skill local com esse nome. Até que seja instalada, informe essa lacuna quando a tarefa envolver texto em prosa relevante, em vez de presumir cumprimento.
+- `stop-slop` (exigida ao criar ou revisar relatórios, documentação e textos em prosa) → versionada em `.agents/skills/` e disponível via `.claude/skills` (symlink). Chame `Skill({skill: "stop-slop"})` antes de escrever ou revisar prosa.

@@ -1,0 +1,95 @@
+site_name: pi*VMA
+site_description: Documentação do backend da plataforma pi*VMA
+docs_dir: manual
+strict: true
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+theme:
+  name: material
+  language: pt-BR
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Modo escuro
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Modo claro
+
+hooks:
+  - scripts/mkdocs_hooks.py
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Início: index.md
+  - Tutorial:
+      - tutorial/index.md
+      - Do cadastro à triagem: tutorial/primeiro-processo.md
+      - Quando a triagem pede ajustes: tutorial/triagem-pede-ajustes.md
+      - Quando a IA reprova a proposta: tutorial/ia-reprova-a-proposta.md
+      - Montar a equipe e preparar as amostras: tutorial/equipe-e-amostras.md
+  - Guias:
+      - guias/index.md
+      - Autenticar no frontend: guias/autenticar-no-frontend.md
+      - Acompanhar tarefas: guias/acompanhar-tarefas.md
+      - Enviar uma proposta: guias/enviar-uma-proposta.md
+      - Conduzir a triagem: guias/conduzir-a-triagem.md
+      - Responder ao retorno: guias/responder-ao-retorno.md
+      - Designar participantes: guias/designar-participantes.md
+      - Definir amostras cegas: guias/definir-amostras-cegas.md
+      - Configurar a pré-avaliação por IA: guias/configurar-avaliacao-ia.md
+      - Administrar usuários e acessos: guias/administrar-usuarios-e-acessos.md
+      - Operar em produção: guias/operar-em-producao.md
+  - Referência:
+      - referencia/index.md
+      - Rotas: referencia/rotas.md
+      - Erros: referencia/erros.md
+      - Listagens e referências: referencia/listagens-e-referencias.md
+      - Estados: referencia/estados.md
+      - Perfis, permissões e cargos: referencia/perfis-permissoes-cargos.md
+      - Eventos da linha do tempo: referencia/eventos.md
+      - Templates de processo: referencia/templates.md
+      - Sintaxe dos templates (YAML): referencia/templates-yaml.md
+      - Variáveis de ambiente: referencia/ambiente.md
+      - Comandos: referencia/comandos.md
+  - Explicação:
+      - explicacao/index.md
+      - Escopo atual: explicacao/escopo.md
+      - Modelo de processo: explicacao/modelo-de-processo.md
+      - Autorização: explicacao/autorizacao.md
+      - Isolamento por laboratório: explicacao/isolamento-por-laboratorio.md
+      - Amostras cegas: explicacao/amostras-cegas.md
+      - Pré-avaliação por IA: explicacao/pre-avaliacao-ia.md
+      - Sessão e segurança: explicacao/sessao-e-seguranca.md
+      - Notificações: explicacao/notificacoes.md

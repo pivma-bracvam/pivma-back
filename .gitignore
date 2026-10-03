@@ -221,9 +221,10 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# AI agents
-.specify/
-.claude/
+# AI agents: Spec Kit e skills são versionados; só o estado local fica fora.
+# (.specify/feature.json é ignorado pelo .specify/.gitignore)
+.claude/settings.local.json
+.claude/worktrees/
 
 # Mac files
 .DS_Store
@@ -233,7 +234,6 @@ __marimo__/
 .vscode/
 *.tmp
 *.swp
-uv.lock
 
 
 .agents/skills/speckit-*/

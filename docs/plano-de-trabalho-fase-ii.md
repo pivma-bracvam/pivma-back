@@ -8,7 +8,7 @@
 
 **Julho de 2026**
 
-> **Nota de conversão:** a fonte é o arquivo `_________FaseII_Plano de Trabalho_MetodosAlternativos_BraCVAM)_v2 - Copia.pdf`. Este Markdown preserva a redação, a terminologia, a grafia e a ordem lógica do PDF oficial. Observações editoriais e pontos a validar foram separados em `observacoes-e-pendencias.md`.
+> **Nota de conversão:** a fonte é o arquivo `_________FaseII_Plano de Trabalho_MetodosAlternativos_BraCVAM)_v2 - Copia.pdf`. Este Markdown preserva a redação, a terminologia, a grafia e a ordem lógica do PDF oficial. Pontos a validar são registrados nas specs das features afetadas.
 
 ## Tabela de Glossário
 
