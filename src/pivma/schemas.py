@@ -200,6 +200,35 @@ class UserUpdate(BaseModel):
         return self
 
 
+class SelfUserUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    full_name: FullNameValue = None
+    current_password: Annotated[
+        str, StringConstraints(min_length=1, max_length=128)
+    ] = None
+    new_password: Annotated[
+        str, StringConstraints(min_length=8, max_length=128)
+    ] = None
+
+    @field_validator('new_password')
+    @classmethod
+    def reject_password_whitespace(cls, value):
+        if any(character.isspace() for character in value):
+            raise ValueError('Senha inválida.')
+        return value
+
+    @model_validator(mode='after')
+    def require_update_field(self):
+        if self.current_password is not None and self.new_password is None:
+            raise ValueError('Informe a nova senha.')
+        if self.new_password is not None and self.current_password is None:
+            raise ValueError('Informe a senha atual para trocar a senha.')
+        if self.full_name is None and self.new_password is None:
+            raise ValueError('Informe o nome completo ou a nova senha.')
+        return self
+
+
 class AdminUser(UserPublic):
     active: bool
     profiles: list[ProfileRef]
@@ -214,6 +243,47 @@ class LoginCredentials(BaseModel):
         StringConstraints(strip_whitespace=True, min_length=1, max_length=320),
     ]
     password: Annotated[str, StringConstraints(min_length=8, max_length=128)]
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: Literal['bearer']
+    expires_in: int
+
+
+class ForgotPasswordRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    email: Annotated[str, Field(json_schema_extra={'format': 'email'})]
+
+    @field_validator('email', mode='before')
+    @classmethod
+    def validate_email_preserving_case(cls, value):
+        if not isinstance(value, str):
+            return value
+        trimmed = value.strip()
+        email_adapter.validate_python(trimmed)
+        return trimmed
+
+
+class ForgotPasswordResponse(BaseModel):
+    message: str
+
+
+class ResetPasswordRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    token: Annotated[str, StringConstraints(min_length=1, max_length=128)]
+    new_password: Annotated[
+        str, StringConstraints(min_length=8, max_length=128)
+    ]
+
+    @field_validator('new_password')
+    @classmethod
+    def reject_password_whitespace(cls, value):
+        if any(character.isspace() for character in value):
+            raise ValueError('Senha inválida.')
+        return value
 
 
 class UserIdentity(UserPublic):

@@ -60,6 +60,7 @@ As configurações são validadas pela classe `Settings` em `src/pivma/core/sett
 | `NOTIFICATION_FROM_ADDRESS`, `NOTIFICATION_FROM_NAME` | Remetente das mensagens | `nao-responda@pivma.exemplo` |
 | `NOTIFICATION_ENCRYPTION_KEY` | Chave Fernet que cifra o conteúdo dos envios pendentes | ver [Notificações](#notificações) |
 | `INVITE_URL_TEMPLATE` | Endereço da página de aceite do convite no frontend, com `{token}` | `https://pivma.exemplo/convites/{token}` |
+| `PASSWORD_RESET_URL_TEMPLATE` | Endereço da página de redefinição de senha no frontend, com `{token}` | `https://pivma.exemplo/redefinir-senha/{token}` |
 
 Gere o arquivo local:
 
@@ -137,8 +138,9 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
 
 ## Diretrizes de Integração (Frontend)
 
-* **Transporte de Sessão:** A autenticação opera via cookie seguro `access_token` (`HttpOnly`, `SameSite=Lax`). Requisições no cliente HTTP devem utilizar `credentials: 'include'` (ou `withCredentials: true`).
-* **Validação de Origem (CSRF):** Mutações de estado (`POST`, `PUT`, `PATCH`, `DELETE`) validam a procedência contra a lista de origens confiáveis da aplicação. Certifique-se de configurar o endereço do frontend em desenvolvimento no arquivo `.env`.
+* **Transporte de Sessão:** A autenticação opera via cookie seguro `access_token` (`HttpOnly`, `Secure`, `SameSite=Strict`). Requisições no cliente HTTP devem utilizar `credentials: 'include'` (ou `withCredentials: true`). O frontend web usa só o cookie e não deve guardar o token do corpo do login.
+* **Clientes de API:** `POST /auth/login` também devolve no corpo `{"access_token": "...", "token_type": "bearer", "expires_in": 28800}`, com `Cache-Control: no-store`. Clientes fora do navegador (scripts, integrações, `/docs`) enviam esse token em `Authorization: Bearer <token>`. Se a requisição trouxer o cookie, ele tem precedência.
+* **Validação de Origem (CSRF):** Mutações de estado (`POST`, `PUT`, `PATCH`, `DELETE`) feitas com o cookie validam a procedência contra a lista de origens confiáveis da aplicação. Certifique-se de configurar o endereço do frontend em desenvolvimento no arquivo `.env`. Mutações sem cookie e com `Authorization: Bearer` dispensam essa checagem, porque o navegador não anexa esse cabeçalho sozinho.
 * **Avaliação Dinâmica de Permissões:** Perfis e papéis são validados a cada requisição no banco de dados, sem persistência de permissões dentro do token.
 * **Padrão de Listagem:** Todas as listagens respondem com `data`, `pagination` (`page`, `per_page`, `total_items`, `total_pages`, `has_next`, `has_prev`), `filters_applied` (com os padrões aplicados) e `sort` (`by`, `order`). `facets` e `summary` só aparecem quando pedidos em `include` (hoje só em `GET /tasks`). A paginação é por página: `page` começa em 1, `per_page` vai de 1 a 100 (padrão 20), e uma página além da última devolve `data` vazio com os totais. Não há `offset`, `limit` nem `size`. Cada listagem tem uma ordem padrão estável, informada em `sort`, e ecoa seus filtros em `filters_applied` (vazio quando não tem filtros).
 * **Referências Resumidas:** Entidades relacionadas vêm como objetos pequenos de formato fixo, em um nível só:
@@ -178,6 +180,12 @@ O comando atribui o perfil global `Administrador`, é idempotente para o mesmo i
 
 * **Exclusão Lógica:** Contas inativadas liberam seus identificadores (`username` e `email`) para novos cadastros.
 * **Desativação de contas:** `DELETE /users/{user_id}` exige sessão ativa, origem confiável e `users.manage`. A API preserva o registro, preenche `deleted_at` e `deleted_by` e responde `204`. Autodesativação e remoção da última conta administradora ativa respondem `409`. Contas inativas não iniciam sessões nem reutilizam tokens existentes. `GET /users` lista contas ativas; `GET /users?active=false` lista contas inativas.
+* **Autogestão da conta:** `PATCH /auth/me` exige sessão ativa e origem confiável, sem permissão administrativa. Aceita `full_name`, `current_password` e `new_password`; qualquer outro campo responde `422`. A nova senha exige a senha atual e segue as regras de `password`. Senha atual incorreta responde `400` (`invalid_current_password`) sem alterar nada. Sem sessão, a resposta é `401`; com origem não confiável, `403`. A sessão atual continua válida após a troca de senha.
+* **Recuperação de senha (Spec 039):** rotas públicas, sem sessão.
+  * `POST /auth/forgot-password` recebe `email` e responde sempre `200` com `Se o e-mail estiver cadastrado, as instruções foram enviadas.`, exista ou não a conta. Com conta ativa, emite um token de uso único válido por 30 minutos e envia por e-mail o link montado com `PASSWORD_RESET_URL_TEMPLATE`. Um novo pedido invalida o token anterior e cancela o e-mail ainda pendente. Sem canal de e-mail ou sem `PASSWORD_RESET_URL_TEMPLATE`, nada é emitido e o log operacional registra `password_reset_unavailable`.
+  * `POST /auth/reset-password` recebe `token` e `new_password` (regras de `password`) e responde `204`. Token desconhecido, expirado, usado, substituído ou de conta inativa responde sempre `400` (`invalid_reset_token`). Senha fora da regra responde `422` sem expor a regra nem o valor, e o token continua válido.
+  * O banco guarda só o hash SHA-256 do token, e o token nunca vai para log. Em desenvolvimento, o link é lido no Mailpit.
+  * Limites conhecidos: sessões abertas não são encerradas após a redefinição; não há limite de tentativas nem limpeza de tokens antigos.
 
 ### Controle de Acesso (RBAC Global)
 
@@ -273,10 +281,10 @@ Motor de atividades executadas por laboratório participante (Spec 036, issue #5
 
 ### Notificações
 
-Base de envio de mensagens (Spec 036). O primeiro uso é o convite por e-mail.
+Base de envio de mensagens (Spec 036). Usos atuais: o convite por e-mail e a recuperação de senha (Spec 039).
 
 * **Pedir um envio:** `enqueue_notification` (`pivma.notifications`) grava o pedido na mesma transação da operação de negócio, sem comitar. Se a operação for desfeita, nada é enviado. Cada tipo de aviso (`kind`) tem um renderizador em `notifications/renderers.py` que devolve assunto, texto e HTML.
-* **Processo de envio:** `python -m pivma.notifications.worker` (serviço `worker` do compose). Pega um envio pendente por vez com `FOR UPDATE SKIP LOCKED`, envia e grava o resultado. Erro temporário (4xx, conexão, timeout) tenta de novo em 30 s, 60 s, 120 s… até 900 s, no máximo `NOTIFICATION_MAX_ATTEMPTS` (5) vezes. Erro permanente (5xx, destinatário recusado) falha na hora. Envio com prazo vencido (o do convite) falha como `expired` sem enviar.
+* **Processo de envio:** `python -m pivma.notifications.worker` (serviço `worker` do compose). Pega um envio pendente por vez com `FOR UPDATE SKIP LOCKED`, envia e grava o resultado. Erro temporário (4xx, conexão, timeout) tenta de novo em 30 s, 60 s, 120 s… até 900 s, no máximo `NOTIFICATION_MAX_ATTEMPTS` (5) vezes. Erro permanente (5xx, destinatário recusado) falha na hora. Envio com prazo vencido (convite ou recuperação de senha) falha como `expired` sem enviar.
 * **Situação:** `pending`, `sent`, `failed` ou `cancelled`, com `error_code` (`smtp_permanent`, `smtp_temporary`, `connection`, `max_attempts`, `expired`, `decrypt`, `cancelled_*`). A trilha recebe `NOTIFICATION_SENT`, `NOTIFICATION_FAILED` e `NOTIFICATION_CANCELLED`, sem destinatário nem conteúdo.
 * **Conteúdo protegido:** o conteúdo fica cifrado com `NOTIFICATION_ENCRYPTION_KEY` e é apagado quando o envio termina. Logs e auditoria não registram o conteúdo. Gere a chave com `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Trocar a chave com envios pendentes faz esses envios falharem como `decrypt`.
 * **Provedor:** o envio usa SMTP; trocar de provedor (SES, Brevo, Postmark, Mailgun e outros) é trocar as variáveis `SMTP_*`. O sistema só envia: não precisa de caixa de entrada, mas o domínio do remetente precisa de SPF, DKIM e DMARC no DNS para as mensagens não caírem no spam.

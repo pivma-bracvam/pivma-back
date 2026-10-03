@@ -1,0 +1,97 @@
+openapi: 3.1.0
+info:
+  title: pi*VMA Login Token API
+  version: 1.0.0
+  description: >-
+    Login com token no corpo e autenticação por cookie ou Bearer (Spec 038).
+    Só as partes alteradas pela feature; o restante do contrato de /auth segue
+    as specs anteriores.
+paths:
+  /auth/login:
+    post:
+      summary: Autentica e emite o token de acesso
+      operationId: login
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginCredentials'
+      responses:
+        '200':
+          description: >-
+            Login bem-sucedido. O mesmo token vai no corpo e no cookie.
+          headers:
+            Set-Cookie:
+              description: >-
+                access_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/;
+                Max-Age=28800
+              schema: { type: string }
+            Cache-Control:
+              description: Sempre no-store.
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              example:
+                access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                token_type: bearer
+                expires_in: 28800
+        '401':
+          description: >-
+            invalid_credentials, inalterado. Sem token no corpo e sem
+            Set-Cookie.
+        '422':
+          description: validation_error, inalterado.
+  /auth/me:
+    get:
+      summary: Exemplo de rota protegida que aceita cookie ou Bearer
+      operationId: readCurrentUser
+      tags: [auth]
+      security:
+        - APIKeyCookie: []
+        - HTTPBearer: []
+      responses:
+        '200': { description: Identidade e acessos (Spec 037, inalterado). }
+        '401': { description: not_authenticated. }
+    patch:
+      summary: Exemplo de mutação protegida
+      operationId: updateCurrentUser
+      tags: [auth]
+      description: >-
+        Com cookie access_token, exige Origin em AUTH_ALLOWED_ORIGINS (403
+        invalid_origin). Sem cookie e com Authorization Bearer, a checagem de
+        Origin é dispensada. Vale para todas as rotas com TrustedOrigin.
+      security:
+        - APIKeyCookie: []
+        - HTTPBearer: []
+      responses:
+        '200': { description: Conta atualizada (Spec 037, inalterado). }
+        '401': { description: not_authenticated. }
+        '403': { description: invalid_origin (somente com cookie). }
+components:
+  securitySchemes:
+    APIKeyCookie:
+      type: apiKey
+      in: cookie
+      name: access_token
+    HTTPBearer:
+      type: http
+      scheme: bearer
+  schemas:
+    LoginCredentials:
+      type: object
+      additionalProperties: false
+      required: [identifier, password]
+      properties:
+        identifier: { type: string, minLength: 1, maxLength: 320 }
+        password: { type: string, minLength: 8, maxLength: 128 }
+    LoginResponse:
+      type: object
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, const: bearer }
+        expires_in: { type: integer, description: Validade em segundos. }

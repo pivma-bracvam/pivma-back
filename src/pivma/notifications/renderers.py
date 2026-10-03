@@ -93,3 +93,37 @@ def render_invite_email(payload: dict[str, Any]) -> tuple[str, str, str]:
 
 
 RENDERERS[INVITE_EMAIL] = render_invite_email
+
+
+# --- Redefinição de senha (Spec 039) ---
+
+PASSWORD_RESET_EMAIL = 'password_reset_email'
+
+
+def render_password_reset_email(
+    payload: dict[str, Any],
+) -> tuple[str, str, str]:
+    deadline = _format_deadline(payload['expires_at'])
+    url = payload['reset_url']
+    text = '\n'.join([
+        'Recebemos um pedido para redefinir a sua senha na pi*VMA.',
+        '',
+        'Para criar uma nova senha, acesse o link abaixo:',
+        url,
+        '',
+        f'Válido até: {deadline}',
+        '',
+        'Se você não pediu a redefinição, ignore esta mensagem.',
+    ])
+    safe_url = escape(url, quote=True)
+    html = (
+        '<p>Recebemos um pedido para redefinir a sua senha na pi*VMA.</p>'
+        '<p>Para criar uma nova senha, acesse o link abaixo:</p>'
+        f'<p><a href="{safe_url}">{safe_url}</a></p>'
+        f'<p><strong>Válido até:</strong> {deadline}</p>'
+        '<p>Se você não pediu a redefinição, ignore esta mensagem.</p>'
+    )
+    return 'Redefinição de senha na pi*VMA', text, html
+
+
+RENDERERS[PASSWORD_RESET_EMAIL] = render_password_reset_email
