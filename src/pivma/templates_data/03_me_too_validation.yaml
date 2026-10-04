@@ -2,7 +2,7 @@ process_template:
   key: "me_too_validation"
   name: "Validação Me-Too"
   description: "Método já validado sendo proposto um novo sistema teste ou método mecanisticamente e funcionalmente semelhante (Transferência / Adaptação de Sistema-Teste)."
-  version: 3
+  version: 4
   is_active: true
 
 phases:
@@ -183,6 +183,38 @@ phases:
           - required_activity_key: "assign_participating_laboratory"
             required_status: "COMPLETED"
             condition_type: "ACTIVITY_COMPLETED"
+
+  # Spec 040: Etapa 3. O recebimento é por laboratório e abre quando a
+  # definição das amostras conclui. A resolução de problemas no recebimento é
+  # do Grupo de Seleção de Amostras e só abre por evento, quando um
+  # laboratório registra um frasco fora de ordem.
+  - key: "phase_3_validation_execution"
+    name: "Execução da Validação"
+    order_index: 3
+    activities:
+      - key: "sample_receipt"
+        name: "Confirmação de Recebimento de Amostras"
+        order_index: 1
+        assigned_role: "participating_laboratory"
+        access:
+          edit: ["participating_laboratory"]
+          view: []
+        activity_type: "sample_receipt"
+        execution_scope: "per_laboratory"
+        dependencies:
+          - required_activity_key: "sample_definition"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "sample_receipt_resolution"
+        name: "Resolver problemas no recebimento de amostras"
+        order_index: 2
+        assigned_role: "sample_selection_group"
+        access:
+          edit: ["sample_selection_group"]
+          view: []
+        activity_type: "sample_receipt_resolution"
+        dependencies: []
 
 forms:
   - key: "submission_me_too_v1"

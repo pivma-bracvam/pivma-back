@@ -5,11 +5,21 @@ vive em ``sample_service._sample_activity``.
 """
 
 from http import HTTPStatus
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Response, UploadFile
+import httpx
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+)
 from fastapi.responses import FileResponse
 
+from pivma.core import pubchem
 from pivma.core import sample_service as svc
 from pivma.core.attachment_service import (
     AttachmentError,
@@ -36,6 +46,7 @@ from pivma.schemas import (
     NoFilters,
     SampleCompletionResponse,
     SampleLabelListResponse,
+    SampleLookupResponse,
     SampleSubstance,
     SampleSubstanceCreate,
     SampleSubstanceList,
@@ -76,6 +87,16 @@ _DOMAIN_ERRORS = (
 )
 
 
+def pubchem_transport() -> httpx.AsyncBaseTransport | None:
+    """Transporte HTTP do PubChem; os testes o trocam por um simulado."""
+    return None
+
+
+PubChemTransport = Annotated[
+    httpx.AsyncBaseTransport | None, Depends(pubchem_transport)
+]
+
+
 @router.get('/{id}/samples', response_model=SampleSubstanceList)
 async def list_samples(id: UUID, session: Session, current_user: CurrentUser):
     try:
@@ -110,6 +131,37 @@ async def list_sample_labels(  # noqa: PLR0913, PLR0917
         filters_applied=NoFilters(),
         sort=SortApplied(by='laboratory', order='asc'),
     )
+
+
+@router.get('/{id}/samples/lookup', response_model=SampleLookupResponse)
+async def lookup_sample(  # noqa: PLR0913, PLR0917
+    id: UUID,
+    session: Session,
+    current_user: CurrentUser,
+    settings: SettingsDependency,
+    transport: PubChemTransport,
+    cas: str = Query(min_length=1, max_length=32),
+):
+    """Sugestões do PubChem para o CAS; nada é gravado (Spec 040, US2)."""
+    try:
+        await svc.require_sample_editor(session, id, current_user.id)
+        cas = svc.validate_cas(cas)
+    except _DOMAIN_ERRORS as exc:
+        raise _http_error(exc) from exc
+    try:
+        return await pubchem.lookup_by_cas(cas, settings, transport)
+    except pubchem.CompoundNotFoundError as exc:
+        raise api_error(
+            HTTPStatus.NOT_FOUND,
+            'compound_not_found',
+            'O PubChem não encontrou composto para este CAS.',
+        ) from exc
+    except pubchem.LookupUnavailableError as exc:
+        raise api_error(
+            HTTPStatus.SERVICE_UNAVAILABLE,
+            'lookup_unavailable',
+            'A consulta ao PubChem está indisponível. Preencha à mão.',
+        ) from exc
 
 
 @router.get('/{id}/samples/vials/{code}', response_model=BlindVial)

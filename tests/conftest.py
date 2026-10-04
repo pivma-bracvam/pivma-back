@@ -269,3 +269,7 @@ def use_settings():
 def email_invite_settings(use_settings):
     """API com convite por e-mail disponível (canal falso)."""
     return use_settings(email_settings())
+
+
+# PubChem simulado da consulta por CAS (Spec 040).
+from tests.factories.pubchem_factory import fake_pubchem  # noqa: E402, F401

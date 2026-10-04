@@ -60,6 +60,8 @@ A atividade `submission_return_review` (`activity_type: "return_review"`) existe
 
 A fase 2 (`phase_2_role_assignment`) é igual nos cinco templates: as oito atividades de atribuição de cargo (`activity_type: "role_assignment"`) e a atividade `sample_definition` (`activity_type: "sample_definition"`, Spec 031). Esta só concede edição a `sample_selection_group` e depende de `assign_sample_selection_group` e `assign_participating_laboratory`. Ao mudar uma atribuição, mude nos cinco arquivos; `tests/integration/bootstrap/test_template_phase_2.py` compara as cópias.
 
+A fase 3 (`phase_3_validation_execution`, Spec 040) também é igual nos cinco templates. `sample_receipt` (`activity_type: "sample_receipt"`) é executada por laboratório (`execution_scope: "per_laboratory"`), só o `participating_laboratory` edita e ela depende de `sample_definition`. `sample_receipt_resolution` (`activity_type: "sample_receipt_resolution"`) é do `sample_selection_group`, não tem dependências e nasce bloqueada: o motor a abre quando um laboratório registra um frasco fora de ordem. `tests/integration/bootstrap/test_template_phase_3.py` compara as cópias.
+
 A carga dos templates falha, indicando template, atividade e cargo, quando uma atividade não tem nenhum cargo em `edit` ou quando um cargo está fora do vocabulário de cargos (`ACTIVITY_CARGOS` em `pivma.core.authorization`).
 
 ---

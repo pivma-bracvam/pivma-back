@@ -127,3 +127,54 @@ def render_password_reset_email(
 
 
 RENDERERS[PASSWORD_RESET_EMAIL] = render_password_reset_email
+
+
+# --- Problema no recebimento de amostras (Spec 040) ---
+
+SAMPLE_NONCONFORMITY_EMAIL = 'sample_receipt_nonconformity_email'
+
+DEVIATION_LABELS = {
+    'temperature_out_of_range': 'temperatura fora da faixa',
+    'package_damaged': 'embalagem avariada',
+    'package_violated': 'embalagem violada',
+}
+
+
+def render_sample_nonconformity_email(
+    payload: dict[str, Any],
+) -> tuple[str, str, str]:
+    """Aviso ao Grupo de Seleção: só processo, laboratório e código cego."""
+    process = f'{payload["process_code"]} — {payload["process_title"]}'
+    reasons = ', '.join(
+        DEVIATION_LABELS.get(d, d) for d in payload['deviations']
+    )
+    rows = [
+        ('Processo', process),
+        ('Laboratório', payload['laboratory_name']),
+        ('Código do frasco', payload['blind_code']),
+        ('Motivo', reasons),
+    ]
+    intro = 'Um laboratório registrou um problema no recebimento de amostras.'
+    action = (
+        'Acesse a pi*VMA para ver o registro e decidir: aceitar com '
+        'ressalva, reenviar ou desclassificar.'
+    )
+    text = '\n'.join([
+        intro,
+        '',
+        *(f'{label}: {value}' for label, value in rows),
+        '',
+        action,
+    ])
+    items = ''.join(
+        f'<li><strong>{label}:</strong> {escape(value)}</li>'
+        for label, value in rows
+    )
+    html = f'<p>{intro}</p><ul>{items}</ul><p>{escape(action)}</p>'
+    subject = (
+        f'Problema no recebimento de amostras — {payload["process_code"]}'
+    )
+    return subject, text, html
+
+
+RENDERERS[SAMPLE_NONCONFORMITY_EMAIL] = render_sample_nonconformity_email

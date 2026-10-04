@@ -68,7 +68,7 @@ flowchart LR
 | RF030 | Visualização do fluxo | Parcial | Estados de fases e atividades, tarefas e linha do tempo; sem rota de visão consolidada das fases |
 | RF031 | Painel de monitoramento | Parcial | Contagens e resumo em `GET /tasks` |
 | RF032 | Comentários | Não | Só comentários nos pareceres de campo da triagem |
-| RF033 | Notificações | Parcial | Base de envio pronta; usada só em convites e recuperação de senha |
+| RF033 | Notificações | Parcial | Base de envio pronta; usada em convites, recuperação de senha e problemas no recebimento de amostras |
 | RF034 | Logs e auditoria | Sim | Linha do tempo por processo, históricos de RBAC e catálogo, logs estruturados |
 
 ## Ensaio interlaboratorial (RF035–RF047)
@@ -78,15 +78,15 @@ flowchart LR
 | RF035 | Configuração do ensaio | Não | |
 | RF036 | Formulários dinâmicos | Sim | Mesmo motor de formulários e editor de campos |
 | RF037 | Gestão dos laboratórios | Sim | Catálogo, vínculos e designação de laboratórios |
-| RF038 | Codificação de amostras | Sim | Substâncias, SDS, códigos cegos por laboratório, etiquetas com QR |
+| RF038 | Codificação de amostras | Sim | Substâncias com gabarito, faixa térmica, frasco, reserva e GHS; SDS; sugestões pelo PubChem; códigos cegos por laboratório; etiquetas com QR |
 | RF039 | Despacho | Não | |
-| RF040 | Check-in das amostras | Não | |
-| RF041 | Registro da execução | Parcial | Motor de execução por laboratório pronto; nenhuma atividade nos templates |
+| RF040 | Check-in das amostras | Sim | Registro por frasco (data e hora, temperatura, embalagem, observação, fotos); inconformidade decidida pelo Grupo de Seleção: aceitar com ressalva, reenviar com código novo ou desclassificar |
+| RF041 | Registro da execução | Parcial | Motor de execução por laboratório pronto; nos templates, só o recebimento |
 | RF042 | Ingestão de resultados | Não | Formulários em atividade por laboratório respondem `409` |
 | RF043 | Dados brutos | Não | |
 | RF044 | Acesso por laboratório | Sim | Cada laboratório vê só a própria execução |
 | RF045 | Submissão dos resultados | Não | |
-| RF046 | Monitoramento interlaboratorial | Parcial | Gestor vê as tarefas de todos os laboratórios; sem visão de recebimento ou resultados |
+| RF046 | Monitoramento interlaboratorial | Parcial | Gestor vê as tarefas de todos os laboratórios; o Grupo de Seleção vê as inconformidades do recebimento; sem painel de recebimento ou resultados |
 | RF047 | Reprodutibilidade | Não | |
 
 ## Avaliação ad hoc, estatística e conclusão (RF048–RF062)
@@ -95,7 +95,7 @@ flowchart LR
 |---|---|---|---|
 | RF048 | Designação de avaliadores ad hoc | Parcial | Cargo `adhoc_evaluator` designável; nenhuma atividade de avaliação |
 | RF049 | Distribuição dos materiais | Não | |
-| RF050 | Revisão cega | Parcial | Só o cegamento das amostras |
+| RF050 | Revisão cega | Parcial | Só o cegamento das amostras; o gabarito das substâncias fica restrito ao Grupo de Seleção |
 | RF051–RF054 | Pareceres e consolidação | Não | |
 | RF055–RF059 | Análise estatística | Não | |
 | RF060 | Validação final | Não | |

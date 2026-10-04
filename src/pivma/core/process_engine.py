@@ -131,6 +131,14 @@ RETURN_REVIEW_ACTIVITY_TYPE = 'return_review'
 RETURN_SOURCE_AI = 'AI_PRE_EVALUATION'
 RETURN_SOURCE_TRIAGE = 'TRIAGE'
 
+# Atividades abertas só por evento, nunca pelo motor de dependências, com o
+# motivo do bloqueio inicial: a revisão do retorno (Spec 030, R9) e a
+# resolução de problemas no recebimento de amostras (Spec 040).
+EVENT_OPENED_ACTIVITY_TYPES = {
+    RETURN_REVIEW_ACTIVITY_TYPE: 'Sem retorno pendente.',
+    'sample_receipt_resolution': 'Sem problema de recebimento pendente.',
+}
+
 
 def lifecycle_available_actions(
     *,
@@ -774,11 +782,11 @@ async def instantiate_process(
         for act_key, a_data in act_meta.items():
             act = act_map[act_key]
             deps = a_data.get('dependencies', [])
-            if a_data.get('activity_type') == RETURN_REVIEW_ACTIVITY_TYPE:
-                # Aberta por evento (retorno da IA ou da triagem), nunca
-                # pelo motor de dependências (Spec 030, R9).
+            if a_data.get('activity_type') in EVENT_OPENED_ACTIVITY_TYPES:
                 act.status = 'BLOCKED'
-                act.blocked_reason = 'Sem retorno pendente.'
+                act.blocked_reason = EVENT_OPENED_ACTIVITY_TYPES[
+                    a_data['activity_type']
+                ]
             elif not deps:
                 await _init_first_activity(
                     session, act, a_data, creator_user_id
@@ -2859,6 +2867,23 @@ async def complete_laboratory_run(
             f'Execução do laboratório em status {run.status!r} não pode ser '
             'concluída.'
         )
+    await _finish_laboratory_run(session, process, act, run, user_id)
+    return run
+
+
+async def _finish_laboratory_run(
+    session: AsyncSession,
+    process: ProcessInstance,
+    act: ActivityInstance,
+    run: ActivityRun,
+    user_id: UUID,
+) -> None:
+    """Conclui a execução em andamento e destrava a cadeia do laboratório.
+
+    Sem checagem de acesso: quem chama já decidiu que pode (Spec 040, R3:
+    o aceite com ressalva do Grupo de Seleção fecha o lote do laboratório).
+    """
+    laboratory_id = run.laboratory_id
     now = utc_now()
     run.status = 'COMPLETED'
     run.completed_at = now
@@ -2873,7 +2898,7 @@ async def complete_laboratory_run(
         task.set_update_audit(user_id)
     session.add(
         AuditEvent(
-            process_instance_id=process_id,
+            process_instance_id=process.id,
             activity_run_id=run.id,
             user_id=user_id,
             event_type='LABORATORY_RUN_COMPLETED',
@@ -2886,7 +2911,6 @@ async def complete_laboratory_run(
     )
     await _unblock_laboratory(session, process, act, laboratory_id, user_id)
     await _refresh_laboratory_activity(session, process, act, user_id)
-    return run
 
 
 async def _find_role_assignment_activity(

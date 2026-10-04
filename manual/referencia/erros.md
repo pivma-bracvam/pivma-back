@@ -48,6 +48,7 @@ cada grupo).
 | 403 | `admin_only` | Rota exclusiva do perfil Administrador |
 | 403 | `invite_email_mismatch` | Aceite de convite por conta com outro e-mail |
 | 404 | `not_found` | Recurso inexistente **ou** sem concessão de ver. A resposta é igual nos dois casos |
+| 404 | `compound_not_found` | O PubChem não conhece o CAS consultado |
 | 405 | `method_not_allowed` | Método não suportado na rota |
 | 409 | `conflict` | Regra de negócio sem código próprio |
 | 409 | `duplicate` | Nome, designação ou vínculo repetido; nome reservado de perfil oficial |
@@ -64,6 +65,9 @@ cada grupo).
 | 409 | `sample_definition_not_frozen` | Dispensa de laboratório antes de concluir as amostras |
 | 409 | `already_waived` | Segunda dispensa do mesmo laboratório na fase |
 | 409 | `no_frozen_laboratories` | Ativar atividade por laboratório sem laboratórios congelados |
+| 409 | `vial_already_registered` | Segundo registro de recebimento do mesmo frasco |
+| 409 | `already_decided` | Decisão sobre inconformidade já decidida |
+| 409 | `no_reserve_vials` | Reenvio de frasco com a reserva da substância em zero |
 | 413 | `payload_too_large` | Corpo grande demais |
 | 413 | `file_too_large` | Anexo acima de `ATTACHMENT_MAX_SIZE_MB` |
 | 422 | `validation_error` | Entrada inválida (com `fields`) |
@@ -72,6 +76,7 @@ cada grupo).
 | 422 | `extension_not_allowed` | Extensão fora da lista do campo |
 | 422 | `not_a_file_field` | Anexo em campo que não é de arquivo |
 | 422 | `invalid_cas` | CAS com formato ou dígito verificador inválido |
+| 422 | `invalid_temperature_range` | Faixa térmica sem regime, regime sem a faixa que exige ou mínima acima da máxima (com `fields`) |
 | 422 | `no_substances` | Concluir amostras sem substância |
 | 422 | `missing_sds` | Concluir amostras com substância sem SDS (com `substance_ids`) |
 | 422 | `no_laboratories` | Concluir amostras sem laboratório participante |
@@ -79,6 +84,7 @@ cada grupo).
 | 500 | `internal_error` | Erro inesperado. O detalhe vai só para o log |
 | 503 | `service_unavailable` | Dependência indisponível |
 | 503 | `ai_unavailable` | Provedor de IA falhou ao sugerir critérios ou testar uma versão |
+| 503 | `lookup_unavailable` | PubChem fora do ar, com erro, lento ou em formato inesperado |
 
 ## `404` e não `403`
 
@@ -88,6 +94,7 @@ responde `404`:
 - processo em que o usuário não tem atribuição (fora Admin e BraCVAM);
 - atividade sem concessão de ver;
 - execução de outro laboratório;
-- amostras cegas para laboratórios e Grupo Gestor.
+- amostras cegas para laboratórios e Grupo Gestor;
+- frasco, registro de recebimento ou foto de outro laboratório.
 
 Veja [Autorização](../explicacao/autorizacao.md).

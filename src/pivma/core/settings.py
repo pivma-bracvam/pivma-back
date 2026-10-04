@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     # Amostras cegas (Spec 031). Base da URL do frontend gravada no QR code
     # do frasco; sem valor, usa a primeira origem de `AUTH_ALLOWED_ORIGINS`.
     SAMPLE_QR_BASE_URL: str | None = Field(default=None)
+    # Consulta de sugestões por CAS no PubChem (Spec 040). A consulta só
+    # sugere valores; nada é gravado sem o envio do cadastro.
+    PUBCHEM_BASE_URL: str = Field(default='https://pubchem.ncbi.nlm.nih.gov')
+    PUBCHEM_TIMEOUT_SECONDS: float = Field(default=10, ge=1)
 
     # Notificações (Spec 036). Sem `NOTIFICATION_EMAIL_BACKEND`, o canal de
     # e-mail fica indisponível e convites por e-mail são recusados (FR-019).

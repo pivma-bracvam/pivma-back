@@ -1248,6 +1248,41 @@ class StudySubstance(AuditMixin):
     sds_artifact_id: Mapped[UUID | None] = mapped_column(
         ForeignKey('artifacts.id'), nullable=True, default=None
     )
+    # Spec 040. Gabarito do estudo: só o Grupo de Seleção lê.
+    reference_classification: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+    storage_temperature_regime: Mapped[str | None] = mapped_column(
+        String(16), nullable=True, default=None
+    )
+    storage_temperature_min: Mapped[float | None] = mapped_column(
+        Float, nullable=True, default=None
+    )
+    storage_temperature_max: Mapped[float | None] = mapped_column(
+        Float, nullable=True, default=None
+    )
+    vial_nominal_quantity: Mapped[float | None] = mapped_column(
+        Float, nullable=True, default=None
+    )
+    vial_unit: Mapped[str | None] = mapped_column(
+        String(16), nullable=True, default=None
+    )
+    packaging_type: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, default=None
+    )
+    expiration_date: Mapped[date | None] = mapped_column(
+        Date, nullable=True, default=None
+    )
+    # Frascos de reserva; cada reenvio (Spec 040) debita um.
+    reserve_vials_count: Mapped[int] = mapped_column(
+        Integer, server_default='0', default=0
+    )
+    ghs_hazard_pictograms: Mapped[list[str]] = mapped_column(
+        ARRAY(String(5)),
+        server_default='{}',
+        nullable=False,
+        default_factory=list,
+    )
 
     __table_args__ = (
         Index(
@@ -1284,6 +1319,11 @@ class BlindSampleCode(AuditMixin):
     )
     laboratory_id: Mapped[UUID] = mapped_column(ForeignKey('laboratories.id'))
     code: Mapped[str] = mapped_column(String(8))
+    # Código que este substitui, quando nasce de um reenvio (Spec 040). Só
+    # o Grupo de Seleção vê o vínculo.
+    replaces_code_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey('blind_sample_codes.id'), nullable=True, default=None
+    )
 
     __table_args__ = (
         Index(
@@ -1299,6 +1339,101 @@ class BlindSampleCode(AuditMixin):
             'laboratory_id',
             unique=True,
             postgresql_where=column('deleted_at').is_(None),
+        ),
+    )
+
+
+@table_registry.mapped_as_dataclass
+class SampleReceipt(AuditMixin):
+    """Registro de recebimento de um frasco pelo laboratório (Spec 040).
+
+    Um por frasco, sem alteração depois de gravado (FR-022).
+    """
+
+    __tablename__ = 'sample_receipts'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    process_instance_id: Mapped[UUID] = mapped_column(
+        ForeignKey('process_instances.id')
+    )
+    activity_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey('activity_runs.id')
+    )
+    blind_sample_code_id: Mapped[UUID] = mapped_column(
+        ForeignKey('blind_sample_codes.id')
+    )
+    laboratory_id: Mapped[UUID] = mapped_column(ForeignKey('laboratories.id'))
+    opened_at: Mapped[datetime]
+    temperature_celsius: Mapped[float] = mapped_column(Float)
+    package_state: Mapped[str] = mapped_column(String(16))
+    conforming: Mapped[bool] = mapped_column(Boolean)
+    deviations: Mapped[list[str]] = mapped_column(
+        ARRAY(String(32)), nullable=False, default_factory=list
+    )
+    notes: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+
+    __table_args__ = (
+        Index(
+            'uq_sample_receipts_code_active',
+            'blind_sample_code_id',
+            unique=True,
+            postgresql_where=column('deleted_at').is_(None),
+        ),
+    )
+
+
+@table_registry.mapped_as_dataclass
+class SampleReceiptNonconformity(AuditMixin):
+    """Inconformidade de um registro fora de ordem (Spec 040).
+
+    Decidida só pelo Grupo de Seleção de Amostras: aceitar com ressalva,
+    reenviar ou desclassificar.
+    """
+
+    __tablename__ = 'sample_receipt_nonconformities'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    process_instance_id: Mapped[UUID] = mapped_column(
+        ForeignKey('process_instances.id')
+    )
+    receipt_id: Mapped[UUID] = mapped_column(
+        ForeignKey('sample_receipts.id'), unique=True
+    )
+    laboratory_id: Mapped[UUID] = mapped_column(ForeignKey('laboratories.id'))
+    status: Mapped[str] = mapped_column(String(16), default='OPEN')
+    decision: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, default=None
+    )
+    justification: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+    decided_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey('users.id'), nullable=True, default=None
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(
+        nullable=True, default=None
+    )
+    replacement_code_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey('blind_sample_codes.id'), nullable=True, default=None
+    )
+
+    __table_args__ = (
+        Index(
+            'ix_sample_receipt_nonconformities_process_status',
+            'process_instance_id',
+            'status',
         ),
     )
 
