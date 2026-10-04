@@ -1032,6 +1032,14 @@ async def test_vial_returns_blind_view_only(session, client):
         'code': code,
         'lot': substance['lot'],
         'safe_handling_instructions': substance['safe_handling_instructions'],
+        'ghs_hazard_pictograms': [],
+        'storage_temperature_regime': None,
+        'storage_temperature_min': None,
+        'storage_temperature_max': None,
+        'vial_nominal_quantity': None,
+        'vial_unit': None,
+        'packaging_type': None,
+        'expiration_date': None,
     }
     text = json.dumps(response.json(), ensure_ascii=False)
     assert substance['chemical_name'] not in text
@@ -1125,3 +1133,193 @@ async def test_delete_substance_discards_its_sds(session, client):
     (artifact,) = await _artifacts(session, substance['id'])
     assert artifact.deleted_at is not None
     assert not (_attachments_root() / artifact.file_path).exists()
+
+
+# ---------------------------------------------------------------------------
+# Spec 040, US1 — gabarito, faixa térmica, frasco, reserva e GHS
+# ---------------------------------------------------------------------------
+
+
+def _field_codes(response):
+    return {f['field']: f['code'] for f in response.json()['detail']['fields']}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('value', [None, '', '   '])
+async def test_create_without_reference_classification_returns_422(
+    session, client, value
+):
+    ctx = await _ready(session, client)
+    payload = substance_payload()
+    if value is None:
+        del payload['reference_classification']
+    else:
+        payload['reference_classification'] = value
+
+    response = client.post(_url(ctx.process_id), json=payload, headers=ORIGIN)
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert 'reference_classification' in _field_codes(response)
+    assert _all_codes(client, ctx.process_id) == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ('regime', 'expected'),
+    [('refrigerated', (2.0, 8.0)), ('ambient', (15.0, 25.0))],
+)
+async def test_preset_regime_without_range_stores_default_range(
+    session, client, regime, expected
+):
+    ctx = await _ready(session, client)
+
+    body = _created(client, ctx.process_id, storage_temperature_regime=regime)
+
+    assert body['storage_temperature_regime'] == regime
+    assert (
+        body['storage_temperature_min'],
+        body['storage_temperature_max'],
+    ) == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'fields',
+    [
+        {'storage_temperature_regime': 'frozen'},
+        {
+            'storage_temperature_regime': 'deep_frozen',
+            'storage_temperature_min': -90,
+        },
+        {
+            'storage_temperature_regime': 'custom',
+            'storage_temperature_max': 30,
+        },
+        {'storage_temperature_min': 2, 'storage_temperature_max': 8},
+        {
+            'storage_temperature_regime': 'custom',
+            'storage_temperature_min': 9,
+            'storage_temperature_max': 8,
+        },
+    ],
+)
+async def test_incoherent_temperature_range_returns_422(
+    session, client, fields
+):
+    ctx = await _ready(session, client)
+
+    response = _create(client, ctx.process_id, **fields)
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert response.json()['detail']['code'] == 'invalid_temperature_range'
+    assert _all_codes(client, ctx.process_id) == []
+
+
+@pytest.mark.asyncio
+async def test_patch_min_above_stored_max_returns_422(session, client):
+    ctx = await _ready(session, client)
+    substance = _created(
+        client, ctx.process_id, storage_temperature_regime='refrigerated'
+    )
+
+    response = client.patch(
+        _url(ctx.process_id, f'/{substance["id"]}'),
+        json={'storage_temperature_min': 10},
+        headers=ORIGIN,
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert response.json()['detail']['code'] == 'invalid_temperature_range'
+    listed = client.get(_url(ctx.process_id)).json()['substances'][0]
+    assert listed['storage_temperature_min'] == 2.0  # noqa: PLR2004
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ('fields', 'field'),
+    [
+        ({'ghs_hazard_pictograms': ['GHS10']}, 'ghs_hazard_pictograms.0'),
+        (
+            {'ghs_hazard_pictograms': ['GHS01', 'GHS01']},
+            'ghs_hazard_pictograms',
+        ),
+        ({'reserve_vials_count': -1}, 'reserve_vials_count'),
+        ({'vial_nominal_quantity': 0}, 'vial_nominal_quantity'),
+        ({'vial_nominal_quantity': -5}, 'vial_nominal_quantity'),
+    ],
+)
+async def test_invalid_vial_fields_return_422(session, client, fields, field):
+    ctx = await _ready(session, client)
+
+    response = _create(client, ctx.process_id, **fields)
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert field in _field_codes(response)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('value', [None, ''])
+async def test_patch_reference_classification_to_blank_returns_422(
+    session, client, value
+):
+    ctx = await _ready(session, client)
+    substance = _created(client, ctx.process_id)
+
+    response = client.patch(
+        _url(ctx.process_id, f'/{substance["id"]}'),
+        json={'reference_classification': value},
+        headers=ORIGIN,
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.asyncio
+async def test_patch_legacy_substance_without_classification_is_accepted(
+    session, client
+):
+    ctx = await _ready(session, client)
+    substance = _created(client, ctx.process_id)
+    # Substância cadastrada antes da Spec 040: sem gabarito.
+    stored = await session.get(StudySubstance, substance['id'])
+    stored.reference_classification = None
+    await session.commit()
+
+    response = client.patch(
+        _url(ctx.process_id, f'/{substance["id"]}'),
+        json={'lot': 'L-NOVO'},
+        headers=ORIGIN,
+    )
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    assert response.json()['reference_classification'] is None
+
+
+@pytest.mark.asyncio
+async def test_list_substances_returns_reserve_and_new_fields(session, client):
+    ctx = await _ready(session, client)
+    _created(
+        client,
+        ctx.process_id,
+        reserve_vials_count=3,
+        vial_nominal_quantity=10,
+        vial_unit='g',
+        packaging_type='Tubo Falcon',
+        expiration_date='2027-01-15',
+        ghs_hazard_pictograms=['GHS02'],
+    )
+    _created(client, ctx.process_id, cas_number='7732-18-5')
+
+    by_cas = {
+        s['cas_number']: s
+        for s in client.get(_url(ctx.process_id)).json()['substances']
+    }
+    first, second = by_cas['50-00-0'], by_cas['7732-18-5']
+
+    assert first['reserve_vials_count'] == 3  # noqa: PLR2004
+    assert first['vial_unit'] == 'g'
+    assert first['packaging_type'] == 'Tubo Falcon'
+    assert first['expiration_date'] == '2027-01-15'
+    assert first['ghs_hazard_pictograms'] == ['GHS02']
+    assert second['reserve_vials_count'] == 0
+    assert second['ghs_hazard_pictograms'] == []

@@ -77,6 +77,7 @@ def substance_payload(**overrides) -> dict:
         'safe_handling_instructions': (
             'Tóxico por inalação. Usar luvas nitrílicas e capela.'
         ),
+        'reference_classification': 'Severamente irritante / Categoria 1',
     }
     payload.update(overrides)
     return payload

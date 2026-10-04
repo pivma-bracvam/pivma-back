@@ -124,6 +124,13 @@ async def test_participating_lab_gets_404_on_every_sample_route(
     session, client
 ):
     ctx = await _prepared(session, client)
+    # Spec 040: o laboratório lê a visão cega só dos próprios frascos; o
+    # frasco de outro laboratório continua inexistente para ele.
+    ctx.code = next(
+        c['code']
+        for c in ctx.substance['blind_codes']
+        if c['laboratory_id'] != str(ctx.labs[0].id)
+    )
     authenticate(client, ctx.lab_users[0])
 
     _assert_every_route(client, ctx, HTTPStatus.NOT_FOUND)
@@ -312,3 +319,76 @@ async def test_timeline_hides_sample_events_from_participating_lab(
         for e in response.json()['data']
         if e['event_type'].startswith('SAMPLE_')
     ]
+
+
+# ---------------------------------------------------------------------------
+# Spec 040 — visão cega e etiquetas com dados do frasco
+# ---------------------------------------------------------------------------
+
+SECRET_KEYS = ('chemical_name', 'cas_number', 'reference_classification')
+
+
+def _assert_blind(body):
+    text = json.dumps(body, ensure_ascii=False)
+    for key in (*SECRET_KEYS, 'sds'):
+        assert f'"{key}"' not in text
+
+
+async def _with_vial_spec(session, client):
+    ctx = await sample_process(session, lab_count=2)
+    authenticate(client, ctx.selector)
+    response = client.post(
+        _url(ctx.process_id),
+        json=substance_payload(
+            storage_temperature_regime='refrigerated',
+            ghs_hazard_pictograms=['GHS05'],
+            vial_nominal_quantity=50,
+            vial_unit='mL',
+        ),
+        headers=ORIGIN,
+    )
+    assert response.status_code == HTTPStatus.CREATED, response.text
+    ctx.substance = response.json()
+    return ctx
+
+
+@pytest.mark.asyncio
+async def test_labels_and_vial_bring_vial_spec_without_identity(
+    session, client
+):
+    ctx = await _with_vial_spec(session, client)
+    code = ctx.substance['blind_codes'][0]['code']
+
+    label = client.get(_url(ctx.process_id, '/labels')).json()['data'][0]
+    vial = client.get(_url(ctx.process_id, f'/vials/{code}')).json()
+
+    for body in (label, vial):
+        assert body['ghs_hazard_pictograms'] == ['GHS05']
+        assert body['storage_temperature_regime'] == 'refrigerated'
+        assert body['storage_temperature_min'] == 2.0  # noqa: PLR2004
+        assert body['vial_nominal_quantity'] == 50.0  # noqa: PLR2004
+        _assert_blind(body)
+        text = json.dumps(body, ensure_ascii=False)
+        assert ctx.substance['chemical_name'] not in text
+        assert ctx.substance['cas_number'] not in text
+
+
+@pytest.mark.asyncio
+async def test_participating_lab_reads_own_vial_without_identity(
+    session, client
+):
+    ctx = await _with_vial_spec(session, client)
+    own = next(
+        c['code']
+        for c in ctx.substance['blind_codes']
+        if c['laboratory_id'] == str(ctx.labs[0].id)
+    )
+    authenticate(client, ctx.lab_users[0])
+
+    response = client.get(_url(ctx.process_id, f'/vials/{own}'))
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    assert response.json()['code'] == own
+    _assert_blind(response.json())
+    qr = client.get(_url(ctx.process_id, f'/vials/{own}/qr.svg'))
+    assert qr.status_code == HTTPStatus.NOT_FOUND

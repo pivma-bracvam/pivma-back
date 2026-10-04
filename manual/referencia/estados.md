@@ -68,6 +68,40 @@ stateDiagram-v2
 | `WAIVED` | Laboratório dispensado pelo gestor |
 | `SUPERSEDED` | Substituída por uma reabertura; dados preservados |
 
+## Frasco no recebimento
+
+A situação de cada frasco vem do registro do laboratório e da decisão do
+Grupo de Seleção de Amostras. Ela não é gravada; a API a calcula.
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending
+    pending --> received: registro em ordem
+    pending --> awaiting_decision: registro fora de ordem
+    awaiting_decision --> accepted_with_caveat: aceitar com ressalva
+    awaiting_decision --> replaced: reenviar
+    awaiting_decision --> disqualified: desclassificar
+```
+
+| Valor | Significado |
+|---|---|
+| `pending` | Sem registro |
+| `received` | Registrado em ordem |
+| `awaiting_decision` | Fora de ordem, com inconformidade aberta |
+| `accepted_with_caveat` | Aceito com ressalva; conta como recebido |
+| `replaced` | Substituído por um frasco com código novo |
+| `disqualified` | Laboratório desclassificado na fase |
+
+O recebimento do laboratório conclui quando todo frasco ativo dele está
+`received` ou `accepted_with_caveat`.
+
+## Inconformidade do recebimento
+
+| Valor | Significado |
+|---|---|
+| `OPEN` | Esperando a decisão do Grupo de Seleção |
+| `RESOLVED` | Decidida: `accept_with_caveat`, `resend` ou `disqualify` |
+
 ## Tarefa
 
 | Valor | Significado |

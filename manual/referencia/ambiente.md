@@ -29,6 +29,8 @@ arquivo `.env`. Modelo: `.env.example`.
 | `ATTACHMENT_MAX_SIZE_MB` | `25` | Limite por arquivo (anexos e SDS) |
 | `ATTACHMENT_DEFAULT_EXTENSIONS` | `["pdf","docx","doc","png","jpg","jpeg"]` | Extensões quando o campo não declara as suas |
 | `SAMPLE_QR_BASE_URL` | primeira origem de `AUTH_ALLOWED_ORIGINS` | Base da URL gravada no QR dos frascos |
+| `PUBCHEM_BASE_URL` | `https://pubchem.ncbi.nlm.nih.gov` | Endereço do PubChem na consulta de sugestões por CAS |
+| `PUBCHEM_TIMEOUT_SECONDS` | `10` | Tempo máximo de cada chamada ao PubChem (mínimo 1) |
 
 ## Convites e senha
 

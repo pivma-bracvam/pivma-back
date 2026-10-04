@@ -121,8 +121,11 @@ recusaria.
 ## 5. A seleção de amostras cadastra as substâncias
 
 Com a equipe formada, a responsável pela seleção recebe a tarefa de definir
-as amostras. Ela cadastra cada substância com nome, número CAS, lote e
-instruções de manuseio, e anexa a ficha de segurança (SDS) em PDF.
+as amostras. Ela cadastra cada substância com nome, número CAS, lote,
+instruções de manuseio e a classificação de referência, o resultado já
+conhecido da substância no ensaio. Informa também como conservar o frasco
+(refrigerado) e quantos frascos guarda de reserva. Depois anexa a ficha de
+segurança (SDS) em PDF.
 
 A cada cadastro, a plataforma já gera um código cego para cada laboratório
 participante.
@@ -134,7 +137,11 @@ participante.
       | jq '.data[] | .activity_key'
     SUB=$(curl -s -X POST $API/processes/$PID/samples -H "Authorization: Bearer $SEL" \
       -H 'Content-Type: application/json' \
-      -d '{"chemical_name":"Formaldeído","cas_number":"50-00-0","lot":"L-2026-04","safe_handling_instructions":"Tóxico por inalação. Usar luvas e capela."}' \
+      -d '{"chemical_name":"Formaldeído","cas_number":"50-00-0","lot":"L-2026-04",
+           "safe_handling_instructions":"Tóxico por inalação. Usar luvas e capela.",
+           "reference_classification":"Severamente irritante / Categoria 1",
+           "storage_temperature_regime":"refrigerated","reserve_vials_count":1,
+           "ghs_hazard_pictograms":["GHS05","GHS06","GHS08"]}' \
       | jq -r .id)
     printf '%%PDF-1.4\n%%%%EOF\n' > sds.pdf
     curl -s -X PUT $API/processes/$PID/samples/$SUB/sds -H "Authorization: Bearer $SEL" \
@@ -160,7 +167,9 @@ só o código, o lote e um QR. Nenhuma delas mostra o nome da substância.
 ## 7. O laboratório não vê o que há nos frascos
 
 O técnico do laboratório participa do processo, mas não consegue ver as
-substâncias. Para ele, essa parte do processo simplesmente não existe.
+substâncias. Para ele, a lista de substâncias não existe. Ele só vê os
+frascos do próprio laboratório, pelo código, quando eles chegam:
+[Quando um frasco chega com problema](recebimento-com-avaria.md).
 
 ??? example "Como fazer pela API"
     ```bash

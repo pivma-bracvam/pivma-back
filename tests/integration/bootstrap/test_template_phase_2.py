@@ -28,11 +28,11 @@ TEMPLATE_FILES = {
     'proof_of_concept': '05_proof_of_concept.yaml',
 }
 NEW_VERSIONS = {
-    'pre_validated_method': 3,
-    'scope_extension': 3,
-    'me_too_validation': 3,
-    'validated_method_dossier': 5,
-    'proof_of_concept': 3,
+    'pre_validated_method': 4,
+    'scope_extension': 4,
+    'me_too_validation': 4,
+    'validated_method_dossier': 6,
+    'proof_of_concept': 4,
 }
 PHASE_2 = 'phase_2_role_assignment'
 COMPARED_KEYS = (
@@ -145,7 +145,9 @@ async def test_sample_definition_instantiates_with_edit_only_for_sample_group(
 def _previous_version(template_key):
     data = copy.deepcopy(_template(template_key))
     data['process_template']['version'] = NEW_VERSIONS[template_key] - 1
-    data['phases'] = [p for p in data['phases'] if p['key'] != PHASE_2]
+    # A versão anterior à Spec 031 não tinha a Fase 2 nem a Etapa 3, que
+    # depende dela (Spec 040).
+    data['phases'] = [p for p in data['phases'] if p['order_index'] == 1]
     return data
 
 

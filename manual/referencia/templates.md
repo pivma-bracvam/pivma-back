@@ -6,11 +6,11 @@ recente do template na criação e fica nela até o fim.
 
 | `key` | Nome | Versão | Formulário de submissão |
 |---|---|---|---|
-| `pre_validated_method` | Método Pré-Validado | 3 | `submission_pre_validated_v1` (1 campo) |
-| `scope_extension` | Extensão de Escopo de Aplicação | 3 | `submission_scope_extension_v1` (1 campo) |
-| `me_too_validation` | Validação Me-Too | 3 | `submission_me_too_v1` (1 campo) |
-| `validated_method_dossier` | Método Validado – Dossiê Submetido | 5 | `submission_validated_dossier_v1` (2 campos) |
-| `proof_of_concept` | Prova de Conceito (PoC) | 3 | `submission_proof_of_concept_v1` (formulário completo) |
+| `pre_validated_method` | Método Pré-Validado | 4 | `submission_pre_validated_v1` (1 campo) |
+| `scope_extension` | Extensão de Escopo de Aplicação | 4 | `submission_scope_extension_v1` (1 campo) |
+| `me_too_validation` | Validação Me-Too | 4 | `submission_me_too_v1` (1 campo) |
+| `validated_method_dossier` | Método Validado – Dossiê Submetido | 6 | `submission_validated_dossier_v1` (2 campos) |
+| `proof_of_concept` | Prova de Conceito (PoC) | 4 | `submission_proof_of_concept_v1` (formulário completo) |
 
 Os cinco têm as mesmas fases e atividades. Mudam os formulários.
 
@@ -27,8 +27,14 @@ flowchart TD
         AG[assign_group_manager] --> AX[assign_sample_selection_group<br/>assign_lead_laboratory<br/>assign_participating_laboratory<br/>assign_statistician<br/>assign_collaborator<br/>assign_adhoc_evaluator]
         AX --> SD[sample_definition]
     end
+    subgraph F3[Etapa 3: Execução da Validação]
+        SR[sample_receipt<br/>por laboratório]
+        RS[sample_receipt_resolution<br/>sample_selection_group]
+    end
     TE --> AS
     TE --> AG
+    SD --> SR
+    SR -.->|frasco fora de ordem| RS
 ```
 
 | Atividade | Fase | Tipo | Edita | Depende de | Prazo |
@@ -45,13 +51,16 @@ flowchart TD
 | `assign_collaborator` | 2 | `role_assignment` | `bracvam` | `assign_group_manager` | — |
 | `assign_adhoc_evaluator` | 2 | `role_assignment` | `bracvam` | `assign_group_manager` | — |
 | `sample_definition` | 2 | `sample_definition` | `sample_selection_group` | `assign_sample_selection_group` e `assign_participating_laboratory` | — |
+| `sample_receipt` | 3 | `sample_receipt`, por laboratório | `participating_laboratory` | `sample_definition` | — |
+| `sample_receipt_resolution` | 3 | `sample_receipt_resolution` | `sample_selection_group` | aberta quando um laboratório registra um frasco fora de ordem | — |
 
 Nenhuma atividade dos templates lista cargos em `view`: cada atividade é vista
 pelos cargos que a editam, por Admin e por BraCVAM.
 
-Nenhum template declara ainda atividades da Etapa 3 (execução por
-laboratório). O motor existe; veja
-[Isolamento por laboratório](../explicacao/isolamento-por-laboratorio.md).
+`sample_receipt` é a única atividade executada por laboratório: cada
+laboratório congelado em `sample_definition` ganha a própria execução. Veja
+[Isolamento por laboratório](../explicacao/isolamento-por-laboratorio.md) e
+[Receber amostras](../guias/receber-amostras.md).
 
 ## Consultar pela API
 

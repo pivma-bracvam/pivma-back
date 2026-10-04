@@ -21,6 +21,7 @@ from pivma.routers import (
     processes,
     rbac,
     return_review,
+    sample_receipt,
     samples,
     tasks,
     triage,
@@ -74,6 +75,7 @@ app.include_router(pre_evaluation.router)
 app.include_router(pre_evaluation.admin_router)
 app.include_router(return_review.router)
 app.include_router(samples.router)
+app.include_router(sample_receipt.router)
 app.include_router(laboratory_runs.router)
 
 

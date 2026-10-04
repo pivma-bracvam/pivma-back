@@ -24,6 +24,10 @@ flowchart TD
 ```
 
 - `LABORATORY_WAIVED` só aparece para o gestor do processo.
+- Os eventos da resolução de inconformidades (`SAMPLE_NONCONFORMITY_*`,
+  `SAMPLE_VIAL_RESENT`, `SAMPLE_RECEIPT_RESOLUTION_OPENED`) seguem a atividade
+  `sample_receipt_resolution`: Grupo de Seleção, Admin e BraCVAM. Nenhum
+  laboratório os vê.
 - A paginação é feita depois do filtro: o total conta só o que o usuário vê.
 
 ## Tipos
@@ -40,6 +44,7 @@ flowchart TD
 | Convites | `INVITE_CREATED`, `INVITE_RESENT`, `INVITE_REVOKED`, `INVITE_ACCEPTED` |
 | Amostras cegas | `SAMPLE_SUBSTANCE_REGISTERED`, `SAMPLE_SUBSTANCE_UPDATED`, `SAMPLE_SUBSTANCE_REMOVED`, `SAMPLE_SDS_UPLOADED`, `SAMPLE_SDS_DOWNLOADED`, `SAMPLE_CODES_GENERATED`, `SAMPLE_DEFINITION_COMPLETED` |
 | Execução por laboratório | `LABORATORY_RUN_COMPLETED`, `LABORATORY_WAIVED`, `LABORATORY_RUN_REOPENED` |
+| Recebimento de amostras | `SAMPLE_RECEIPT_REGISTERED`, `SAMPLE_RECEIPT_PHOTO_ATTACHED`, `SAMPLE_RECEIPT_RESOLUTION_OPENED`, `SAMPLE_NONCONFORMITY_OPENED`, `SAMPLE_NONCONFORMITY_RESOLVED`, `SAMPLE_VIAL_RESENT` |
 | Notificações | `NOTIFICATION_SENT`, `NOTIFICATION_FAILED`, `NOTIFICATION_CANCELLED` |
 
 ## Contexto relevante
@@ -49,7 +54,10 @@ flowchart TD
 | `REVISION_REQUESTED` | `source`: `AI_PRE_EVALUATION` ou `TRIAGE` |
 | `PARTICIPANT_EFFECTIVENESS_LOST` / `_RESTORED` | `reason`: `affiliation_ended`, `laboratory_deactivated`, `institution_deactivated`, `affiliation_created` |
 | `LABORATORY_*` | `laboratory_id` |
-| `SAMPLE_*` | Só identificadores e contagens; nunca nome químico, CAS ou código |
+| `SAMPLE_*` | Só identificadores e contagens; nunca nome químico, CAS, código ou justificativa |
+| `SAMPLE_RECEIPT_REGISTERED` | `laboratory_id`, `blind_sample_code_id`, `receipt_id`, `conforming`, `deviations` |
+| `SAMPLE_NONCONFORMITY_RESOLVED` | `nonconformity_id`, `laboratory_id`, `decision` |
+| `SAMPLE_VIAL_RESENT` | `nonconformity_id`, `laboratory_id`, `replacement_code_id`, `reserve_vials_count` |
 | `NOTIFICATION_*` | `notification_id`, `kind`, `channel`; nunca destinatário ou conteúdo |
 
 Eventos de efetividade só são gravados em processos em andamento.

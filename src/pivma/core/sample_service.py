@@ -29,6 +29,7 @@ from pivma.core.attachment_service import (
     store_upload,
     validate_extension,
 )
+from pivma.core.authorization import effective_laboratory_ids
 from pivma.core.database.models import (
     ActivityInstance,
     ActivityRun,
@@ -41,6 +42,7 @@ from pivma.core.database.models import (
     StudySubstance,
 )
 from pivma.core.process_engine import (
+    AuthorizationError,
     ConflictError,
     NotFoundError,
     ValidationError,
@@ -67,7 +69,29 @@ REQUIRED_FIELDS = frozenset({
     'cas_number',
     'lot',
     'safe_handling_instructions',
+    'reference_classification',
+    'reserve_vials_count',
+    'ghs_hazard_pictograms',
 })
+# Faixa padrão (°C) dos regimes que a têm; os demais exigem os dois limites
+# (Spec 040, research R10).
+TEMPERATURE_PRESETS = {'ambient': (15.0, 25.0), 'refrigerated': (2.0, 8.0)}
+TEMPERATURE_FIELDS = (
+    'storage_temperature_regime',
+    'storage_temperature_min',
+    'storage_temperature_max',
+)
+# Campos da Spec 040 que o laboratório pode ver no frasco (FR-010).
+VIAL_SPEC_FIELDS = (
+    'ghs_hazard_pictograms',
+    'storage_temperature_regime',
+    'storage_temperature_min',
+    'storage_temperature_max',
+    'vial_nominal_quantity',
+    'vial_unit',
+    'packaging_type',
+    'expiration_date',
+)
 
 
 class SampleConflictError(ConflictError):
@@ -115,6 +139,13 @@ async def _sample_activity(
     return act
 
 
+async def require_sample_editor(
+    session: AsyncSession, process_id: UUID, user_id: UUID
+) -> None:
+    """Mesmo acesso das rotas de amostras, sem carregar conteúdo."""
+    await _sample_activity(session, process_id, user_id)
+
+
 # ---------------------------------------------------------------------------
 # Regras puras
 # ---------------------------------------------------------------------------
@@ -140,6 +171,60 @@ def validate_cas(value: str) -> str:
             'invalid_cas', f'Dígito verificador do CAS inválido: {cas!r}.'
         )
     return cas
+
+
+def _range_error(field: str, message: str) -> SampleValidationError:
+    return SampleValidationError(
+        'invalid_temperature_range',
+        message,
+        fields=[
+            {
+                'location': 'body',
+                'field': field,
+                'code': 'invalid_temperature_range',
+                'message': message,
+            }
+        ],
+    )
+
+
+def resolve_temperature_range(
+    regime: str | None, minimum: float | None, maximum: float | None
+) -> tuple[str | None, float | None, float | None]:
+    """Regime e faixa coerentes (Spec 040, FR-004 e FR-005).
+
+    Sem faixa, `ambient` e `refrigerated` recebem a faixa padrão; os demais
+    regimes exigem mínimo e máximo. Faixa sem regime e mínimo acima do
+    máximo são recusados. Limites iguais valem.
+    """
+    if regime is None:
+        if minimum is not None or maximum is not None:
+            raise _range_error(
+                'storage_temperature_regime',
+                'Informe o regime de conservação da faixa térmica.',
+            )
+        return None, None, None
+    if minimum is None and maximum is None and regime in TEMPERATURE_PRESETS:
+        return regime, *TEMPERATURE_PRESETS[regime]
+    for field, value in (
+        ('storage_temperature_min', minimum),
+        ('storage_temperature_max', maximum),
+    ):
+        if value is None:
+            raise _range_error(
+                field, 'O regime de conservação exige mínimo e máximo.'
+            )
+    if minimum > maximum:
+        raise _range_error(
+            'storage_temperature_min',
+            'A temperatura mínima não pode passar da máxima.',
+        )
+    return regime, minimum, maximum
+
+
+def vial_spec(substance: StudySubstance) -> dict[str, Any]:
+    """Dados do frasco visíveis ao laboratório: nunca identidade química."""
+    return {field: getattr(substance, field) for field in VIAL_SPEC_FIELDS}
 
 
 def generate_code() -> str:
@@ -375,6 +460,9 @@ async def _serialize(
             'safe_handling_instructions': (
                 substance.safe_handling_instructions
             ),
+            'reference_classification': substance.reference_classification,
+            'reserve_vials_count': substance.reserve_vials_count,
+            **vial_spec(substance),
             'sds': (
                 {
                     'filename': (artifact.metadata_payload or {}).get(
@@ -464,6 +552,9 @@ async def create_substance(
     _act, run = await _mutable_activity(session, process_id, user_id)
     cas = validate_cas(data['cas_number'])
     await _ensure_unique_cas(session, process_id, cas)
+    regime, minimum, maximum = resolve_temperature_range(
+        *(data.get(field) for field in TEMPERATURE_FIELDS)
+    )
 
     substance = StudySubstance(
         process_instance_id=process_id,
@@ -473,6 +564,16 @@ async def create_substance(
         safe_handling_instructions=data['safe_handling_instructions'],
         purity=data.get('purity'),
         solubility=data.get('solubility'),
+        reference_classification=data.get('reference_classification'),
+        storage_temperature_regime=regime,
+        storage_temperature_min=minimum,
+        storage_temperature_max=maximum,
+        vial_nominal_quantity=data.get('vial_nominal_quantity'),
+        vial_unit=data.get('vial_unit'),
+        packaging_type=data.get('packaging_type'),
+        expiration_date=data.get('expiration_date'),
+        reserve_vials_count=data.get('reserve_vials_count') or 0,
+        ghs_hazard_pictograms=list(data.get('ghs_hazard_pictograms') or []),
     )
     substance.set_creation_audit(user_id)
     session.add(substance)
@@ -525,6 +626,15 @@ async def update_substance(
         await _ensure_unique_cas(
             session, process_id, data['cas_number'], exclude_id=substance.id
         )
+    if any(field in data for field in TEMPERATURE_FIELDS):
+        # A regra vale sobre o estado resultante (research R10).
+        resolved = resolve_temperature_range(
+            *(
+                data.get(field, getattr(substance, field))
+                for field in TEMPERATURE_FIELDS
+            )
+        )
+        data.update(zip(TEMPERATURE_FIELDS, resolved, strict=True))
     for field, value in data.items():
         setattr(substance, field, value)
     substance.set_update_audit(user_id)
@@ -790,7 +900,7 @@ async def list_labels(  # noqa: PLR0913
     await _sample_activity(session, process_id, user_id)
     process = await session.get(ProcessInstance, process_id)
     stmt = (
-        select(BlindSampleCode, StudySubstance.lot, Laboratory.name)
+        select(BlindSampleCode, StudySubstance, Laboratory.name)
         .join(
             StudySubstance,
             StudySubstance.id == BlindSampleCode.substance_id,
@@ -820,14 +930,15 @@ async def list_labels(  # noqa: PLR0913
         session, [code.laboratory_id for code, _, _ in rows]
     )
     labels = []
-    for code, lot, _ in rows:
+    for code, substance, _ in rows:
         url = vial_qr_url(settings, process_id, code.code)
         labels.append({
             'code': code.code,
             'study_code': process.code,
             'laboratory': laboratories[code.laboratory_id],
-            'lot': lot,
+            'lot': substance.lot,
             'qr_url': url,
+            **vial_spec(substance),
         })
     return labels, total or 0
 
@@ -837,36 +948,63 @@ async def list_labels(  # noqa: PLR0913
 # ---------------------------------------------------------------------------
 
 
+async def _vial_reader_laboratories(
+    session: AsyncSession, process_id: UUID, user_id: UUID
+) -> set[UUID] | None:
+    """Quem lê a visão cega: `None` para o Grupo de Seleção (todos os
+    frascos); senão, os laboratórios efetivos do usuário (Spec 040, FR-019).
+
+    Sem nenhum dos dois, mantém a resposta da Spec 031: `404` para quem não
+    vê a atividade de amostras e `403` para quem a vê sem editar.
+    """
+    try:
+        await _sample_activity(session, process_id, user_id)
+    except NotFoundError, AuthorizationError:
+        laboratories = await effective_laboratory_ids(
+            session, user_id, process_id
+        )
+        if laboratories:
+            return laboratories
+        raise
+    return None
+
+
 async def get_blind_vial(
     session: AsyncSession, process_id: UUID, code: str, user_id: UUID
 ) -> dict[str, Any]:
-    """Destino do QR: só código, lote e manuseio seguro (FR-021)."""
-    await _sample_activity(session, process_id, user_id)
-    row = (
-        await session.execute(
-            select(
-                BlindSampleCode.code,
-                StudySubstance.lot,
-                StudySubstance.safe_handling_instructions,
-            )
-            .join(
-                StudySubstance,
-                StudySubstance.id == BlindSampleCode.substance_id,
-            )
-            .where(
-                BlindSampleCode.process_instance_id == process_id,
-                BlindSampleCode.code == code,
-                BlindSampleCode.deleted_at.is_(None),
-                StudySubstance.deleted_at.is_(None),
-            )
+    """Destino do QR: código, lote, manuseio seguro e dados do frasco.
+
+    Nunca nome químico, CAS, SDS nem gabarito (FR-021; Spec 040, FR-010).
+    O laboratório só lê os próprios frascos; o de outro laboratório responde
+    como inexistente.
+    """
+    laboratories = await _vial_reader_laboratories(
+        session, process_id, user_id
+    )
+    stmt = (
+        select(BlindSampleCode.code, StudySubstance)
+        .join(
+            StudySubstance,
+            StudySubstance.id == BlindSampleCode.substance_id,
         )
-    ).one_or_none()
+        .where(
+            BlindSampleCode.process_instance_id == process_id,
+            BlindSampleCode.code == code,
+            BlindSampleCode.deleted_at.is_(None),
+            StudySubstance.deleted_at.is_(None),
+        )
+    )
+    if laboratories is not None:
+        stmt = stmt.where(BlindSampleCode.laboratory_id.in_(laboratories))
+    row = (await session.execute(stmt)).one_or_none()
     if row is None:
         raise NotFoundError('Frasco não encontrado.')
+    vial_code, substance = row
     return {
-        'code': row.code,
-        'lot': row.lot,
-        'safe_handling_instructions': row.safe_handling_instructions,
+        'code': vial_code,
+        'lot': substance.lot,
+        'safe_handling_instructions': substance.safe_handling_instructions,
+        **vial_spec(substance),
     }
 
 

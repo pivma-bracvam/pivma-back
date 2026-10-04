@@ -43,7 +43,7 @@ async def _proponent_with_process(client, session):
     expected = {
         'key': 'pre_validated_method',
         'name': template.name,
-        'version': 3,
+        'version': 4,
     }
     return created.json(), expected
 

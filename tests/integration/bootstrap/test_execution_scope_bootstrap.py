@@ -37,16 +37,21 @@ async def test_invalid_template_is_refused_without_writing(session):
 
 
 @pytest.mark.asyncio
-async def test_standard_templates_load_without_lab_activities(session):
+async def test_standard_templates_declare_only_receipt_per_laboratory(session):
+    """Spec 040: a Etapa 3 traz a primeira atividade por laboratório."""
     await bootstrap_all_templates(session)
 
     payloads = await session.scalars(
         select(ProcessTemplateVersion.definition_payload)
     )
     for payload in payloads:
-        for phase in payload.get('phases', []):
-            for activity in phase.get('activities', []):
-                assert activity.get('execution_scope', 'process') == 'process'
+        lab_keys = [
+            activity['key']
+            for phase in payload.get('phases', [])
+            for activity in phase.get('activities', [])
+            if activity.get('execution_scope', 'process') != 'process'
+        ]
+        assert lab_keys == ['sample_receipt']
     lab_activities = await session.scalar(
         select(func.count())
         .select_from(ActivityInstance)

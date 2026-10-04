@@ -160,11 +160,18 @@ async def test_blind_sample_journey_four_substances_three_labs(  # noqa: PLR0914
         assert substance['chemical_name'] not in blob
         assert substance['cas_number'] not in blob
 
-    # 8. Nenhum laboratório participante vê o conteúdo (SC-003).
-    for user in lab_users:
+    # 8. Nenhum laboratório participante vê o conteúdo (SC-003). Cada um lê
+    # a visão cega só dos próprios frascos (Spec 040, FR-019).
+    for user, laboratory in zip(lab_users, laboratories, strict=True):
         authenticate(client, user)
         assert client.get(samples).status_code == HTTPStatus.NOT_FOUND
-        assert (
-            client.get(f'{samples}/vials/{labels[0]["code"]}').status_code
-            == HTTPStatus.NOT_FOUND
-        )
+        for label in labels:
+            response = client.get(f'{samples}/vials/{label["code"]}')
+            if label['laboratory']['id'] == str(laboratory.id):
+                assert response.status_code == HTTPStatus.OK
+                blob = json.dumps(response.json(), ensure_ascii=False)
+                for substance in created:
+                    assert substance['chemical_name'] not in blob
+                    assert substance['cas_number'] not in blob
+            else:
+                assert response.status_code == HTTPStatus.NOT_FOUND

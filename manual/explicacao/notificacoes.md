@@ -1,6 +1,7 @@
 # Notificações
 
-Usos atuais: convite por e-mail e recuperação de senha.
+Usos atuais: convite por e-mail, recuperação de senha e aviso de problema no
+recebimento de amostras.
 
 ## Gravar junto, enviar depois
 
@@ -47,9 +48,21 @@ O conteúdo da mensagem fica cifrado no banco com `NOTIFICATION_ENCRYPTION_KEY`
 (Fernet) enquanto está pendente, e é apagado quando o envio termina. Logs e
 auditoria registram só identificadores, o tipo e o canal.
 
+## Problema no recebimento
+
+Quando um laboratório registra um frasco fora de ordem, cada pessoa com
+designação ativa no Grupo de Seleção de Amostras do processo recebe um e-mail
+(`sample_receipt_nonconformity_email`) com o código do processo, o
+laboratório, o código cego e o motivo. O e-mail nunca traz nome químico, CAS
+nem SDS.
+
+Sem `NOTIFICATION_EMAIL_BACKEND`, o registro do laboratório segue e o Grupo
+recebe só a tarefa. Ao contrário do convite, o aviso não é recusado, porque o
+laboratório não pode ficar travado por uma configuração da implantação.
+
 ## Rastro
 
-Envios ligados a um processo (convites) gravam `NOTIFICATION_SENT`,
+Envios ligados a um processo (convites e avisos de recebimento) gravam `NOTIFICATION_SENT`,
 `NOTIFICATION_FAILED` ou `NOTIFICATION_CANCELLED` na linha do tempo. O convite
 mostra a situação em `delivery`.
 

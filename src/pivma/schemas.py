@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated, Any, Generic, Literal, TypeVar
 from uuid import UUID
 
@@ -1507,24 +1507,77 @@ SampleCasNumber = Annotated[
 SampleActivityStatus = Literal['BLOCKED', 'IN_PROGRESS', 'COMPLETED']
 
 
-class SampleSubstanceCreate(BaseModel):
+# Spec 040: regime de conservação, pictogramas GHS e dados do frasco.
+TemperatureRegime = Literal[
+    'ambient', 'refrigerated', 'frozen', 'deep_frozen', 'custom'
+]
+GhsPictogram = Literal[
+    'GHS01',
+    'GHS02',
+    'GHS03',
+    'GHS04',
+    'GHS05',
+    'GHS06',
+    'GHS07',
+    'GHS08',
+    'GHS09',
+]
+SampleText16 = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=16),
+]
+
+
+class _SubstanceVialFields(BaseModel):
+    """Campos da Spec 040 comuns à criação e à alteração.
+
+    A coerência entre regime e faixa térmica depende do que já está gravado
+    e é validada no serviço (`invalid_temperature_range`).
+    """
+
+    storage_temperature_regime: TemperatureRegime | None = None
+    storage_temperature_min: float | None = None
+    storage_temperature_max: float | None = None
+    vial_nominal_quantity: float | None = Field(default=None, gt=0)
+    vial_unit: SampleText16 | None = None
+    packaging_type: SampleText255 | None = None
+    expiration_date: date | None = None
+    reserve_vials_count: int | None = Field(default=None, ge=0)
+    ghs_hazard_pictograms: list[GhsPictogram] | None = None
+
+    @field_validator('ghs_hazard_pictograms')
+    @classmethod
+    def _unique_pictograms(cls, value):
+        if value is not None and len(set(value)) != len(value):
+            raise ValueError('Pictograma GHS repetido.')
+        return value
+
+
+class SampleSubstanceCreate(_SubstanceVialFields):
     model_config = ConfigDict(extra='forbid')
 
     chemical_name: SampleText255
     cas_number: SampleCasNumber
     lot: SampleText64
     safe_handling_instructions: SampleLongText
+    reference_classification: SampleLongText = Field(
+        description=(
+            'Classificação de referência (gabarito) da substância no '
+            'ensaio; só o Grupo de Seleção lê'
+        )
+    )
     purity: SampleText64 | None = None
     solubility: SampleLongText | None = None
 
 
-class SampleSubstanceUpdate(BaseModel):
+class SampleSubstanceUpdate(_SubstanceVialFields):
     model_config = ConfigDict(extra='forbid')
 
     chemical_name: SampleText255 | None = None
     cas_number: SampleCasNumber | None = None
     lot: SampleText64 | None = None
     safe_handling_instructions: SampleLongText | None = None
+    reference_classification: SampleLongText | None = None
     purity: SampleText64 | None = None
     solubility: SampleLongText | None = None
 
@@ -1541,7 +1594,20 @@ class SampleSds(BaseModel):
     uploaded_at: datetime
 
 
-class SampleSubstance(BaseModel):
+class VialSpecification(BaseModel):
+    """Dados do frasco que o laboratório pode ver (Spec 040, FR-010)."""
+
+    ghs_hazard_pictograms: list[str] = Field(default_factory=list)
+    storage_temperature_regime: str | None = None
+    storage_temperature_min: float | None = None
+    storage_temperature_max: float | None = None
+    vial_nominal_quantity: float | None = None
+    vial_unit: str | None = None
+    packaging_type: str | None = None
+    expiration_date: date | None = None
+
+
+class SampleSubstance(VialSpecification):
     id: UUID
     chemical_name: str
     cas_number: str
@@ -1549,6 +1615,8 @@ class SampleSubstance(BaseModel):
     purity: str | None = None
     solubility: str | None = None
     safe_handling_instructions: str
+    reference_classification: str | None = None
+    reserve_vials_count: int = 0
     sds: SampleSds | None = None
     blind_codes: list[SampleBlindCode]
 
@@ -1565,7 +1633,7 @@ class SampleCompletionResponse(BaseModel):
     code_count: int
 
 
-class SampleLabel(BaseModel):
+class SampleLabel(VialSpecification):
     code: str
     study_code: str
     laboratory: LaboratoryRef = Field(description='Laboratório destinatário')
@@ -1578,8 +1646,8 @@ class SampleLabel(BaseModel):
     )
 
 
-class BlindVial(BaseModel):
-    """Visão cega do frasco: nunca nome químico, CAS nem SDS (FR-021)."""
+class BlindVial(VialSpecification):
+    """Visão cega do frasco: nunca nome químico, CAS, SDS nem gabarito."""
 
     model_config = ConfigDict(extra='forbid')
 
@@ -1745,3 +1813,176 @@ class LaboratoryRunReopened(BaseModel):
     reblocked_activity_keys: list[str] = Field(
         description='Atividades que voltaram a ficar bloqueadas, em cadeia'
     )
+
+
+# ==========================================
+# RECEBIMENTO DE AMOSTRAS (Spec 040)
+# ==========================================
+
+PackageState = Literal['intact', 'damaged', 'violated']
+ReceiptDeviation = Literal[
+    'temperature_out_of_range', 'package_damaged', 'package_violated'
+]
+VialStatus = Literal[
+    'pending',
+    'received',
+    'awaiting_decision',
+    'accepted_with_caveat',
+    'replaced',
+    'disqualified',
+]
+NonconformityDecision = Literal['accept_with_caveat', 'resend', 'disqualify']
+
+
+class SampleReceiptCreate(BaseModel):
+    """Registro do frasco pelo laboratório (FR-020)."""
+
+    model_config = ConfigDict(extra='forbid')
+
+    opened_at: datetime = Field(
+        description='Data e hora de abertura da caixa; não pode ser futura'
+    )
+    temperature_celsius: float = Field(description='Temperatura medida, °C')
+    package_state: PackageState = Field(description='Estado da embalagem')
+    notes: SampleLongText | None = Field(
+        default=None, description='Observação'
+    )
+
+    @field_validator('opened_at')
+    @classmethod
+    def _not_in_future(cls, value: datetime) -> datetime:
+        aware = value if value.tzinfo else value.replace(tzinfo=UTC)
+        if aware > datetime.now(UTC):
+            raise ValueError('A data e hora de abertura não pode ser futura.')
+        return aware
+
+
+class ReceiptPhoto(BaseModel):
+    id: UUID
+    filename: str
+    size: int | None = None
+    uploaded_at: datetime
+
+
+class SampleReceiptPublic(BaseModel):
+    id: UUID
+    opened_at: datetime
+    temperature_celsius: float
+    package_state: PackageState
+    notes: str | None = None
+    conforming: bool
+    deviations: list[ReceiptDeviation]
+    registered_at: datetime
+
+
+class ReceiptVial(VialSpecification):
+    """Frasco do laboratório: nunca justificativa nem código substituto.
+
+    Traz o que o analista precisa na bancada: manuseio seguro, faixa de
+    conservação e pictogramas GHS, sem identidade química.
+    """
+
+    model_config = ConfigDict(extra='forbid')
+
+    code: str
+    laboratory: LaboratoryRef
+    status: VialStatus
+    lot: str
+    safe_handling_instructions: str
+    receipt: SampleReceiptPublic | None = None
+    photos: list[ReceiptPhoto] = Field(default_factory=list)
+
+
+class ReceiptVialFilters(BaseModel):
+    search: str | None = Field(description='Trecho do código do frasco')
+
+
+class ReceiptVialListResponse(ListPage[ReceiptVial, ReceiptVialFilters]):
+    """Frascos dos laboratórios do usuário no recebimento."""
+
+
+class SampleReceiptCheck(BaseModel):
+    """Pré-verificação do registro; nada é gravado (Jornada 2)."""
+
+    conforming: bool
+    deviations: list[ReceiptDeviation]
+    message: str = Field(description='Aviso para exibir antes de confirmar')
+
+
+class SampleReceiptResult(BaseModel):
+    vial: ReceiptVial
+    conforming: bool
+    deviations: list[ReceiptDeviation]
+    laboratory_receipt_status: Literal[
+        'in_progress', 'awaiting_decision', 'completed'
+    ] = Field(description='Situação do recebimento do laboratório')
+    message: str
+
+
+class NonconformitySubstance(BaseModel):
+    id: UUID
+    chemical_name: str
+    cas_number: str
+    reserve_vials_count: int
+
+
+class ExpectedTemperature(BaseModel):
+    regime: str | None = None
+    min: float | None = None
+    max: float | None = None
+
+
+class NonconformityPublic(BaseModel):
+    """Inconformidade vista pelo Grupo de Seleção de Amostras."""
+
+    id: UUID
+    status: Literal['OPEN', 'RESOLVED']
+    alert: str = Field(
+        description='Texto do alerta de recebimento, para a tarefa do Grupo'
+    )
+    laboratory: LaboratoryRef
+    code: str
+    substance: NonconformitySubstance
+    expected_temperature: ExpectedTemperature
+    receipt: SampleReceiptPublic
+    photos: list[ReceiptPhoto]
+    deviations: list[ReceiptDeviation]
+    opened_at: datetime
+    decision: NonconformityDecision | None = None
+    justification: str | None = None
+    decided_by: UserRef | None = None
+    decided_at: datetime | None = None
+    replacement_code: str | None = Field(
+        default=None, description='Código novo, quando a decisão é reenviar'
+    )
+
+
+class NonconformityFilters(BaseModel):
+    status: Literal['open', 'resolved'] | None = Field(
+        description='Situação das inconformidades'
+    )
+
+
+class NonconformityListResponse(
+    ListPage[NonconformityPublic, NonconformityFilters]
+):
+    """Inconformidades do recebimento, só para o Grupo de Seleção."""
+
+
+class NonconformityDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    decision: NonconformityDecision
+    justification: Reason = Field(description='Justificativa da decisão')
+
+
+class SampleLookupResponse(BaseModel):
+    """Sugestões do PubChem para um CAS; nada é gravado (FR-014)."""
+
+    cas_number: str
+    source: Literal['pubchem'] = 'pubchem'
+    pubchem_cid: int
+    source_url: str
+    chemical_name: str | None = None
+    iupac_name: str | None = None
+    ghs_hazard_pictograms: list[str]
