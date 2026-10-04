@@ -1,0 +1,375 @@
+/* Identidade pi*VMA aplicada ao Material for MkDocs.
+   Cores, fontes e raios vêm de brand/tokens/tokens.css e brand/DESIGN.md.
+   Os arquivos em manual/assets/brand/ são cópias de brand/; atualize os
+   dois juntos. */
+
+@import url("../assets/brand/fonts/fonts.css");
+
+:root {
+  --pivma-green: #014e2a;
+  --pivma-green-hover: #013f22;
+  --pivma-lime: #a3ed40;
+  --pivma-lime-tint: #e3f2d3;
+  --pivma-blue: #0167f7;
+  --pivma-blue-deep: #025ecc;
+  --pivma-yellow: #d9ae21;
+  --pivma-red: #db3016;
+  --pivma-paper: #efefef;
+  --pivma-text-muted: #3d6b55;
+  --pivma-border: #c9d3cd;
+
+  --md-text-font: "Lexend";
+  --md-code-font: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo,
+    Consolas, monospace;
+}
+
+/* ---------- Modo claro ---------- */
+
+[data-md-color-scheme="pivma"] {
+  --md-primary-fg-color: var(--pivma-green);
+  --md-primary-fg-color--light: #1d6a45;
+  --md-primary-fg-color--dark: var(--pivma-green-hover);
+  --md-primary-bg-color: var(--pivma-lime);
+  --md-primary-bg-color--light: rgb(163 237 64 / 70%);
+
+  /* Azul da paleta nos links: 5,3:1 sobre o papel (o azul vivo não passa). */
+  --md-accent-fg-color: var(--pivma-blue-deep);
+  --md-accent-fg-color--transparent: rgb(2 94 204 / 10%);
+  --md-accent-bg-color: #ffffff;
+
+  --md-default-bg-color: var(--pivma-paper);
+  --md-default-fg-color: var(--pivma-green);
+  --md-default-fg-color--light: var(--pivma-text-muted);
+  --md-default-fg-color--lighter: rgb(1 78 42 / 45%);
+  --md-default-fg-color--lightest: rgb(1 78 42 / 12%);
+
+  --md-typeset-color: var(--pivma-green);
+  --md-typeset-a-color: var(--pivma-blue-deep);
+
+  --md-code-bg-color: #ffffff;
+  --md-code-fg-color: #12301f;
+
+  --md-footer-bg-color: var(--pivma-green);
+  --md-footer-bg-color--dark: var(--pivma-green-hover);
+  --md-footer-fg-color: var(--pivma-paper);
+  --md-footer-fg-color--light: rgb(239 239 239 / 80%);
+  --md-footer-fg-color--lighter: rgb(239 239 239 / 55%);
+
+  --md-mermaid-font-family: var(--md-text-font);
+  --md-mermaid-node-bg-color: var(--pivma-lime-tint);
+  --md-mermaid-node-fg-color: var(--pivma-green);
+  --md-mermaid-edge-color: var(--pivma-green);
+  --md-mermaid-label-bg-color: var(--pivma-paper);
+  --md-mermaid-label-fg-color: var(--pivma-green);
+
+  --pivma-table-head-bg: var(--pivma-lime-tint);
+  --pivma-table-border: var(--pivma-border);
+  --pivma-hero-bg: var(--pivma-green);
+}
+
+/* ---------- Modo escuro [derivado: o guia não define] ---------- */
+
+[data-md-color-scheme="slate"] {
+  --md-hue: 150;
+  --md-primary-fg-color: var(--pivma-green);
+  --md-primary-fg-color--light: #1d6a45;
+  --md-primary-fg-color--dark: var(--pivma-green-hover);
+  --md-primary-bg-color: var(--pivma-lime);
+  --md-primary-bg-color--light: rgb(163 237 64 / 70%);
+
+  --md-accent-fg-color: var(--pivma-lime);
+  --md-accent-fg-color--transparent: rgb(163 237 64 / 12%);
+  --md-accent-bg-color: var(--pivma-green);
+
+  --md-default-bg-color: #0b1d14;
+  --md-default-fg-color: var(--pivma-paper);
+  --md-default-fg-color--light: rgb(239 239 239 / 75%);
+  --md-default-fg-color--lighter: rgb(239 239 239 / 40%);
+  --md-default-fg-color--lightest: rgb(239 239 239 / 10%);
+
+  --md-typeset-color: var(--pivma-paper);
+  --md-typeset-a-color: var(--pivma-lime);
+
+  --md-code-bg-color: #11291d;
+  --md-code-fg-color: #e4efe8;
+
+  --md-footer-bg-color: #06120c;
+  --md-footer-bg-color--dark: #040c08;
+
+  --md-mermaid-font-family: var(--md-text-font);
+  --md-mermaid-node-bg-color: #14361f;
+  --md-mermaid-node-fg-color: var(--pivma-paper);
+  --md-mermaid-edge-color: var(--pivma-lime);
+  --md-mermaid-label-bg-color: #0b1d14;
+  --md-mermaid-label-fg-color: var(--pivma-paper);
+
+  --pivma-table-head-bg: #14361f;
+  --pivma-table-border: rgb(239 239 239 / 14%);
+  --pivma-hero-bg: var(--pivma-green);
+}
+
+/* ---------- Tipografia [guia, p.2] ---------- */
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4,
+.md-header__topic,
+.md-nav__title {
+  font-family: "Barlow", "Segoe UI", system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.md-typeset h1 {
+  color: var(--md-typeset-color);
+  font-size: 2.2em;
+  line-height: 1.1;
+}
+
+[data-md-color-scheme="slate"] .md-typeset h1,
+[data-md-color-scheme="slate"] .md-typeset h2 {
+  color: var(--pivma-lime);
+}
+
+.md-typeset {
+  font-size: 0.78rem;
+  line-height: 1.65;
+}
+
+.md-typeset a {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
+}
+
+.md-typeset a.headerlink,
+.md-typeset .md-button {
+  text-decoration: none;
+}
+
+/* ---------- Cabeçalho e navegação ---------- */
+
+.md-header__button.md-logo img {
+  height: 1.3rem;
+  width: auto;
+}
+
+/* O logotipo já diz "pi*VMA"; o título do site ao lado seria repetido. */
+.md-header__topic:first-child .md-ellipsis {
+  display: none;
+}
+
+.md-nav__link--active,
+.md-nav__item--active > .md-nav__link {
+  font-weight: 500;
+}
+
+/* ---------- Tabelas, código e blocos ---------- */
+
+.md-typeset table:not([class]) {
+  border: 1px solid var(--pivma-table-border);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.72rem;
+}
+
+.md-typeset table:not([class]) th {
+  background: var(--pivma-table-head-bg);
+  color: var(--md-typeset-color);
+  font-weight: 600;
+}
+
+.md-typeset table:not([class]) td {
+  border-top-color: var(--pivma-table-border);
+}
+
+.md-typeset pre > code,
+.md-typeset .highlight {
+  border-radius: 8px;
+}
+
+[data-md-color-scheme="pivma"] .md-typeset pre > code {
+  border: 1px solid var(--pivma-border);
+}
+
+.md-typeset code {
+  border-radius: 4px;
+}
+
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 8px;
+  border-width: 0 0 0 4px;
+  box-shadow: none;
+  font-size: 0.74rem;
+}
+
+/* Status com a paleta: note/info azul, tip/success verde, warning amarelo,
+   danger/failure vermelho. O ícone e o título continuam junto da cor. */
+.md-typeset .admonition.note,
+.md-typeset details.note,
+.md-typeset .admonition.info,
+.md-typeset details.info {
+  border-color: var(--pivma-blue);
+}
+.md-typeset .note > .admonition-title,
+.md-typeset .note > summary,
+.md-typeset .info > .admonition-title,
+.md-typeset .info > summary {
+  background-color: rgb(1 103 247 / 10%);
+}
+.md-typeset .note > .admonition-title::before,
+.md-typeset .note > summary::before,
+.md-typeset .info > .admonition-title::before,
+.md-typeset .info > summary::before {
+  background-color: var(--pivma-blue);
+}
+
+.md-typeset .admonition.tip,
+.md-typeset details.tip,
+.md-typeset .admonition.success,
+.md-typeset details.success,
+.md-typeset .admonition.example,
+.md-typeset details.example {
+  border-color: var(--pivma-green);
+}
+.md-typeset .tip > .admonition-title,
+.md-typeset .tip > summary,
+.md-typeset .success > .admonition-title,
+.md-typeset .success > summary,
+.md-typeset .example > .admonition-title,
+.md-typeset .example > summary {
+  background-color: rgb(163 237 64 / 22%);
+}
+.md-typeset .tip > .admonition-title::before,
+.md-typeset .tip > summary::before,
+.md-typeset .success > .admonition-title::before,
+.md-typeset .success > summary::before,
+.md-typeset .example > .admonition-title::before,
+.md-typeset .example > summary::before {
+  background-color: var(--pivma-green);
+}
+
+.md-typeset .admonition.warning,
+.md-typeset details.warning {
+  border-color: var(--pivma-yellow);
+}
+.md-typeset .warning > .admonition-title,
+.md-typeset .warning > summary {
+  background-color: rgb(217 174 33 / 18%);
+}
+.md-typeset .warning > .admonition-title::before,
+.md-typeset .warning > summary::before {
+  background-color: #8a6b0c;
+}
+
+.md-typeset .admonition.danger,
+.md-typeset details.danger,
+.md-typeset .admonition.failure,
+.md-typeset details.failure {
+  border-color: var(--pivma-red);
+}
+.md-typeset .danger > .admonition-title,
+.md-typeset .danger > summary,
+.md-typeset .failure > .admonition-title,
+.md-typeset .failure > summary {
+  background-color: rgb(219 48 22 / 12%);
+}
+.md-typeset .danger > .admonition-title::before,
+.md-typeset .danger > summary::before,
+.md-typeset .failure > .admonition-title::before,
+.md-typeset .failure > summary::before {
+  background-color: var(--pivma-red);
+}
+
+[data-md-color-scheme="slate"] .md-typeset .tip > .admonition-title::before,
+[data-md-color-scheme="slate"] .md-typeset .tip > summary::before,
+[data-md-color-scheme="slate"] .md-typeset .success > .admonition-title::before,
+[data-md-color-scheme="slate"] .md-typeset .success > summary::before,
+[data-md-color-scheme="slate"] .md-typeset .example > .admonition-title::before,
+[data-md-color-scheme="slate"] .md-typeset .example > summary::before {
+  background-color: var(--pivma-lime);
+}
+[data-md-color-scheme="slate"] .md-typeset .admonition.tip,
+[data-md-color-scheme="slate"] .md-typeset details.tip,
+[data-md-color-scheme="slate"] .md-typeset .admonition.example,
+[data-md-color-scheme="slate"] .md-typeset details.example {
+  border-color: var(--pivma-lime);
+}
+[data-md-color-scheme="slate"] .md-typeset .warning > .admonition-title::before,
+[data-md-color-scheme="slate"] .md-typeset .warning > summary::before {
+  background-color: var(--pivma-yellow);
+}
+
+/* ---------- Abertura da página inicial [guia, p.1 e p.3] ---------- */
+
+.md-typeset .pivma-hero {
+  position: relative;
+  overflow: hidden;
+  margin: 0 0 2rem;
+  padding: 2.4rem 2rem 2rem;
+  border-radius: 20px;
+  background-color: var(--pivma-hero-bg);
+  color: var(--pivma-lime);
+}
+
+/* Forma do arco do "A", cortada pela borda, tom sobre tom (guia, p.3). */
+.md-typeset .pivma-hero::after {
+  content: "";
+  position: absolute;
+  top: -20%;
+  right: -12%;
+  width: 55%;
+  height: 140%;
+  background: url("../assets/brand/shape-watermark.svg") no-repeat center /
+    contain;
+  opacity: 0.08;
+  filter: brightness(0) invert(1);
+  pointer-events: none;
+}
+
+.md-typeset .pivma-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.md-typeset .pivma-hero img {
+  display: block;
+  width: min(100%, 22rem);
+  height: auto;
+  margin-bottom: 1.4rem;
+}
+
+.md-typeset .pivma-hero p {
+  max-width: 38rem;
+  margin: 0;
+  color: var(--pivma-lime);
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* O H1 existe para a navegação e a busca; a abertura mostra o logotipo. */
+.md-content__inner > h1:has(+ .pivma-hero) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* ---------- Foco visível ---------- */
+
+:focus-visible {
+  outline: 3px solid rgb(1 103 247 / 55%);
+  outline-offset: 2px;
+}
+
+@media screen and (max-width: 44.9375em) {
+  .md-typeset .pivma-hero {
+    margin: 0 -0.8rem 1.6rem;
+    padding: 1.8rem 1.2rem 1.4rem;
+    border-radius: 0;
+  }
+}
