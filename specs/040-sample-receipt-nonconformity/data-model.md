@@ -59,6 +59,7 @@ Registro de recebimento de um frasco.
 | `status` | `String(16)` | `OPEN` → `RESOLVED` |
 | `decision` | `String(32)` nulo | `accept_with_caveat`, `resend`, `disqualify` |
 | `justification` | `Text` nulo | não vazia na decisão |
+| `lab_guidance` | `Text` nulo | orientação visível ao laboratório (FR-047; migração `b7c3e1f2a9d4`) |
 | `decided_by` | FK `users` nula | |
 | `decided_at` | `DateTime` nulo | |
 | `replacement_code_id` | FK `blind_sample_codes` nula | código novo, na decisão `resend` |

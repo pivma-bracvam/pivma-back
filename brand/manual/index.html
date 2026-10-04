@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pi*VMA — Manual de marca</title>
+<link rel="icon" href="../assets/favicon/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="../tokens/tokens.css">
+<style>
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--pivma-paper);color:var(--pivma-green);font-family:var(--font-body);font-size:16px;line-height:1.55}
+  h1,h2,h3,h4{font-family:var(--font-heading);font-weight:600;line-height:1.1;margin:0}
+  h2{font-size:2.5rem;margin-bottom:.4em}
+  h3{font-size:1.5rem;margin:1.6em 0 .5em}
+  p{margin:.4em 0 1em;max-width:70ch}
+  a{color:var(--pivma-blue)}
+  code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85em;background:rgb(1 78 42/.08);padding:.1em .35em;border-radius:4px}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+  section{padding:72px 0;border-top:1px solid #d6d6d6}
+  .tag{display:inline-block;font-size:.7rem;font-weight:700;letter-spacing:.02em;color:#fff;background:var(--pivma-blue);border-radius:4px;padding:2px 8px;vertical-align:middle}
+  .tag.d{background:var(--pivma-gray-4)}
+  .muted{color:var(--color-text-muted)}
+  /* nav */
+  nav{position:sticky;top:0;z-index:5;background:rgb(239 239 239/.92);backdrop-filter:blur(8px);border-bottom:1px solid #d6d6d6}
+  nav .wrap{display:flex;gap:20px;align-items:center;height:56px;overflow-x:auto;white-space:nowrap}
+  nav img{height:22px}
+  nav a{color:var(--pivma-green);text-decoration:none;font-size:.85rem;font-weight:500}
+  nav a:hover{text-decoration:underline}
+  /* hero */
+  .hero{background:var(--pivma-green);color:var(--pivma-lime);padding:120px 0 96px;position:relative;overflow:hidden}
+  .hero img.logo{width:min(520px,80%);display:block}
+  .hero p{font-weight:500;font-size:1.15rem;max-width:62ch;margin-top:32px}
+  .hero .shape{position:absolute;right:-60px;top:-40px;width:520px;opacity:.12;pointer-events:none}
+  /* grids */
+  .grid{display:grid;gap:20px}
+  .g2{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+  .g3{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+  .gh{grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr))}
+  .card{border-radius:var(--radius-sm);overflow:hidden;background:#fff;border:1px solid #d6d6d6}
+  .card .stage{display:flex;align-items:center;justify-content:center;height:150px;padding:20px}
+  .card .stage img{max-width:100%;max-height:100%}
+  .card .meta{padding:12px 14px;font-size:.8rem;border-top:1px solid #e6e6e6}
+  .card .meta b{display:block;font-size:.88rem;font-weight:600}
+  .card .meta span{color:var(--color-text-muted)}
+  .card .meta .tag{color:#fff;margin-left:4px}
+  pre code{background:none;padding:0}
+  .bg-green{background:var(--pivma-green)}.bg-blue{background:var(--pivma-blue)}.bg-red{background:var(--pivma-red)}
+  .bg-paper{background:var(--pivma-paper)}.bg-white{background:#fff}.bg-yellow{background:var(--pivma-yellow)}.bg-lime{background:var(--pivma-lime)}
+  /* clear space */
+  .clear{display:inline-block;max-width:100%;position:relative;padding:32px;background:repeating-linear-gradient(45deg,rgb(1 103 247/.08) 0 6px,transparent 6px 12px);outline:1px dashed var(--pivma-blue)}
+  .clear img{display:block;width:min(320px,100%);height:auto;background:var(--pivma-paper);outline:1px solid rgb(1 78 42/.25)}
+  /* swatches */
+  .sw{border-radius:var(--radius-sm);min-height:200px;padding:16px;display:flex;flex-direction:column;justify-content:flex-end;border:1px solid rgb(0 0 0/.08);cursor:pointer;text-align:left;font:inherit;position:relative}
+  .sw b{font-weight:600;font-size:1rem}.sw span{font-weight:300;font-size:1.3rem;letter-spacing:.01em}.sw small{opacity:.85}
+  .sw:focus-visible{outline:3px solid var(--pivma-blue);outline-offset:2px}
+  .sw.copied::after{content:"copiado";position:absolute;top:12px;right:12px;font-size:.7rem;background:#000;color:#fff;padding:2px 8px;border-radius:4px}
+  /* table */
+  table{border-collapse:collapse;width:100%;font-size:.88rem;background:#fff;border-radius:var(--radius-sm);overflow:hidden}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid #e6e6e6;vertical-align:middle}
+  th{background:var(--pivma-green);color:var(--pivma-lime);font-weight:500}
+  .chip{display:inline-flex;gap:8px;align-items:center}
+  .dot{width:14px;height:14px;border-radius:50%;display:inline-block;border:1px solid rgb(0 0 0/.15)}
+  .ok{color:#0b6b2f;font-weight:600}.warn{color:#8a6500;font-weight:600}.bad{color:var(--pivma-red);font-weight:600}
+  /* type */
+  .spec{background:#fff;border:1px solid #d6d6d6;border-radius:var(--radius-sm);padding:28px}
+  .spec .big{font-size:clamp(3.5rem,8vw,5.5rem);line-height:1;margin:.1em 0}
+  .spec .alpha{font-size:2rem;line-height:1.1}
+  /* ui */
+  .btn{font:500 .95rem var(--font-body);border-radius:var(--radius-sm);padding:11px 20px;border:1.5px solid transparent;cursor:pointer;min-height:44px}
+  .btn:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .b-primary{background:var(--pivma-green);color:var(--pivma-lime)}.b-primary:hover{background:#013f22}
+  .b-accent{background:var(--pivma-blue);color:#fff}
+  .b-second{background:transparent;border-color:var(--pivma-green);color:var(--pivma-green)}
+  .b-danger{background:var(--pivma-red);color:#fff}
+  .b-dis{background:var(--pivma-gray-1);color:var(--pivma-gray-4);cursor:not-allowed}
+  .pill{border-radius:var(--radius-pill)}
+  .alert{display:flex;gap:12px;align-items:center;border-radius:var(--radius-sm);padding:12px 16px;font-size:.92rem;font-weight:500}
+  .alert svg{width:28px;height:28px;flex:none}
+  .a-ok{background:#e3f2d3;color:var(--pivma-green)}.a-wait{background:var(--pivma-yellow);color:var(--pivma-green)}
+  .a-bad{background:var(--pivma-red);color:#fff}.a-info{background:var(--pivma-blue);color:#fff}
+  label{display:block;font-size:.8rem;font-weight:500;margin-bottom:4px}
+  input{width:100%;font:inherit;padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--color-border);background:#fff;color:var(--pivma-green);min-height:44px}
+  input:focus{outline:none;border-color:var(--pivma-blue);box-shadow:var(--focus-ring)}
+  input.err{border-color:var(--pivma-red)}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .shapebox{height:220px;border-radius:var(--radius-md);background-size:cover;background-position:center}
+  footer{background:var(--pivma-green);color:var(--pivma-lime);padding:40px 0;font-size:.85rem}
+  footer img{height:26px}
+  @media (max-width:480px){.clear{padding:20px}.hero{padding:80px 0 64px}h2{font-size:2rem}}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <img src="../assets/logo/svg/pivma-logo-green.svg" alt="pi*VMA">
+  <a href="#logo">Logotipo</a><a href="#simbolos">Símbolos</a><a href="#app">Ícones de app</a><a href="#cores">Cores</a>
+  <a href="#tipografia">Tipografia</a><a href="#ui">Componentes</a><a href="#formas">Formas</a>
+</div></nav>
+
+<header class="hero">
+  <img class="shape" src="../assets/patterns/shape-watermark-gray.svg" alt="">
+  <div class="wrap">
+    <img class="logo" src="../assets/logo/svg/pivma-logo-lime.svg" alt="pi*VMA">
+    <p>Plataforma Inteligente de Validação de Métodos Alternativos: apoia a submissão, a validação e a rastreabilidade do processo de criação de novos métodos alternativos, assegurando confiabilidade, transparência e relevância científica.</p>
+    <p style="font-size:.85rem;font-weight:300;margin-top:8px">Manual de marca · baseado no Guia de estilos pi*VMA · <span class="tag">guia</span> = lido do PDF · <span class="tag d">derivado</span> = proposta para interface</p>
+  </div>
+</header>
+
+<section id="logo"><div class="wrap">
+  <h2>Logotipo</h2>
+  <p>Seis versões em SVG (vetor) e PNG transparente. Escolha pelo fundo: <b>lima</b> sobre verde/azul, <b>verde</b> sobre claro em telas funcionais, <b>multicolor</b> em material institucional.</p>
+  <div class="grid g2">
+    <div class="card"><div class="stage bg-paper"><img src="../assets/logo/svg/pivma-logo-multicolor.svg" alt="Logotipo multicolor"></div><div class="meta"><b>Multicolor <span class="tag">guia p.7</span></b><span>Sobre claro. Cinza #b2b2b2 sobre #efefef tem só 1,8:1 — evite em telas funcionais.</span></div></div>
+    <div class="card"><div class="stage bg-paper"><img src="../assets/logo/svg/pivma-logo-gray.svg" alt="Logotipo cinza"></div><div class="meta"><b>Cinza <span class="tag">guia p.6</span></b><span>Monocromático, marca d'água, 1 cor.</span></div></div>
+    <div class="card"><div class="stage bg-green"><img src="../assets/logo/svg/pivma-logo-lime.svg" alt="Logotipo lima sobre verde"></div><div class="meta"><b>Lima sobre verde <span class="tag">guia p.1</span></b><span>Par principal (6,9:1).</span></div></div>
+    <div class="card"><div class="stage bg-blue"><img src="../assets/logo/svg/pivma-logo-lime.svg" alt="Logotipo lima sobre azul"></div><div class="meta"><b>Lima sobre azul <span class="tag">guia p.3</span></b><span>Contraste 3,4:1: bom para logotipo e título grande, não para texto corrido.</span></div></div>
+    <div class="card"><div class="stage bg-white"><img src="../assets/logo/svg/pivma-logo-green.svg" alt="Logotipo verde"></div><div class="meta"><b>Verde <span class="tag d">derivado</span></b><span>Cabeçalhos e telas funcionais (9,9:1 sobre branco).</span></div></div>
+    <div class="card"><div class="stage bg-red"><img src="../assets/logo/svg/pivma-logo-paper.svg" alt="Logotipo claro sobre vermelho"></div><div class="meta"><b>Claro #efefef <span class="tag d">derivado</span></b><span>Sobre vermelho, azul ou verde quando lima não couber.</span></div></div>
+    <div class="card" style="grid-column:1/-1"><div class="stage bg-green" style="height:200px"><img src="../assets/logo/svg/pivma-logo-lime-institucional.svg" alt="pi*VMA com BraCVAM e Fiocruz" style="max-height:170px"></div><div class="meta"><b>Institucional (com BraCVAM e Fiocruz) <span class="tag">guia p.1</span></b><span>Capas, rodapés e telas de abertura. Para outros usos dos logotipos das instituições, peça os arquivos oficiais.</span></div></div>
+  </div>
+
+  <h3>Área de respeito e tamanho mínimo <span class="tag d">derivado</span></h3>
+  <p>O guia não define estas regras; proposta: margem livre de <b>metade da altura do logotipo</b> em todos os lados, e <b>96 px</b> de largura mínima em tela (abaixo disso, use o símbolo "A").</p>
+  <div class="clear"><img src="../assets/logo/svg/pivma-logo-green.svg" alt="Área de respeito"></div>
+  <p class="muted" style="margin-top:16px">Não: distorcer, girar, recolorir letras, aplicar sombra ou contorno, usar lima em fundo claro, colocar sobre fotos sem escurecer.</p>
+</div></section>
+
+<section id="simbolos"><div class="wrap">
+  <h2>Símbolos e elementos <span class="tag">guia p.4</span></h2>
+  <p>Quatro elementos: o <b>"A"</b> (arco com ponto), a <b>estrela</b> de brilho, o <b>check</b> (aprovado) e o <b>X</b> (reprovado). Cada um existe em lima, verde, papel, cinza, azul, vermelho e amarelo, além de versões <code>currentColor</code> para uso inline.</p>
+  <div class="grid g3">
+    <div class="card"><div class="stage bg-paper"><img src="../assets/symbols/svg/pivma-A-multicolor.svg" alt="A multicolor" style="height:80px"></div><div class="meta"><b>"A"</b><span>Avatar, favicon, loading</span></div></div>
+    <div class="card"><div class="stage bg-paper"><img src="../assets/symbols/svg/pivma-estrela-green.svg" alt="Estrela" style="height:80px"></div><div class="meta"><b>Estrela</b><span>Destaque, novo, inteligência</span></div></div>
+    <div class="card"><div class="stage bg-paper"><img src="../assets/symbols/svg/pivma-check-green.svg" alt="Check" style="height:80px"></div><div class="meta"><b>Check</b><span>Validado, sucesso</span></div></div>
+    <div class="card"><div class="stage bg-paper"><img src="../assets/symbols/svg/pivma-x-red.svg" alt="X" style="height:80px"></div><div class="meta"><b>X</b><span>Reprovado, erro, remover</span></div></div>
+    <div class="card"><div class="stage bg-red"><img src="../assets/symbols/svg/pivma-check-paper.svg" alt="Check claro" style="height:80px"></div><div class="meta"><b>Sobre cor</b><span>Versão papel #efefef</span></div></div>
+    <div class="card"><div class="stage bg-green"><img src="../assets/symbols/svg/pivma-A-lime.svg" alt="A lima" style="height:80px"></div><div class="meta"><b>Sobre verde</b><span>Versão lima</span></div></div>
+  </div>
+</div></section>
+
+<section id="app"><div class="wrap">
+  <h2>Ícones de app e favicon</h2>
+  <p>Os quatro ícones cinza são do guia (p.6). As versões coloridas, o favicon e os arquivos de PWA foram derivados da paleta <span class="tag d">derivado</span>.</p>
+  <div class="row" style="gap:20px;align-items:flex-end">
+    <img src="../assets/app-icons/svg/app-icon-gray-1.svg" width="104" alt="Ícone cinza 1"><img src="../assets/app-icons/svg/app-icon-gray-2.svg" width="104" alt="Ícone cinza 2">
+    <img src="../assets/app-icons/svg/app-icon-gray-3.svg" width="104" alt="Ícone cinza 3"><img src="../assets/app-icons/svg/app-icon-gray-4.svg" width="104" alt="Ícone cinza 4">
+    <img src="../assets/app-icons/svg/app-icon-green.svg" width="104" alt="Ícone verde"><img src="../assets/app-icons/svg/app-icon-blue.svg" width="104" alt="Ícone azul">
+    <img src="../assets/app-icons/svg/app-icon-lime.svg" width="104" alt="Ícone lima">
+  </div>
+  <h3>Favicon / PWA</h3>
+  <div class="row" style="gap:20px;align-items:flex-end">
+    <img src="../assets/favicon/icon-512.png" width="96" alt="icon-512"><img src="../assets/favicon/apple-touch-icon.png" width="80" alt="apple-touch"><img src="../assets/favicon/icon-512-maskable.png" width="80" alt="maskable">
+    <img src="../assets/favicon/favicon-48.png" width="48" alt="48"><img src="../assets/favicon/favicon-32.png" width="32" alt="32"><img src="../assets/favicon/favicon-16.png" width="16" alt="16">
+  </div>
+<pre style="background:#fff;border:1px solid #d6d6d6;border-radius:8px;padding:16px;overflow:auto;font-size:.8rem"><code>&lt;link rel="icon" href="/favicon.ico" sizes="48x48"&gt;
+&lt;link rel="icon" href="/favicon.svg" type="image/svg+xml"&gt;
+&lt;link rel="apple-touch-icon" href="/apple-touch-icon.png"&gt;
+&lt;link rel="manifest" href="/site.webmanifest"&gt;
+&lt;meta name="theme-color" content="#014e2a"&gt;</code></pre>
+</div></section>
+
+<section id="cores"><div class="wrap">
+  <h2>Cores <span class="tag">guia p.5</span></h2>
+  <p>Clique num cartão para copiar o hex. O guia lista <code>#025ecc</code> como azul, mas o azul vivo usado no fundo, nas etiquetas e no ponto do logotipo é <code>#0167f7</code>: confirme qual é o oficial para botões e links.</p>
+  <div class="grid g3" id="swatches">
+    <button class="sw" style="background:#014e2a;color:#a3ed40" data-hex="#014e2a"><b>Verde escuro</b><span>#014e2a</span><small>principal, texto</small></button>
+    <button class="sw" style="background:#a3ed40;color:#014e2a" data-hex="#a3ed40"><b>Lima</b><span>#a3ed40</span><small>só sobre fundo escuro</small></button>
+    <button class="sw" style="background:#025ecc;color:#efefef" data-hex="#025ecc"><b>Azul (paleta)</b><span>#025ecc</span><small>formas, fundos</small></button>
+    <button class="sw" style="background:#0167f7;color:#fff" data-hex="#0167f7"><b>Azul vivo</b><span>#0167f7</span><small>ação, foco, etiquetas</small></button>
+    <button class="sw" style="background:#d9ae21;color:#014e2a" data-hex="#d9ae21"><b>Amarelo</b><span>#d9ae21</span><small>alerta · só texto escuro</small></button>
+    <button class="sw" style="background:#db3016;color:#fff" data-hex="#db3016"><b>Vermelho</b><span>#db3016</span><small>erro, V do logotipo</small></button>
+    <button class="sw" style="background:#efefef;color:#014e2a;border-color:#575756" data-hex="#efefef"><b>Papel</b><span>#efefef</span><small>fundo base</small></button>
+    <button class="sw" style="background:#b2b2b2;color:#014e2a" data-hex="#b2b2b2"><b>Cinza do logotipo</b><span>#b2b2b2</span><small>decorativo (guia p.6)</small></button>
+  </div>
+
+  <h3>Contraste (WCAG)</h3>
+  <table>
+    <thead><tr><th>Texto sobre fundo</th><th>Razão</th><th>Uso</th></tr></thead>
+    <tbody>
+      <tr><td><span class="chip"><i class="dot" style="background:#014e2a"></i>Verde sobre branco</span></td><td>9,9:1</td><td class="ok">✓ qualquer texto</td></tr>
+      <tr><td><span class="chip"><i class="dot" style="background:#014e2a"></i>Verde sobre #efefef</span></td><td>8,6:1</td><td class="ok">✓ qualquer texto</td></tr>
+      <tr><td><span class="chip"><i class="dot" style="background:#a3ed40"></i>Lima sobre verde</span></td><td>6,9:1</td><td class="ok">✓ qualquer texto</td></tr>
+      <tr><td><span class="chip"><i class="dot" style="background:#0167f7"></i>Branco sobre azul vivo</span></td><td>4,9:1</td><td class="ok">✓ botões e texto</td></tr>
+      <tr><td><span class="chip"><i class="dot" style="background:#db3016"></i>Branco sobre vermelho</span></td><td>4,7:1</td><td class="ok">✓</td></tr>
+      <tr><td><span class="chip"><i class="dot" style="background:#d9ae21"></i>Verde sobre amarelo</span></td><td>4,7:1</td><td class="ok">✓</td></tr>
+      <tr><td><span class="chip"><i class="dot" style="background:#0167f7"></i>Lima sobre azul vivo</span></td><td>3,4:1</td><td class="warn">⚠ só texto grande</td></tr>
+      <tr><td><span class="chip"><i class="dot" style="background:#db3016"></i>#efefef sobre vermelho</span></td><td>4,1:1</td><td class="warn">⚠ só texto grande</td></tr>
+      <tr><td><span class="chip"><i class="dot" style="background:#b2b2b2"></i>Cinza #b2b2b2 sobre #efefef</span></td><td>1,8:1</td><td class="bad">✗ só decorativo</td></tr>
+      <tr><td><span class="chip"><i class="dot" style="background:#d9ae21"></i>Amarelo sobre claro</span></td><td>1,8–2,1:1</td><td class="bad">✗ nunca texto</td></tr>
+    </tbody>
+  </table>
+</div></section>
+
+<section id="tipografia"><div class="wrap">
+  <h2>Tipografia <span class="tag">guia p.2</span></h2>
+  <div class="grid gh">
+    <div class="spec">
+      <p class="muted" style="margin:0">Barlow Font Family <span class="tag">Títulos</span></p>
+      <div class="big" style="font-family:var(--font-heading);font-weight:600">ABCabc</div>
+      <div class="alpha" style="font-family:var(--font-heading);font-weight:600">abcdefghijklmn<br>opqrstuvwxyz</div>
+      <p class="muted" style="margin-top:16px;font-size:.85rem">Somente SemiBold (600).</p>
+    </div>
+    <div class="spec">
+      <p class="muted" style="margin:0">Lexend Font Family <span class="tag">Corpo, parágrafos, web</span></p>
+      <div class="big" style="font-weight:600">ABCabc</div>
+      <div class="alpha">abcdefghijklmn<br>opqrstuvwxyz</div>
+      <p style="margin-top:16px;font-size:.95rem"><span style="font-weight:300">Light 300</span> · <span style="font-weight:400">Regular 400</span> · <span style="font-weight:500">Medium 500</span> · <span style="font-weight:600">SemiBold 600</span> · <span style="font-weight:700">Bold 700</span> · <span style="font-weight:800">ExtraBold 800</span></p>
+    </div>
+  </div>
+  <h3>Escala sugerida <span class="tag d">derivado</span></h3>
+  <div class="spec">
+    <div style="font:600 3.5rem/1.1 var(--font-heading)">Display 56</div>
+    <div style="font:600 2.5rem/1.1 var(--font-heading);margin-top:12px">H1 — Validação de métodos</div>
+    <div style="font:600 2rem/1.15 var(--font-heading);margin-top:12px">H2 — Submissão e rastreabilidade</div>
+    <div style="font:600 1.5rem/1.3 var(--font-heading);margin-top:12px">H3 — Relevância científica</div>
+    <p style="margin-top:16px;font-size:1rem">Corpo 16/1,55 (Lexend 400): a plataforma apoia a submissão, a validação e a rastreabilidade do processo de criação de novos métodos alternativos.</p>
+    <p style="font-size:.875rem;margin:0">Corpo pequeno 14 · <span style="font-size:.75rem;font-weight:300">Rótulo 12 Light</span></p>
+  </div>
+</div></section>
+
+<section id="ui"><div class="wrap">
+  <h2>Componentes <span class="tag d">derivado</span></h2>
+  <p>O guia não traz componentes de interface; estes exemplos aplicam as cores, fontes e raios da marca com contrastes verificados.</p>
+
+  <h3>Botões</h3>
+  <div class="row">
+    <button class="btn b-primary">Submeter método</button>
+    <button class="btn b-accent">Ação</button>
+    <button class="btn b-second">Secundário</button>
+    <button class="btn b-danger">Reprovar</button>
+    <button class="btn b-dis" disabled>Desabilitado</button>
+    <button class="btn b-primary pill">Em pílula</button>
+  </div>
+
+  <h3>Status — sempre ícone + texto</h3>
+  <div class="grid gh">
+    <div class="alert a-ok"><img src="../assets/symbols/svg/pivma-check-green.svg" alt="" width="28" height="28">Método validado</div>
+    <div class="alert a-wait"><img src="../assets/symbols/svg/pivma-estrela-green.svg" alt="" width="28" height="28">Em análise pelo comitê</div>
+    <div class="alert a-bad"><img src="../assets/symbols/svg/pivma-x-paper.svg" alt="" width="28" height="28">Validação reprovada</div>
+    <div class="alert a-info"><img src="../assets/symbols/svg/pivma-A-paper.svg" alt="" width="28" height="28">Nova versão disponível</div>
+  </div>
+
+  <h3>Formulário</h3>
+  <div class="grid g2" style="max-width:720px">
+    <div><label for="f1">Nome do método</label><input id="f1" value="Ensaio de citotoxicidade"></div>
+    <div><label for="f2">Código <span style="color:var(--pivma-red)">· obrigatório</span></label><input id="f2" class="err" aria-invalid="true" aria-describedby="e2"><div id="e2" style="display:flex;gap:6px;align-items:center;font-size:.8rem;color:var(--pivma-red);margin-top:4px"><img src="../assets/symbols/svg/pivma-x-red.svg" width="14" alt="">Informe o código do método.</div></div>
+  </div>
+</div></section>
+
+<section id="formas"><div class="wrap">
+  <h2>Formas e fundos <span class="tag">guia p.3 e 7</span></h2>
+  <p>Grandes formas derivadas do arco do "A", sempre tom sobre tom e cortadas pela borda. Use em abertura, login, estados vazios e capas.</p>
+  <div class="grid gh">
+    <div class="shapebox" style="background-image:url(../assets/patterns/shape-blue-bg.svg)" role="img" aria-label="Fundo azul com forma"></div>
+    <div class="shapebox bg-paper" style="display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden">
+      <img src="../assets/patterns/shape-watermark-gray.svg" alt="" style="position:absolute;right:-40px;top:-20px;width:420px">
+      <img src="../assets/logo/svg/pivma-logo-multicolor.svg" alt="pi*VMA" style="position:relative;width:260px">
+    </div>
+  </div>
+</div></section>
+
+<footer><div class="wrap row" style="justify-content:space-between">
+  <img src="../assets/logo/svg/pivma-logo-lime-institucional.svg" alt="pi*VMA, BraCVAM e Fiocruz" style="height:56px">
+  <span>Manual gerado a partir do Guia de estilos pi*VMA · Fontes Lexend e Barlow (SIL OFL 1.1)</span>
+</div></footer>
+
+<script>
+document.querySelectorAll('.sw').forEach(function(b){
+  b.addEventListener('click',function(){
+    var hex=b.dataset.hex;
+    var done=function(){b.classList.add('copied');setTimeout(function(){b.classList.remove('copied')},1200)};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(hex).then(done,done)}else{done()}
+  });
+});
+</script>
+</body>
+</html>

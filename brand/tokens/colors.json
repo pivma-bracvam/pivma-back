@@ -1,0 +1,30 @@
+{
+  "$description": "Cores pi*VMA. origin = 'guia' (lido do Guia de estilos) ou 'derivado' (proposta para interface).",
+  "brand": {
+    "green":     { "value": "#014e2a", "origin": "guia", "page": 5, "use": "cor principal, texto, fundos institucionais" },
+    "lime":      { "value": "#a3ed40", "origin": "guia", "page": 5, "use": "destaque e logotipo sobre fundos escuros" },
+    "blue":      { "value": "#0167f7", "origin": "guia", "page": 3, "use": "azul vivo: fundo, tags, ponto do A no logotipo" },
+    "blueDeep":  { "value": "#025ecc", "origin": "guia", "page": 5, "use": "azul da paleta e formas decorativas" },
+    "yellow":    { "value": "#d9ae21", "origin": "guia", "page": 5, "use": "alerta / destaque" },
+    "red":       { "value": "#db3016", "origin": "guia", "page": 5, "use": "V do logotipo, erro" },
+    "paper":     { "value": "#efefef", "origin": "guia", "page": 5, "use": "fundo base" }
+  },
+  "grays": {
+    "logo":   { "value": "#b2b2b2", "origin": "guia", "page": 6 },
+    "gray2":  { "value": "#9d9d9c", "origin": "guia", "page": 6 },
+    "gray3":  { "value": "#878787", "origin": "guia", "page": 6 },
+    "gray4":  { "value": "#706f6f", "origin": "guia", "page": 6 },
+    "outline":{ "value": "#575756", "origin": "guia", "page": 5 },
+    "shape":  { "value": "#dbdbdb", "origin": "guia", "page": 7, "opacity": 0.71 }
+  },
+  "semantic": {
+    "success": { "value": "#014e2a", "origin": "derivado" },
+    "warning": { "value": "#d9ae21", "origin": "derivado" },
+    "danger":  { "value": "#db3016", "origin": "derivado" },
+    "info":    { "value": "#0167f7", "origin": "derivado" }
+  },
+  "fonts": {
+    "heading": { "family": "Barlow", "weights": [600], "origin": "guia", "page": 2 },
+    "body":    { "family": "Lexend", "weights": [300, 400, 500, 600, 700, 800], "origin": "guia", "page": 2 }
+  }
+}

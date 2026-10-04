@@ -108,3 +108,8 @@ dependências, Docker, testes e contribuição, e aponta para o manual. Não
 duplique no README o que está no manual.
 
 `docs/` guarda as fontes de requisito e não descreve o estado do código.
+
+[`brand/`](brand/README.md) é o pacote de marca da pi\*VMA (cores, fontes,
+logotipos, [`DESIGN.md`](brand/DESIGN.md)). O manual usa cópias em
+`manual/assets/brand/` e aplica os tokens em `manual/stylesheets/pivma.css`.
+Ao mudar a marca, atualize `brand/` e as cópias juntos.

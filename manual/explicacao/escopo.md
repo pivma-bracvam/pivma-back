@@ -68,7 +68,7 @@ flowchart LR
 | RF030 | Visualização do fluxo | Parcial | Estados de fases e atividades, tarefas e linha do tempo; sem rota de visão consolidada das fases |
 | RF031 | Painel de monitoramento | Parcial | Contagens e resumo em `GET /tasks` |
 | RF032 | Comentários | Não | Só comentários nos pareceres de campo da triagem |
-| RF033 | Notificações | Parcial | Base de envio pronta; usada em convites, recuperação de senha e problemas no recebimento de amostras |
+| RF033 | Notificações | Parcial | Base de envio pronta; usada em convites, recuperação de senha e problemas no recebimento de amostras e na decisão sobre eles; sem central de notificações |
 | RF034 | Logs e auditoria | Sim | Linha do tempo por processo, históricos de RBAC e catálogo, logs estruturados |
 
 ## Ensaio interlaboratorial (RF035–RF047)

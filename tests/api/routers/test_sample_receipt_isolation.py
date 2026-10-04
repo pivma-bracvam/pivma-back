@@ -10,6 +10,7 @@ import pytest
 
 from tests.api.routers.test_rbac_router import authenticate
 from tests.api.routers.test_sample_receipt_router import (
+    ORIGIN,
     lab_ready,
     register,
     vials_url,
@@ -171,3 +172,31 @@ async def test_post_requires_trusted_origin(session, client):
     )
 
     assert response.status_code == HTTPStatus.FORBIDDEN
+
+
+@pytest.mark.asyncio
+async def test_other_lab_never_sees_guidance_of_a_decision(session, client):
+    ctx = await lab_ready(session, client)
+    register(client, ctx.process_id, ctx.codes[0], package_state='violated')
+    authenticate(client, ctx.selector)
+    [item] = client.get(
+        f'/processes/{ctx.process_id}/sample-receipt/nonconformities'
+    ).json()['data']
+    client.post(
+        f'/processes/{ctx.process_id}/sample-receipt/nonconformities/'
+        f'{item["id"]}/decision',
+        json={
+            'decision': 'accept_with_caveat',
+            'justification': 'Avaliado.',
+            'lab_guidance': 'Orientação só do Lab A.',
+        },
+        headers=ORIGIN,
+    )
+
+    authenticate(client, ctx.lab_users[1])
+    body = client.get(vials_url(ctx.process_id)).json()
+
+    assert 'Orientação só do Lab A.' not in json.dumps(
+        body, ensure_ascii=False
+    )
+    assert {v['lab_guidance'] for v in body['data']} == {None}

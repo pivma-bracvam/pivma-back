@@ -28,7 +28,10 @@ Jornadas:
    lista de inconformidades, que fazem o papel da central (decisão do usuário
    em 2026-10-04). O frasco reserva vai com código novo (issue #71,
    decisão 3), não com o mesmo código citado no texto original da jornada.
-5. Privacidade e isolamento (Lista de Ações 1).
+   O parecer de Ricardo chega a Thiago como orientação no frasco e por
+   e-mail, sem a justificativa interna (decisão do usuário em 2026-10-04).
+5. O laboratório recebe a orientação (Jornada 4, desfecho para Thiago).
+6. Privacidade e isolamento (Lista de Ações 1).
 
 Os desvios de cada jornada (cada campo inválido, cada perfil negado,
 concorrência) ficam nos testes focados de `tests/api/routers/test_sample_*`.
@@ -370,12 +373,15 @@ async def test_jornada_4_retaguarda_do_grupo_de_selecao(  # noqa: PLR0914
        laboratório ... registrou desvio térmico no frasco ...", com data e
        hora, 21 °C, a faixa esperada, a observação e a foto de Thiago.
     3. Abre a foto. Espera ver: a imagem enviada.
-    4. Decide enviar um frasco reserva, com justificativa. Espera ver: o
-       código novo, a reserva zerada, a etiqueta nova para imprimir e a
-       tarefa concluída.
-    5. Thiago recebe a caixa nova. Espera ver: o frasco antigo substituído e
-       um frasco pendente com outro código, sem nada que ligue um ao outro.
-       Registra em ordem. Espera ver: o lote completo e liberado.
+    4. Decide enviar um frasco reserva, com justificativa interna e uma
+       orientação para Thiago. Espera ver: o código novo, a reserva zerada,
+       a etiqueta nova para imprimir e a tarefa concluída.
+    5. Thiago é avisado e confere o frasco antigo. Espera ver: um e-mail na
+       fila, o frasco antigo substituído, com a orientação de Ricardo, e um
+       frasco pendente com outro código, sem nada que ligue um ao outro nem
+       a justificativa.
+    6. Thiago recebe a caixa nova e registra em ordem. Espera ver: o lote
+       completo e liberado.
 
     Desfecho: o cronograma segue sem que ninguém fora do Grupo de Seleção
     saiba qual substância estava no frasco.
@@ -384,6 +390,7 @@ async def test_jornada_4_retaguarda_do_grupo_de_selecao(  # noqa: PLR0914
     process_id = team.process_id
     bom, quente = _codigos(team, 0)
     nota = 'Gelo totalmente fundido durante o frete.'
+    orientacao = 'Descarte o frasco antigo como resíduo químico.'
 
     # Estado inicial: Thiago registrou um frasco em ordem e o quente.
     authenticate(client, team.thiago)
@@ -411,7 +418,7 @@ async def test_jornada_4_retaguarda_do_grupo_de_selecao(  # noqa: PLR0914
     assert tarefa['title'] == 'Resolver problemas no recebimento de amostras'
     email = await session.scalar(
         select(Notification).where(
-            Notification.subject_type == 'sample_receipt_nonconformity'
+            Notification.kind == 'sample_receipt_nonconformity_email'
         )
     )
     assert email.recipient == team.ricardo.email
@@ -447,6 +454,7 @@ async def test_jornada_4_retaguarda_do_grupo_de_selecao(  # noqa: PLR0914
             json={
                 'decision': 'resend',
                 'justification': 'Frasco reserva despachado.',
+                'lab_guidance': orientacao,
             },
             headers=ORIGIN,
         )
@@ -461,16 +469,107 @@ async def test_jornada_4_retaguarda_do_grupo_de_selecao(  # noqa: PLR0914
         == 'COMPLETED'
     )
 
-    # 5. Thiago recebe o frasco novo e fecha o lote.
+    # 5. Thiago é avisado (o e-mail não aparece pela API; a consulta
+    #    direta confere a fila) e lê a orientação no frasco antigo.
+    aviso = await session.scalar(
+        select(Notification).where(
+            Notification.kind == 'sample_receipt_decision_email'
+        )
+    )
+    assert aviso.recipient == team.thiago.email
     authenticate(client, team.thiago)
     frascos = {f['code']: f for f in _frascos(client, process_id)}
     assert frascos[quente]['status'] == 'replaced'
+    assert frascos[quente]['lab_guidance'] == orientacao
     assert frascos[novo]['status'] == 'pending'
+    assert frascos[novo]['lab_guidance'] is None
     texto = json.dumps(list(frascos.values()))
     for vinculo in ('replacement', 'justification', 'despachado'):
         assert vinculo not in texto
+
+    # 6. Thiago recebe o frasco novo e fecha o lote.
     fim = ok(_registrar(client, process_id, novo), HTTPStatus.CREATED)
     assert fim['laboratory_receipt_status'] == 'completed'
+
+
+@pytest.mark.asyncio
+async def test_jornada_5_laboratorio_recebe_a_orientacao(
+    session, client, bracvam_user, email_invite_settings
+):
+    """Ricardo aceita um frasco trincado com ressalva e orienta Thiago.
+
+    Estado inicial: além do comum, Thiago registrou um frasco em ordem e o
+    outro com a embalagem avariada (trinca externa, sem vazamento). Ele
+    segue com o material segregado, aguardando as orientações.
+
+    Passos:
+
+    1. Ricardo abre a inconformidade. Espera ver: o alerta de desvio físico.
+    2. Decide aceitar com ressalva, com a justificativa interna e uma
+       orientação de manuseio para Thiago. Espera ver: a decisão gravada,
+       com a justificativa e a orientação.
+    3. Thiago é avisado. Espera ver: um e-mail na fila para ele.
+    4. Abre a lista de frascos. Espera ver: o frasco aceito com ressalva,
+       com a orientação de Ricardo. Não deve ver: a justificativa.
+    5. Confere a tarefa. Espera ver: o recebimento concluído, o lote
+       liberado para os ensaios.
+    """
+    team = await _etapa_3_aberta(session, client, bracvam_user)
+    process_id = team.process_id
+    bom, trincado = _codigos(team, 0)
+    justificativa = 'Trinca superficial; risco aceitável para o estudo.'
+    orientacao = 'Transfira o conteúdo para um frasco limpo antes do ensaio.'
+
+    # Estado inicial: um frasco em ordem e um trincado.
+    authenticate(client, team.thiago)
+    ok(_registrar(client, process_id, bom), HTTPStatus.CREATED)
+    ok(
+        _registrar(client, process_id, trincado, package_state='damaged'),
+        HTTPStatus.CREATED,
+    )
+
+    # 1. Ricardo vê o alerta de desvio físico.
+    authenticate(client, team.ricardo)
+    [alerta] = _inconformidades(client, process_id)
+    assert 'desvio físico' in alerta['alert']
+
+    # 2. Aceita com ressalva e orienta.
+    decidido = ok(
+        client.post(
+            f'/processes/{process_id}/sample-receipt/nonconformities/'
+            f'{alerta["id"]}/decision',
+            json={
+                'decision': 'accept_with_caveat',
+                'justification': justificativa,
+                'lab_guidance': orientacao,
+            },
+            headers=ORIGIN,
+        )
+    )
+    assert decidido['justification'] == justificativa
+    assert decidido['lab_guidance'] == orientacao
+
+    # 3. O e-mail não aparece pela API; a consulta direta confere a fila.
+    aviso = await session.scalar(
+        select(Notification).where(
+            Notification.kind == 'sample_receipt_decision_email'
+        )
+    )
+    assert aviso.recipient == team.thiago.email
+
+    # 4. Thiago lê a orientação, sem a justificativa.
+    authenticate(client, team.thiago)
+    frascos = {f['code']: f for f in _frascos(client, process_id)}
+    assert frascos[trincado]['status'] == 'accepted_with_caveat'
+    assert frascos[trincado]['lab_guidance'] == orientacao
+    assert justificativa not in json.dumps(
+        list(frascos.values()), ensure_ascii=False
+    )
+    _sem_identidade(list(frascos.values()), team)
+
+    # 5. O lote está completo.
+    tarefa = my_tasks(client, process_id)['sample_receipt']
+    assert tarefa['status'] == 'COMPLETED'
 
 
 @pytest.mark.asyncio

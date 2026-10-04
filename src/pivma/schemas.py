@@ -1891,6 +1891,10 @@ class ReceiptVial(VialSpecification):
     safe_handling_instructions: str
     receipt: SampleReceiptPublic | None = None
     photos: list[ReceiptPhoto] = Field(default_factory=list)
+    lab_guidance: str | None = Field(
+        default=None,
+        description='Orientação do Grupo de Seleção, depois da decisão',
+    )
 
 
 class ReceiptVialFilters(BaseModel):
@@ -1950,6 +1954,9 @@ class NonconformityPublic(BaseModel):
     opened_at: datetime
     decision: NonconformityDecision | None = None
     justification: str | None = None
+    lab_guidance: str | None = Field(
+        default=None, description='Orientação visível ao laboratório'
+    )
     decided_by: UserRef | None = None
     decided_at: datetime | None = None
     replacement_code: str | None = Field(
@@ -1974,6 +1981,18 @@ class NonconformityDecisionRequest(BaseModel):
 
     decision: NonconformityDecision
     justification: Reason = Field(description='Justificativa da decisão')
+    lab_guidance: str | None = Field(
+        default=None,
+        description=(
+            'Orientação ao laboratório, que ele vê; em branco conta como '
+            'ausente'
+        ),
+    )
+
+    @field_validator('lab_guidance')
+    @classmethod
+    def _blank_is_none(cls, value: str | None) -> str | None:
+        return (value or '').strip() or None
 
 
 class SampleLookupResponse(BaseModel):

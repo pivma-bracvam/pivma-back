@@ -1419,6 +1419,10 @@ class SampleReceiptNonconformity(AuditMixin):
     justification: Mapped[str | None] = mapped_column(
         Text, nullable=True, default=None
     )
+    # Orientação visível ao laboratório, ao contrário da justificativa.
+    lab_guidance: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
     decided_by: Mapped[UUID | None] = mapped_column(
         ForeignKey('users.id'), nullable=True, default=None
     )

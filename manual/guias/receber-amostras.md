@@ -29,7 +29,8 @@ curl -s $API/processes/$PID/sample-receipt/vials -H "Authorization: Bearer $TOKE
 Lista paginada dos frascos dos laboratórios pelos quais você é participante
 efetivo, por laboratório e código. Cada item traz `status`, lote, instruções
 de manuseio, pictogramas GHS, regime e faixa de temperatura, o registro
-(`receipt`) e as fotos. Frascos de outros laboratórios nunca aparecem, nem
+(`receipt`), as fotos e, depois da decisão do Grupo de Seleção, a orientação
+dele ao laboratório (`lab_guidance`). Frascos de outros laboratórios nunca aparecem, nem
 na busca: `?search=K2Z4` filtra por trecho do código, sem diferenciar
 maiúsculas.
 
@@ -127,7 +128,8 @@ curl -s "$API/processes/$PID/sample-receipt/nonconformities?status=open" \
 Cada item traz o texto do alerta (`alert`, ex.: "Alerta de Recebimento: o
 laboratório Lab A registrou desvio térmico no frasco K2Z43SQ3."), laboratório,
 código, substância (com a reserva), faixa esperada, o registro, as fotos, os
-motivos e, depois da decisão, quem decidiu, a justificativa e o código novo.
+motivos e, depois da decisão, quem decidiu, a justificativa, a orientação ao
+laboratório e o código novo.
 `status` filtra por `open` ou `resolved`. Não há central de notificações: a
 tarefa e esta lista são o aviso dentro da plataforma.
 
@@ -136,7 +138,8 @@ tarefa e esta lista são o aviso dentro da plataforma.
 ```bash
 curl -s -X POST $API/processes/$PID/sample-receipt/nonconformities/$NC_ID/decision \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"decision":"resend","justification":"Frasco reserva despachado em 05/10."}'
+  -d '{"decision":"resend","justification":"Frasco reserva despachado em 05/10.",
+       "lab_guidance":"Descarte o frasco antigo como resíduo químico."}'
 ```
 
 | `decision` | Efeito |
@@ -145,7 +148,16 @@ curl -s -X POST $API/processes/$PID/sample-receipt/nonconformities/$NC_ID/decisi
 | `resend` | Debita um frasco da reserva da substância e gera um código novo para o mesmo laboratório. Imprima a etiqueta nova em `GET /processes/{id}/samples/labels` |
 | `disqualify` | Dispensa o laboratório na Etapa 3, com a justificativa como motivo, e encerra as outras inconformidades abertas dele |
 
-A justificativa é obrigatória e o laboratório não a vê. Quando não resta
+A justificativa é obrigatória e o laboratório não a vê. Para orientar o
+laboratório, use `lab_guidance`, opcional: o laboratório lê esse texto no
+frasco decidido. Não escreva nele nada que ligue o frasco antigo ao novo nem
+que revele a substância. Texto em branco conta como ausente. Na
+desclassificação, a orientação vai para todas as inconformidades que a
+decisão encerra.
+
+Com o envio de e-mail configurado, cada pessoa com designação efetiva pelo
+laboratório do frasco recebe um e-mail com a situação do frasco e a
+orientação, sem a justificativa nem o código novo. Quando não resta
 inconformidade aberta no processo, a tarefa de resolução conclui.
 
 | Erro | Quando |

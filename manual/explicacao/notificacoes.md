@@ -1,7 +1,7 @@
 # Notificações
 
-Usos atuais: convite por e-mail, recuperação de senha e aviso de problema no
-recebimento de amostras.
+Usos atuais: convite por e-mail, recuperação de senha, aviso de problema no
+recebimento de amostras e aviso da decisão sobre esse problema.
 
 ## Gravar junto, enviar depois
 
@@ -56,9 +56,16 @@ designação ativa no Grupo de Seleção de Amostras do processo recebe um e-mai
 laboratório, o código cego e o motivo. O e-mail nunca traz nome químico, CAS
 nem SDS.
 
-Sem `NOTIFICATION_EMAIL_BACKEND`, o registro do laboratório segue e o Grupo
-recebe só a tarefa. Ao contrário do convite, o aviso não é recusado, porque o
-laboratório não pode ficar travado por uma configuração da implantação.
+Quando o Grupo decide, cada pessoa com designação efetiva pelo laboratório
+do frasco recebe um e-mail (`sample_receipt_decision_email`) com o código do
+processo, o laboratório, o código cego, a situação resultante e a orientação
+do Grupo, quando houver. O e-mail nunca traz a justificativa nem o código do
+frasco novo.
+
+Sem `NOTIFICATION_EMAIL_BACKEND`, o registro do laboratório e a decisão do
+Grupo seguem: o Grupo recebe só a tarefa e o laboratório lê a orientação na
+lista de frascos. Ao contrário do convite, esses avisos não são recusados,
+porque ninguém pode ficar travado por uma configuração da implantação.
 
 ## Rastro
 

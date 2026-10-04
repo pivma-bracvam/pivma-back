@@ -1,10 +1,20 @@
 # pi\*VMA
 
-A pi\*VMA (Plataforma Inteligente de Validação de Métodos Alternativos) apoia o
+<div class="pivma-hero" markdown>
+
+![pi*VMA, BraCVAM e Fiocruz](assets/brand/logo/pivma-logo-lime-institucional.svg)
+
+Plataforma Inteligente de Validação de Métodos Alternativos. Apoia a
+submissão, a validação e a rastreabilidade de novos métodos alternativos, com
+confiabilidade, transparência e relevância científica.
+
+</div>
+
+A pi\*VMA apoia o
 BraCVAM na validação de métodos alternativos ao uso de animais. Este backend
 expõe a API usada pelo frontend: contas e acessos, submissão de métodos,
 pré-avaliação por IA, triagem, composição da governança do estudo e
-preparação de amostras cegas.
+preparação de amostras cegas e recebimento das amostras pelos laboratórios.
 
 Esta documentação descreve **o que o sistema faz hoje**. O histórico de cada
 mudança fica nas specs (`specs/`), e os requisitos de origem ficam em
@@ -16,7 +26,8 @@ flowchart LR
     IA --> T[Triagem BraCVAM]
     T --> G[Composição da governança]
     G --> A[Amostras cegas]
-    A -.-> E[Execução por laboratório<br/>motor pronto, atividades pendentes]
+    A --> R[Recebimento das amostras<br/>por laboratório]
+    R -.-> E[Ensaios da Etapa 3<br/>pendentes]
 ```
 
 ## Como esta documentação está organizada

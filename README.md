@@ -8,6 +8,7 @@ Alembic, PostgreSQL 17 com pgvector, Argon2id.
 | [`manual/`](manual/index.md) (site MkDocs) | O que o sistema faz hoje: tutorial, guias, referência da API e explicações |
 | `http://localhost:8000/docs` | Swagger: corpos e respostas de cada rota |
 | [`docs/`](docs/README.md) | Fontes de requisito: plano de trabalho e guia do protótipo |
+| [`brand/`](brand/README.md) | Pacote de marca: cores, fontes, logotipos e guia de design |
 | [`specs/`](specs/) | Histórico de cada mudança (Spec Kit) |
 | [`AGENTS.md`](AGENTS.md) | Regras para agentes de código |
 

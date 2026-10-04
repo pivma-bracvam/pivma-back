@@ -12,6 +12,10 @@ validation:
 theme:
   name: material
   language: pt-BR
+  logo: assets/brand/logo/pivma-logo-lime.svg
+  favicon: assets/brand/favicon.svg
+  # Lexend e Barlow vêm de assets/brand/fonts, sem Google Fonts.
+  font: false
   features:
     - navigation.sections
     - navigation.indexes
@@ -20,15 +24,24 @@ theme:
     - search.highlight
   palette:
     - media: "(prefers-color-scheme: light)"
-      scheme: default
+      scheme: pivma
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-7
         name: Modo escuro
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-4
         name: Modo claro
+
+extra_css:
+  - stylesheets/pivma.css
+
+copyright: pi*VMA · BraCVAM · Fiocruz
 
 hooks:
   - scripts/mkdocs_hooks.py
@@ -36,6 +49,7 @@ hooks:
 markdown_extensions:
   - admonition
   - attr_list
+  - md_in_html
   - tables
   - toc:
       permalink: true

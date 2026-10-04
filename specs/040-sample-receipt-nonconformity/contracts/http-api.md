@@ -128,7 +128,8 @@ campos de conservação da visão cega (`ghs_hazard_pictograms`,
         "deviations": ["temperature_out_of_range"],
         "registered_at": "2026-10-04T09:41:00Z"
       },
-      "photos": [{"id": "…", "filename": "frasco.jpg", "size": 1234}]
+      "photos": [{"id": "…", "filename": "frasco.jpg", "size": 1234}],
+      "lab_guidance": null
     }
   ],
   "pagination": {"page": 1, "per_page": 20, "total": 2, "pages": 1},
@@ -139,6 +140,7 @@ campos de conservação da visão cega (`ghs_hazard_pictograms`,
 
 `status`: `pending`, `received`, `awaiting_decision`, `accepted_with_caveat`,
 `replaced`, `disqualified`. Nunca a justificativa nem o código substituto.
+`lab_guidance` traz a orientação do Grupo depois da decisão (FR-048).
 
 ### `POST /processes/{id}/sample-receipt/vials/{code}/check` → `200`
 
@@ -233,6 +235,7 @@ Ordenadas por data de abertura (mais antiga primeiro).
       "opened_at": "…",
       "decision": null,
       "justification": null,
+      "lab_guidance": null,
       "decided_by": null,
       "decided_at": null,
       "replacement_code": null
@@ -247,11 +250,15 @@ Ordenadas por data de abertura (mais antiga primeiro).
 ### `POST /processes/{id}/sample-receipt/nonconformities/{nc_id}/decision`
 
 ```json
-{"decision": "resend", "justification": "Frasco reserva despachado em 05/10."}
+{"decision": "resend", "justification": "Frasco reserva despachado em 05/10.",
+ "lab_guidance": "Descarte o frasco antigo como resíduo químico."}
 ```
 
 - `decision` em `accept_with_caveat`, `resend`, `disqualify`;
   `justification` obrigatória, não vazia (`422` com `fields`).
+- `lab_guidance` opcional; vazia ou só com espaços vira `null`. O
+  laboratório a vê no frasco e recebe e-mail `sample_receipt_decision_email`
+  com a situação e a orientação (FR-047 a FR-049).
 - `404`: inconformidade de outro processo ou inexistente.
 - `409 already_decided`: inconformidade já resolvida.
 - `409 no_reserve_vials`: reenvio com reserva zero.

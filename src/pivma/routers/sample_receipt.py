@@ -194,17 +194,20 @@ async def decide_receipt_nonconformity(  # noqa: PLR0913, PLR0917
     nonconformity_id: UUID,
     body: NonconformityDecisionRequest,
     session: Session,
+    settings: SettingsDependency,
     current_user: CurrentUser,
     _origin: TrustedOrigin,
 ):
     try:
         return await svc.decide_nonconformity(
             session,
+            settings,
             id,
             nonconformity_id,
             current_user.id,
             body.decision,
             body.justification,
+            body.lab_guidance,
         )
     except _DOMAIN_ERRORS as exc:
         raise _http_error(exc) from exc

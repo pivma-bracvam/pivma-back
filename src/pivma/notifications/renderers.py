@@ -178,3 +178,59 @@ def render_sample_nonconformity_email(
 
 
 RENDERERS[SAMPLE_NONCONFORMITY_EMAIL] = render_sample_nonconformity_email
+
+
+# --- Decisão sobre o problema no recebimento (Spec 040, FR-049) ---
+
+SAMPLE_DECISION_EMAIL = 'sample_receipt_decision_email'
+
+DECISION_STATUS_LABELS = {
+    'accepted_with_caveat': 'aceito com ressalva: o frasco vale como recebido',
+    'replaced': (
+        'substituído: um novo frasco, com outro código, será enviado ao '
+        'laboratório'
+    ),
+    'disqualified': (
+        'desclassificado: o laboratório foi dispensado nesta etapa'
+    ),
+}
+
+
+def render_sample_decision_email(
+    payload: dict[str, Any],
+) -> tuple[str, str, str]:
+    """Aviso ao laboratório: situação do frasco e orientação, sem
+    justificativa nem código novo."""
+    process = f'{payload["process_code"]} — {payload["process_title"]}'
+    guidance = payload.get('lab_guidance') or 'Nenhuma orientação adicional.'
+    rows = [
+        ('Processo', process),
+        ('Laboratório', payload['laboratory_name']),
+        ('Código do frasco', payload['blind_code']),
+        ('Situação', DECISION_STATUS_LABELS[payload['vial_status']]),
+        ('Orientação', guidance),
+    ]
+    intro = (
+        'A equipe responsável pelas amostras decidiu sobre o problema '
+        'registrado no recebimento.'
+    )
+    action = 'Acesse a pi*VMA para ver a situação dos frascos do laboratório.'
+    text = '\n'.join([
+        intro,
+        '',
+        *(f'{label}: {value}' for label, value in rows),
+        '',
+        action,
+    ])
+    items = ''.join(
+        f'<li><strong>{label}:</strong> {escape(value)}</li>'
+        for label, value in rows
+    )
+    html = f'<p>{intro}</p><ul>{items}</ul><p>{action}</p>'
+    subject = (
+        f'Decisão sobre o recebimento de amostras — {payload["process_code"]}'
+    )
+    return subject, text, html
+
+
+RENDERERS[SAMPLE_DECISION_EMAIL] = render_sample_decision_email

@@ -284,3 +284,77 @@ async def test_decision_in_archived_process_returns_409(session, client):
 
     assert response.status_code == HTTPStatus.CONFLICT
     assert response.json()['detail']['code'] == 'invalid_transition'
+
+
+def decide_with_guidance(client, ctx, item, decision, guidance):
+    return client.post(
+        nc_url(ctx.process_id, f'/{item["id"]}/decision'),
+        json={
+            'decision': decision,
+            'justification': 'Segredo do Grupo.',
+            'lab_guidance': guidance,
+        },
+        headers=ORIGIN,
+    )
+
+
+@pytest.mark.asyncio
+async def test_guidance_is_saved_and_shown_to_selection_group(session, client):
+    ctx = await with_problem(session, client)
+
+    response = decide_with_guidance(
+        client, ctx, ctx.items[0], 'accept_with_caveat', '  Use com cautela. '
+    )
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    assert response.json()['lab_guidance'] == 'Use com cautela.'
+    listed = client.get(nc_url(ctx.process_id)).json()['data'][0]
+    assert listed['lab_guidance'] == 'Use com cautela.'
+    assert listed['justification'] == 'Segredo do Grupo.'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('guidance', ['', '   ', None])
+async def test_blank_or_missing_guidance_counts_as_absent(
+    session, client, guidance
+):
+    ctx = await with_problem(session, client)
+
+    response = decide_with_guidance(
+        client, ctx, ctx.items[0], 'accept_with_caveat', guidance
+    )
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    assert response.json()['lab_guidance'] is None
+
+
+@pytest.mark.asyncio
+async def test_disqualify_applies_guidance_to_all_closed_items(
+    session, client
+):
+    ctx = await with_problem(session, client, broken=(0, 1))
+
+    decide_with_guidance(
+        client, ctx, ctx.items[0], 'disqualify', 'Devolva o lote inteiro.'
+    )
+
+    items = client.get(nc_url(ctx.process_id)).json()['data']
+    assert {i['lab_guidance'] for i in items} == {'Devolva o lote inteiro.'}
+
+
+@pytest.mark.asyncio
+async def test_lab_sees_guidance_on_decided_vial_but_not_justification(
+    session, client
+):
+    ctx = await with_problem(session, client)
+    decide_with_guidance(
+        client, ctx, ctx.items[0], 'accept_with_caveat', 'Use com cautela.'
+    )
+
+    authenticate(client, ctx.lab_users[0])
+    body = client.get(vials_url(ctx.process_id)).json()
+    vials = {v['code']: v for v in body['data']}
+
+    assert vials[ctx.codes[0]]['lab_guidance'] == 'Use com cautela.'
+    assert vials[ctx.codes[1]]['lab_guidance'] is None
+    assert 'Segredo' not in json.dumps(body)

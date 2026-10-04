@@ -9,8 +9,9 @@ ressalva, reenviar (código novo, débito da reserva) ou desclassificar (dispens
 do laboratório na fase, Spec 036).
 
 O laboratório nunca recebe nome químico, CAS, SDS, gabarito, justificativa
-nem o vínculo entre código novo e anterior. Eventos guardam só
-identificadores e contagens (research R12).
+nem o vínculo entre código novo e anterior. Recebe só a situação do frasco e
+a orientação que o Grupo escreve para ele na decisão (FR-047 a FR-049).
+Eventos guardam só identificadores e contagens (research R12).
 """
 
 from datetime import UTC
@@ -28,7 +29,11 @@ from pivma.core.attachment_service import (
     store_upload,
     validate_extension,
 )
-from pivma.core.authorization import effective_laboratory_ids
+from pivma.core.authorization import (
+    PARTICIPATING_LABORATORY_ROLE_KEY,
+    effective_assignment_clause,
+    effective_laboratory_ids,
+)
 from pivma.core.database.models import (
     ActivityInstance,
     ActivityRun,
@@ -70,6 +75,7 @@ from pivma.notifications import enqueue_notification
 from pivma.notifications.channels import email_channel_available
 from pivma.notifications.renderers import (
     DEVIATION_LABELS,
+    SAMPLE_DECISION_EMAIL,
     SAMPLE_NONCONFORMITY_EMAIL,
 )
 
@@ -345,6 +351,9 @@ async def _serialize_vials(
             **vial_spec(substances[code.substance_id]),
             'receipt': _receipt_public(receipt) if receipt else None,
             'photos': photos.get(str(receipt.id), []) if receipt else [],
+            'lab_guidance': nonconformity.lab_guidance
+            if nonconformity
+            else None,
         }
         for code, receipt, nonconformity in rows
     ]
@@ -830,6 +839,7 @@ async def _serialize_nonconformities(
             'opened_at': item.created_at,
             'decision': item.decision,
             'justification': item.justification,
+            'lab_guidance': item.lab_guidance,
             'decided_by': deciders.get(item.decided_by),
             'decided_at': item.decided_at,
             'replacement_code': replacement.code if replacement else None,
@@ -875,15 +885,17 @@ async def list_nonconformities(  # noqa: PLR0913
     )
 
 
-def _resolve(
+def _resolve(  # noqa: PLR0913, PLR0917
     item: SampleReceiptNonconformity,
     decision: str,
     justification: str,
+    lab_guidance: str | None,
     user_id: UUID,
 ) -> None:
     item.status = RESOLVED
     item.decision = decision
     item.justification = justification
+    item.lab_guidance = lab_guidance
     item.decided_by = user_id
     item.decided_at = utc_now()
     item.set_update_audit(user_id)
@@ -985,13 +997,86 @@ async def _disqualify(  # noqa: PLR0913, PLR0917
     )
 
 
+async def _laboratory_emails(
+    session: AsyncSession, process_id: UUID, laboratory_id: UUID
+) -> list[str]:
+    """Quem tem designação efetiva pelo laboratório no processo."""
+    return list(
+        await session.scalars(
+            select(User.email)
+            .join(Assignment, Assignment.user_id == User.id)
+            .where(
+                Assignment.process_instance_id == process_id,
+                Assignment.role_key == PARTICIPATING_LABORATORY_ROLE_KEY,
+                Assignment.laboratory_id == laboratory_id,
+                Assignment.revoked_at.is_(None),
+                Assignment.deleted_at.is_(None),
+                User.deleted_at.is_(None),
+                effective_assignment_clause(),
+            )
+            .distinct()
+            .order_by(User.email)
+        )
+    )
+
+
+async def _notify_laboratory(
+    session: AsyncSession,
+    settings: Settings,
+    process: ProcessInstance,
+    items: list[SampleReceiptNonconformity],
+    user_id: UUID,
+) -> None:
+    """E-mail da decisão ao laboratório: situação e orientação (FR-049).
+
+    Nunca leva justificativa nem código novo. Sem e-mail configurado, a
+    decisão segue (research R7).
+    """
+    if not email_channel_available(settings):
+        return
+    laboratory_id = items[0].laboratory_id
+    laboratory = (await laboratory_refs(session, [laboratory_id]))[
+        laboratory_id
+    ]
+    recipients = await _laboratory_emails(session, process.id, laboratory_id)
+    for item in items:
+        receipt = await session.get(SampleReceipt, item.receipt_id)
+        code = await session.scalar(
+            select(BlindSampleCode.code)
+            .where(BlindSampleCode.id == receipt.blind_sample_code_id)
+            .execution_options(skip_soft_delete_filter=True)
+        )
+        payload = {
+            'process_code': process.code,
+            'process_title': process.title,
+            'laboratory_name': laboratory.name,
+            'blind_code': code,
+            'vial_status': STATUS_BY_DECISION[item.decision],
+            'lab_guidance': item.lab_guidance,
+        }
+        for email in recipients:
+            await enqueue_notification(
+                session,
+                settings,
+                kind=SAMPLE_DECISION_EMAIL,
+                channel='email',
+                recipient=email,
+                payload=payload,
+                actor_id=user_id,
+                subject=('sample_receipt_nonconformity', item.id),
+                process_instance_id=process.id,
+            )
+
+
 async def decide_nonconformity(  # noqa: PLR0913, PLR0917
     session: AsyncSession,
+    settings: Settings,
     process_id: UUID,
     nonconformity_id: UUID,
     user_id: UUID,
     decision: str,
     justification: str,
+    lab_guidance: str | None = None,
 ) -> dict[str, Any]:
     """Decisão do Grupo de Seleção sobre um frasco (FR-032 a FR-036)."""
     act = await _resolution_access(session, process_id, user_id)
@@ -1023,7 +1108,7 @@ async def decide_nonconformity(  # noqa: PLR0913, PLR0917
             session, process_id, item, justification, user_id
         )
     for each in decided:
-        _resolve(each, decision, justification, user_id)
+        _resolve(each, decision, justification, lab_guidance, user_id)
         session.add(
             AuditEvent(
                 process_instance_id=process_id,
@@ -1045,6 +1130,7 @@ async def decide_nonconformity(  # noqa: PLR0913, PLR0917
         )
     if not await _has_open_nonconformity(session, process_id):
         await _complete_activity_run(session, run, act, user_id)
+    await _notify_laboratory(session, settings, process, decided, user_id)
     await session.commit()
     return (await _serialize_nonconformities(session, process_id, [item]))[0]
 

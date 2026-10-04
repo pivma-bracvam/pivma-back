@@ -94,6 +94,17 @@ enviadas pelo usuário em 2026-10-04 e as decisões registradas na issue #71.
 - As jornadas do usuário e os testes que as percorrem estão em
   [journeys.md](journeys.md).
 
+### Session 2026-10-04 (orientação ao laboratório)
+
+- Q: Depois do registro com problema, o laboratório lê "aguarde as
+  orientações, que serão emitidas aqui na plataforma", mas só vê a situação do
+  frasco; a justificativa de Ricardo é oculta (FR-037) e o laboratório não é
+  avisado da decisão. Como entregar o "parecer técnico orientador" da
+  Jornada 4? → A: A decisão ganha um campo opcional de orientação ao
+  laboratório, separado da justificativa interna. O laboratório vê a
+  orientação no frasco decidido e recebe um e-mail com a situação resultante
+  e a orientação (FR-047 a FR-049).
+
 ## User Scenarios & Testing *(mandatory)*
 
 Personas: **Thiago**, analista de um laboratório participante, na bancada com
@@ -408,6 +419,15 @@ novo em ordem e conferir o recebimento do laboratório concluído.
 12. **Given** a decisão tomada, **When** Thiago consulta o frasco, **Then** vê
     a situação resultante ("aceito com ressalva", "substituído" ou
     "desclassificado"), sem a justificativa de Ricardo.
+13. **Given** uma inconformidade aberta, **When** Ricardo decide e escreve uma
+    orientação ao laboratório, **Then** Thiago vê essa orientação no frasco
+    decidido, e o Grupo de Seleção a vê na inconformidade, ao lado da
+    justificativa.
+14. **Given** a decisão tomada e o envio por e-mail configurado, **When** a
+    decisão é gravada, **Then** cada pessoa com designação efetiva pelo
+    laboratório do frasco recebe um e-mail com o processo, o código do frasco,
+    a situação resultante e a orientação, sem justificativa nem código novo;
+    os outros laboratórios não recebem nada.
 
 ---
 
@@ -582,6 +602,19 @@ Lab A e como Grupo de Seleção, e tentar baixá-la como Lab B.
   (pendente, recebido, aguardando decisão, aceito com ressalva, substituído,
   desclassificado) e NÃO DEVE ver a justificativa da decisão nem o vínculo
   entre código novo e anterior.
+- **FR-047**: A decisão DEVE aceitar uma orientação ao laboratório opcional,
+  separada da justificativa. Texto vazio ou só com espaços conta como ausente.
+  Na desclassificação, a orientação vale para todas as inconformidades
+  encerradas juntas.
+- **FR-048**: O laboratório DEVE ver a orientação no próprio frasco decidido,
+  na lista de frascos do recebimento. O Grupo de Seleção DEVE vê-la na lista
+  de inconformidades.
+- **FR-049**: Quando o envio por e-mail estiver configurado, cada decisão DEVE
+  pedir um e-mail para cada pessoa com designação efetiva pelo laboratório do
+  frasco, com o código do processo, o nome do laboratório, o código do frasco,
+  a situação resultante e a orientação, quando houver. O e-mail NÃO DEVE
+  trazer justificativa, código novo nem os dados vedados pelo FR-040. Sem
+  e-mail configurado, a decisão segue normalmente.
 
 **Fotos**
 
@@ -631,8 +664,8 @@ Lab A e como Grupo de Seleção, e tentar baixá-la como Lab B.
   observação, se ficou em ordem e os motivos da inconformidade.
 - **Foto do registro**: imagem anexada a um registro de recebimento.
 - **Inconformidade**: uma por registro fora de ordem; situação (aberta ou
-  decidida), decisão, justificativa, quem decidiu e quando, e o código novo
-  quando a decisão é reenviar.
+  decidida), decisão, justificativa, orientação ao laboratório, quem decidiu
+  e quando, e o código novo quando a decisão é reenviar.
 
 ## Success Criteria *(mandatory)*
 

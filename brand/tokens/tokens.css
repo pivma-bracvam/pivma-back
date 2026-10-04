@@ -1,0 +1,86 @@
+/* ==========================================================================
+   pi*VMA — Design tokens
+   Fonte: Guia de estilos pi*VMA (Guia_de_estilos.pdf).
+   [guia]     = valor lido diretamente do guia.
+   [derivado] = proposta para uso em interface (não consta no guia) — ajuste com a equipe de marca.
+   ========================================================================== */
+
+:root {
+  /* ---------- Cores da marca [guia, p.5] ---------- */
+  --pivma-green:   #014e2a; /* verde escuro — fundo institucional, texto, cor principal */
+  --pivma-lime:    #a3ed40; /* lima — destaque sobre fundos escuros */
+  --pivma-blue:    #0167f7; /* azul vivo — fundo da p.3, tags, ponto do "A" no logotipo */
+  --pivma-blue-deep: #025ecc; /* azul da paleta (p.5) e formas decorativas (p.3) */
+  --pivma-yellow:  #d9ae21; /* amarelo */
+  --pivma-red:     #db3016; /* vermelho — o "V" do logotipo, fundo da p.4 */
+  --pivma-paper:   #efefef; /* cinza claro — fundo base */
+
+  /* ---------- Cinzas do guia [guia, p.6 e p.7] ---------- */
+  --pivma-gray-logo: #b2b2b2; /* logotipo monocromático / letras cinza do logotipo multicolor */
+  --pivma-gray-1: #b2b2b2;
+  --pivma-gray-2: #9d9d9c;
+  --pivma-gray-3: #878787;
+  --pivma-gray-4: #706f6f;
+  --pivma-gray-outline: #575756; /* contorno do swatch #efefef na p.5 */
+  --pivma-gray-shape: #dbdbdb;   /* formas decorativas de fundo (p.7), com 71% de opacidade */
+
+  /* ---------- Papéis semânticos [derivado] ---------- */
+  --color-bg:            var(--pivma-paper);
+  --color-surface:       #ffffff;
+  --color-surface-brand: var(--pivma-green);
+  --color-text:          var(--pivma-green);
+  --color-text-muted:    #3d6b55;          /* tom intermediário do verde; 5,3:1 sobre #efefef (AA) */
+  --color-text-on-brand: var(--pivma-lime);
+  --color-border:        #c9d3cd;
+  --color-focus:         var(--pivma-blue);
+
+  --color-primary:       var(--pivma-green);
+  --color-primary-text:  var(--pivma-lime);
+  --color-accent:        var(--pivma-blue);
+  --color-accent-text:   #ffffff;          /* branco sobre #0167f7 = 4,9:1 (AA) */
+
+  --color-success:       var(--pivma-green);
+  --color-warning:       var(--pivma-yellow);
+  --color-danger:        var(--pivma-red);
+  --color-info:          var(--pivma-blue);
+
+  /* ---------- Tipografia [guia, p.2] ---------- */
+  --font-heading: "Barlow", "Segoe UI", system-ui, sans-serif;  /* títulos — SemiBold */
+  --font-body:    "Lexend", "Segoe UI", system-ui, sans-serif;  /* corpo, parágrafos, web */
+
+  --fw-light: 300;     /* Lexend Light — rótulos e códigos (usado no guia) */
+  --fw-regular: 400;
+  --fw-medium: 500;    /* Lexend Medium — parágrafos do guia (p.3) */
+  --fw-semibold: 600;  /* Lexend/Barlow SemiBold — títulos */
+  --fw-bold: 700;
+  --fw-extrabold: 800;
+
+  /* Escala tipográfica [derivado] — razão ≈ 1,25 */
+  --fs-xs: 0.75rem;   /* 12 */
+  --fs-sm: 0.875rem;  /* 14 */
+  --fs-md: 1rem;      /* 16 */
+  --fs-lg: 1.25rem;   /* 20 */
+  --fs-xl: 1.5rem;    /* 24 */
+  --fs-2xl: 2rem;     /* 32 */
+  --fs-3xl: 2.5rem;   /* 40 */
+  --fs-4xl: 3.5rem;   /* 56 */
+  --lh-tight: 1.1;
+  --lh-snug: 1.3;
+  --lh-body: 1.55;
+
+  /* ---------- Espaçamento, raios, sombras [derivado] ---------- */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;
+
+  --radius-xs: 4px;    /* tags/etiquetas (guia p.2) */
+  --radius-sm: 8px;    /* cartões pequenos, inputs; swatches e régua lateral do guia */
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+  --radius-app-icon: 22%;
+
+  --shadow-sm: 0 1px 2px rgb(1 78 42 / .12);
+  --shadow-md: 0 4px 12px rgb(1 78 42 / .16);
+
+  --focus-ring: 0 0 0 3px rgb(1 103 247 / .35);
+}

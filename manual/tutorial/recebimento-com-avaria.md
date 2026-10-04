@@ -110,16 +110,18 @@ frascos ainda tem de reserva.
 
 ## 4. A seleção manda outro frasco
 
-Ela decide reenviar e explica por quê. A plataforma tira um frasco da
-reserva e gera um código novo, para que o técnico não associe o frasco novo
-ao que chegou quente. Ela imprime a etiqueta nova e despacha. A tarefa dela
-se fecha.
+Ela decide reenviar e registra a justificativa, que só o Grupo de Seleção
+lê. Para o técnico, escreve uma orientação: o que fazer com o frasco que
+chegou quente. A plataforma tira um frasco da reserva e gera um código novo,
+para que o técnico não associe o frasco novo ao antigo. Ela imprime a
+etiqueta nova e despacha. A tarefa dela se fecha.
 
 ??? example "Como fazer pela API"
     ```bash
     NEW=$(curl -s -X POST $API/processes/$PID/sample-receipt/nonconformities/$NC_ID/decision \
       -H "Authorization: Bearer $SEL" -H 'Content-Type: application/json' \
-      -d '{"decision":"resend","justification":"Frasco reserva despachado."}' \
+      -d '{"decision":"resend","justification":"Frasco reserva despachado.",
+           "lab_guidance":"Descarte o frasco antigo como resíduo químico."}' \
       | jq -r .replacement_code)
     curl -s $API/processes/$PID/samples/labels -H "Authorization: Bearer $SEL" \
       | jq '.data[] | .code'
@@ -129,15 +131,16 @@ se fecha.
 
 ## 5. O técnico recebe o frasco novo
 
-Para o técnico, o frasco antigo aparece como substituído e há um frasco
-pendente com outro código. Nada liga um ao outro, nem a justificativa da
-seleção aparece. Ele registra o novo a 4,5 °C e o lote fecha: a amostra está
+Se o envio de e-mail estiver configurado, o técnico recebe a decisão por
+e-mail. Na plataforma, o frasco antigo aparece como substituído, com a
+orientação da seleção, e há um frasco pendente com outro código. Nada liga
+um ao outro, e a justificativa da seleção não aparece. Ele registra o novo a 4,5 °C e o lote fecha: a amostra está
 na cadeia de custódia e liberada para os ensaios.
 
 ??? example "Como fazer pela API"
     ```bash
     curl -s $API/processes/$PID/sample-receipt/vials -H "Authorization: Bearer $TEC" \
-      | jq '.data[] | {code, status}'
+      | jq '.data[] | {code, status, lab_guidance}'
     curl -s -X POST $API/processes/$PID/sample-receipt/vials/$NEW \
       -H "Authorization: Bearer $TEC" -H 'Content-Type: application/json' \
       -d "{\"opened_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"temperature_celsius\":4.5,

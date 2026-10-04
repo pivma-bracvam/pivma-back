@@ -285,6 +285,33 @@ uma, com o backend que elas pedem (FR-043 a FR-046).
 - [X] T111 `ReceiptVial` herda `VialSpecification` e ganha `lot` e `safe_handling_instructions`; busca `search` com `ReceiptVialFilters`
 - [X] T112 Manual: guia `receber-amostras.md`, tutorial `recebimento-com-avaria.md`; `specs/040-sample-receipt-nonconformity/journeys.md`
 
+## Phase 13: Orientação ao laboratório na decisão (2026-10-04)
+
+**Goal**: fechar o ciclo da Jornada 4: o "parecer técnico orientador" de
+Ricardo chega a Thiago pela plataforma e por e-mail (FR-047 a FR-049).
+
+### Tests
+
+- [X] T113 Jornada 4 estendida: Ricardo decide com orientação e Thiago a vê no frasco substituído, em `tests/integration/journeys/etapa_3_execucao_validacao/test_sample_receipt_journey.py::test_jornada_4_retaguarda_do_grupo_de_selecao`
+- [X] T114 Jornada nova: Ricardo aceita com ressalva e orienta; Thiago recebe o e-mail, vê a orientação e o lote fecha, em `...::test_jornada_5_laboratorio_recebe_a_orientacao`
+- [X] T115 [P] Orientação gravada e devolvida ao Grupo na inconformidade em `tests/api/routers/test_sample_nonconformity_decision.py`
+- [X] T116 [P] Orientação em branco conta como ausente em `tests/api/routers/test_sample_nonconformity_decision.py`
+- [X] T117 [P] Desclassificar aplica a orientação a todas as inconformidades encerradas juntas em `tests/api/routers/test_sample_nonconformity_decision.py`
+- [X] T118 [P] O laboratório vê a orientação no frasco decidido e nunca a justificativa em `tests/api/routers/test_sample_nonconformity_decision.py`
+- [X] T119 [P] Outro laboratório não vê a orientação em `tests/api/routers/test_sample_receipt_isolation.py`
+- [X] T120 [P] Um e-mail por pessoa do laboratório do frasco, com situação e orientação, sem justificativa, código novo nem identidade, em `tests/integration/notifications/test_sample_decision_email.py`
+- [X] T121 [P] Outro laboratório e o Grupo de Seleção não recebem o e-mail da decisão em `tests/integration/notifications/test_sample_decision_email.py`
+- [X] T122 [P] Sem e-mail configurado, a decisão é gravada e nenhum envio é pedido em `tests/integration/notifications/test_sample_decision_email.py`
+- [X] T123 [P] Migração cria e remove a coluna `lab_guidance` em `tests/integration/migrations/`
+- [X] T128 [P] Renderer do e-mail da decisão (situações, sem orientação, escape do HTML) em `tests/unit/notifications/test_sample_decision_email_renderer.py`
+
+### Implementation
+
+- [X] T124 Coluna `lab_guidance` em `SampleReceiptNonconformity` e migração
+- [X] T125 `lab_guidance` em `NonconformityDecisionRequest`, `NonconformityPublic` e `ReceiptVial`
+- [X] T126 `decide_nonconformity` grava a orientação e pede os e-mails; renderer `sample_receipt_decision_email`
+- [X] T127 Manual (guia, tutorial, notificações, escopo), contrato, modelo de dados e `journeys.md`
+
 ## Notas da implementação
 
 - T006 ficou em `tests/integration/bootstrap/test_template_phase_3.py`, junto
