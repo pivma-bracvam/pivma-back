@@ -16,7 +16,12 @@ auditoria, isolamento de dados e cegamento quando aplicáveis.
 Use as fontes nesta ordem:
 
 1. Instruções explícitas do usuário para a tarefa e decisões formais posteriores
-   da equipe.
+   da equipe. As decisões registradas em
+   [`docs/observacoes-e-pendencias.md`](docs/observacoes-e-pendencias.md) são
+   decisões formais da equipe: leia a seção da issue em andamento antes de
+   especificar ou implementar, siga-a integralmente e copie as decisões para
+   a seção Clarifications da `spec.md`. Registre nesse arquivo as novas
+   divergências e decisões.
 2. [`docs/plano-de-trabalho-fase-ii.md`](docs/plano-de-trabalho-fase-ii.md), a
    conversão em Markdown da documentação oficial de requisitos da Fase II. É a
    principal referência de negócio e registra os requisitos RF001 a RF062.
@@ -30,6 +35,10 @@ aplicar mais ao produto. Quando uma implementação depender de requisito com
 validade, interpretação ou prioridade incerta, registre o conflito e peça o
 feedback do usuário antes de implementar. Não preencha essa lacuna com uma
 suposição.
+
+O protótipo está descontinuado: o guia a seguir serve apenas como contexto
+histórico e nunca prevalece sobre as decisões acima, mesmo quando um trecho
+estiver classificado como `CONFIRMADO NO MATERIAL`.
 
 Consulte [`docs/guia-prototipo.md`](docs/guia-prototipo.md) para entender a
 proposta, telas e fluxos dos vídeos do protótipo. A transcrição pode conter

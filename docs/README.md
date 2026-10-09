@@ -5,17 +5,19 @@ Este arquivo organiza as referências atuais do projeto. Ele não cria uma nova 
 ## Caminho de leitura
 
 1. Leia o [Plano de Trabalho da Fase II](plano-de-trabalho-fase-ii.md) para conhecer o escopo oficial, a terminologia e os requisitos RF001 a RF062.
-2. Consulte o [guia do protótipo](guia-prototipo.md) para entender telas e fluxos observados nos materiais complementares.
-3. Leia o [manual](../manual/index.md) para saber o que o sistema já faz; a página [Escopo atual](../manual/explicacao/escopo.md) liga os RF001 a RF062 ao código.
-4. Leia o [README do repositório](../README.md) para instalação, execução e testes.
-5. Para uma feature, use os artefatos aprovados em `specs/`, criados pelo fluxo do Spec Kit.
+2. Leia [Observações e pendências](observacoes-e-pendencias.md) para conhecer as decisões formais da equipe e as divergências entre fontes. Elas têm precedência sobre o restante da documentação.
+3. Consulte o [guia do protótipo](guia-prototipo.md) apenas como contexto histórico: o protótipo está descontinuado.
+4. Leia o [manual](../manual/index.md) para saber o que o sistema já faz; a página [Escopo atual](../manual/explicacao/escopo.md) liga os RF001 a RF062 ao código.
+5. Leia o [README do repositório](../README.md) para instalação, execução e testes.
+6. Para uma feature, use os artefatos aprovados em `specs/`, criados pelo fluxo do Spec Kit.
 
 ## Mapa de fontes
 
 | Autoridade | Referência | Função | Limitação |
 |---|---|---|---|
+| Decisões da equipe | [Observações e pendências](observacoes-e-pendencias.md) | Decisões formais por issue, divergências entre fontes e pendências | Cada seção vale para a issue indicada; prevalece sobre as demais fontes |
 | Principal | [Plano de Trabalho da Fase II](plano-de-trabalho-fase-ii.md) | Conversão fiel do PDF oficial; registra módulos, requisitos, planejamento e equipe | O PDF original não está versionado neste repositório; ambiguidades foram preservadas |
-| Complementar | [Guia inicial do protótipo](guia-prototipo.md) | Consolida vídeos e roteiros e separa conteúdo confirmado, inferências e dúvidas | O protótipo não comprova regras definitivas nem controles efetivos do backend |
+| Histórico | [Guia inicial do protótipo](guia-prototipo.md) | Consolida vídeos e roteiros e separa conteúdo confirmado, inferências e dúvidas | O protótipo está descontinuado e não vale como evidência nem prevalece sobre as decisões da equipe |
 | Estado atual | [Manual](../manual/index.md) | Descreve o que o sistema faz hoje: tutoriais, guias, referência da API e explicações | Reflete o código; não substitui requisitos de negócio |
 | Operacional | [README](../README.md) | Instalação, comandos, testes e execução com Docker | Não substitui requisitos de negócio |
 | Implementação atual | Código, migrações e testes | Confirma o comportamento já implementado e seus contratos de regressão | Não é especificação definitiva do produto |
@@ -39,7 +41,7 @@ Este arquivo organiza as referências atuais do projeto. Ele não cria uma nova 
 ## Manutenção
 
 - Atualize o Plano de Trabalho convertido somente a partir de uma nova fonte oficial e preserve a redação original.
-- Registre conteúdo observado no protótipo no guia, mantendo as categorias `CONFIRMADO NO MATERIAL`, `INFERÊNCIA` e `DÚVIDA / PONTO A VALIDAR`.
-- Registre conflitos, lacunas e perguntas na spec da feature afetada e pergunte à equipe; não escolha silenciosamente uma das versões.
+- Não acrescente conteúdo novo ao guia do protótipo: ele é histórico.
+- Registre conflitos, lacunas e decisões em [Observações e pendências](observacoes-e-pendencias.md) e na spec da feature afetada, e pergunte à equipe; não escolha silenciosamente uma das versões.
 - Mantenha decisões e critérios específicos de implementação nos artefatos da feature em `specs/`, sem reescrever os documentos-fonte.
 - Adicione uma nova referência a este índice apenas quando ela tiver função distinta e rastreável.
