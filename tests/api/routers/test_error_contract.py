@@ -422,6 +422,7 @@ async def test_form_values_errors_use_fields(client, session):
     response = client.put(
         f'/processes/{pid}/activities/proposal_submission/form',
         json={'values': {'method_title': 'Método', 'campo_inexistente': 'x'}},
+        headers=ORIGIN,
     )
 
     detail = _assert_error(response, 422, 'invalid_form_values')

@@ -94,11 +94,13 @@ async def submit_to_triage(client, session):
             'template_key': 'pre_validated_method',
             'title': 'Processo bloqueio de conflito',
         },
+        headers=ORIGIN,
     )
     process_id = created.json()['id']
     client.put(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json={'values': {'method_title': 'Rascunho'}},
+        headers=ORIGIN,
     )
     client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
@@ -113,6 +115,7 @@ async def submit_to_triage(client, session):
                 'study_protocol_file': 'protocolo.pdf',
             }
         },
+        headers=ORIGIN,
     )
     return admin, process_id
 

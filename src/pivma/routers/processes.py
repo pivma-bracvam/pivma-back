@@ -58,7 +58,7 @@ from pivma.core.process_engine import (
     update_form_template_definition,
     update_process_submission,
 )
-from pivma.dependencies import CurrentUser, Session
+from pivma.dependencies import CurrentUser, Session, TrustedOrigin
 from pivma.schemas import (
     CreateProcessRequest,
     FormFieldUpdateDefinition,
@@ -390,6 +390,7 @@ async def update_form_template_definition_endpoint(
     body: UpdateFormTemplateRequest,
     session: Session,
     current_user: CurrentUser,
+    _: TrustedOrigin,
 ):
     if not await can_manage_process_templates(session, current_user.id):
         raise http_error(
@@ -456,6 +457,7 @@ async def create_process(
     body: CreateProcessRequest,
     session: Session,
     current_user: CurrentUser,
+    _: TrustedOrigin,
 ):
     # A permissão vem antes de qualquer consulta, para não revelar quais
     # templates de coleta existem (Spec 041, research R10).
@@ -656,6 +658,7 @@ async def delete_process_endpoint(
     id: UUID,
     session: Session,
     current_user: CurrentUser,
+    _: TrustedOrigin,
 ):
     try:
         await delete_process(session, id, current_user.id)
@@ -673,6 +676,7 @@ async def archive_process_endpoint(
     id: UUID,
     session: Session,
     current_user: CurrentUser,
+    _: TrustedOrigin,
 ):
     try:
         return await archive_process(session, id, current_user.id)
@@ -711,6 +715,7 @@ async def replace_process_submission(
     body: ReplaceSubmissionRequest,
     session: Session,
     current_user: CurrentUser,
+    _: TrustedOrigin,
 ):
     try:
         return await update_process_submission(
@@ -740,6 +745,7 @@ async def patch_process_submission(
     body: PatchSubmissionRequest,
     session: Session,
     current_user: CurrentUser,
+    _: TrustedOrigin,
 ):
     try:
         return await update_process_submission(

@@ -12,6 +12,8 @@ from pivma.core.database.models import (
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
+TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
+
 
 async def _user_with_profile(
     session, *, system_key=None, name='Perfil de Teste', permission_code=None
@@ -96,6 +98,7 @@ async def test_get_and_update_form_template_definition(  # noqa: PLR0914, PLR091
     res_forbidden = client.put(
         '/processes/templates/pre_validated_method/forms/submission_pre_validated_v1',
         json=update_payload,
+        headers=TRUSTED_ORIGIN,
     )
     assert res_forbidden.status_code == HTTPStatus.FORBIDDEN
 
@@ -130,6 +133,7 @@ async def test_get_and_update_form_template_definition(  # noqa: PLR0914, PLR091
     res_put = client.put(
         '/processes/templates/pre_validated_method/forms/submission_pre_validated_v1',
         json=valid_update_payload,
+        headers=TRUSTED_ORIGIN,
     )
     assert res_put.status_code == HTTPStatus.OK
     saved = res_put.json()
@@ -166,6 +170,7 @@ async def test_get_and_update_form_template_definition(  # noqa: PLR0914, PLR091
     res_dup = client.put(
         '/processes/templates/pre_validated_method/forms/submission_pre_validated_v1',
         json=dup_payload,
+        headers=TRUSTED_ORIGIN,
     )
     assert res_dup.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
@@ -191,6 +196,7 @@ async def test_rbac_read_only_cannot_update_form_template(client, session):
     res = client.put(
         '/processes/templates/pre_validated_method/forms/submission_pre_validated_v1',
         json={'fields': []},
+        headers=TRUSTED_ORIGIN,
     )
     assert res.status_code == HTTPStatus.FORBIDDEN
 
@@ -213,6 +219,7 @@ async def test_profile_named_administrador_without_system_key_cannot_update(
     res = client.put(
         '/processes/templates/pre_validated_method/forms/submission_pre_validated_v1',
         json={'fields': []},
+        headers=TRUSTED_ORIGIN,
     )
     assert res.status_code == HTTPStatus.FORBIDDEN
 
@@ -245,6 +252,7 @@ async def test_form_templates_manage_permission_can_update(client, session):
                 }
             ],
         },
+        headers=TRUSTED_ORIGIN,
     )
     assert res.status_code == HTTPStatus.OK
     assert res.json()['name'] == 'Formulário Editado pelo BraCVAM'

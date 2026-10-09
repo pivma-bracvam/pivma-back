@@ -24,6 +24,8 @@ from tests.ai_eval_helpers import (
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
+TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
+
 
 async def _scenario(
     client, session, ai_eval_admin, *, severity, statement=None
@@ -200,12 +202,14 @@ async def test_status_is_ai_pre_evaluation_and_form_locked_while_pending(
     resubmit = client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json={'values': FULL_VALUES},
+        headers=TRUSTED_ORIGIN,
     )
     assert resubmit.status_code == HTTPStatus.CONFLICT
 
     draft = client.put(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json={'values': FULL_VALUES},
+        headers=TRUSTED_ORIGIN,
     )
     assert draft.status_code == HTTPStatus.CONFLICT
 

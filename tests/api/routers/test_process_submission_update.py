@@ -16,6 +16,8 @@ from pivma.core.database.models import (
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
+TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
+
 SUBMISSION_URL = '/processes/{pid}/activities/proposal_submission/form'
 
 
@@ -31,6 +33,7 @@ async def _draft_context(client, session, *, owner=None, with_file=True):
             'template_key': 'pre_validated_method',
             'title': 'Título original da proposta',
         },
+        headers=TRUSTED_ORIGIN,
     )
     assert response.status_code == HTTPStatus.CREATED
     process_id = response.json()['id']
@@ -159,6 +162,7 @@ async def test_put_persists_each_supported_dynamic_type(
             'title': 'Título integral atualizado',
             'values': values,
         },
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -176,11 +180,13 @@ async def test_put_null_clears_optional_value(client, session):
     client.put(
         f'/processes/{process_id}',
         json={'title': 'Título integral', 'values': _complete_values()},
+        headers=TRUSTED_ORIGIN,
     )
     values = _complete_values(optional_note=None)
     response = client.put(
         f'/processes/{process_id}',
         json={'title': 'Título integral 2', 'values': values},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -199,6 +205,7 @@ async def test_put_requires_all_non_file_fields(client, session):
     response = client.put(
         f'/processes/{process_id}',
         json={'title': 'Título integral', 'values': values},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
@@ -216,6 +223,7 @@ async def test_put_rejects_blank_required_field(client, session):
     response = client.put(
         f'/processes/{process_id}',
         json={'title': 'Título integral', 'values': values},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
@@ -231,11 +239,13 @@ async def test_put_rejects_unknown_field_atomically(client, session):
     client.put(
         f'/processes/{process_id}',
         json={'title': 'Título anterior', 'values': original},
+        headers=TRUSTED_ORIGIN,
     )
     invalid = {**original, 'unknown_field': 'não permitido'}
     response = client.put(
         f'/processes/{process_id}',
         json={'title': 'Título que não deve gravar', 'values': invalid},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
@@ -250,11 +260,13 @@ async def test_put_rejects_incompatible_value_atomically(client, session):
     client.put(
         f'/processes/{process_id}',
         json={'title': 'Título anterior', 'values': original},
+        headers=TRUSTED_ORIGIN,
     )
     invalid = {**original, 'count': 'três'}
     response = client.put(
         f'/processes/{process_id}',
         json={'title': 'Título inválido', 'values': invalid},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
@@ -270,6 +282,7 @@ async def test_put_rejects_inline_file_value(client, session):
     response = client.put(
         f'/processes/{process_id}',
         json={'title': 'Título integral', 'values': values},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
@@ -286,10 +299,13 @@ async def test_patch_preserves_omitted_values(client, session):
     client.put(
         f'/processes/{process_id}',
         json={'title': 'Título anterior', 'values': original},
+        headers=TRUSTED_ORIGIN,
     )
 
     response = client.patch(
-        f'/processes/{process_id}', json={'values': {'count': 8}}
+        f'/processes/{process_id}',
+        json={'values': {'count': 8}},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -307,10 +323,13 @@ async def test_patch_only_title_preserves_form_values(client, session):
     client.put(
         f'/processes/{process_id}',
         json={'title': 'Título anterior', 'values': original},
+        headers=TRUSTED_ORIGIN,
     )
 
     response = client.patch(
-        f'/processes/{process_id}', json={'title': 'Somente novo título'}
+        f'/processes/{process_id}',
+        json={'title': 'Somente novo título'},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -325,11 +344,13 @@ async def test_patch_rejects_unknown_field_atomically(client, session):
     client.put(
         f'/processes/{process_id}',
         json={'title': 'Título anterior', 'values': original},
+        headers=TRUSTED_ORIGIN,
     )
 
     response = client.patch(
         f'/processes/{process_id}',
         json={'values': {'count': 9, 'unknown_field': 'x'}},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
@@ -345,11 +366,16 @@ async def test_patch_rejects_empty_payload_and_numeric_limit_atomically(
     client.put(
         f'/processes/{process_id}',
         json={'title': 'Título anterior', 'values': original},
+        headers=TRUSTED_ORIGIN,
     )
 
-    empty = client.patch(f'/processes/{process_id}', json={})
+    empty = client.patch(
+        f'/processes/{process_id}', json={}, headers=TRUSTED_ORIGIN
+    )
     invalid = client.patch(
-        f'/processes/{process_id}', json={'values': {'count': 0}}
+        f'/processes/{process_id}',
+        json={'values': {'count': 0}},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert empty.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
@@ -367,7 +393,9 @@ async def test_bracvam_cannot_patch_draft(client, session, bracvam_user):
     authenticate(client, bracvam_user)
 
     response = client.patch(
-        f'/processes/{process_id}', json={'title': 'Gestão corrigiu o título'}
+        f'/processes/{process_id}',
+        json={'title': 'Gestão corrigiu o título'},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.FORBIDDEN
@@ -381,6 +409,7 @@ async def test_unauthenticated_put_is_rejected(client, session):
     response = client.put(
         f'/processes/{process_id}',
         json={'title': 'Título sem sessão', 'values': _complete_values()},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
@@ -395,7 +424,9 @@ async def test_non_owner_cannot_update_or_learn_submission(client, session):
     authenticate(client, outsider)
 
     response = client.patch(
-        f'/processes/{process_id}', json={'title': 'Acesso indevido'}
+        f'/processes/{process_id}',
+        json={'title': 'Acesso indevido'},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -410,12 +441,15 @@ async def test_update_after_formal_submission_returns_conflict(
 ):
     _, process_id = await _draft_context(client, session)
     client.post(
-        _url(process_id), json={'values': {'method_title': 'Método enviado'}}
+        _url(process_id),
+        json={'values': {'method_title': 'Método enviado'}},
+        headers=TRUSTED_ORIGIN,
     )
 
     response = client.put(
         f'/processes/{process_id}',
         json={'title': 'Não pode alterar', 'values': _complete_values()},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.CONFLICT
@@ -425,11 +459,15 @@ async def test_update_after_formal_submission_returns_conflict(
 async def test_patch_after_formal_submission_returns_conflict(client, session):
     _, process_id = await _draft_context(client, session)
     client.post(
-        _url(process_id), json={'values': {'method_title': 'Método enviado'}}
+        _url(process_id),
+        json={'values': {'method_title': 'Método enviado'}},
+        headers=TRUSTED_ORIGIN,
     )
 
     response = client.patch(
-        f'/processes/{process_id}', json={'title': 'Não pode alterar'}
+        f'/processes/{process_id}',
+        json={'title': 'Não pode alterar'},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.CONFLICT
@@ -443,7 +481,9 @@ async def test_update_closed_process_returns_conflict(client, session):
     await session.commit()
 
     response = client.patch(
-        f'/processes/{process_id}', json={'title': 'Não pode alterar'}
+        f'/processes/{process_id}',
+        json={'title': 'Não pode alterar'},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.CONFLICT
@@ -460,6 +500,7 @@ async def test_draft_update_does_not_create_history_or_change_flow(
     response = client.put(
         f'/processes/{process_id}',
         json={'title': 'Título atualizado', 'values': _complete_values()},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -481,6 +522,7 @@ async def test_patch_draft_does_not_create_history(client, session):
     response = client.patch(
         f'/processes/{process_id}',
         json={'title': 'Título parcial'},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -500,6 +542,7 @@ async def test_patch_draft_does_not_change_status_or_run(client, session):
     response = client.patch(
         f'/processes/{process_id}',
         json={'values': {'count': 7}},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -515,6 +558,7 @@ async def test_update_rejects_immutable_process_attribute(client, session):
     response = client.patch(
         f'/processes/{process_id}',
         json={'status': 'TRIAGE', 'title': 'Título válido'},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
@@ -529,6 +573,7 @@ async def test_update_audit_records_mode_and_attributes_without_values(
     response = client.patch(
         f'/processes/{process_id}',
         json={'title': 'Título auditado', 'values': {'count': 4}},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -552,7 +597,9 @@ async def test_history_is_frozen_and_latest_form_is_current(
 ):
     owner, process_id = await _draft_context(client, session)
     first_values = {'method_title': 'Método versão 1'}
-    client.post(_url(process_id), json={'values': first_values})
+    client.post(
+        _url(process_id), json={'values': first_values}, headers=TRUSTED_ORIGIN
+    )
 
     authenticate(client, bracvam_user)
     decision = client.post(
@@ -576,8 +623,13 @@ async def test_history_is_frozen_and_latest_form_is_current(
     client.patch(
         f'/processes/{process_id}',
         json={'title': 'Título versão 2'},
+        headers=TRUSTED_ORIGIN,
     )
-    client.post(_url(process_id), json={'values': second_values})
+    client.post(
+        _url(process_id),
+        json={'values': second_values},
+        headers=TRUSTED_ORIGIN,
+    )
 
     authenticate(client, bracvam_user)
     second_revision = client.post(
@@ -599,9 +651,12 @@ async def test_history_is_frozen_and_latest_form_is_current(
     client.patch(
         f'/processes/{process_id}',
         json={'title': 'Título versão 3'},
+        headers=TRUSTED_ORIGIN,
     )
     client.post(
-        _url(process_id), json={'values': {'method_title': 'Método versão 3'}}
+        _url(process_id),
+        json={'values': {'method_title': 'Método versão 3'}},
+        headers=TRUSTED_ORIGIN,
     )
 
     current = client.get(_url(process_id))
@@ -629,7 +684,11 @@ async def test_history_is_hidden_from_outsider_and_not_editable(
     client, session, bracvam_user, other_user
 ):
     owner, process_id = await _draft_context(client, session)
-    client.post(_url(process_id), json={'values': {'method_title': 'Enviado'}})
+    client.post(
+        _url(process_id),
+        json={'values': {'method_title': 'Enviado'}},
+        headers=TRUSTED_ORIGIN,
+    )
     authenticate(client, bracvam_user)
     decision = client.post(
         f'/processes/{process_id}/triage/decision',

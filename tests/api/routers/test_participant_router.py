@@ -941,6 +941,7 @@ async def _process_in_planning_phase(client, session, bracvam_user):
             'template_key': 'validated_method_dossier',
             'title': 'Dossiê para atribuição de cargo (Spec 028)',
         },
+        headers=ORIGIN,
     )
     assert resp.status_code == HTTPStatus.CREATED
     process_id = resp.json()['id']
@@ -956,6 +957,7 @@ async def _process_in_planning_phase(client, session, bracvam_user):
                 ),
             }
         },
+        headers=ORIGIN,
     )
 
     authenticate(client, bracvam_user)

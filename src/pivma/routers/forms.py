@@ -229,6 +229,7 @@ async def save_form_draft(
     body: SaveFormValuesRequest,
     session: Session,
     current_user: CurrentUser,
+    _: TrustedOrigin,
 ):
     try:
         form_inst = await save_form_values_draft(
@@ -267,6 +268,7 @@ async def submit_form(  # noqa: PLR0913, PLR0917
     session: Session,
     current_user: CurrentUser,
     background_tasks: BackgroundTasks,
+    _: TrustedOrigin,
 ):
     try:
         act, run, artifact, pre_eval_run = await submit_proposal_form(

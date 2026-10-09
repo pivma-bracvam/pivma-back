@@ -40,6 +40,7 @@ async def setup_process_with_file_field(
     pid = client.post(
         '/processes',
         json={'template_key': 'pre_validated_method', 'title': 'Teste 016'},
+        headers=ORIGIN,
     ).json()['id']
 
     template = (
@@ -98,7 +99,9 @@ async def test_upload_then_submit_bundles_attachment(client, session):
     assert 'pop_document' not in form['values']
 
     submit = client.post(
-        FORM_URL.format(pid=pid), json={'values': {'method_title': 'M'}}
+        FORM_URL.format(pid=pid),
+        json={'values': {'method_title': 'M'}},
+        headers=ORIGIN,
     )
     assert submit.status_code == HTTPStatus.OK, submit.text
 
@@ -136,7 +139,9 @@ async def test_submit_blocked_without_required_attachment(client, session):
     )
 
     submit = client.post(
-        FORM_URL.format(pid=pid), json={'values': {'method_title': 'M'}}
+        FORM_URL.format(pid=pid),
+        json={'values': {'method_title': 'M'}},
+        headers=ORIGIN,
     )
 
     assert submit.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
@@ -187,7 +192,9 @@ async def test_draft_save_succeeds_with_file_field_present(client, session):
     _, pid = await setup_process_with_file_field(client, session)
 
     resp = client.put(
-        FORM_URL.format(pid=pid), json={'values': {'method_title': 'draft'}}
+        FORM_URL.format(pid=pid),
+        json={'values': {'method_title': 'draft'}},
+        headers=ORIGIN,
     )
 
     assert resp.status_code == HTTPStatus.OK
@@ -200,6 +207,7 @@ async def test_draft_rejects_inline_file_upload_value(client, session):
     resp = client.put(
         FORM_URL.format(pid=pid),
         json={'values': {'pop_document': 'x.pdf'}},
+        headers=ORIGIN,
     )
 
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
@@ -251,7 +259,9 @@ async def test_upload_rejected_after_submission(client, session):
     _, pid = await setup_process_with_file_field(client, session)
     upload(client, pid)
     client.post(
-        FORM_URL.format(pid=pid), json={'values': {'method_title': 'M'}}
+        FORM_URL.format(pid=pid),
+        json={'values': {'method_title': 'M'}},
+        headers=ORIGIN,
     )
 
     resp = upload(client, pid, name='b.pdf', data=b'bb')
@@ -271,6 +281,7 @@ async def test_replacing_attachment_after_revision_keeps_submitted_snapshot(
     submit = client.post(
         FORM_URL.format(pid=pid),
         json={'values': {'method_title': 'Método enviado'}},
+        headers=ORIGIN,
     )
     assert submit.status_code == HTTPStatus.OK
 

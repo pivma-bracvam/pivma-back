@@ -41,10 +41,12 @@ async def _process_in_triage(client, session) -> str:
     pid = client.post(
         '/processes',
         json={'template_key': 'pre_validated_method', 'title': 'Triagem'},
+        headers=ORIGIN,
     ).json()['id']
     client.post(
         f'/processes/{pid}/activities/proposal_submission/form',
         json={'values': SUBMISSION},
+        headers=ORIGIN,
     )
     assert await in_triage(session, pid)
     return pid

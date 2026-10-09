@@ -98,6 +98,7 @@ async def _created_process(client, session):
     response = client.post(
         '/processes',
         json={'template_key': 'pre_validated_method', 'title': 'Processo 1'},
+        headers=ORIGIN,
     )
     assert response.status_code == HTTPStatus.CREATED, response.text
     return proponent, response.json()['id']
@@ -108,6 +109,7 @@ async def _triage_return(client, session, bracvam_user, *, justification=None):
     response = client.post(
         f'/processes/{pid}/activities/proposal_submission/form',
         json={'values': VALUES},
+        headers=ORIGIN,
     )
     assert response.status_code == HTTPStatus.OK, response.text
     authenticate(client, bracvam_user)
@@ -183,6 +185,7 @@ async def test_triage_rejection_does_not_open_return_review(
     client.post(
         f'/processes/{pid}/activities/proposal_submission/form',
         json={'values': VALUES},
+        headers=ORIGIN,
     )
     authenticate(client, bracvam_user)
     response = client.post(
@@ -203,6 +206,7 @@ async def test_triage_approval_does_not_open_return_review(
     client.post(
         f'/processes/{pid}/activities/proposal_submission/form',
         json={'values': VALUES},
+        headers=ORIGIN,
     )
     authenticate(client, bracvam_user)
     response = client.post(
@@ -476,6 +480,7 @@ async def test_submission_locked_while_return_review_open(
     response = client.put(
         f'/processes/{pid}/activities/proposal_submission/form',
         json={'values': VALUES},
+        headers=ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.CONFLICT

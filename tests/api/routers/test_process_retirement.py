@@ -16,6 +16,8 @@ from pivma.core.database.models import (
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.process_retirement_factory import ProcessRetirementFactory
 
+TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
+
 
 async def _reload(session, process_id):
     """Relê o processo direto do banco, ignorando o filtro de soft-delete.
@@ -56,7 +58,7 @@ async def test_owner_can_delete_never_submitted_draft(client, session, user):
     process = await _create_process(session, user, 'Rascunho para excluir')
     authenticate(client, user)
 
-    response = client.delete(f'/processes/{process}')
+    response = client.delete(f'/processes/{process}', headers=TRUSTED_ORIGIN)
 
     assert response.status_code == HTTPStatus.NO_CONTENT
     assert response.content == b''
@@ -86,7 +88,7 @@ async def test_owner_can_delete_own_submitted_process(client, session, user):
     process = await _create_submitted_process(session, user, status='OPEN')
     authenticate(client, user)
 
-    response = client.delete(f'/processes/{process}')
+    response = client.delete(f'/processes/{process}', headers=TRUSTED_ORIGIN)
 
     assert response.status_code == HTTPStatus.NO_CONTENT
     saved = await _reload(session, process)
@@ -101,7 +103,7 @@ async def test_unrelated_user_cannot_see_or_delete_draft(
     process = await _create_process(session, user, 'Rascunho protegido')
     authenticate(client, other_user)
 
-    response = client.delete(f'/processes/{process}')
+    response = client.delete(f'/processes/{process}', headers=TRUSTED_ORIGIN)
 
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert response.json()['detail']['code'] == 'not_found'
@@ -116,7 +118,7 @@ async def test_reviewer_without_platform_access_cannot_delete_draft(
     process = await _create_process(session, user, 'Rascunho protegido')
     authenticate(client, reviewer_only)
 
-    response = client.delete(f'/processes/{process}')
+    response = client.delete(f'/processes/{process}', headers=TRUSTED_ORIGIN)
 
     # Spec 030 (R5): sem acesso de plataforma nem atribuição, o processo
     # não é visível.
@@ -161,7 +163,7 @@ async def test_admin_deletes_others_process_and_cancels_pending_children(
     await session.commit()
     authenticate(client, bracvam_user)
 
-    response = client.delete(f'/processes/{process}')
+    response = client.delete(f'/processes/{process}', headers=TRUSTED_ORIGIN)
 
     assert response.status_code == HTTPStatus.NO_CONTENT
     saved = await _reload(session, process)
@@ -234,7 +236,7 @@ async def test_reviewer_without_platform_access_cannot_delete_others_process(
     process = await _create_submitted_process(session, user, status='OPEN')
     authenticate(client, reviewer_only)
 
-    response = client.delete(f'/processes/{process}')
+    response = client.delete(f'/processes/{process}', headers=TRUSTED_ORIGIN)
 
     # Spec 030 (R5): sem acesso de plataforma nem atribuição, o processo
     # não é visível.
@@ -246,7 +248,7 @@ async def test_proponent_can_delete_returned_revision(client, session, user):
     process = await _create_returned_revision(session, user)
     authenticate(client, user)
 
-    response = client.delete(f'/processes/{process}')
+    response = client.delete(f'/processes/{process}', headers=TRUSTED_ORIGIN)
 
     assert response.status_code == HTTPStatus.NO_CONTENT
     saved = await _reload(session, process)
@@ -270,7 +272,7 @@ async def test_reviewer_without_platform_access_cannot_delete_revision(
     process = await _create_returned_revision(session, user)
     authenticate(client, reviewer_only)
 
-    response = client.delete(f'/processes/{process}')
+    response = client.delete(f'/processes/{process}', headers=TRUSTED_ORIGIN)
 
     # Spec 030 (R5): sem acesso de plataforma nem atribuição, o processo
     # não é visível.
@@ -284,11 +286,13 @@ async def test_deleting_already_deleted_process_is_rejected(
     process = await _create_submitted_process(session, user, status='OPEN')
     authenticate(client, bracvam_user)
     assert (
-        client.delete(f'/processes/{process}').status_code
+        client.delete(
+            f'/processes/{process}', headers=TRUSTED_ORIGIN
+        ).status_code
         == HTTPStatus.NO_CONTENT
     )
 
-    response = client.delete(f'/processes/{process}')
+    response = client.delete(f'/processes/{process}', headers=TRUSTED_ORIGIN)
 
     assert response.status_code == HTTPStatus.CONFLICT
     assert response.json()['detail']['code'] == 'invalid_transition'
@@ -299,7 +303,7 @@ async def test_delete_closed_process_is_rejected(client, session, user):
     process = await _create_terminal_process(session, user, 'Fechado')
     authenticate(client, user)
 
-    response = client.delete(f'/processes/{process}')
+    response = client.delete(f'/processes/{process}', headers=TRUSTED_ORIGIN)
 
     assert response.status_code == HTTPStatus.CONFLICT
     assert response.json()['detail']['code'] == 'invalid_transition'
@@ -313,11 +317,13 @@ async def test_delete_archived_process_is_rejected(
     process = await _create_terminal_process(session, user, 'Arquivado')
     authenticate(client, bracvam_user)
     assert (
-        client.patch(f'/processes/{process}/archive').status_code
+        client.patch(
+            f'/processes/{process}/archive', headers=TRUSTED_ORIGIN
+        ).status_code
         == HTTPStatus.OK
     )
 
-    response = client.delete(f'/processes/{process}')
+    response = client.delete(f'/processes/{process}', headers=TRUSTED_ORIGIN)
 
     assert response.status_code == HTTPStatus.CONFLICT
     assert response.json()['detail']['code'] == 'invalid_transition'
@@ -330,7 +336,9 @@ async def test_archive_closed_process_is_hidden_from_default_list(
     process = await _create_terminal_process(session, user, 'Processo fechado')
     authenticate(client, bracvam_user)
 
-    response = client.patch(f'/processes/{process}/archive')
+    response = client.patch(
+        f'/processes/{process}/archive', headers=TRUSTED_ORIGIN
+    )
 
     assert response.status_code == HTTPStatus.OK
     assert response.json()['status'] == 'ARCHIVED'
@@ -360,7 +368,9 @@ async def test_archive_cancelled_process_and_keep_actions_empty(
     )
     authenticate(client, bracvam_user)
 
-    response = client.patch(f'/processes/{process}/archive')
+    response = client.patch(
+        f'/processes/{process}/archive', headers=TRUSTED_ORIGIN
+    )
 
     assert response.status_code == HTTPStatus.OK
     assert response.json()['status'] == 'ARCHIVED'
@@ -378,12 +388,16 @@ async def test_archive_accepts_process_previously_deleted(
     process = await _create_submitted_process(session, user, status='OPEN')
     authenticate(client, user)
     assert (
-        client.delete(f'/processes/{process}').status_code
+        client.delete(
+            f'/processes/{process}', headers=TRUSTED_ORIGIN
+        ).status_code
         == HTTPStatus.NO_CONTENT
     )
 
     authenticate(client, bracvam_user)
-    response = client.patch(f'/processes/{process}/archive')
+    response = client.patch(
+        f'/processes/{process}/archive', headers=TRUSTED_ORIGIN
+    )
 
     assert response.status_code == HTTPStatus.OK
     assert response.json()['status'] == 'ARCHIVED'
@@ -398,7 +412,9 @@ async def test_archive_draft_or_active_process_is_rejected(
     authenticate(client, bracvam_user)
 
     for process in (draft, active):
-        response = client.patch(f'/processes/{process}/archive')
+        response = client.patch(
+            f'/processes/{process}/archive', headers=TRUSTED_ORIGIN
+        )
         assert response.status_code == HTTPStatus.CONFLICT
         assert response.json()['detail']['code'] == 'invalid_transition'
 
@@ -412,7 +428,9 @@ async def test_non_reviewer_cannot_query_archived(
     )
     authenticate(client, bracvam_user)
     assert (
-        client.patch(f'/processes/{process}/archive').status_code
+        client.patch(
+            f'/processes/{process}/archive', headers=TRUSTED_ORIGIN
+        ).status_code
         == HTTPStatus.OK
     )
 
@@ -462,7 +480,7 @@ async def test_available_action_is_revalidated_even_when_absent(
     detail = client.get(f'/processes/{process}').json()
     assert detail['available_actions'] == []
 
-    response = client.delete(f'/processes/{process}')
+    response = client.delete(f'/processes/{process}', headers=TRUSTED_ORIGIN)
 
     assert response.status_code == HTTPStatus.CONFLICT
     assert response.json()['detail']['code'] == 'invalid_transition'
@@ -475,7 +493,9 @@ async def test_triage_decision_is_blocked_after_deletion(
     process = await _create_submitted_process(session, user, status='OPEN')
     authenticate(client, bracvam_user)
     assert (
-        client.delete(f'/processes/{process}').status_code
+        client.delete(
+            f'/processes/{process}', headers=TRUSTED_ORIGIN
+        ).status_code
         == HTTPStatus.NO_CONTENT
     )
 

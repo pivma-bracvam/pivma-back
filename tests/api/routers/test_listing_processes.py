@@ -31,6 +31,7 @@ def _new_process(client, title='Processo'):
     response = client.post(
         '/processes',
         json={'template_key': 'pre_validated_method', 'title': title},
+        headers=ORIGIN,
     )
     assert response.status_code == HTTPStatus.CREATED, response.text
     return response.json()['id']
@@ -39,7 +40,11 @@ def _new_process(client, title='Processo'):
 def _return_for_revision(client, pid, proponent, bracvam_user, value):
     """Envia, a triagem pede revisão e o proponente reabre a submissão."""
     authenticate(client, proponent)
-    client.post(FORM.format(pid=pid), json={'values': {'method_title': value}})
+    client.post(
+        FORM.format(pid=pid),
+        json={'values': {'method_title': value}},
+        headers=ORIGIN,
+    )
     authenticate(client, bracvam_user)
     decided = client.post(
         f'/processes/{pid}/triage/decision',
@@ -147,7 +152,11 @@ async def test_timeline_total_counts_only_visible_events(
     proponent = await _proponent(session)
     authenticate(client, proponent)
     pid = _new_process(client)
-    client.post(FORM.format(pid=pid), json={'values': {'method_title': 'V1'}})
+    client.post(
+        FORM.format(pid=pid),
+        json={'values': {'method_title': 'V1'}},
+        headers=ORIGIN,
+    )
     authenticate(client, bracvam_user)
     client.post(
         f'/processes/{pid}/triage/decision',
@@ -172,7 +181,11 @@ async def test_timeline_second_page_keeps_order(client, session):
     authenticate(client, await _proponent(session))
     pid = _new_process(client)
     # O envio gera mais eventos além da criação e da designação.
-    client.post(FORM.format(pid=pid), json={'values': {'method_title': 'V1'}})
+    client.post(
+        FORM.format(pid=pid),
+        json={'values': {'method_title': 'V1'}},
+        headers=ORIGIN,
+    )
     full = _get(client, f'/processes/{pid}/timeline', per_page=100)['data']
     assert len(full) > 2  # noqa: PLR2004
 

@@ -25,7 +25,9 @@ async def _proponent_process(client, session, *, template_key, title):
     await session.commit()
     authenticate(client, proponent)
     response = client.post(
-        '/processes', json={'template_key': template_key, 'title': title}
+        '/processes',
+        json={'template_key': template_key, 'title': title},
+        headers=ORIGIN,
     )
     assert response.status_code == HTTPStatus.CREATED, response.text
     return proponent, response.json()['id']
@@ -63,7 +65,11 @@ async def test_task_summary_distinguishes_current_run_after_revision(
     proponent, pid = await _proponent_process(
         client, session, template_key='pre_validated_method', title='Processo'
     )
-    client.post(FORM.format(pid=pid), json={'values': {'method_title': 'V1'}})
+    client.post(
+        FORM.format(pid=pid),
+        json={'values': {'method_title': 'V1'}},
+        headers=ORIGIN,
+    )
     authenticate(client, bracvam_user)
     client.post(
         f'/processes/{pid}/triage/decision',
@@ -103,6 +109,7 @@ async def test_task_summary_separates_phases_for_bracvam(
     client.post(
         FORM.format(pid=pid),
         json={'values': {'method_title': 'Método', 'terminology_notes': 'x'}},
+        headers=ORIGIN,
     )
     authenticate(client, bracvam_user)
     client.post(
