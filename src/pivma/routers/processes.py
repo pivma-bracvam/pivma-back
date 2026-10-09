@@ -9,9 +9,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from pivma.core.authorization import (
+    COLLECTION_TEMPLATES_MANAGE,
     can_manage_participants,
     can_manage_process_templates,
     effective_laboratory_ids,
+    has_permission,
     has_process_review_access,
     is_process_manager,
     user_cargos,
@@ -20,6 +22,7 @@ from pivma.core.database.models import (
     ActivityInstance,
     ActivityRun,
     AuditEvent,
+    CollectionTemplate,
     FormTemplate,
     ProcessInstance,
     ProcessTemplate,
@@ -55,7 +58,7 @@ from pivma.core.process_engine import (
     update_form_template_definition,
     update_process_submission,
 )
-from pivma.dependencies import CurrentUser, Session
+from pivma.dependencies import CurrentUser, Session, TrustedOrigin
 from pivma.schemas import (
     CreateProcessRequest,
     FormFieldUpdateDefinition,
@@ -387,6 +390,7 @@ async def update_form_template_definition_endpoint(
     body: UpdateFormTemplateRequest,
     session: Session,
     current_user: CurrentUser,
+    _: TrustedOrigin,
 ):
     if not await can_manage_process_templates(session, current_user.id):
         raise http_error(
@@ -453,7 +457,17 @@ async def create_process(
     body: CreateProcessRequest,
     session: Session,
     current_user: CurrentUser,
+    _: TrustedOrigin,
 ):
+    # A permissão vem antes de qualquer consulta, para não revelar quais
+    # templates de coleta existem (Spec 041, research R10).
+    if body.collection_template_id is not None and not await has_permission(
+        session, current_user.id, COLLECTION_TEMPLATES_MANAGE
+    ):
+        raise http_error(
+            HTTPStatus.FORBIDDEN,
+            'Sem permissão para vincular um template de coleta.',
+        )
     stmt = (
         select(ProcessTemplateVersion)
         .join(ProcessTemplate)
@@ -472,6 +486,14 @@ async def create_process(
         raise http_error(
             HTTPStatus.NOT_FOUND, 'Template não encontrado ou inativo.'
         )
+    if (
+        body.collection_template_id is not None
+        and await session.get(CollectionTemplate, body.collection_template_id)
+        is None
+    ):
+        raise http_error(
+            HTTPStatus.NOT_FOUND, 'Template de coleta não encontrado.'
+        )
 
     try:
         process = await instantiate_process(
@@ -479,6 +501,7 @@ async def create_process(
             template_version=latest_version,
             title=body.title,
             creator_user_id=current_user.id,
+            collection_template_id=body.collection_template_id,
         )
     except Exception as e:
         # O detalhe vai para o log, nunca para a resposta (Spec 034, R4).
@@ -501,6 +524,7 @@ async def create_process(
         started_at=process.started_at,
         closed_at=process.closed_at,
         closure_reason=process.closure_reason,
+        collection_template_id=process.collection_template_id,
         available_actions=await available_lifecycle_actions(
             session, process, current_user.id
         ),
@@ -564,6 +588,7 @@ async def list_processes(
                 started_at=process.started_at,
                 closed_at=process.closed_at,
                 closure_reason=process.closure_reason,
+                collection_template_id=process.collection_template_id,
                 available_actions=await available_lifecycle_actions(
                     session, process, current_user.id
                 ),
@@ -610,6 +635,7 @@ async def get_process(id: UUID, session: Session, current_user: CurrentUser):
         started_at=p.started_at,
         closed_at=p.closed_at,
         closure_reason=p.closure_reason,
+        collection_template_id=p.collection_template_id,
         available_actions=await available_lifecycle_actions(
             session, p, current_user.id
         ),
@@ -632,6 +658,7 @@ async def delete_process_endpoint(
     id: UUID,
     session: Session,
     current_user: CurrentUser,
+    _: TrustedOrigin,
 ):
     try:
         await delete_process(session, id, current_user.id)
@@ -649,6 +676,7 @@ async def archive_process_endpoint(
     id: UUID,
     session: Session,
     current_user: CurrentUser,
+    _: TrustedOrigin,
 ):
     try:
         return await archive_process(session, id, current_user.id)
@@ -687,6 +715,7 @@ async def replace_process_submission(
     body: ReplaceSubmissionRequest,
     session: Session,
     current_user: CurrentUser,
+    _: TrustedOrigin,
 ):
     try:
         return await update_process_submission(
@@ -716,6 +745,7 @@ async def patch_process_submission(
     body: PatchSubmissionRequest,
     session: Session,
     current_user: CurrentUser,
+    _: TrustedOrigin,
 ):
     try:
         return await update_process_submission(

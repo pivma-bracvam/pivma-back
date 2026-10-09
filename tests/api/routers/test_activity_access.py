@@ -26,6 +26,8 @@ from tests.factories.participant_factory import (
 )
 from tests.factories.user_factory import UserFactory
 
+TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
+
 FORM = '/processes/{pid}/activities/proposal_submission/form'
 VALUES = {'method_title': 'Ensaio RhCE para irritação'}
 
@@ -47,6 +49,7 @@ async def world(client, session, bracvam_user, ai_eval_admin):
     response = client.post(
         '/processes',
         json={'template_key': 'pre_validated_method', 'title': 'Processo 1'},
+        headers=TRUSTED_ORIGIN,
     )
     assert response.status_code == HTTPStatus.CREATED, response.text
     pid = response.json()['id']
@@ -64,7 +67,9 @@ async def world(client, session, bracvam_user, ai_eval_admin):
 
 def _submit(client, world):
     authenticate(client, world.proponent)
-    response = client.post(_form(world.pid), json={'values': VALUES})
+    response = client.post(
+        _form(world.pid), json={'values': VALUES}, headers=TRUSTED_ORIGIN
+    )
     assert response.status_code == HTTPStatus.OK, response.text
 
 
@@ -86,7 +91,9 @@ async def test_proponent_reads_submission_form(client, world):
 async def test_proponent_saves_submission_draft(client, world):
     authenticate(client, world.proponent)
 
-    response = client.put(_form(world.pid), json={'values': VALUES})
+    response = client.put(
+        _form(world.pid), json={'values': VALUES}, headers=TRUSTED_ORIGIN
+    )
 
     assert response.status_code == HTTPStatus.OK
 
@@ -102,7 +109,9 @@ async def test_sponsor_gets_404_on_submission_form(client, world):
 async def test_sponsor_gets_404_on_submission_draft_save(client, world):
     authenticate(client, world.sponsor)
 
-    response = client.put(_form(world.pid), json={'values': VALUES})
+    response = client.put(
+        _form(world.pid), json={'values': VALUES}, headers=TRUSTED_ORIGIN
+    )
 
     assert response.status_code == HTTPStatus.NOT_FOUND
 
@@ -117,7 +126,9 @@ async def test_second_proponent_edits_submission(client, session, world):
     )
     authenticate(client, second)
 
-    response = client.put(_form(world.pid), json={'values': VALUES})
+    response = client.put(
+        _form(world.pid), json={'values': VALUES}, headers=TRUSTED_ORIGIN
+    )
 
     assert response.status_code == HTTPStatus.OK
 
@@ -150,7 +161,9 @@ async def test_bracvam_reads_submission_draft(client, world):
 async def test_bracvam_cannot_save_submission_draft(client, world):
     authenticate(client, world.bracvam)
 
-    response = client.put(_form(world.pid), json={'values': VALUES})
+    response = client.put(
+        _form(world.pid), json={'values': VALUES}, headers=TRUSTED_ORIGIN
+    )
 
     assert response.status_code == HTTPStatus.FORBIDDEN
 
@@ -160,7 +173,9 @@ async def test_admin_reads_submission_draft_but_cannot_submit(client, world):
     authenticate(client, world.admin)
 
     assert client.get(_form(world.pid)).status_code == HTTPStatus.OK
-    response = client.post(_form(world.pid), json={'values': VALUES})
+    response = client.post(
+        _form(world.pid), json={'values': VALUES}, headers=TRUSTED_ORIGIN
+    )
     assert response.status_code == HTTPStatus.FORBIDDEN
 
 
@@ -169,7 +184,9 @@ async def test_proponent_reads_submitted_form_but_cannot_edit(client, world):
     _submit(client, world)
 
     assert client.get(_form(world.pid)).status_code == HTTPStatus.OK
-    response = client.put(_form(world.pid), json={'values': VALUES})
+    response = client.put(
+        _form(world.pid), json={'values': VALUES}, headers=TRUSTED_ORIGIN
+    )
     assert response.status_code == HTTPStatus.CONFLICT
 
 

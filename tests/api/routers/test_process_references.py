@@ -33,6 +33,7 @@ async def _proponent_with_process(client, session):
     created = client.post(
         '/processes',
         json={'template_key': 'pre_validated_method', 'title': 'Método'},
+        headers=ORIGIN,
     )
     assert created.status_code == HTTPStatus.CREATED, created.text
     template = await session.scalar(

@@ -18,6 +18,8 @@ from tests.activity_state import back_with_proponent, in_triage
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
+TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
+
 
 @pytest.mark.asyncio
 async def test_triage_decision_needs_revision_and_resubmission(
@@ -37,6 +39,7 @@ async def test_triage_decision_needs_revision_and_resubmission(
             'template_key': 'pre_validated_method',
             'title': 'Estudo com Diligência',
         },
+        headers=TRUSTED_ORIGIN,
     )
     process_id = resp.json()['id']
 
@@ -53,6 +56,7 @@ async def test_triage_decision_needs_revision_and_resubmission(
                 'study_protocol_file': 'protocolo_v1.pdf',
             }
         },
+        headers=TRUSTED_ORIGIN,
     )
 
     # 2. Triador issues NEEDS_REVISION
@@ -120,6 +124,7 @@ async def test_triage_decision_needs_revision_and_resubmission(
                 'study_protocol_file': 'protocolo_v2.pdf',
             }
         },
+        headers=TRUSTED_ORIGIN,
     )
     assert resubmit_resp.status_code == HTTPStatus.OK
     assert resubmit_resp.json()['run_number'] == 2

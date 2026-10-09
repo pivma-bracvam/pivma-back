@@ -504,6 +504,123 @@ class InstitutionalChangePublic(BaseModel):
 
 
 # ==========================================
+# TEMPLATES DE COLETA (Spec 041)
+# ==========================================
+
+CatalogText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)
+]
+ColumnType = Literal['text', 'integer', 'decimal', 'date', 'select']
+ColumnKey = Annotated[
+    str, StringConstraints(pattern=r'^[a-z][a-z0-9_]{0,63}$')
+]
+# Maior valor da coluna `Integer` do PostgreSQL.
+MAX_INTEGER = 2_147_483_647
+Minimum = Annotated[int, Field(ge=1, le=MAX_INTEGER)]
+ColumnPosition = Annotated[int, Field(ge=1, le=MAX_INTEGER)]
+
+
+class CollectionTemplateCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    name: CatalogText
+    description: str | None = None
+    min_experiments: Minimum = Field(description='Mínimo de experimentos')
+    min_replicates: Minimum = Field(description='Mínimo de réplicas')
+
+
+class CollectionTemplateColumnCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    key: ColumnKey = Field(description='Chave técnica, usada no cabeçalho')
+    label: CatalogText
+    type: ColumnType
+    required: bool = False
+    options: list[CatalogText] | None = Field(
+        default=None, description='Opções, só no tipo select'
+    )
+    position: ColumnPosition | None = Field(
+        default=None,
+        description='Posição; sem ela, a coluna vai para o fim',
+    )
+
+
+def _reject_nulls(model: BaseModel, nullable: frozenset[str]) -> None:
+    """No `PATCH`, `null` explícito só limpa os campos de `nullable`."""
+    if any(
+        getattr(model, field) is None
+        for field in model.model_fields_set - nullable
+    ):
+        raise ValueError('Campos de atualização não podem ser nulos.')
+
+
+class CollectionTemplateUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    name: CatalogText | None = None
+    description: str | None = None
+    min_experiments: Minimum | None = None
+    min_replicates: Minimum | None = None
+
+    @model_validator(mode='after')
+    def reject_nulls(self):
+        _reject_nulls(self, frozenset({'description'}))
+        return self
+
+
+class CollectionTemplateColumnUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    key: ColumnKey | None = None
+    label: CatalogText | None = None
+    type: ColumnType | None = None
+    required: bool | None = None
+    options: list[CatalogText] | None = Field(
+        default=None, description='`null` remove as opções'
+    )
+    position: ColumnPosition | None = None
+
+    @model_validator(mode='after')
+    def reject_nulls(self):
+        _reject_nulls(self, frozenset({'options'}))
+        return self
+
+
+class CollectionTemplateColumnPublic(BaseModel):
+    id: UUID
+    key: str
+    label: str
+    type: ColumnType
+    required: bool
+    options: list[str] | None
+    position: int
+
+
+class CollectionTemplateSummary(BaseModel):
+    id: UUID
+    name: str
+    description: str | None
+    min_experiments: int
+    min_replicates: int
+    locked: bool = Field(
+        description=(
+            'Estrutura travada: um processo vinculado concluiu a definição '
+            'das amostras'
+        )
+    )
+    created_by: UUID | None
+    created_at: datetime
+    updated_by: UUID | None
+    updated_at: datetime | None
+
+
+class CollectionTemplatePublic(CollectionTemplateSummary):
+    columns: list[CollectionTemplateColumnPublic] = Field(
+        description='Colunas ativas, por posição'
+    )
+
+
+# ==========================================
 # LISTAGENS (Spec 032)
 # ==========================================
 
@@ -603,6 +720,13 @@ class CreateProcessRequest(BaseModel):
     template_key: str = Field(min_length=1, max_length=64)
     title: str = Field(min_length=3, max_length=255)
     initial_notes: str | None = None
+    collection_template_id: UUID | None = Field(
+        default=None,
+        description=(
+            'Template de coleta do processo; exige '
+            'collection_templates.manage (Spec 041)'
+        ),
+    )
 
 
 # Spec 030: o processo expõe só o ciclo de vida; a posição no fluxo vem das
@@ -619,6 +743,9 @@ class ProcessInstanceDetail(BaseModel):
     started_at: datetime | None = None
     closed_at: datetime | None = None
     closure_reason: str | None = None
+    collection_template_id: UUID | None = Field(
+        default=None, description='Template de coleta vinculado'
+    )
     available_actions: list[Literal['DELETE', 'ARCHIVE']] = Field(
         default_factory=list
     )
@@ -1700,6 +1827,12 @@ class AffiliationListResponse(ListPage[AffiliationPublic, NoFilters]):
 
 class SelfAffiliationListResponse(ListPage[SelfAffiliationPublic, NoFilters]):
     """Afiliações ativas do usuário logado."""
+
+
+class CollectionTemplateListResponse(
+    ListPage[CollectionTemplateSummary, NoFilters]
+):
+    """Catálogo de templates de coleta, por nome (Spec 041)."""
 
 
 class InstitutionalChangeListResponse(

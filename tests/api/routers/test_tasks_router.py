@@ -7,6 +7,8 @@ from pivma.bootstrap_process_templates import bootstrap_all_templates
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
+TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
+
 
 @pytest.mark.asyncio
 async def test_list_and_filter_tasks(client, session):
@@ -23,6 +25,7 @@ async def test_list_and_filter_tasks(client, session):
             'template_key': 'pre_validated_method',
             'title': 'Processo para Teste de Tarefas',
         },
+        headers=TRUSTED_ORIGIN,
     )
     process_id = resp.json()['id']
 
@@ -75,6 +78,7 @@ async def test_task_listing_reflects_normalized_proponent_assigned_role(
             'template_key': 'pre_validated_method',
             'title': 'Processo para papel legado da tarefa',
         },
+        headers=TRUSTED_ORIGIN,
     )
     process_id = resp.json()['id']
 
@@ -108,6 +112,7 @@ async def test_task_due_date_is_populated_from_template_sla(client, session):
             'template_key': 'pre_validated_method',
             'title': 'Processo para Teste de Prazo',
         },
+        headers=TRUSTED_ORIGIN,
     )
     process_id = resp.json()['id']
 

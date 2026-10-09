@@ -10,6 +10,8 @@ from pivma.core.database.models import AuditEvent
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
+TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
+
 FLOW_STATUSES = {'SUBMISSION', 'AI_PRE_EVALUATION', 'TRIAGE', 'PLANNING'}
 VALUES = {'method_title': 'Ensaio RhCE para irritação'}
 
@@ -28,6 +30,7 @@ def _create(client, title='Processo 1'):
     response = client.post(
         '/processes',
         json={'template_key': 'pre_validated_method', 'title': title},
+        headers=TRUSTED_ORIGIN,
     )
     assert response.status_code == HTTPStatus.CREATED, response.text
     return response.json()
@@ -37,6 +40,7 @@ def _submit(client, pid):
     response = client.post(
         f'/processes/{pid}/activities/proposal_submission/form',
         json={'values': VALUES},
+        headers=TRUSTED_ORIGIN,
     )
     assert response.status_code == HTTPStatus.OK, response.text
     return response.json()
@@ -142,7 +146,9 @@ async def test_submission_update_after_submit_is_conflict(client, session):
     pid = _create(client)['id']
     _submit(client, pid)
 
-    response = client.patch(f'/processes/{pid}', json={'title': 'Novo'})
+    response = client.patch(
+        f'/processes/{pid}', json={'title': 'Novo'}, headers=TRUSTED_ORIGIN
+    )
 
     assert response.status_code == HTTPStatus.CONFLICT
 
@@ -172,11 +178,13 @@ async def test_delete_and_archive_audit_record_lifecycle_statuses(
     await _proponent(client, session)
     pid = _create(client)['id']
 
-    assert client.delete(f'/processes/{pid}').status_code == (
-        HTTPStatus.NO_CONTENT
-    )
+    assert client.delete(
+        f'/processes/{pid}', headers=TRUSTED_ORIGIN
+    ).status_code == (HTTPStatus.NO_CONTENT)
     authenticate(client, bracvam_user)
-    archived = client.patch(f'/processes/{pid}/archive')
+    archived = client.patch(
+        f'/processes/{pid}/archive', headers=TRUSTED_ORIGIN
+    )
     assert archived.status_code == HTTPStatus.OK, archived.text
 
     events = {

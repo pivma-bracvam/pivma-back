@@ -15,11 +15,14 @@ from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.participant_factory import grant_cargo
 from tests.factories.user_factory import UserFactory
 
+TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
+
 
 async def _create_process(client, *, template_key='pre_validated_method'):
     resp = client.post(
         '/processes',
         json={'template_key': template_key, 'title': 'Processo de teste'},
+        headers=TRUSTED_ORIGIN,
     )
     assert resp.status_code == HTTPStatus.CREATED
     return resp.json()['id']
@@ -86,6 +89,7 @@ def _submit(client, process_id):
     resp = client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json={'values': {'method_title': 'Título'}},
+        headers=TRUSTED_ORIGIN,
     )
     assert resp.status_code == HTTPStatus.OK, resp.text
 

@@ -6,7 +6,9 @@ Cada evento traz `event_type`, `user_id`, `activity_run_id`, `occurred_at` e
 `context_data`.
 
 Mudanças de perfis e do catálogo institucional não ficam aqui: elas têm os
-próprios históricos (`GET /rbac/changes`, `GET /institutional/changes`).
+próprios históricos (`GET /rbac/changes`, `GET /institutional/changes`). O
+catálogo de templates de coleta guarda só quem criou, alterou e excluiu cada
+registro, e quando.
 
 ## Quem vê cada evento
 
@@ -51,6 +53,7 @@ flowchart TD
 
 | Evento | `context_data` |
 |---|---|
+| `PROCESS_CREATED` | `code`, `title` e, se o processo nasce com template de coleta, `collection_template_id` |
 | `REVISION_REQUESTED` | `source`: `AI_PRE_EVALUATION` ou `TRIAGE` |
 | `PARTICIPANT_EFFECTIVENESS_LOST` / `_RESTORED` | `reason`: `affiliation_ended`, `laboratory_deactivated`, `institution_deactivated`, `affiliation_created` |
 | `LABORATORY_*` | `laboratory_id` |

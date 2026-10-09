@@ -8,6 +8,8 @@ from pivma.bootstrap_process_templates import bootstrap_all_templates
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
+TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
+
 
 @pytest.mark.asyncio
 async def test_process_timeline_events_recorded_and_ordered(
@@ -27,6 +29,7 @@ async def test_process_timeline_events_recorded_and_ordered(
             'template_key': 'pre_validated_method',
             'title': 'Processo para Teste de Linha do Tempo',
         },
+        headers=TRUSTED_ORIGIN,
     )
     process_id = resp.json()['id']
 
@@ -34,6 +37,7 @@ async def test_process_timeline_events_recorded_and_ordered(
     client.put(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json={'values': {'method_title': 'Rascunho Timeline'}},
+        headers=TRUSTED_ORIGIN,
     )
 
     # 3. Submit Form
@@ -50,6 +54,7 @@ async def test_process_timeline_events_recorded_and_ordered(
                 'study_protocol_file': 'protocolo.pdf',
             }
         },
+        headers=TRUSTED_ORIGIN,
     )
 
     # 4. Triador evaluates and approves
@@ -107,10 +112,12 @@ async def test_timeline_hides_events_of_activities_without_view(
     process_id = client.post(
         '/processes',
         json={'template_key': 'pre_validated_method', 'title': 'Timeline'},
+        headers=TRUSTED_ORIGIN,
     ).json()['id']
     client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json={'values': {'method_title': 'Método'}},
+        headers=TRUSTED_ORIGIN,
     )
     authenticate(client, bracvam_user)
     decision = client.post(

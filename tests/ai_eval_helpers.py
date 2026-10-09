@@ -81,10 +81,12 @@ def create_and_submit_process(client, *, values: dict | None = None) -> dict:
             'template_key': 'validated_method_dossier',
             'title': 'Estudo de Pré-avaliação',
         },
+        headers=TRUSTED_ORIGIN,
     ).json()['id']
     submit = client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json={'values': values or FULL_VALUES},
+        headers=TRUSTED_ORIGIN,
     )
     return {
         'process_id': process_id,

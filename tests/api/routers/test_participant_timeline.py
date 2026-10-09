@@ -69,6 +69,7 @@ async def setup_process_with_participants(session, client):
             'template_key': 'pre_validated_method',
             'title': 'Processo de timeline',
         },
+        headers=ORIGIN,
     )
     process_id = created.json()['id']
     create_participant(client, process_id, participant.id, 'peer_reviewer')

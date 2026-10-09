@@ -204,6 +204,7 @@ async def test_removing_field_prunes_its_assignments(
     edit = client.put(
         f'/processes/templates/pre_validated_method/forms/{TEMPLATE_KEY}',
         json={'fields': kept_fields},
+        headers=TRUSTED_ORIGIN,
     )
     assert edit.status_code == HTTPStatus.OK
 

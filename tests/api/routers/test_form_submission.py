@@ -21,6 +21,8 @@ from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.participant_factory import AssignmentFactory
 from tests.factories.user_factory import UserFactory
 
+TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
+
 
 @pytest.mark.asyncio
 async def test_form_draft_and_submission_flow(client, session):
@@ -37,6 +39,7 @@ async def test_form_draft_and_submission_flow(client, session):
             'template_key': 'pre_validated_method',
             'title': 'Estudo de Irritação Cutânea',
         },
+        headers=TRUSTED_ORIGIN,
     )
     assert resp.status_code == HTTPStatus.CREATED
     process_id = resp.json()['id']
@@ -56,6 +59,7 @@ async def test_form_draft_and_submission_flow(client, session):
     draft_resp = client.put(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json=draft_payload,
+        headers=TRUSTED_ORIGIN,
     )
     assert draft_resp.status_code == HTTPStatus.OK
 
@@ -69,6 +73,7 @@ async def test_form_draft_and_submission_flow(client, session):
     incomplete_resp = client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json={'values': {}},
+        headers=TRUSTED_ORIGIN,
     )
     assert incomplete_resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
@@ -77,6 +82,7 @@ async def test_form_draft_and_submission_flow(client, session):
     submit_resp = client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json=full_payload,
+        headers=TRUSTED_ORIGIN,
     )
     assert submit_resp.status_code == HTTPStatus.OK
     submit_data = submit_resp.json()
@@ -117,6 +123,7 @@ async def _create_submission(client, session, user):
             'template_key': 'pre_validated_method',
             'title': 'Submissão de teste',
         },
+        headers=TRUSTED_ORIGIN,
     )
     assert response.status_code == HTTPStatus.CREATED
     return response.json()['id']
@@ -130,13 +137,16 @@ async def test_draft_rejects_unknown_field_atomically(client, session):
 
     assert (
         client.put(
-            endpoint, json={'values': {'method_title': 'Anterior'}}
+            endpoint,
+            json={'values': {'method_title': 'Anterior'}},
+            headers=TRUSTED_ORIGIN,
         ).status_code
         == HTTPStatus.OK
     )
     response = client.put(
         endpoint,
         json={'values': {'method_title': 'Novo', 'unknown_field': 'x'}},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
@@ -200,7 +210,9 @@ async def test_draft_rejects_incompatible_values(
     await _add_typed_fields(session)
     endpoint = f'/processes/{process_id}/activities/proposal_submission/form'
 
-    response = client.put(endpoint, json={'values': {field_key: value}})
+    response = client.put(
+        endpoint, json={'values': {field_key: value}}, headers=TRUSTED_ORIGIN
+    )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert response.json()['detail']['fields'][0]['code'] == error_code
@@ -241,6 +253,7 @@ async def test_draft_persists_false_and_zero_from_dynamic_fields(
     response = client.put(
         endpoint,
         json={'values': {'is_reproducible': False, 'optional_count': 0}},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -277,6 +290,7 @@ async def test_draft_rejects_inline_file_upload_value_without_persisting(
     response = client.put(
         endpoint,
         json={'values': {'protocol_file': 'protocol.pdf'}},
+        headers=TRUSTED_ORIGIN,
     )
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
@@ -302,8 +316,9 @@ async def test_submission_resources_are_hidden_from_non_proponent(
         f'/processes/{process_id}/activities/proposal_submission/form',
     ]
     responses = [client.get(url) for url in urls]
-    responses.append(client.put(urls[-1], json={'values': {}}))
-    responses.append(client.post(urls[-1], json={'values': {}}))
+    body = {'values': {}}
+    responses.append(client.put(urls[-1], json=body, headers=TRUSTED_ORIGIN))
+    responses.append(client.post(urls[-1], json=body, headers=TRUSTED_ORIGIN))
 
     assert [response.status_code for response in responses] == [
         HTTPStatus.NOT_FOUND
@@ -328,7 +343,9 @@ async def test_revoked_proponent_cannot_read_or_write_form(client, session):
 
     assert client.get(endpoint).status_code == HTTPStatus.NOT_FOUND
     assert (
-        client.put(endpoint, json={'values': {}}).status_code
+        client.put(
+            endpoint, json={'values': {}}, headers=TRUSTED_ORIGIN
+        ).status_code
         == HTTPStatus.NOT_FOUND
     )
 
@@ -341,8 +358,16 @@ async def test_draft_replaces_existing_value_and_records_author(
     process_id = await _create_submission(client, session, owner)
     endpoint = f'/processes/{process_id}/activities/proposal_submission/form'
 
-    client.put(endpoint, json={'values': {'method_title': 'Versão 1'}})
-    client.put(endpoint, json={'values': {'method_title': 'Versão 2'}})
+    client.put(
+        endpoint,
+        json={'values': {'method_title': 'Versão 1'}},
+        headers=TRUSTED_ORIGIN,
+    )
+    client.put(
+        endpoint,
+        json={'values': {'method_title': 'Versão 2'}},
+        headers=TRUSTED_ORIGIN,
+    )
 
     values = client.get(endpoint).json()['values']
     event = await session.scalar(
@@ -363,8 +388,16 @@ async def test_draft_null_clears_existing_value(client, session):
     process_id = await _create_submission(client, session, owner)
     endpoint = f'/processes/{process_id}/activities/proposal_submission/form'
 
-    client.put(endpoint, json={'values': {'method_title': 'A limpar'}})
-    response = client.put(endpoint, json={'values': {'method_title': None}})
+    client.put(
+        endpoint,
+        json={'values': {'method_title': 'A limpar'}},
+        headers=TRUSTED_ORIGIN,
+    )
+    response = client.put(
+        endpoint,
+        json={'values': {'method_title': None}},
+        headers=TRUSTED_ORIGIN,
+    )
 
     assert response.status_code == HTTPStatus.OK
     assert client.get(endpoint).json()['values']['method_title'] is None
@@ -413,7 +446,9 @@ async def test_active_participant_with_other_role_cannot_save_draft(
 
     authenticate(client, other_user)
 
-    response = client.put(endpoint, json={'values': {}})
+    response = client.put(
+        endpoint, json={'values': {}}, headers=TRUSTED_ORIGIN
+    )
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
@@ -514,6 +549,7 @@ async def test_all_five_process_forms_definitions_and_submissions(
             'template_key': template_key,
             'title': f'Processo {template_key}',
         },
+        headers=TRUSTED_ORIGIN,
     )
     assert resp.status_code == HTTPStatus.CREATED
     process_id = resp.json()['id']
@@ -526,7 +562,9 @@ async def test_all_five_process_forms_definitions_and_submissions(
     assert form_data['template_key'] == expected_form_key
 
     # 3. Submit form
-    submit_resp = client.post(endpoint, json={'values': valid_values})
+    submit_resp = client.post(
+        endpoint, json={'values': valid_values}, headers=TRUSTED_ORIGIN
+    )
     assert submit_resp.status_code == HTTPStatus.OK
     submit_data = submit_resp.json()
     assert submit_data['status'] == 'COMPLETED'

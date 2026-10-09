@@ -34,16 +34,9 @@ disparar uma mutação em nome do usuário. Duas barreiras:
 Requisições só com `Bearer` dispensam a checagem, porque o navegador nunca
 anexa esse cabeçalho sozinho.
 
-!!! warning "Rotas sem checagem de origem"
-    Estas mutações aceitam cookie sem checar a origem; dependem só do
-    `SameSite=Strict`:
-
-    - `POST /processes`, `PUT`/`PATCH`/`DELETE /processes/{id}`, `PATCH /processes/{id}/archive`
-    - `PUT`/`POST /processes/{id}/activities/{activity_key}/form`
-    - `PUT /processes/templates/{key}/forms/{form_key}`
-
-    As rotas públicas (`POST /users`, login, recuperação de senha) também não
-    checam, por não usarem sessão.
+Todas as mutações com sessão checam a origem. Só as rotas públicas
+(`POST /users`, login e recuperação de senha) não checam, porque não usam
+sessão.
 
 ## Senhas
 

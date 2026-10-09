@@ -9,6 +9,8 @@ from pivma.core.database.models import Assignment, AuditEvent
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
+TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
+
 
 @pytest.mark.asyncio
 async def test_list_and_get_process_templates(client, session):
@@ -59,7 +61,9 @@ async def test_create_and_list_process_instances(client, session):
         'template_key': 'pre_validated_method',
         'title': 'Validação de Teste In Vitro',
     }
-    resp = client.post('/processes', json=create_payload)
+    resp = client.post(
+        '/processes', json=create_payload, headers=TRUSTED_ORIGIN
+    )
     assert resp.status_code == HTTPStatus.CREATED
     data = resp.json()
     assert data['code'].startswith('VAL-')
@@ -95,6 +99,7 @@ async def test_process_creation_keeps_a_single_local_proponent_assignment(
             'template_key': 'pre_validated_method',
             'title': 'Processo com proponente local',
         },
+        headers=TRUSTED_ORIGIN,
     )
     process_id = UUID(resp.json()['id'])
 
@@ -125,6 +130,7 @@ async def test_process_creation_records_participant_assigned_for_proponent(
             'template_key': 'pre_validated_method',
             'title': 'Processo com evento de designação',
         },
+        headers=TRUSTED_ORIGIN,
     )
     process_id = UUID(resp.json()['id'])
 
@@ -153,6 +159,7 @@ async def test_process_list_is_scoped_to_active_proponent(client, session):
             'template_key': 'pre_validated_method',
             'title': 'Processo do dono',
         },
+        headers=TRUSTED_ORIGIN,
     )
     process_id = created.json()['id']
 

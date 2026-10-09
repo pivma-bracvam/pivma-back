@@ -89,10 +89,12 @@ async def test_phase1_completed_after_triage_approval(
     pid = client.post(
         '/processes',
         json={'template_key': 'pre_validated_method', 'title': 'Processo 1'},
+        headers=ORIGIN,
     ).json()['id']
     client.post(
         f'/processes/{pid}/activities/proposal_submission/form',
         json={'values': {'method_title': 'Método'}},
+        headers=ORIGIN,
     )
     authenticate(client, bracvam_user)
     decision = client.post(

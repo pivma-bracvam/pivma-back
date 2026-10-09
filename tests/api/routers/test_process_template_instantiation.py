@@ -7,6 +7,8 @@ from pivma.core.database.models import AccessProfile, UserAccessProfile
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
+TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
+
 
 @pytest.mark.asyncio
 async def test_process_instantiation_reflects_updated_form_template(  # noqa: PLR0914, PLR0915
@@ -40,6 +42,7 @@ async def test_process_instantiation_reflects_updated_form_template(  # noqa: PL
             'template_key': 'pre_validated_method',
             'title': 'Processo Legado 1',
         },
+        headers=TRUSTED_ORIGIN,
     )
     assert res_p1.status_code == HTTPStatus.CREATED
     p1_id = res_p1.json()['id']
@@ -84,6 +87,7 @@ async def test_process_instantiation_reflects_updated_form_template(  # noqa: PL
     res_update = client.put(
         '/processes/templates/pre_validated_method/forms/submission_pre_validated_v1',
         json=update_payload,
+        headers=TRUSTED_ORIGIN,
     )
     assert res_update.status_code == HTTPStatus.OK
 
@@ -95,6 +99,7 @@ async def test_process_instantiation_reflects_updated_form_template(  # noqa: PL
             'template_key': 'pre_validated_method',
             'title': 'Processo Novo Pós-Customização',
         },
+        headers=TRUSTED_ORIGIN,
     )
     assert res_p2.status_code == HTTPStatus.CREATED
     p2_id = res_p2.json()['id']
@@ -124,6 +129,7 @@ async def test_process_instantiation_reflects_updated_form_template(  # noqa: PL
                 'regulatory_bpl_dossier': bpl_text,
             }
         },
+        headers=TRUSTED_ORIGIN,
     )
     assert res_draft.status_code == HTTPStatus.OK
 

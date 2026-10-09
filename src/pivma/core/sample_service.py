@@ -863,6 +863,14 @@ async def complete_sample_definition(
     )
     await _complete_activity_run(session, run, act, user_id)
     process = await session.get(ProcessInstance, process_id)
+    if process.collection_template_id is not None:
+        # Serializa com as alterações estruturais do template (Spec 041,
+        # FR-019). Import local: o serviço do template importa este módulo.
+        from pivma.core.collection_template_service import (  # noqa: PLC0415
+            lock_template_row,
+        )
+
+        await lock_template_row(session, process.collection_template_id)
     await _advance_dependent_activities(session, process, act, user_id)
     await session.commit()
     return {

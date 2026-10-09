@@ -31,6 +31,7 @@ GROUPS = {
     'Role Assignment Invites': 'Aceite de convite',
     'Tasks': 'Tarefas',
     'Samples': 'Amostras cegas',
+    'collection-templates': 'Templates de coleta',
     'Laboratory Runs': 'Execução por laboratório',
 }
 

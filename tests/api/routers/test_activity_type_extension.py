@@ -29,6 +29,8 @@ from pivma.core.database.models import (
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
+TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
+
 
 @pytest.mark.asyncio
 async def test_template_detail_declares_both_phases_with_activity_type(
@@ -151,6 +153,7 @@ async def test_role_assignment_activities_unlock_on_triage_approval(
             'template_key': 'validated_method_dossier',
             'title': 'Dossiê com Fase 2 de atribuição de cargo',
         },
+        headers=TRUSTED_ORIGIN,
     )
     assert resp.status_code == HTTPStatus.CREATED
     process_id = resp.json()['id']
@@ -167,6 +170,7 @@ async def test_role_assignment_activities_unlock_on_triage_approval(
                 ),
             }
         },
+        headers=TRUSTED_ORIGIN,
     )
 
     # 2. A Fase 2 ainda não existe como tarefa (dependência não satisfeita).

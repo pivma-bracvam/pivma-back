@@ -8,6 +8,8 @@ from pivma.bootstrap_process_templates import bootstrap_all_templates
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
+TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
+
 
 @pytest.mark.asyncio
 async def test_triage_field_review_flow(client, session, bracvam_user):
@@ -25,6 +27,7 @@ async def test_triage_field_review_flow(client, session, bracvam_user):
             'template_key': 'validated_method_dossier',
             'title': 'Estudo de Triagem e Revisão',
         },
+        headers=TRUSTED_ORIGIN,
     )
     process_id = resp.json()['id']
 
@@ -39,6 +42,7 @@ async def test_triage_field_review_flow(client, session, bracvam_user):
     client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json=full_payload,
+        headers=TRUSTED_ORIGIN,
     )
 
     # 2. Triador submits field reviews
