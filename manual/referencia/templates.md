@@ -27,7 +27,7 @@ flowchart TD
         AG[assign_group_manager] --> AX[assign_sample_selection_group<br/>assign_lead_laboratory<br/>assign_participating_laboratory<br/>assign_statistician<br/>assign_collaborator<br/>assign_adhoc_evaluator]
         AX --> SD[sample_definition]
     end
-    subgraph F3[Etapa 3: Execução da Validação]
+    subgraph F3[Fase 3: Execução da Validação]
         SR[sample_receipt<br/>por laboratório]
         RS[sample_receipt_resolution<br/>sample_selection_group]
     end

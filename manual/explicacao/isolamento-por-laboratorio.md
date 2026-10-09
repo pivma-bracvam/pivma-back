@@ -6,9 +6,9 @@ executada uma vez por laboratório, e cada execução só é visível ao própri
 laboratório e ao gestor do processo.
 
 !!! note "Estado atual"
-    O motor está pronto, mas nenhum template padrão declara atividades por
-    laboratório. As atividades da Etapa 3 (recebimento, execução, resultados)
-    ainda não existem.
+    Nos templates padrão, `sample_receipt` é a única atividade por
+    laboratório. As atividades de execução do ensaio e de envio de resultados
+    não existem.
 
 ## Como uma atividade vira "por laboratório"
 
@@ -91,5 +91,6 @@ flowchart LR
 ## O que ainda falta
 
 - Formulários em atividade por laboratório respondem `409 invalid_transition`.
-- Não há rota HTTP para concluir a execução de um laboratório: as próximas
-  atividades vão chamar a função `complete_laboratory_run` do motor.
+- Não há rota HTTP genérica para concluir a execução de um laboratório. O
+  recebimento conclui a sua quando o lote do laboratório fica completo; uma
+  nova atividade por laboratório precisa da própria regra de conclusão.

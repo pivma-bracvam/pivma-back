@@ -79,11 +79,19 @@ designação e não há convite pendente para ele. `sample_definition` abre
 quando o Grupo de Seleção de Amostras e os laboratórios participantes estão
 designados. Detalhes em [Templates de processo](../referencia/templates.md).
 
-## Etapa 3: execução por laboratório
+## Fase 3: execução da validação
 
-O motor já suporta atividades executadas por laboratório, mas nenhum template
-as declara ainda. Veja
-[Isolamento por laboratório](isolamento-por-laboratorio.md).
+A conclusão de `sample_definition` abre `sample_receipt`, que cada laboratório
+participante executa à parte. A execução de um laboratório fecha quando o lote
+dele fica completo. Se um frasco chega fora de ordem, o motor abre
+`sample_receipt_resolution` para o Grupo de Seleção de Amostras decidir. Veja
+[Isolamento por laboratório](isolamento-por-laboratorio.md) e
+[Receber amostras](../guias/receber-amostras.md).
+
+`sample_receipt` é a última atividade dos templates. Nenhuma atividade de
+ensaio, envio de resultados, estatística ou avaliação ad hoc vem depois dela.
+Quando todos os laboratórios fecham o recebimento, o processo continua `OPEN`
+e sem tarefa pendente.
 
 ## Encerramento
 
@@ -94,4 +102,6 @@ as declara ainda. Veja
 | Excluir | Proponente ou Admin/BraCVAM, com o processo `OPEN` | `CANCELLED`; fases, atividades, execuções, tarefas e pré-avaliações abertas são canceladas; documentos ficam |
 | Arquivar | Quem tem `triage.review`, sem conflito de interesse | `ARCHIVED`, a partir de `CLOSED` ou `CANCELLED` |
 
-Processo encerrado não aceita mutações (`409`).
+Processo encerrado não aceita mutações (`409`). Nenhuma ação encerra o
+processo por conclusão da validação: os únicos caminhos para `CLOSED` são a
+rejeição na triagem e a desistência do proponente.
