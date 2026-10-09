@@ -44,6 +44,10 @@ Decisões menores, também vigentes:
 - **Posição da coluna**: inteiro maior ou igual a 1, único dentro do template. Sem posição informada, a coluna vai para o fim. Reordenar fica fora de escopo.
 - **Chave técnica**: deve casar com `^[a-z][a-z0-9_]{0,63}$` e ser única dentro do template.
 - **CSV gerado**: UTF-8 com BOM e separador `;`. O arquivo-modelo traz só o cabeçalho, em CSV e em Excel, sem validação de lista no Excel.
+- **Vínculo na criação do processo**: só quem tem a permissão de gestão do catálogo informa `collection_template_id` em `POST /processes`. Os demais recebem 403 ao enviar o campo; sem o campo, a criação segue aberta (usuário, 2026-10-09).
+- **Leitura do catálogo**: listar, consultar e baixar o arquivo-modelo exigem a mesma permissão. O acesso do laboratório ao arquivo-modelo do seu processo fica para a #30 (usuário, 2026-10-09).
+- **Cabeçalho do arquivo-modelo**: as colunas vêm identificadas pela chave técnica. O rótulo aparece só na consulta do template (usuário, 2026-10-09).
+- **Origem confiável em processos**: as seis rotas de escrita de `routers/processes.py` (criar, substituir, alterar, excluir e arquivar processo, e alterar a definição de formulário do template de processo) e as duas de formulário de atividade em `routers/forms.py` (salvar rascunho e enviar) passam a exigir `Origin` confiável quando a sessão vem do cookie, como manda a constituição (III). A revisão desta entrega apontou a falta em `POST /processes` (usuário, 2026-10-09).
 
 ### GLOSSÁRIO
 
@@ -58,4 +62,4 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 ### PENDÊNCIAS
 
 - Colunas derivadas e semântica de "ensaios fracassados" (decisão 4): decidir quando a #30 ou outra issue as exigir.
-- A #30 passa a exigir que o processo tenha template de coleta vinculado.
+- A #30 passa a exigir que o processo tenha template de coleta vinculado. Um processo criado por proponente sem a permissão de gestão do catálogo fica sem vínculo, e nenhuma rota o vincula depois. A #30 precisa decidir como esse processo recebe o template. A decisão bloqueia a jornada do proponente na #30 e deve sair antes de ela começar.
