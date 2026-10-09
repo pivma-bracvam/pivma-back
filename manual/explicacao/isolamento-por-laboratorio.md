@@ -63,6 +63,10 @@ flowchart LR
 | `group_manager` efetivo | Sim | `403` |
 | Admin, BraCVAM | Sim | Só se o template der edição a `admin`/`bracvam` |
 
+- Exceção do recebimento: o `sample_selection_group` lê as inconformidades e
+  as fotos do registro de cada laboratório, com o laboratório identificado,
+  porque decide a inconformidade. Veja
+  [Receber amostras](../guias/receber-amostras.md).
 - O `404` de outro laboratório é idêntico ao de uma execução inexistente.
 - `lead_laboratory` não dá acesso a execução nenhuma, nem à do próprio
   laboratório. Quem é líder por um laboratório e participante por outro vê só
