@@ -43,6 +43,7 @@ reprocessar pré-avaliação e os logs administrativos.
 | `ai_evaluations.manage` | Configurar, testar, publicar e associar avaliações |
 | `triage.review` | Parecer por campo, decisão de triagem, retorno sobre a IA, arquivamento |
 | `form_templates.manage` | Editar campos, nome e descrição de formulários |
+| `collection_templates.manage` | Gerir os templates de coleta e baixar o arquivo-modelo; informar `collection_template_id` em `POST /processes` |
 
 O catálogo de permissões só muda por migração.
 

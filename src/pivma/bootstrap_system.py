@@ -140,20 +140,31 @@ CANONICAL_PERMISSIONS = [
             'descrição).'
         ),
     },
+    {
+        # Mesmo UUID da migration `e8a4c2f61b37` (Spec 041).
+        'id': UUID('00000000-0000-0000-0000-00000000010e'),
+        'code': 'collection_templates.manage',
+        'description': (
+            'Gerir o catálogo de templates de coleta de dados (colunas, '
+            'mínimos e arquivo-modelo).'
+        ),
+    },
 ]
 
 # Regras de associação perfil -> códigos de permissão
 PROFILE_PERMISSION_MAPPINGS: dict[str, list[str]] = {
     # Administrador tem acesso a todas as permissões
     ADMINISTRATOR_SYSTEM_KEY: [p['code'] for p in CANONICAL_PERMISSIONS],
-    # BraCVAM tem acesso às permissões operacionais de triagem, IA e edição
-    # de formulários (Issue #39, PR #47) — não a `rbac.read` nem a nomes de
-    # perfil, os dois critérios indevidos fechados por essa correção.
+    # BraCVAM tem acesso às permissões operacionais de triagem, IA, edição
+    # de formulários (Issue #39, PR #47) e catálogo de templates de coleta
+    # (Spec 041) — não a `rbac.read` nem a nomes de perfil, os dois
+    # critérios indevidos fechados pela Issue #39.
     'bracvam': [
         'triage.review',
         'ai_evaluations.read',
         'ai_evaluations.manage',
         'form_templates.manage',
+        'collection_templates.manage',
     ],
 }
 

@@ -68,6 +68,11 @@ cada grupo).
 | 409 | `vial_already_registered` | Segundo registro de recebimento do mesmo frasco |
 | 409 | `already_decided` | Decisão sobre inconformidade já decidida |
 | 409 | `no_reserve_vials` | Reenvio de frasco com a reserva da substância em zero |
+| 409 | `duplicate_key` | Chave repetida entre as colunas ativas do template de coleta |
+| 409 | `reserved_key` | Coluna com `codigo_amostra`, `experimento` ou `replica` como chave |
+| 409 | `position_taken` | Posição ocupada por outra coluna ativa do template de coleta |
+| 409 | `position_limit_reached` | Coluna sem posição quando a última coluna ativa já está em 2147483647 |
+| 409 | `template_locked` | Mudança estrutural em template de coleta travado (colunas ou mínimos) |
 | 413 | `payload_too_large` | Corpo grande demais |
 | 413 | `file_too_large` | Anexo acima de `ATTACHMENT_MAX_SIZE_MB` |
 | 422 | `validation_error` | Entrada inválida (com `fields`) |
@@ -81,6 +86,7 @@ cada grupo).
 | 422 | `missing_sds` | Concluir amostras com substância sem SDS (com `substance_ids`) |
 | 422 | `no_laboratories` | Concluir amostras sem laboratório participante |
 | 422 | `laboratory_not_frozen` | Dispensar laboratório fora do conjunto congelado |
+| 422 | `invalid_options` | Coluna `select` sem opções ou com opção repetida; outro tipo com opções |
 | 500 | `internal_error` | Erro inesperado. O detalhe vai só para o log |
 | 503 | `service_unavailable` | Dependência indisponível |
 | 503 | `ai_unavailable` | Provedor de IA falhou ao sugerir critérios ou testar uma versão |

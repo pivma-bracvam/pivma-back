@@ -12,6 +12,7 @@ from pivma.routers import (
     admin_logs,
     ai_evaluations,
     auth,
+    collection_templates,
     forms,
     institutional,
     invites,
@@ -77,6 +78,7 @@ app.include_router(return_review.router)
 app.include_router(samples.router)
 app.include_router(sample_receipt.router)
 app.include_router(laboratory_runs.router)
+app.include_router(collection_templates.router)
 
 
 @app.get('/')

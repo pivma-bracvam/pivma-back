@@ -537,6 +537,88 @@ class FormField(AuditMixin):
 
 
 @table_registry.mapped_as_dataclass
+class CollectionTemplate(AuditMixin):
+    """Template de coleta de dados do catálogo global (Spec 041).
+
+    O travamento estrutural não fica gravado: deriva dos processos
+    vinculados com a definição das amostras concluída.
+    """
+
+    __tablename__ = 'collection_templates'
+    __table_args__ = (
+        CheckConstraint(
+            'min_experiments >= 1',
+            name='ck_collection_templates_min_experiments',
+        ),
+        CheckConstraint(
+            'min_replicates >= 1',
+            name='ck_collection_templates_min_replicates',
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    name: Mapped[str] = mapped_column(String(255))
+    min_experiments: Mapped[int] = mapped_column(Integer)
+    min_replicates: Mapped[int] = mapped_column(Integer)
+    description: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+
+
+@table_registry.mapped_as_dataclass
+class CollectionTemplateColumn(AuditMixin):
+    """Coluna de um template de coleta (Spec 041); a exclusão é lógica."""
+
+    __tablename__ = 'collection_template_columns'
+    __table_args__ = (
+        CheckConstraint(
+            "column_type IN ('text', 'integer', 'decimal', 'date', 'select')",
+            name='ck_collection_template_columns_type',
+        ),
+        CheckConstraint(
+            'position >= 1', name='ck_collection_template_columns_position'
+        ),
+        Index(
+            'uq_collection_template_columns_key_active',
+            'collection_template_id',
+            'key',
+            unique=True,
+            postgresql_where=column('deleted_at').is_(None),
+        ),
+        Index(
+            'uq_collection_template_columns_position_active',
+            'collection_template_id',
+            'position',
+            unique=True,
+            postgresql_where=column('deleted_at').is_(None),
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    collection_template_id: Mapped[UUID] = mapped_column(
+        ForeignKey('collection_templates.id')
+    )
+    label: Mapped[str] = mapped_column(String(255))
+    key: Mapped[str] = mapped_column(String(64))
+    column_type: Mapped[str] = mapped_column(String(16))
+    position: Mapped[int] = mapped_column(Integer)
+    required: Mapped[bool] = mapped_column(Boolean, default=False)
+    options: Mapped[list[str] | None] = mapped_column(
+        JSONB, nullable=True, default=None
+    )
+
+
+@table_registry.mapped_as_dataclass
 class ProcessInstance(AuditMixin):
     __tablename__ = 'process_instances'
     # Spec 030: o processo guarda só o ciclo de vida; a posição no fluxo
@@ -568,6 +650,13 @@ class ProcessInstance(AuditMixin):
     )
     closure_reason: Mapped[str | None] = mapped_column(
         Text, nullable=True, default=None
+    )
+    # Spec 041: gravado só na criação do processo.
+    collection_template_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey('collection_templates.id'),
+        nullable=True,
+        default=None,
+        index=True,
     )
 
     template_version: Mapped[ProcessTemplateVersion] = relationship(

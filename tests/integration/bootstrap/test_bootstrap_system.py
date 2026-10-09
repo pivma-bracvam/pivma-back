@@ -18,9 +18,10 @@ from pivma.core.database.models import (
     ProcessInstance,
 )
 
-# Permissões operacionais do BraCVAM: triagem, IA (leitura + gestão) e
-# edição de formulários (Issue #39, PR #47).
-_BRACVAM_PERMISSION_COUNT = 4
+# Permissões operacionais do BraCVAM: triagem, IA (leitura + gestão),
+# edição de formulários (Issue #39, PR #47) e catálogo de templates de
+# coleta (Spec 041).
+_BRACVAM_PERMISSION_COUNT = 5
 
 
 @pytest.mark.asyncio
@@ -39,6 +40,7 @@ async def test_bootstrap_system_provisions_catalog_and_is_idempotent(session):
     # Validação das permissões
     canonical_codes = {p['code'] for p in CANONICAL_PERMISSIONS}
     assert set(permissions.keys()) == canonical_codes
+    assert 'collection_templates.manage' in canonical_codes
 
     # Validação da composição do Administrador (todas as permissões
     # canônicas)
@@ -52,8 +54,9 @@ async def test_bootstrap_system_provisions_catalog_and_is_idempotent(session):
     )
     assert admin_perms_count == len(CANONICAL_PERMISSIONS)
 
-    # Validação da composição do BraCVAM (4 permissões operacionais,
-    # incluindo `form_templates.manage` — Issue #39, PR #47)
+    # Validação da composição do BraCVAM (5 permissões operacionais,
+    # incluindo `form_templates.manage` — Issue #39, PR #47 — e
+    # `collection_templates.manage` — Spec 041)
     bracvam_perms = set(
         await session.scalars(
             select(Permission.code)
@@ -72,6 +75,7 @@ async def test_bootstrap_system_provisions_catalog_and_is_idempotent(session):
         'ai_evaluations.read',
         'ai_evaluations.manage',
         'form_templates.manage',
+        'collection_templates.manage',
     }
 
     # Validação de que nenhum processo é criado no bootstrap

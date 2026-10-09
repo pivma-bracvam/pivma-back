@@ -76,7 +76,7 @@ flowchart LR
 | RF | Requisito | Estado | Como |
 |---|---|---|---|
 | RF035 | Configuração do ensaio | Não | |
-| RF036 | Formulários dinâmicos | Sim | Mesmo motor de formulários e editor de campos |
+| RF036 | Formulários dinâmicos | Sim | Mesmo motor de formulários e editor de campos; templates de coleta definem as colunas do arquivo de resultados e o arquivo-modelo em CSV e Excel |
 | RF037 | Gestão dos laboratórios | Sim | Catálogo, vínculos e designação de laboratórios |
 | RF038 | Codificação de amostras | Sim | Substâncias com gabarito, faixa térmica, frasco, reserva e GHS; SDS; sugestões pelo PubChem; códigos cegos por laboratório; etiquetas com QR |
 | RF039 | Despacho | Não | |
@@ -88,6 +88,11 @@ flowchart LR
 | RF045 | Submissão dos resultados | Não | |
 | RF046 | Monitoramento interlaboratorial | Parcial | Gestor vê as tarefas de todos os laboratórios; o Grupo de Seleção vê as inconformidades do recebimento; sem painel de recebimento ou resultados |
 | RF047 | Reprodutibilidade | Não | |
+
+O template de coleta não tem colunas calculadas, registro de ensaio
+fracassado, reordenação em lote nem exclusão do template. Só quem tem
+`collection_templates.manage` baixa o arquivo-modelo; o laboratório não o
+baixa nem envia resultados (RF042).
 
 ## Avaliação ad hoc, estatística e conclusão (RF048–RF062)
 

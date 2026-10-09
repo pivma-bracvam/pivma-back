@@ -722,6 +722,7 @@ async def instantiate_process(
     template_version: ProcessTemplateVersion,
     title: str,
     creator_user_id: UUID,
+    collection_template_id: UUID | None = None,
 ) -> ProcessInstance:
     code = await generate_process_code(session)
     payload = template_version.definition_payload
@@ -732,6 +733,7 @@ async def instantiate_process(
         title=title,
         status=STATUS_OPEN,
         started_at=utc_now(),
+        collection_template_id=collection_template_id,
     )
     process.set_creation_audit(creator_user_id)
     session.add(process)
@@ -750,12 +752,15 @@ async def instantiate_process(
     assignment.set_creation_audit(creator_user_id)
     session.add(assignment)
 
+    created_context = {'code': code, 'title': title}
+    if collection_template_id is not None:
+        created_context['collection_template_id'] = str(collection_template_id)
     session.add(
         AuditEvent(
             process_instance_id=process.id,
             user_id=creator_user_id,
             event_type='PROCESS_CREATED',
-            context_data={'code': code, 'title': title},
+            context_data=created_context,
         )
     )
     session.add(

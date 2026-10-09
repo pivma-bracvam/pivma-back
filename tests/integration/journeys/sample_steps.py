@@ -56,18 +56,23 @@ def _designate(client, process_id, user, role_key, laboratory=None):
     )
 
 
-def open_sample_definition(client, team, bracvam_user) -> str:
-    """Submissão, triagem aprovada e designações: amostras em andamento."""
+def open_sample_definition(
+    client, team, bracvam_user, collection_template_id=None
+) -> str:
+    """Submissão, triagem aprovada e designações: amostras em andamento.
+
+    Com `collection_template_id`, o proponente vincula o template de coleta
+    ao criar o processo (Spec 041).
+    """
     authenticate(client, team.proponent)
+    body = {
+        'template_key': 'pre_validated_method',
+        'title': 'Estudo cego de irritação ocular',
+    }
+    if collection_template_id is not None:
+        body['collection_template_id'] = collection_template_id
     process_id = ok(
-        client.post(
-            '/processes',
-            json={
-                'template_key': 'pre_validated_method',
-                'title': 'Estudo cego de irritação ocular',
-            },
-            headers=ORIGIN,
-        ),
+        client.post('/processes', json=body, headers=ORIGIN),
         HTTPStatus.CREATED,
     )['id']
     ok(
