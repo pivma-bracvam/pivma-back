@@ -22,6 +22,9 @@ Além das permissões, Administrador e BraCVAM:
 - veem todos os processos e todas as atividades;
 - têm os cargos `admin` e `bracvam` em toda atividade, o que só dá edição onde
   o template lista esses cargos em `edit`.
+- Só o cargo `bracvam` edita a triagem, as atribuições de colaborador e de
+  avaliador ad hoc e a homologação da estrutura (`structure_approval`). O
+  Admin vê o painel da homologação, mas não decide (`403`).
 
 Rotas exclusivas do perfil Administrador (`403 admin_only` para os demais):
 reprocessar pré-avaliação e os logs administrativos.

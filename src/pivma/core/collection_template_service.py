@@ -1,14 +1,15 @@
 """Catálogo de templates de coleta de dados (Spec 041, issue #26).
 
 O template define as colunas do arquivo de resultados da Etapa 3 e os
-mínimos de experimentos e réplicas. A estrutura trava quando um processo
-vinculado conclui a definição das amostras; o travamento é calculado por
-consulta, sem marcador gravado (research R2).
+mínimos de experimentos e réplicas. A estrutura trava quando a Etapa 3 de um
+processo vinculado começa (Spec 042, research R9); o travamento é calculado
+por consulta, sem marcador gravado (research R2).
 
-Toda alteração estrutural trava antes a linha do template, a mesma que
-``sample_service.complete_sample_definition`` trava antes de concluir: as
-duas operações se serializam (FR-019, research R4). Sob essa trava, as
-regras de chave e posição não têm corrida (research R5).
+Toda alteração estrutural trava antes a linha do template, a mesma que os
+dois caminhos que abrem a Etapa 3 travam: a aprovação da homologação da
+estrutura e, nos processos das versões anteriores do template, a conclusão
+das amostras. As operações se serializam (FR-019, research R4). Sob essa
+trava, as regras de chave e posição não têm corrida (research R5).
 """
 
 import csv
@@ -22,8 +23,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pivma.core.database.models import (
     ActivityInstance,
+    ActivityRun,
     CollectionTemplate,
     CollectionTemplateColumn,
+    Phase,
     ProcessInstance,
 )
 from pivma.core.process_engine import (
@@ -31,7 +34,6 @@ from pivma.core.process_engine import (
     NotFoundError,
     ValidationError,
 )
-from pivma.core.sample_service import SAMPLE_ACTIVITY_KEY
 from pivma.schemas import MAX_INTEGER
 
 # Colunas fixas do arquivo, na ordem do cabeçalho.
@@ -42,6 +44,7 @@ XLSX_MEDIA_TYPE = (
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 )
 XLSX_SHEET_TITLE = 'resultados'
+STAGE_3_PHASE_KEY = 'phase_3_validation_execution'
 
 
 # ---------------------------------------------------------------------------
@@ -77,24 +80,26 @@ async def active_columns(
 async def locked_template_ids(
     session: AsyncSession, template_ids: list[UUID]
 ) -> set[UUID]:
-    """Templates com um processo vinculado que concluiu as amostras.
+    """Templates com um processo vinculado cuja Etapa 3 começou.
 
-    Conta também os processos excluídos: a exclusão não reabre a definição
-    das amostras, e o template não destrava (FR-017, research R2).
+    A Etapa 3 começa quando abre a primeira execução de uma atividade da
+    fase 3 (research R9). As execuções não somem: o template continua
+    travado depois que o processo termina ou é excluído (FR-017, research
+    R2). Excluir o processo antes da Etapa 3 não cria execução e não trava.
     """
     return set(
         await session.scalars(
             select(ProcessInstance.collection_template_id)
             .distinct()
+            .join(Phase, Phase.process_instance_id == ProcessInstance.id)
+            .join(ActivityInstance, ActivityInstance.phase_id == Phase.id)
             .join(
-                ActivityInstance,
-                ActivityInstance.process_instance_id == ProcessInstance.id,
+                ActivityRun,
+                ActivityRun.activity_instance_id == ActivityInstance.id,
             )
             .where(
                 ProcessInstance.collection_template_id.in_(template_ids),
-                ActivityInstance.key == SAMPLE_ACTIVITY_KEY,
-                ActivityInstance.status == 'COMPLETED',
-                ActivityInstance.deleted_at.is_(None),
+                Phase.key == STAGE_3_PHASE_KEY,
             )
             .execution_options(skip_soft_delete_filter=True)
         )
@@ -106,7 +111,8 @@ async def lock_template_row(
 ) -> CollectionTemplate:
     """Trava a linha do template até o fim da transação (FR-019, R4).
 
-    Chamada pelas alterações estruturais e por
+    Chamada pelas alterações estruturais e pelos dois caminhos que abrem a
+    Etapa 3: ``structure_approval_service.execute_structure_decision`` e
     ``sample_service.complete_sample_definition``.
     """
     template = await session.scalar(
@@ -124,7 +130,7 @@ async def _ensure_unlocked(session: AsyncSession, template_id: UUID) -> None:
     if template_id in await locked_template_ids(session, [template_id]):
         raise ConflictError(
             'A estrutura do template está travada: um processo vinculado '
-            'já concluiu a definição das amostras.',
+            'já começou a Etapa 3.',
             code='template_locked',
         )
 

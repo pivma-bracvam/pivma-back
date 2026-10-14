@@ -2,7 +2,7 @@ process_template:
   key: "validated_method_dossier"
   name: "Método Validado – Dossiê Submetido"
   description: "Método 100% novo já desenvolvido, protocolo estabelecido e toda validação já concluída – dossiê pronto para revisão por pares e adoção regulatória (Peer-Review Ready)."
-  version: 6
+  version: 7
   is_active: true
 
 phases:
@@ -188,10 +188,50 @@ phases:
             required_status: "COMPLETED"
             condition_type: "ACTIVITY_COMPLETED"
 
-  # Spec 040: Etapa 3. O recebimento é por laboratório e abre quando a
-  # definição das amostras conclui. A resolução de problemas no recebimento é
-  # do Grupo de Seleção de Amostras e só abre por evento, quando um
-  # laboratório registra um frasco fora de ordem.
+      # Spec 042: homologação da estrutura pelo BraCVAM. Abre quando as nove
+      # atividades da etapa concluem; os pontos auditados são estas
+      # dependências. A Etapa 3 só abre depois da aprovação.
+      - key: "structure_approval"
+        name: "Homologação da Estrutura do Estudo"
+        order_index: 10
+        assigned_role: "bracvam"
+        access:
+          edit: ["bracvam"]
+          view: []
+        activity_type: "structure_approval"
+        dependencies:
+          - required_activity_key: "assign_sponsor"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "assign_sample_selection_group"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "assign_lead_laboratory"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "assign_participating_laboratory"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "assign_statistician"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "assign_collaborator"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "assign_adhoc_evaluator"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "sample_definition"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+  # Spec 040: Etapa 3. O recebimento é por laboratório e abre quando o
+  # BraCVAM aprova a homologação da estrutura (Spec 042). A resolução de
+  # problemas no recebimento é do Grupo de Seleção de Amostras e só abre por
+  # evento, quando um laboratório registra um frasco fora de ordem.
   - key: "phase_3_validation_execution"
     name: "Execução da Validação"
     order_index: 3
@@ -206,7 +246,7 @@ phases:
         activity_type: "sample_receipt"
         execution_scope: "per_laboratory"
         dependencies:
-          - required_activity_key: "sample_definition"
+          - required_activity_key: "structure_approval"
             required_status: "COMPLETED"
             condition_type: "ACTIVITY_COMPLETED"
 

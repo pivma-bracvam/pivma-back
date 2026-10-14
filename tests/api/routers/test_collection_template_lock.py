@@ -1,7 +1,9 @@
 """Travamento estrutural do template de coleta (Spec 041, US3 e US5).
 
-O template trava quando um processo vinculado conclui a definição das
-amostras (FR-017). Toda recusa confere também que nada mudou.
+O template trava quando a Etapa 3 de um processo vinculado começa (Spec 042,
+research R9). No template de teste de `linked_process`, ela começa na
+conclusão das amostras; no template real, na aprovação da homologação. Toda
+recusa confere também que nada mudou.
 """
 
 from http import HTTPStatus
@@ -20,6 +22,10 @@ from tests.factories.collection_template_factory import (
     column_payload,
     linked_process,
     read_template,
+)
+from tests.factories.structure_approval_factory import (
+    decide,
+    structure_process,
 )
 
 
@@ -40,7 +46,7 @@ async def template(session, manager):
 
 @pytest_asyncio.fixture
 async def locked(session, client, template):
-    """O template depois da conclusão das amostras de um processo vinculado."""
+    """O template depois que a Etapa 3 de um processo vinculado começa."""
     await linked_process(session, template.id, complete_definition=True)
     return read_template(client, template.id)
 
@@ -256,3 +262,66 @@ async def test_unknown_column_of_locked_template_is_not_found(
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert _code(response) == 'not_found'
     assert read_template(client, locked['id']) == locked
+
+
+# ---------------------------------------------------------------------------
+# Trava pelo início da Etapa 3 (Spec 042, research R9)
+# ---------------------------------------------------------------------------
+
+
+async def _structure_linked(client, session, template, manager):
+    """Processo do template real vinculado, com a homologação aberta.
+
+    O gestor do catálogo é do perfil BraCVAM: também decide a homologação.
+    """
+    ctx = await structure_process(
+        session, manager, collection_template_id=template.id
+    )
+    authenticate(client, manager)
+    return ctx
+
+
+@pytest.mark.asyncio
+async def test_sample_completion_before_approval_keeps_template_editable(
+    client, session, manager, template
+):
+    await _structure_linked(client, session, template, manager)
+
+    response = add_column(client, template.id)
+
+    assert response.status_code == HTTPStatus.CREATED, response.text
+    assert read_template(client, template.id)['locked'] is False
+
+
+@pytest.mark.asyncio
+async def test_structure_approval_locks_the_template(
+    client, session, manager, template
+):
+    ctx = await _structure_linked(client, session, template, manager)
+    approved = decide(
+        client,
+        ctx.process_id,
+        outcome='APPROVED',
+        justification='Estrutura conferida.',
+    )
+    assert approved.status_code == HTTPStatus.OK, approved.text
+    before = read_template(client, template.id)
+
+    response = add_column(client, template.id)
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert _code(response) == 'template_locked'
+    assert read_template(client, template.id) == before
+
+
+@pytest.mark.asyncio
+async def test_deleting_the_process_before_stage_3_keeps_template_editable(
+    client, session, manager, template
+):
+    """A exclusão cancela a fase 3 sem que ela tenha começado."""
+    ctx = await _structure_linked(client, session, template, manager)
+    await delete_process(session, ctx.process_id, ctx.proponent.id)
+
+    response = add_column(client, template.id)
+
+    assert response.status_code == HTTPStatus.CREATED, response.text

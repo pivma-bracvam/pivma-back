@@ -19,6 +19,7 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pivma import app
+from pivma.core.authorization import COLLECTION_TEMPLATES_MANAGE, TRIAGE_REVIEW
 from pivma.core.collection_template_service import locked_template_ids
 from pivma.core.database import get_session
 from pivma.core.database.models import CollectionTemplateColumn
@@ -28,12 +29,14 @@ from tests.api.routers.test_sample_receipt_concurrency import (
     _session_factory,  # noqa: PLC2701
     _truncate,  # noqa: PLC2701
 )
+from tests.conftest import _make_rbac_user
 from tests.factories.collection_template_factory import (
     catalog_manager,
     collection_template,
     column_payload,
     linked_process,
 )
+from tests.factories.structure_approval_factory import structure_process
 
 LOCK_WAIT_LIMIT_SECONDS = 5
 LOCK_TEMPLATE_ROW = text(
@@ -127,6 +130,25 @@ def _run(engine, requests):
         app.dependency_overrides.clear()
 
 
+def _open_stage_3(ctx):
+    """Escrita que abre o recebimento, como a conclusão ou a aprovação."""
+
+    def write(connection):
+        connection.execute(
+            text(
+                'INSERT INTO activity_runs '
+                '(id, activity_instance_id, run_number, status) '
+                "SELECT gen_random_uuid(), id, 1, 'IN_PROGRESS' "
+                'FROM activity_instances '
+                'WHERE process_instance_id = :process_id '
+                "AND key = 'sample_receipt'"
+            ),
+            {'process_id': ctx.process_id},
+        )
+
+    return write
+
+
 def _add_column(ctx, **overrides):
     url = f'/collection-templates/{ctx.template_id}/columns'
     payload = column_payload(**overrides)
@@ -135,22 +157,15 @@ def _add_column(ctx, **overrides):
 
 
 def test_column_waits_for_sample_completion_and_is_refused(engine):
-    """US3, cenário 8: a conclusão entra primeiro e a coluna é recusada."""
+    """US3, cenário 8: a conclusão entra primeiro e a coluna é recusada.
+
+    No template de teste, a conclusão das amostras abre o recebimento, e a
+    Etapa 3 começa (Spec 042, research R9).
+    """
     ctx = asyncio.run(_setup(engine))
     try:
-
-        def complete_samples(connection):
-            connection.execute(
-                text(
-                    "UPDATE activity_instances SET status = 'COMPLETED' "
-                    'WHERE process_instance_id = :process_id '
-                    "AND key = 'sample_definition'"
-                ),
-                {'process_id': ctx.process_id},
-            )
-
         waited, response = _while_holding_template(
-            engine, ctx, complete_samples, _add_column(ctx)
+            engine, ctx, _open_stage_3(ctx), _add_column(ctx)
         )
 
         assert waited
@@ -230,5 +245,90 @@ def test_two_columns_without_position_get_distinct_positions(engine):
             HTTPStatus.CREATED,
         ]
         assert sorted(r.json()['position'] for r in responses) == [1, 2]
+    finally:
+        asyncio.run(_truncate(engine))
+
+
+# ---------------------------------------------------------------------------
+# Aprovação da homologação e mudança estrutural (Spec 042, research R9)
+# ---------------------------------------------------------------------------
+
+
+async def _setup_structure(engine):
+    """Processo do template real vinculado, com a homologação aberta.
+
+    O gestor do catálogo é do perfil BraCVAM: também decide a homologação.
+    """
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        manager = await _make_rbac_user(
+            session,
+            system_key='bracvam',
+            name='BraCVAM',
+            codes=(COLLECTION_TEMPLATES_MANAGE, TRIAGE_REVIEW),
+        )
+        template = await collection_template(session, manager)
+        ctx = await structure_process(
+            session, manager, collection_template_id=template.id
+        )
+        return SimpleNamespace(
+            manager_id=manager.id,
+            template_id=template.id,
+            process_id=ctx.process_id,
+        )
+
+
+def _approve(ctx):
+    url = f'/processes/{ctx.process_id}/structure-approval/decision'
+    body = {'outcome': 'APPROVED', 'justification': 'Estrutura conferida.'}
+    headers = _headers(ctx.manager_id)
+    return lambda client: client.post(url, json=body, headers=headers)
+
+
+def test_column_waits_for_structure_approval_and_is_refused(engine):
+    """A aprovação entra primeiro, a Etapa 3 começa e a coluna é recusada."""
+    ctx = asyncio.run(_setup_structure(engine))
+    try:
+        waited, response = _while_holding_template(
+            engine, ctx, _open_stage_3(ctx), _add_column(ctx)
+        )
+
+        assert waited
+        assert response.status_code == HTTPStatus.CONFLICT, response.text
+        assert response.json()['detail']['code'] == 'template_locked'
+        assert asyncio.run(_columns(engine, ctx.template_id)) == []
+    finally:
+        asyncio.run(_truncate(engine))
+
+
+def test_structure_approval_waits_for_structural_change(engine):
+    """A coluna entra primeiro e a aprovação espera por ela.
+
+    Sem a trava do template na aprovação, ela não espera e o teste falha na
+    consulta a `pg_stat_activity`.
+    """
+    ctx = asyncio.run(_setup_structure(engine))
+    try:
+
+        def add_column(connection):
+            connection.execute(
+                text(
+                    'INSERT INTO collection_template_columns '
+                    '(id, collection_template_id, label, key, column_type, '
+                    'position, required) '
+                    "VALUES (gen_random_uuid(), :template_id, 'Lote', "
+                    "'lote', 'text', 1, false)"
+                ),
+                {'template_id': ctx.template_id},
+            )
+
+        waited, response = _while_holding_template(
+            engine, ctx, add_column, _approve(ctx)
+        )
+
+        assert waited
+        assert response.status_code == HTTPStatus.OK, response.text
+        columns = asyncio.run(_columns(engine, ctx.template_id))
+        assert [column.key for column in columns] == ['lote']
+        assert asyncio.run(_is_locked(engine, ctx.template_id))
     finally:
         asyncio.run(_truncate(engine))

@@ -35,9 +35,21 @@ PHASE_3_KEY = 'phase_3_validation_execution'
 
 
 def _phase_3() -> dict:
+    """Etapa 3 do template 1, com o recebimento dependendo das amostras.
+
+    O template de teste não tem a Etapa 2 completa nem a homologação da
+    estrutura (Spec 042, research R10).
+    """
     data = load_yaml_template(TEMPLATES_DIR / '01_pre_validated_method.yaml')
-    phase = next(p for p in data['phases'] if p['key'] == PHASE_3_KEY)
-    return {**deepcopy(phase), 'order_index': 2}
+    phase = deepcopy(
+        next(p for p in data['phases'] if p['key'] == PHASE_3_KEY)
+    )
+    receipt = next(
+        a for a in phase['activities'] if a['key'] == 'sample_receipt'
+    )
+    for dependency in receipt['dependencies']:
+        dependency['required_activity_key'] = 'sample_definition'
+    return {**phase, 'order_index': 2}
 
 
 RECEIPT_TEMPLATE = {
@@ -63,7 +75,7 @@ def receipt_payload(**overrides) -> dict:
     return payload
 
 
-async def _attach_sds(session, process_id, substance_id) -> None:
+async def attach_sds(session, process_id, substance_id) -> None:
     run = await session.scalar(
         select(ActivityRun)
         .join(ActivityInstance)
@@ -125,7 +137,7 @@ async def receipt_process(
         created = await sample_service.create_substance(
             session, ctx.process_id, ctx.selector.id, data
         )
-        await _attach_sds(session, ctx.process_id, created['id'])
+        await attach_sds(session, ctx.process_id, created['id'])
         ctx.substances.append(created)
     if freeze:
         await sample_service.complete_sample_definition(

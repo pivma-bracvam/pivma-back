@@ -604,8 +604,7 @@ class CollectionTemplateSummary(BaseModel):
     min_replicates: int
     locked: bool = Field(
         description=(
-            'Estrutura travada: um processo vinculado concluiu a definição '
-            'das amostras'
+            'Estrutura travada: um processo vinculado já começou a Etapa 3'
         )
     )
     created_by: UUID | None
@@ -2138,3 +2137,124 @@ class SampleLookupResponse(BaseModel):
     chemical_name: str | None = None
     iupac_name: str | None = None
     ghs_hazard_pictograms: list[str]
+
+
+# ==========================================
+# HOMOLOGAÇÃO DA ESTRUTURA (Spec 042)
+# ==========================================
+
+StructurePendingCode = Literal[
+    'activity_not_completed',
+    'role_without_designation',
+    'laboratory_without_codes',
+    'codes_without_laboratory',
+]
+StructureOutcome = Literal['APPROVED', 'REJECTED']
+DecisionText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=3)
+]
+
+
+class StructurePending(BaseModel):
+    code: StructurePendingCode
+    message: str
+    laboratory: LaboratoryRef | None = Field(
+        description='Laboratório da pendência, quando houver'
+    )
+
+
+class StructureDesignation(BaseModel):
+    assignment_id: UUID
+    user: UserRef
+    laboratory: LaboratoryRef | None
+    is_effective: bool = Field(description='A designação vale hoje (Spec 035)')
+
+
+class StructureSamples(BaseModel):
+    """Só contagens: nada do cegamento (FR-006)."""
+
+    substance_count: int
+    laboratory_count: int = Field(
+        description='Laboratórios com código cego ativo'
+    )
+    code_count: int = Field(description='Códigos cegos ativos')
+
+
+class StructurePoint(BaseModel):
+    activity_key: str
+    name: str
+    activity_type: str
+    status: str
+    run_number: int | None = Field(description='Execução mais recente')
+    designations: list[StructureDesignation] | None = Field(
+        description='Designações ativas do cargo; só em `role_assignment`'
+    )
+    samples: StructureSamples | None = Field(
+        description='Contagens das amostras; só em `sample_definition`'
+    )
+    pending: list[StructurePending]
+
+
+class RejectedPoint(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    activity_key: str
+    reason: DecisionText = Field(description='Motivo da reprovação')
+
+
+class StructureDecisionPublic(BaseModel):
+    id: UUID
+    run_number: int = Field(description='Execução da homologação decidida')
+    outcome: StructureOutcome
+    justification: str
+    rejected_points: list[RejectedPoint] | None
+    decided_by: UserRef
+    decided_at: datetime
+
+
+class StructureApprovalPanel(BaseModel):
+    status: str = Field(description='Status da homologação')
+    run_number: int | None = Field(
+        description='Execução mais recente; nula antes da primeira abertura'
+    )
+    blocked_reason: str | None
+    points: list[StructurePoint]
+    decisions: list[StructureDecisionPublic] = Field(
+        description='Da mais recente para a mais antiga'
+    )
+
+
+class StructureDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    outcome: StructureOutcome
+    justification: DecisionText
+    rejected_points: list[RejectedPoint] | None = Field(
+        default=None,
+        description='Pontos reprovados; obrigatório só na reprovação',
+    )
+
+    @model_validator(mode='after')
+    def check_rejected_points(self):
+        if self.outcome == 'APPROVED':
+            if self.rejected_points is not None:
+                raise ValueError('A aprovação não leva pontos reprovados.')
+            return self
+        if not self.rejected_points:
+            raise ValueError('Informe ao menos um ponto reprovado.')
+        keys = [point.activity_key for point in self.rejected_points]
+        if len(keys) != len(set(keys)):
+            raise ValueError('Ponto reprovado repetido.')
+        return self
+
+
+class ReopenedPoint(BaseModel):
+    activity_key: str
+    run_number: int = Field(description='Execução nova do ponto')
+
+
+class StructureDecisionResponse(BaseModel):
+    decision_id: UUID
+    outcome: StructureOutcome
+    status: str = Field(description='Status da homologação após a decisão')
+    reopened: list[ReopenedPoint]

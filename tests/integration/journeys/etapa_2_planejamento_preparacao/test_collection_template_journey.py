@@ -8,9 +8,10 @@
 3. Paulo, proponente sem a permissão do catálogo, cria um processo sem
    template e não consegue vincular um. Beatriz cria um processo com o
    template e vê o vínculo na resposta, na consulta, na listagem e na trilha.
-4. Um processo vinculado conclui a definição das amostras. Beatriz vê o
-   template travado, não consegue adicionar coluna, mas ainda o renomeia e
-   baixa o arquivo.
+4. Um processo vinculado conclui a definição das amostras, e o template
+   continua editável. Beatriz aprova a homologação da estrutura, a Etapa 3
+   começa e ela vê o template travado: não consegue adicionar coluna, mas
+   ainda o renomeia e baixa o arquivo (Spec 042, research R9).
 5. Beatriz exclui uma coluna que sobrou, vê que ela some da consulta e do
    arquivo e recria uma coluna com a mesma chave e posição.
 6. Paulo não acessa o catálogo até o administrador lhe conceder o perfil
@@ -41,6 +42,8 @@ from tests.integration.journeys.conftest import (
     sign_up,
 )
 from tests.integration.journeys.sample_steps import (
+    approve_structure,
+    complete_study_team,
     ok,
     open_sample_definition,
     register_substance,
@@ -279,7 +282,7 @@ def _attachments_dir(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures('_attachments_dir')
-async def test_estrutura_trava_quando_a_definicao_das_amostras_conclui(
+async def test_estrutura_trava_quando_a_etapa_3_comeca(
     journey_client, session, bracvam_user
 ):
     client = journey_client
@@ -313,12 +316,19 @@ async def test_estrutura_trava_quando_a_definicao_das_amostras_conclui(
     )
     ok(client.post(f'/processes/{process_id}/samples/complete'))
 
-    # 4. Beatriz consulta o template e o vê travado.
+    # 4. Beatriz consulta o template e o vê ainda editável.
     authenticate(client, bracvam_user)
+    read = client.get(f'{TEMPLATES}/{template["id"]}').json()
+    assert read['locked'] is False
+
+    # 5. A equipe fica completa e Beatriz aprova a homologação: a Etapa 3
+    #    começa e o template trava.
+    complete_study_team(client, team, process_id)
+    approve_structure(client, process_id, bracvam_user)
     read = client.get(f'{TEMPLATES}/{template["id"]}').json()
     assert read['locked'] is True
 
-    # 5. Beatriz tenta adicionar uma coluna e é recusada.
+    # 6. Beatriz tenta adicionar uma coluna e é recusada.
     refused = _add_column(
         client,
         template['id'],
@@ -328,7 +338,7 @@ async def test_estrutura_trava_quando_a_definicao_das_amostras_conclui(
     assert refused.json()['detail']['code'] == 'template_locked'
     assert _column_keys(client, template['id']) == ['viabilidade']
 
-    # 6. Ainda renomeia o template e baixa o arquivo-modelo.
+    # 7. Ainda renomeia o template e baixa o arquivo-modelo.
     renamed = client.patch(
         f'{TEMPLATES}/{template["id"]}', json={'name': 'Citotoxicidade v2'}
     )

@@ -1835,8 +1835,12 @@ async def _dependency_satisfied(
 ) -> bool:
     if dependency.required_activity_id is None:
         return True
-    required_act = await session.get(
-        ActivityInstance, dependency.required_activity_id
+    # Lê do banco, não do objeto em memória: sob a trava do dependente, a
+    # conclusão confirmada por outra transação precisa aparecer (R12).
+    required_act = await session.scalar(
+        select(ActivityInstance)
+        .where(ActivityInstance.id == dependency.required_activity_id)
+        .execution_options(populate_existing=True)
     )
     return (
         required_act is not None
@@ -1942,6 +1946,9 @@ async def _advance_dependent_activities(
     tarefa específico para uma atividade cujo caminho de ativação era, antes
     da Issue #22, bespoke (ex. ``triage_evaluation``) — sem isso, toda
     atividade destravada por aqui usa ``act.name`` como título (Spec 017).
+
+    O dependente de escopo ``process`` é travado e relido antes de conferir
+    as dependências (Spec 042, research R12).
     """
     dep_stmt = select(ActivityDependency).where(
         ActivityDependency.required_activity_id == completed_act.id,
@@ -1984,6 +1991,18 @@ async def _advance_dependent_activities(
             )
             continue
         if dependent_act is None or dependent_act.status != 'BLOCKED':
+            continue
+        # Trava e relê o dependente antes de conferir as dependências: se
+        # os dois últimos pré-requisitos concluem ao mesmo tempo, a segunda
+        # transação espera a primeira e enxerga a conclusão dela, em vez de
+        # as duas deixarem o dependente bloqueado (Spec 042, research R12).
+        dependent_act = await session.scalar(
+            select(ActivityInstance)
+            .where(ActivityInstance.id == dependent_act.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if dependent_act.status != 'BLOCKED':
             continue
 
         all_deps_stmt = select(ActivityDependency).where(
@@ -2963,14 +2982,16 @@ async def _maybe_close_role_assignment_activity(
     """Fecha a etapa de atribuição de cargo do papel, se aplicável (Spec 028).
 
     Chamado ao final de toda designação criada (direta, Spec 006, ou por
-    aceite de convite). Reaproveita ``_complete_activity_run`` +
+    aceite de convite) e de toda revogação de designação ou de convite
+    (Spec 042, research R8). Reaproveita ``_complete_activity_run`` +
     ``_advance_dependent_activities`` (Spec 026) — não existe um endpoint
     "concluir atividade" dedicado (research.md R4). Sempre no-op silencioso
     quando não há nada a fechar: papel sem etapa ``role_assignment``
     declarada na versão do template desta instância, etapa já ``COMPLETED``,
-    etapa ainda ``BLOCKED`` (sem execução), ou convite ``pending`` restante
-    para o papel (FR-017) — nesse último caso a etapa só fecha quando o
-    último convite pendente for aceito ou revogado.
+    etapa ainda ``BLOCKED`` (sem execução), convite ``pending`` restante
+    para o papel (FR-017) — nesse caso a etapa só fecha quando o último
+    convite pendente for aceito ou revogado — ou papel sem designação ativa,
+    para que a etapa nunca conclua com o cargo vazio.
     """
     act = await _find_role_assignment_activity(session, process, role_key)
     if act is None or act.status == 'COMPLETED':
@@ -2997,6 +3018,17 @@ async def _maybe_close_role_assignment_activity(
         )
     )
     if pending_invite is not None:
+        return
+
+    active_assignment = await session.scalar(
+        select(Assignment.id).where(
+            Assignment.process_instance_id == process.id,
+            Assignment.role_key == role_key,
+            Assignment.revoked_at.is_(None),
+            Assignment.deleted_at.is_(None),
+        )
+    )
+    if active_assignment is None:
         return
 
     await _complete_activity_run(session, run, act, user_id)

@@ -61,8 +61,8 @@ flowchart LR
 |---|---|---|---|
 | RF024 | Configuração do fluxo | Parcial | Fases e atividades em YAML no repositório; pela API, só os campos dos formulários |
 | RF025 | Análise inicial | Sim | Triagem |
-| RF026 | Aprovar, devolver, rejeitar | Sim | `APPROVED`, `NEEDS_REVISION`, `REJECTED` |
-| RF027 | Registro de deliberações | Parcial | Decisão de triagem com justificativa; sem deliberações colegiadas |
+| RF026 | Aprovar, devolver, rejeitar | Sim | Triagem: `APPROVED`, `NEEDS_REVISION`, `REJECTED`. Homologação da estrutura: aprovar ou reprovar pontos da Etapa 2, que voltam para nova execução |
+| RF027 | Registro de deliberações | Parcial | Decisões da triagem e da homologação da estrutura com autor, data e justificativa; a homologação guarda os pontos reprovados e os motivos; sem deliberações colegiadas |
 | RF028 | Reuniões e atas | Não | |
 | RF029 | Prazos | Parcial | Prazo por atividade no template; não há prazo por participante nem ajuste manual |
 | RF030 | Visualização do fluxo | Parcial | Estados de fases e atividades, tarefas e linha do tempo; sem rota de visão consolidada das fases |
@@ -70,6 +70,11 @@ flowchart LR
 | RF032 | Comentários | Não | Só comentários nos pareceres de campo da triagem |
 | RF033 | Notificações | Parcial | Base de envio pronta; usada em convites, recuperação de senha e problemas no recebimento de amostras e na decisão sobre eles; sem central de notificações |
 | RF034 | Logs e auditoria | Sim | Linha do tempo por processo, históricos de RBAC e catálogo, logs estruturados |
+
+Na homologação, o BraCVAM confere as designações ativas e a consistência
+das amostras. Um convite adicional criado após a conclusão do cargo não
+reabre a atividade nem bloqueia a aprovação. Veja
+[Designar participantes](../guias/designar-participantes.md).
 
 ## Ensaio interlaboratorial (RF035–RF047)
 
@@ -102,7 +107,7 @@ baixa nem envia resultados (RF042).
 | RF049 | Distribuição dos materiais | Não | |
 | RF050 | Revisão cega | Parcial | Só o cegamento das amostras; o gabarito das substâncias fica restrito ao Grupo de Seleção |
 | RF051–RF054 | Pareceres e consolidação | Não | |
-| RF055–RF059 | Análise estatística | Não | |
+| RF055–RF059 | Análise estatística | Não | A homologação da estrutura não exige plano estatístico; a exigência fica para quando a análise estatística entrar (issue #25) |
 | RF060 | Validação final | Não | |
 | RF061 | Relatório final | Não | |
 | RF062 | Exportação | Não | |

@@ -77,6 +77,10 @@ pode carregar a identidade das substâncias.
 
 Ao concluir `sample_definition`, a lista de laboratórios com código fica
 congelada. Ela define quem ganha execução nas atividades por laboratório.
+Antes da Etapa 3, o BraCVAM confere essa lista na homologação da estrutura:
+um laboratório participante sem código, ou código de laboratório que saiu,
+impede a aprovação. Reprovar as amostras reabre a atividade, e a nova
+conclusão gera e descarta os códigos que faltam.
 Veja [Isolamento por laboratório](isolamento-por-laboratorio.md#laboratorios-congelados).
 
 Como fazer: [Definir amostras cegas](../guias/definir-amostras-cegas.md) e

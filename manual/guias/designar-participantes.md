@@ -1,8 +1,19 @@
 # Designar participantes
 
 Com a triagem aprovada, a Fase 2 abre as atividades de atribuição de cargo.
-Cada uma fecha quando o cargo recebe a primeira designação e não sobra convite
-pendente para ele.
+Cada uma fecha numa designação ou numa revogação, quando o cargo fica com ao
+menos uma designação ativa e sem convite pendente. Revogar o último convite
+de um cargo vazio não fecha a atividade.
+
+Se o BraCVAM reprova um cargo na homologação da estrutura, a atribuição volta
+com uma execução nova e o motivo. Ela fecha pela mesma regra: designar
+alguém ou revogar a designação errada, desde que o cargo continue com alguém.
+
+Criar um convite adicional depois que a atribuição concluiu não reabre a
+atividade nem impede, por si só, a homologação. O BraCVAM confere as
+designações ativas e a consistência das amostras no momento da decisão.
+Em atribuições abertas ou reabertas, os convites pendentes continuam
+impedindo a conclusão.
 
 ```mermaid
 flowchart TD

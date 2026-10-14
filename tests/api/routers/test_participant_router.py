@@ -12,6 +12,7 @@ from pivma.core.authorization import PROCESS_PARTICIPANTS_MANAGE
 from pivma.core.database.models import (
     AccessProfile,
     AccessProfilePermission,
+    Assignment,
     AuditEvent,
     Permission,
     UserAccessProfile,
@@ -29,6 +30,13 @@ from tests.factories.process_factory import (
     ProcessInstanceFactory,
     ProcessTemplateFactory,
     ProcessTemplateVersionFactory,
+)
+from tests.factories.structure_approval_factory import (
+    activity,
+    decide,
+    run_tasks,
+    runs,
+    structure_process,
 )
 
 ORIGIN = {'Origin': 'https://testserver'}
@@ -1171,3 +1179,93 @@ async def test_effective_proponent_revokes_own_sponsor_designation(
 
     revoke_resp = revoke_participant(client, process_id, assignment_id)
     assert revoke_resp.status_code == HTTPStatus.NO_CONTENT
+
+
+# ---------------------------------------------------------------------------
+# Atribuição reaberta pela homologação (Spec 042, research R8)
+# ---------------------------------------------------------------------------
+
+
+async def _reopened_role(client, session, bracvam_user, activity_key):
+    """Processo com a homologação aberta e o ponto `activity_key` reaberto."""
+    ctx = await structure_process(session, bracvam_user)
+    authenticate(client, bracvam_user)
+    response = decide(
+        client,
+        ctx.process_id,
+        outcome='REJECTED',
+        justification='Equipe incompleta.',
+        rejected_points=[{'activity_key': activity_key, 'reason': 'Rever.'}],
+    )
+    assert response.status_code == HTTPStatus.OK, response.text
+    authenticate(client, ctx.manager)
+    return ctx
+
+
+async def _active_assignment(session, process_id, role_key):
+    return await session.scalar(
+        select(Assignment).where(
+            Assignment.process_instance_id == process_id,
+            Assignment.role_key == role_key,
+            Assignment.revoked_at.is_(None),
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_reopened_role_closes_on_revocation_that_keeps_a_designation(
+    client, session, bracvam_user
+):
+    key = 'assign_participating_laboratory'
+    ctx = await _reopened_role(client, session, bracvam_user, key)
+
+    response = revoke_participant(
+        client, ctx.process_id, ctx.lab_assignments[1].id
+    )
+
+    assert response.status_code == HTTPStatus.NO_CONTENT, response.text
+
+    reopened = (await runs(session, ctx.process_id, key))[1]
+    assert reopened.status == 'COMPLETED'
+    assert (await activity(session, ctx.process_id, key)).status == (
+        'COMPLETED'
+    )
+
+
+@pytest.mark.asyncio
+async def test_reopened_role_stays_open_when_revocation_empties_it(
+    client, session, bracvam_user
+):
+    key = 'assign_statistician'
+    ctx = await _reopened_role(client, session, bracvam_user, key)
+    statistician = await _active_assignment(
+        session, ctx.process_id, 'statistician'
+    )
+
+    response = revoke_participant(client, ctx.process_id, statistician.id)
+
+    assert response.status_code == HTTPStatus.NO_CONTENT, response.text
+
+    reopened = (await runs(session, ctx.process_id, key))[1]
+    [task] = await run_tasks(session, reopened.id)
+    assert reopened.status == 'IN_PROGRESS'
+    assert task.status == 'READY'
+
+
+@pytest.mark.asyncio
+async def test_reopened_role_closes_on_new_designation(
+    client, session, bracvam_user
+):
+    key = 'assign_statistician'
+    ctx = await _reopened_role(client, session, bracvam_user, key)
+    other = UserFactory()
+    session.add(other)
+    await session.commit()
+
+    response = create_participant(
+        client, ctx.process_id, other.id, 'statistician'
+    )
+
+    assert response.status_code == HTTPStatus.CREATED, response.text
+    reopened = (await runs(session, ctx.process_id, key))[1]
+    assert reopened.status == 'COMPLETED'

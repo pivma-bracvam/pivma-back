@@ -6,13 +6,16 @@ recente do template na criação e fica nela até o fim.
 
 | `key` | Nome | Versão | Formulário de submissão |
 |---|---|---|---|
-| `pre_validated_method` | Método Pré-Validado | 4 | `submission_pre_validated_v1` (1 campo) |
-| `scope_extension` | Extensão de Escopo de Aplicação | 4 | `submission_scope_extension_v1` (1 campo) |
-| `me_too_validation` | Validação Me-Too | 4 | `submission_me_too_v1` (1 campo) |
-| `validated_method_dossier` | Método Validado – Dossiê Submetido | 6 | `submission_validated_dossier_v1` (2 campos) |
-| `proof_of_concept` | Prova de Conceito (PoC) | 4 | `submission_proof_of_concept_v1` (formulário completo) |
+| `pre_validated_method` | Método Pré-Validado | 5 | `submission_pre_validated_v1` (1 campo) |
+| `scope_extension` | Extensão de Escopo de Aplicação | 5 | `submission_scope_extension_v1` (1 campo) |
+| `me_too_validation` | Validação Me-Too | 5 | `submission_me_too_v1` (1 campo) |
+| `validated_method_dossier` | Método Validado – Dossiê Submetido | 7 | `submission_validated_dossier_v1` (2 campos) |
+| `proof_of_concept` | Prova de Conceito (PoC) | 5 | `submission_proof_of_concept_v1` (formulário completo) |
 
-Os cinco têm as mesmas fases e atividades. Mudam os formulários.
+Os cinco têm as mesmas fases e atividades. Mudam os formulários. Os
+processos criados com a versão anterior de cada template não têm a
+homologação da estrutura: neles, o recebimento abre quando as amostras
+concluem.
 
 ## Fases e atividades
 
@@ -26,6 +29,7 @@ flowchart TD
         AS[assign_sponsor]
         AG[assign_group_manager] --> AX[assign_sample_selection_group<br/>assign_lead_laboratory<br/>assign_participating_laboratory<br/>assign_statistician<br/>assign_collaborator<br/>assign_adhoc_evaluator]
         AX --> SD[sample_definition]
+        AS & AG & AX & SD --> SA[structure_approval<br/>bracvam]
     end
     subgraph F3[Fase 3: Execução da Validação]
         SR[sample_receipt<br/>por laboratório]
@@ -33,7 +37,7 @@ flowchart TD
     end
     TE --> AS
     TE --> AG
-    SD --> SR
+    SA --> SR
     SR -.->|frasco fora de ordem| RS
 ```
 
@@ -51,7 +55,8 @@ flowchart TD
 | `assign_collaborator` | 2 | `role_assignment` | `bracvam` | `assign_group_manager` | — |
 | `assign_adhoc_evaluator` | 2 | `role_assignment` | `bracvam` | `assign_group_manager` | — |
 | `sample_definition` | 2 | `sample_definition` | `sample_selection_group` | `assign_sample_selection_group` e `assign_participating_laboratory` | — |
-| `sample_receipt` | 3 | `sample_receipt`, por laboratório | `participating_laboratory` | `sample_definition` | — |
+| `structure_approval` | 2 | `structure_approval` | `bracvam` | as nove atividades acima da fase 2 | — |
+| `sample_receipt` | 3 | `sample_receipt`, por laboratório | `participating_laboratory` | `structure_approval` | — |
 | `sample_receipt_resolution` | 3 | `sample_receipt_resolution` | `sample_selection_group` | aberta quando um laboratório registra um frasco fora de ordem | — |
 
 Nenhuma atividade dos templates lista cargos em `view`: cada atividade é vista

@@ -52,7 +52,7 @@ def test_phase_3_declares_receipt_and_resolution():
     assert receipt['execution_scope'] == 'per_laboratory'
     assert receipt['access']['edit'] == ['participating_laboratory']
     assert [d['required_activity_key'] for d in receipt['dependencies']] == [
-        'sample_definition'
+        'structure_approval'
     ]
 
     resolution = activities['sample_receipt_resolution']

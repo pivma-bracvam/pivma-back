@@ -1,10 +1,11 @@
-"""Fase 2 em todos os templates e atividade de amostras (Spec 031, US6)."""
+"""Fase 2 em todos os templates: amostras (Spec 031, US6) e homologação
+da estrutura (Spec 042)."""
 
 import copy
 from pathlib import Path
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from pivma.bootstrap_process_templates import (
     bootstrap_all_templates,
@@ -13,6 +14,7 @@ from pivma.bootstrap_process_templates import (
 )
 from pivma.core.database.models import (
     ActivityInstance,
+    ActivityRun,
     ProcessTemplate,
     ProcessTemplateVersion,
 )
@@ -28,11 +30,11 @@ TEMPLATE_FILES = {
     'proof_of_concept': '05_proof_of_concept.yaml',
 }
 NEW_VERSIONS = {
-    'pre_validated_method': 4,
-    'scope_extension': 4,
-    'me_too_validation': 4,
-    'validated_method_dossier': 6,
-    'proof_of_concept': 4,
+    'pre_validated_method': 5,
+    'scope_extension': 5,
+    'me_too_validation': 5,
+    'validated_method_dossier': 7,
+    'proof_of_concept': 5,
 }
 PHASE_2 = 'phase_2_role_assignment'
 COMPARED_KEYS = (
@@ -99,6 +101,28 @@ def test_all_templates_declare_sample_definition_in_phase_2(template_key):
     ]
 
 
+@pytest.mark.parametrize('template_key', list(TEMPLATE_FILES))
+def test_all_templates_end_phase_2_with_structure_approval(template_key):
+    activities = _phase_2(_template(template_key))['activities']
+    approval = activities[-1]
+
+    assert approval['key'] == 'structure_approval'
+    assert approval['activity_type'] == 'structure_approval'
+    assert approval['assigned_role'] == 'bracvam'
+    assert approval['access'] == {'edit': ['bracvam'], 'view': []}
+    assert sorted(
+        (
+            d['required_activity_key'],
+            d['required_status'],
+            d['condition_type'],
+        )
+        for d in approval['dependencies']
+    ) == sorted(
+        (a['key'], 'COMPLETED', 'ACTIVITY_COMPLETED') for a in activities[:-1]
+    )
+    assert len(approval['dependencies']) == 9  # noqa: PLR2004
+
+
 async def _creator(session):
     user = UserFactory()
     session.add(user)
@@ -140,6 +164,33 @@ async def test_sample_definition_instantiates_with_edit_only_for_sample_group(
         assert act.status == 'BLOCKED', template_key
         assert act.edit_roles == ['sample_selection_group']
         assert act.view_roles == ['admin', 'bracvam', 'sample_selection_group']
+
+
+@pytest.mark.asyncio
+async def test_structure_approval_instantiates_blocked_for_bracvam(session):
+    await bootstrap_all_templates(session)
+    creator = await _creator(session)
+
+    for template_key in TEMPLATE_FILES:
+        version = await _latest_version(session, template_key)
+        process = await instantiate_process(
+            session, version, f'Processo {template_key}', creator.id
+        )
+        act = await session.scalar(
+            select(ActivityInstance).where(
+                ActivityInstance.process_instance_id == process.id,
+                ActivityInstance.key == 'structure_approval',
+            )
+        )
+        runs = await session.scalar(
+            select(func.count())
+            .select_from(ActivityRun)
+            .where(ActivityRun.activity_instance_id == act.id)
+        )
+        assert act.status == 'BLOCKED', template_key
+        assert runs == 0
+        assert act.edit_roles == ['bracvam']
+        assert act.view_roles == ['admin', 'bracvam']
 
 
 def _previous_version(template_key):

@@ -28,11 +28,11 @@ Regra geral: implementar com a menor complexidade que cumpra os critérios de ac
 2. **Tipos de coluna**: exatamente `text`, `integer`, `decimal`, `date` e `select`. `select` exige opções não vazias; os outros tipos rejeitam opções.
 3. **Colunas reservadas**: toda saída (CSV e Excel) começa com três colunas fixas: `codigo_amostra`, `experimento` e `replica`. São constantes no código e não ficam no banco. Essas chaves são reservadas e a criação de coluna com elas é rejeitada, como acontece com chave duplicada. Laboratório, operador e datas não entram, porque o laboratório vem da autenticação.
 4. **Fora de escopo**: colunas derivadas (cálculo entre colunas) e a flag "permitir ensaios fracassados" com o `Status de Execução`. Nenhuma fonte define a fórmula nem a semântica, e a #30 é quem as consumiria. Não implementar nesta issue.
-5. **Etapa 3**: é a fase `phase_3_validation_execution` dos templates de processo (Spec 040). Ela começa quando a atividade `sample_definition` do processo fica `COMPLETED`.
+5. **Etapa 3**: é a fase `phase_3_validation_execution` dos templates de processo (Spec 040). Ela começa quando a atividade `sample_definition` do processo fica `COMPLETED`. A issue #27 mudou o início da Etapa 3 e a trava do template; ver a seção "Homologação da estrutura".
 6. **Catálogo global**: o template de coleta não pertence a um processo. Ele é criado antes e escolhido na criação do processo.
     - `POST /processes` ganha o campo opcional `collection_template_id`. É opcional para não quebrar processos e testes existentes.
     - `process_instances` ganha uma coluna anulável com o vínculo. Não existe rota para trocar o template depois.
-    - **Travamento estrutural**: o template fica travado se algum processo vinculado a ele tem `sample_definition` concluída. O estado se calcula por consulta, sem flag armazenada. Um template travado continua selecionável por processos novos.
+    - **Travamento estrutural**: o template fica travado se algum processo vinculado a ele tem `sample_definition` concluída. Substituído pela issue #27: o template trava quando a Etapa 3 de algum processo vinculado começa. O estado se calcula por consulta, sem flag armazenada. Um template travado continua selecionável por processos novos.
     - **Gestão do catálogo**: permissão nova, nos moldes de `form_templates.manage`, concedida a Admin e BraCVAM.
 7. **Protótipo**: descontinuado. Não usar o guia como evidência.
 8. **Biblioteca Excel**: `openpyxl`. Ela lê e escreve `.xlsx`, e a #30 precisa dos dois. Na leitura da #30, usar `read_only=True`.
@@ -63,3 +63,25 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 
 - Colunas derivadas e semântica de "ensaios fracassados" (decisão 4): decidir quando a #30 ou outra issue as exigir.
 - A #30 passa a exigir que o processo tenha template de coleta vinculado. Um processo criado por proponente sem a permissão de gestão do catálogo fica sem vínculo, e nenhuma rota o vincula depois. A #30 precisa decidir como esse processo recebe o template. A decisão bloqueia a jornada do proponente na #30 e deve sair antes de ela começar.
+
+## Homologação da estrutura (issue #27)
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: a issue #27 lista três insumos para auditar: papéis, amostras e plano estatístico. A atualização de 2026-10-04 retirou a Análise Estatística (#25) do escopo e pediu que se definisse se a homologação exige plano estatístico.
+- **Conflito**: a homologação pode reabrir a definição das amostras, e a decisão 5 da #26 trava o template de coleta pela conclusão dessas amostras. Com a reabertura, o template destravaria no meio do estudo.
+- **Decisão**: as decisões abaixo complementam a issue #27 e substituem a decisão 5 da #26 no início da Etapa 3 e na trava do template.
+- **Validação**: confirmada pelo usuário em 2026-10-14. Registrada em `specs/042-structure-approval/spec.md` (Clarifications).
+
+### DECISÕES VIGENTES
+
+1. **Plano estatístico**: a homologação não o exige. Ela audita a equipe (as oito atribuições de cargo) e a definição das amostras. Se a #25 voltar, ela acrescenta o ponto.
+2. **Pendências obrigatórias**: as nove atividades da Etapa 2 bloqueiam a aprovação, inclusive Colaboradores e Comitê ad hoc.
+3. **Início da Etapa 3**: nos processos criados depois desta feature, a Etapa 3 começa na aprovação da homologação. Os processos antigos mantêm o início na conclusão das amostras.
+4. **Trava do template de coleta**: o template trava quando a Etapa 3 de algum processo vinculado começa. Para os processos antigos o momento não muda.
+5. **Reexecução de atribuição de cargo**: a atividade reaberta conclui na próxima designação ou revogação do cargo, quando resta ao menos uma designação ativa e nenhum convite pendente. Não existe rota de conclusão.
+6. **Convite adicional após a conclusão**: criar um convite depois que a atribuição de cargo concluiu não reabre a atividade nem bloqueia, por si só, a homologação. O BraCVAM aprova com base nas designações ativas e na consistência das amostras no momento da decisão. Em atribuições abertas ou reabertas, os convites pendentes continuam impedindo a conclusão. Decisão confirmada pelo usuário em 2026-10-14.
+
+### PENDÊNCIAS
+
+- Plano estatístico na homologação: decidir quando a #25 voltar ao escopo.

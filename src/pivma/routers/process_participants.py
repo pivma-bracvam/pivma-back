@@ -308,6 +308,11 @@ async def revoke_participant(
             ),
         )
     )
+    # Uma atribuição reaberta pela homologação fecha na revogação, se o
+    # cargo continua com alguém designado (Spec 042, research R8).
+    await _maybe_close_role_assignment_activity(
+        session, process, assignment.role_key, current_user.id
+    )
     await session.commit()
     return Response(status_code=HTTPStatus.NO_CONTENT)
 

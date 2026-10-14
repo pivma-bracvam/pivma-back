@@ -99,8 +99,11 @@ curl -s -X POST $API/processes/$PID/samples/complete -H "Authorization: Bearer $
 
 A conclusão gera os códigos que faltam, descarta os de laboratórios que
 saíram, congela a lista de laboratórios e conclui a atividade. Depois disso,
-qualquer alteração responde `409 invalid_transition`, e o recebimento abre
-para cada laboratório ([Receber amostras](receber-amostras.md)).
+qualquer alteração responde `409 invalid_transition`. A conclusão abre a
+homologação da estrutura para o BraCVAM, se a equipe estiver completa.
+Quando o BraCVAM reprova as amostras, a atividade volta com uma execução
+nova: a seleção altera o que precisar e conclui de novo. O recebimento abre
+para cada laboratório depois da aprovação ([Receber amostras](receber-amostras.md)).
 
 ## 5. Imprimir etiquetas
 

@@ -1081,6 +1081,10 @@ class Decision(AuditMixin):
     decided_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), default_factory=datetime.utcnow
     )
+    # `[{activity_key, reason}]` na reprovação da homologação (Spec 042, R5).
+    rejected_points: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB, nullable=True, default=None
+    )
 
     process_instance: Mapped[ProcessInstance] = relationship(
         back_populates='decisions', init=False

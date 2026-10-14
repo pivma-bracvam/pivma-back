@@ -32,9 +32,10 @@ sequenceDiagram
 
 ## Antes de começar
 
-Faça o tutorial [Montar a equipe e preparar as amostras](equipe-e-amostras.md)
-inteiro. Ele termina com a definição das amostras concluída: uma substância
-refrigerada, com um frasco de reserva, e um laboratório.
+Faça o tutorial [Quando o BraCVAM reprova a estrutura](homologacao-da-estrutura.md)
+inteiro. Ele termina com a estrutura homologada e a Etapa 3 aberta: uma
+substância refrigerada, com um frasco de reserva, e dois laboratórios. Este
+tutorial segue o técnico do primeiro.
 
 ??? example "Como fazer pela API"
     ```bash

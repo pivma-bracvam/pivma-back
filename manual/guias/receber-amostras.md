@@ -1,7 +1,9 @@
 # Receber amostras
 
-Quando a definição das amostras conclui, a atividade `sample_receipt` abre
-uma execução para cada laboratório congelado. O laboratório participante
+Quando o BraCVAM aprova a homologação da estrutura, a atividade
+`sample_receipt` abre uma execução para cada laboratório congelado. Nos
+processos criados com a versão anterior do template, ela abre na conclusão
+das amostras. O laboratório participante
 registra cada frasco que chega. Um frasco fora de ordem vira uma
 inconformidade, que só o Grupo de Seleção de Amostras decide.
 
