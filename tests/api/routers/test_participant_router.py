@@ -15,6 +15,7 @@ from pivma.core.database.models import (
     Assignment,
     AuditEvent,
     Permission,
+    ProcessInstance,
     UserAccessProfile,
 )
 from pivma.core.security import create_access_token
@@ -1182,8 +1183,15 @@ async def test_effective_proponent_revokes_own_sponsor_designation(
 
 
 # ---------------------------------------------------------------------------
-# Atribuição reaberta pela homologação (Spec 042, research R8)
+# Atribuição reaberta pela homologação (Spec 042, research R8 e R14)
 # ---------------------------------------------------------------------------
+
+
+def complete_role(client, process_id, role_key):
+    return client.post(
+        f'/processes/{process_id}/participants/roles/{role_key}/complete',
+        headers=ORIGIN,
+    )
 
 
 async def _reopened_role(client, session, bracvam_user, activity_key):
@@ -1202,18 +1210,50 @@ async def _reopened_role(client, session, bracvam_user, activity_key):
     return ctx
 
 
-async def _active_assignment(session, process_id, role_key):
-    return await session.scalar(
-        select(Assignment).where(
-            Assignment.process_instance_id == process_id,
-            Assignment.role_key == role_key,
-            Assignment.revoked_at.is_(None),
+async def _active_assignments(session, process_id, role_key):
+    return list(
+        await session.scalars(
+            select(Assignment).where(
+                Assignment.process_instance_id == process_id,
+                Assignment.role_key == role_key,
+                Assignment.revoked_at.is_(None),
+            )
         )
     )
 
 
+async def _new_user(session):
+    other = UserFactory()
+    session.add(other)
+    await session.commit()
+    return other
+
+
+async def _assert_still_open(session, process_id, key):
+    reopened = (await runs(session, process_id, key))[1]
+    [task] = await run_tasks(session, reopened.id)
+    assert reopened.status == 'IN_PROGRESS'
+    assert task.status == 'READY'
+    assert (await activity(session, process_id)).status == 'BLOCKED'
+
+
 @pytest.mark.asyncio
-async def test_reopened_role_closes_on_revocation_that_keeps_a_designation(
+async def test_designation_does_not_close_a_reopened_role(
+    client, session, bracvam_user
+):
+    key = 'assign_statistician'
+    ctx = await _reopened_role(client, session, bracvam_user, key)
+
+    response = create_participant(
+        client, ctx.process_id, (await _new_user(session)).id, 'statistician'
+    )
+
+    assert response.status_code == HTTPStatus.CREATED, response.text
+    await _assert_still_open(session, ctx.process_id, key)
+
+
+@pytest.mark.asyncio
+async def test_revocation_does_not_close_a_reopened_role(
     client, session, bracvam_user
 ):
     key = 'assign_participating_laboratory'
@@ -1224,48 +1264,186 @@ async def test_reopened_role_closes_on_revocation_that_keeps_a_designation(
     )
 
     assert response.status_code == HTTPStatus.NO_CONTENT, response.text
-
-    reopened = (await runs(session, ctx.process_id, key))[1]
-    assert reopened.status == 'COMPLETED'
-    assert (await activity(session, ctx.process_id, key)).status == (
-        'COMPLETED'
-    )
+    await _assert_still_open(session, ctx.process_id, key)
 
 
 @pytest.mark.asyncio
-async def test_reopened_role_stays_open_when_revocation_empties_it(
+async def test_swap_designating_before_revoking_completes_with_only_the_new(
+    client, session, bracvam_user
+):
+    """Cenário da revisão do PR #76: a ordem da troca não importa."""
+    key = 'assign_statistician'
+    ctx = await _reopened_role(client, session, bracvam_user, key)
+    [old] = await _active_assignments(session, ctx.process_id, 'statistician')
+    new_user = await _new_user(session)
+
+    created = create_participant(
+        client, ctx.process_id, new_user.id, 'statistician'
+    )
+    assert created.status_code == HTTPStatus.CREATED, created.text
+    await _assert_still_open(session, ctx.process_id, key)
+    revoked = revoke_participant(client, ctx.process_id, old.id)
+    assert revoked.status_code == HTTPStatus.NO_CONTENT, revoked.text
+    await _assert_still_open(session, ctx.process_id, key)
+    response = complete_role(client, ctx.process_id, 'statistician')
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    assert response.json() == {
+        'activity_key': key,
+        'run_number': 2,
+        'status': 'COMPLETED',
+    }
+    assert [
+        a.user_id
+        for a in await _active_assignments(
+            session, ctx.process_id, 'statistician'
+        )
+    ] == [new_user.id]
+    assert (await runs(session, ctx.process_id, key))[1].status == 'COMPLETED'
+
+
+@pytest.mark.asyncio
+async def test_completion_records_who_declared_and_reopens_the_approval(
+    client, session, bracvam_user
+):
+    key = 'assign_participating_laboratory'
+    ctx = await _reopened_role(client, session, bracvam_user, key)
+
+    response = complete_role(
+        client, ctx.process_id, 'participating_laboratory'
+    )
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    reopened = (await runs(session, ctx.process_id, key))[1]
+    [event] = await session.scalars(
+        select(AuditEvent).where(
+            AuditEvent.process_instance_id == ctx.process_id,
+            AuditEvent.event_type == 'ROLE_ASSIGNMENT_COMPLETED',
+        )
+    )
+    assert event.activity_run_id == reopened.id
+    assert event.user_id == ctx.manager.id
+    assert event.context_data == {
+        'activity_key': key,
+        'role_key': 'participating_laboratory',
+        'run_number': 2,
+    }
+    approval_runs = await runs(session, ctx.process_id)
+    assert [r.status for r in approval_runs] == ['COMPLETED', 'IN_PROGRESS']
+
+
+@pytest.mark.asyncio
+async def test_completion_of_an_empty_role_is_refused(
     client, session, bracvam_user
 ):
     key = 'assign_statistician'
     ctx = await _reopened_role(client, session, bracvam_user, key)
-    statistician = await _active_assignment(
-        session, ctx.process_id, 'statistician'
-    )
+    [old] = await _active_assignments(session, ctx.process_id, 'statistician')
+    revoke_participant(client, ctx.process_id, old.id)
 
-    response = revoke_participant(client, ctx.process_id, statistician.id)
+    response = complete_role(client, ctx.process_id, 'statistician')
 
-    assert response.status_code == HTTPStatus.NO_CONTENT, response.text
-
-    reopened = (await runs(session, ctx.process_id, key))[1]
-    [task] = await run_tasks(session, reopened.id)
-    assert reopened.status == 'IN_PROGRESS'
-    assert task.status == 'READY'
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['detail']['code'] == 'role_without_designation'
+    await _assert_still_open(session, ctx.process_id, key)
 
 
 @pytest.mark.asyncio
-async def test_reopened_role_closes_on_new_designation(
+async def test_completion_with_a_pending_invite_is_refused(
     client, session, bracvam_user
 ):
     key = 'assign_statistician'
     ctx = await _reopened_role(client, session, bracvam_user, key)
-    other = UserFactory()
-    session.add(other)
+    invited = client.post(
+        f'/processes/{ctx.process_id}/participants/invites',
+        headers=ORIGIN,
+        json={
+            'email': 'nova.estatistica@example.com',
+            'role_key': 'statistician',
+        },
+    )
+    assert invited.status_code == HTTPStatus.CREATED, invited.text
+
+    response = complete_role(client, ctx.process_id, 'statistician')
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['detail']['code'] == 'pending_invites'
+    await _assert_still_open(session, ctx.process_id, key)
+
+
+@pytest.mark.asyncio
+async def test_completion_of_a_completed_role_is_refused(
+    client, session, bracvam_user
+):
+    ctx = await structure_process(session, bracvam_user)
+    authenticate(client, ctx.manager)
+
+    response = complete_role(client, ctx.process_id, 'statistician')
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['detail']['code'] == 'invalid_transition'
+    assert len(await runs(session, ctx.process_id, 'assign_statistician')) == 1
+
+
+@pytest.mark.asyncio
+async def test_completion_by_someone_who_does_not_manage_the_role_is_refused(
+    client, session, bracvam_user
+):
+    key = 'assign_statistician'
+    ctx = await _reopened_role(client, session, bracvam_user, key)
+    authenticate(client, ctx.statistician)
+
+    response = complete_role(client, ctx.process_id, 'statistician')
+
+    assert response.status_code == HTTPStatus.FORBIDDEN
+    await _assert_still_open(session, ctx.process_id, key)
+
+
+@pytest.mark.asyncio
+async def test_completion_by_manager_with_current_conflict_is_refused(
+    client, session, bracvam_user
+):
+    key = 'assign_statistician'
+    ctx = await _reopened_role(client, session, bracvam_user, key)
+    [manager_assignment] = await _active_assignments(
+        session, ctx.process_id, 'group_manager'
+    )
+    declaration = declare_conflict(
+        client,
+        ctx.process_id,
+        manager_assignment.id,
+        True,
+        justification='Tenho conflito neste estudo.',
+    )
+    assert declaration.status_code == HTTPStatus.CREATED, declaration.text
+
+    response = complete_role(client, ctx.process_id, 'statistician')
+
+    assert response.status_code == HTTPStatus.FORBIDDEN
+    await _assert_still_open(session, ctx.process_id, key)
+    assert (
+        await session.scalar(
+            select(AuditEvent.id).where(
+                AuditEvent.process_instance_id == ctx.process_id,
+                AuditEvent.event_type == 'ROLE_ASSIGNMENT_COMPLETED',
+            )
+        )
+        is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_completion_on_a_closed_process_is_refused(
+    client, session, bracvam_user
+):
+    key = 'assign_statistician'
+    ctx = await _reopened_role(client, session, bracvam_user, key)
+    process = await session.get(ProcessInstance, ctx.process_id)
+    process.status = 'CLOSED'
     await session.commit()
 
-    response = create_participant(
-        client, ctx.process_id, other.id, 'statistician'
-    )
+    response = complete_role(client, ctx.process_id, 'statistician')
 
-    assert response.status_code == HTTPStatus.CREATED, response.text
-    reopened = (await runs(session, ctx.process_id, key))[1]
-    assert reopened.status == 'COMPLETED'
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert response.json()['detail']['code'] == 'process_closed'
+    await _assert_still_open(session, ctx.process_id, key)

@@ -21,7 +21,7 @@ from pivma.core.process_engine import (
     instantiate_process,
     save_field_reviews,
     save_form_values_draft,
-    submit_proposal_form,
+    submit_activity_form,
 )
 from pivma.core.return_review_service import decide_return_review
 from tests.conftest import _make_rbac_user
@@ -77,13 +77,13 @@ async def test_full_process_engine_flow_approved(session):
 
     # 4. Fail Submit without required fields
     with pytest.raises(ValidationError):
-        await submit_proposal_form(
+        await submit_activity_form(
             session, process.id, 'proposal_submission', {}, user.id
         )
 
     # 5. Submit valid form
     full_vals = {'method_title': 'Método 3T3 NRU Completo'}
-    sub_act, sub_run, artifact, pre_eval_run = await submit_proposal_form(
+    sub_act, sub_run, artifact, pre_eval_run = await submit_activity_form(
         session, process.id, 'proposal_submission', full_vals, user.id
     )
 
@@ -165,7 +165,7 @@ async def test_process_engine_flow_diligence_reexecution(session):
         'pre_validation_evidence': 'Evidências prévias de repetibilidade.',
         'study_protocol_file': 'protocolo.pdf',
     }
-    await submit_proposal_form(
+    await submit_activity_form(
         session, process.id, 'proposal_submission', vals_1, user.id
     )
 
@@ -230,7 +230,7 @@ async def test_process_engine_flow_rejected(session):
         'pre_validation_evidence': 'Evidências prévias de repetibilidade.',
         'study_protocol_file': 'protocolo.pdf',
     }
-    await submit_proposal_form(
+    await submit_activity_form(
         session, process.id, 'proposal_submission', vals, user.id
     )
 
@@ -261,7 +261,7 @@ async def test_complete_activity_run_marks_run_activity_and_tasks_completed(
     """Teste unitário isolado do helper `_complete_activity_run` (Issue #22,
 
     FR-009) — chama o helper diretamente, sem passar por
-    `submit_proposal_form`/`execute_triage_decision` (cobertos em outros
+    `submit_activity_form`/`execute_triage_decision` (cobertos em outros
     testes), só para provar o efeito do helper em si.
     """
     await bootstrap_all_templates(session)

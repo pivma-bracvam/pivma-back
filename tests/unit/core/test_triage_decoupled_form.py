@@ -19,7 +19,7 @@ from pivma.core.process_engine import (
     get_current_form_instance,
     instantiate_process,
     save_field_reviews,
-    submit_proposal_form,
+    submit_activity_form,
 )
 from tests.conftest import _make_rbac_user
 from tests.factories.user_factory import UserFactory
@@ -60,7 +60,7 @@ async def test_triage_activity_has_no_form_instance(session):
     )
 
     # Submeter proposta para desbloquear triagem
-    await submit_proposal_form(
+    await submit_activity_form(
         session=session,
         process_id=process.id,
         activity_key='proposal_submission',

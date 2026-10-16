@@ -120,7 +120,33 @@ def test_all_templates_end_phase_2_with_structure_approval(template_key):
     ) == sorted(
         (a['key'], 'COMPLETED', 'ACTIVITY_COMPLETED') for a in activities[:-1]
     )
-    assert len(approval['dependencies']) == 9  # noqa: PLR2004
+    assert len(approval['dependencies']) == 10  # noqa: PLR2004
+
+
+def _form(data, key):
+    return next(f for f in data['forms'] if f['key'] == key)
+
+
+@pytest.mark.parametrize('template_key', list(TEMPLATE_FILES))
+def test_all_templates_declare_the_statistical_plan_in_phase_2(template_key):
+    data = _template(template_key)
+    activities = {a['key']: a for a in _phase_2(data)['activities']}
+
+    plan = activities['statistical_plan']
+    assert plan['assigned_role'] == 'statistician'
+    assert plan['access'] == {'edit': ['statistician'], 'view': []}
+    assert plan['form_template_key'] == 'statistical_plan_v1'
+    assert [
+        (
+            d['required_activity_key'],
+            d['required_status'],
+            d['condition_type'],
+        )
+        for d in plan['dependencies']
+    ] == [('assign_statistician', 'COMPLETED', 'ACTIVITY_COMPLETED')]
+    assert _form(data, 'statistical_plan_v1') == _form(
+        _template('pre_validated_method'), 'statistical_plan_v1'
+    )
 
 
 async def _creator(session):

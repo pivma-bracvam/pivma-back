@@ -2,7 +2,8 @@
 
 Leva um processo do template 1 da submissão até a definição das amostras
 aberta para o Grupo de Seleção, pela API pública, como a jornada da Spec 031.
-Depois completa a equipe e aprova a homologação, que abre a Etapa 3.
+Depois completa a equipe, envia o plano estatístico e aprova a homologação,
+que abre a Etapa 3.
 """
 
 from http import HTTPStatus
@@ -108,11 +109,26 @@ def open_sample_definition(
     return process_id
 
 
+def send_statistical_plan(client, process_id, statistician) -> None:
+    """O Estatístico anexa o plano e envia o formulário (Spec 042, US4)."""
+    authenticate(client, statistician)
+    form = f'/processes/{process_id}/activities/statistical_plan/form'
+    ok(
+        client.post(
+            f'{form}/fields/plan_file/attachment',
+            files={'file': ('plano.pdf', PDF, 'application/pdf')},
+            headers=ORIGIN,
+        )
+    )
+    ok(client.post(form, json={'values': {}}, headers=ORIGIN))
+
+
 def complete_study_team(client, team, process_id) -> None:
     """Designa os cargos que faltam depois de `open_sample_definition`.
 
     O proponente designa o patrocinador; o Grupo Gestor, que gere os
-    participantes do processo, designa os demais.
+    participantes do processo, designa os demais. O Estatístico envia o
+    plano.
     """
     authenticate(client, team.proponent)
     designate(client, process_id, team.sponsor, 'sponsor')
@@ -127,6 +143,7 @@ def complete_study_team(client, team, process_id) -> None:
         'lead_laboratory',
         team.laboratories[0],
     )
+    send_statistical_plan(client, process_id, team.statistician)
 
 
 def approve_structure(client, process_id, bracvam_user) -> dict:

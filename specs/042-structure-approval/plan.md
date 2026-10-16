@@ -9,7 +9,7 @@
 Põe um portão do BraCVAM entre a Etapa 2 e a Etapa 3 (issue #27):
 
 - Os cinco templates ganham a atividade `structure_approval` no fim da fase
-  2. Ela depende das nove atividades da etapa, e o recebimento de amostras
+  2. Ela depende das dez atividades da etapa, e o recebimento de amostras
   passa a depender dela (research R1).
 - Um painel lista os pontos (as dependências da homologação), as
   designações, as contagens das amostras, as pendências calculadas na hora e
@@ -17,8 +17,12 @@ Põe um portão do BraCVAM entre a Etapa 2 e a Etapa 3 (issue #27):
 - O BraCVAM aprova, com justificativa, e a Etapa 3 abre. Ou reprova pontos
   com motivo, e cada ponto ganha uma execução nova (R4, R6).
 - A decisão fica em `decisions`, com os pontos numa coluna JSONB nova (R5).
-- A atribuição de cargo reaberta conclui também na revogação (R8). O
-  template de coleta trava pelo início da Etapa 3 (R9).
+- A atribuição de cargo reaberta conclui só quando quem gere o cargo
+  declara que terminou (R8, R14). O template de coleta trava pelo início da
+  Etapa 3 (R9).
+- O plano estatístico é uma atividade de formulário da Etapa 2 e um ponto da
+  homologação. O envio de formulário só aciona dossiê, IA e triagem na
+  proposta (R13). Revisão do PR #76, 2026-10-16.
 
 O desenho reaproveita o motor de dependências, `_activate_activity`,
 `_complete_activity_run` e o padrão de decisão da triagem. Não cria
@@ -44,7 +48,7 @@ conclusão não reabre o cargo nem impede a aprovação (FR-008, T059).
 
 **Project Type**: web-service (backend)
 
-**Performance Goals**: painel com nove pontos e poucas dezenas de
+**Performance Goals**: painel com dez pontos e poucas dezenas de
 designações; consultas por processo, sem paginação
 
 **Constraints**: uma decisão por execução da homologação, mesmo com envios

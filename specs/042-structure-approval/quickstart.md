@@ -21,11 +21,11 @@ pela API pública.
 ## Roteiro manual pela API
 
 Parta do tutorial [Montar a equipe e preparar as amostras](../../manual/tutorial/equipe-e-amostras.md)
-com as nove atividades da Etapa 2 concluídas. O tutorial novo do manual traz
+com as dez atividades da Etapa 2 concluídas. O tutorial novo do manual traz
 os comandos completos; aqui ficam só os resultados esperados.
 
 1. `GET /processes/{id}/structure-approval` como BraCVAM: `status`
-   `IN_PROGRESS`, nove pontos, `pending` vazio em todos.
+   `IN_PROGRESS`, dez pontos, `pending` vazio em todos.
 2. `GET /tasks` como laboratório participante: nenhuma tarefa de
    recebimento.
 3. `POST .../structure-approval/decision` com `REJECTED` e o ponto
@@ -33,7 +33,9 @@ os comandos completos; aqui ficam só os resultados esperados.
    `reopened` com `run_number` 2.
 4. `GET /tasks` como Grupo Gestor: tarefa nova de "Definir os Laboratórios
    Participantes".
-5. Grupo Gestor revoga o laboratório errado e designa o certo. O ponto
+5. Grupo Gestor designa o laboratório certo e revoga o errado: o ponto
+   continua em andamento. Ele declara a conclusão por
+   `POST .../participants/roles/participating_laboratory/complete`. O ponto
    conclui e a homologação reabre com `run_number` 2; o painel aponta
    `laboratory_without_codes` e `codes_without_laboratory` no ponto das
    amostras.

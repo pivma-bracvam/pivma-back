@@ -2253,6 +2253,12 @@ class ReopenedPoint(BaseModel):
     run_number: int = Field(description='Execução nova do ponto')
 
 
+class RoleAssignmentCompletionResponse(BaseModel):
+    activity_key: str
+    run_number: int = Field(description='Execução concluída')
+    status: str = Field(description='Status da atribuição de cargo')
+
+
 class StructureDecisionResponse(BaseModel):
     decision_id: UUID
     outcome: StructureOutcome

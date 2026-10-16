@@ -71,17 +71,17 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 - **Fonte**: a issue #27 lista três insumos para auditar: papéis, amostras e plano estatístico. A atualização de 2026-10-04 retirou a Análise Estatística (#25) do escopo e pediu que se definisse se a homologação exige plano estatístico.
 - **Conflito**: a homologação pode reabrir a definição das amostras, e a decisão 5 da #26 trava o template de coleta pela conclusão dessas amostras. Com a reabertura, o template destravaria no meio do estudo.
 - **Decisão**: as decisões abaixo complementam a issue #27 e substituem a decisão 5 da #26 no início da Etapa 3 e na trava do template.
-- **Validação**: confirmada pelo usuário em 2026-10-14. Registrada em `specs/042-structure-approval/spec.md` (Clarifications).
+- **Validação**: confirmada pelo usuário em 2026-10-14. A revisão do PR #76, em 2026-10-16, mudou as decisões 1, 2 e 5. Registrada em `specs/042-structure-approval/spec.md` (Clarifications).
 
 ### DECISÕES VIGENTES
 
-1. **Plano estatístico**: a homologação não o exige. Ela audita a equipe (as oito atribuições de cargo) e a definição das amostras. Se a #25 voltar, ela acrescenta o ponto.
-2. **Pendências obrigatórias**: as nove atividades da Etapa 2 bloqueiam a aprovação, inclusive Colaboradores e Comitê ad hoc.
+1. **Plano estatístico**: a homologação o exige. A Etapa 2 ganha a atividade `statistical_plan`, do Estatístico, que abre quando a atribuição do estatístico conclui. O Estatístico envia um formulário com o plano em anexo (obrigatório) e um resumo (opcional). O plano é um ponto da homologação e pode ser reprovado como os outros; a nova execução traz um formulário novo e guarda o anterior. O plano não tem avaliação por IA nesta entrega. O envio de formulário só gera o Dossiê de Submissão, a pré-avaliação por IA e a triagem na submissão da proposta.
+2. **Pendências obrigatórias**: as dez atividades da Etapa 2 bloqueiam a aprovação, inclusive Colaboradores, Comitê ad hoc e o plano estatístico.
 3. **Início da Etapa 3**: nos processos criados depois desta feature, a Etapa 3 começa na aprovação da homologação. Os processos antigos mantêm o início na conclusão das amostras.
 4. **Trava do template de coleta**: o template trava quando a Etapa 3 de algum processo vinculado começa. Para os processos antigos o momento não muda.
-5. **Reexecução de atribuição de cargo**: a atividade reaberta conclui na próxima designação ou revogação do cargo, quando resta ao menos uma designação ativa e nenhum convite pendente. Não existe rota de conclusão.
+5. **Reexecução de atribuição de cargo**: a atividade reaberta não conclui sozinha. Quem gere o cargo declara que terminou a correção por `POST /processes/{id}/participants/roles/{role_key}/complete`, aceito quando o cargo tem ao menos uma designação ativa e nenhum convite pendente, e recusado para quem tem conflito de interesse vigente. Assim a ordem entre designar a pessoa nova e revogar a antiga não importa. Na primeira execução, a atividade continua concluindo na designação ou na revogação.
 6. **Convite adicional após a conclusão**: criar um convite depois que a atribuição de cargo concluiu não reabre a atividade nem bloqueia, por si só, a homologação. O BraCVAM aprova com base nas designações ativas e na consistência das amostras no momento da decisão. Em atribuições abertas ou reabertas, os convites pendentes continuam impedindo a conclusão. Decisão confirmada pelo usuário em 2026-10-14.
 
 ### PENDÊNCIAS
 
-- Plano estatístico na homologação: decidir quando a #25 voltar ao escopo.
+- Avaliação por IA do plano estatístico: fora desta entrega. Se entrar, não pode travar o envio nem mexer na triagem.

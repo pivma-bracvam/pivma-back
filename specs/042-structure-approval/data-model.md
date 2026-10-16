@@ -24,14 +24,29 @@ Atividade nova, última de `phase_2_role_assignment`:
 | --- | --- |
 | `key` | `structure_approval` |
 | `name` | `Homologação da Estrutura do Estudo` |
-| `order_index` | 10 |
+| `order_index` | 11 |
 | `assigned_role` | `bracvam` |
 | `access` | `edit: ["bracvam"]`, `view: []` |
 | `activity_type` | `structure_approval` |
-| `dependencies` | as nove atividades da fase 2, `ACTIVITY_COMPLETED` |
+| `dependencies` | as dez atividades da fase 2, `ACTIVITY_COMPLETED` |
 
 `sample_receipt` (fase 3) troca a dependência `sample_definition` por
 `structure_approval`.
+
+Atividade nova antes da homologação (revisão do PR #76, research R13):
+
+| Campo | Valor |
+| --- | --- |
+| `key` | `statistical_plan` |
+| `name` | `Plano Estatístico` |
+| `order_index` | 10 |
+| `assigned_role` | `statistician` |
+| `access` | `edit: ["statistician"]`, `view: []` |
+| `form_template_key` | `statistical_plan_v1` |
+| `dependencies` | `assign_statistician`, `ACTIVITY_COMPLETED` |
+
+Formulário `statistical_plan_v1`: `plan_file` (`file_upload`, obrigatório,
+`pdf` ou `docx`) e `summary` (`textarea`, opcional).
 
 ## Entidades usadas
 
@@ -40,7 +55,7 @@ Atividade nova, última de `phase_2_role_assignment`:
 Estados:
 
 ```text
-BLOCKED ──(nove pontos COMPLETED)──▶ IN_PROGRESS
+BLOCKED ──(dez pontos COMPLETED)──▶ IN_PROGRESS
 IN_PROGRESS ──(aprovar)──▶ COMPLETED            (fase 2 COMPLETED, Etapa 3 abre)
 IN_PROGRESS ──(reprovar)──▶ BLOCKED             (blocked_reason preenchido)
 BLOCKED ──(último ponto reprovado conclui)──▶ IN_PROGRESS   (execução nova)
@@ -56,10 +71,14 @@ COMPLETED ──(reprovado)──▶ IN_PROGRESS (execução n+1, execution_reas
 IN_PROGRESS ──(regra atual da atividade)──▶ COMPLETED
 ```
 
-- `role_assignment`: conclui na designação, na revogação de designação ou
-  na revogação de convite, com ao menos uma designação ativa do cargo e
-  nenhum convite pendente (research R8). A condição vale também na
-  primeira execução.
+- `role_assignment`: na primeira execução, conclui na designação, na
+  revogação de designação ou na revogação de convite, com ao menos uma
+  designação ativa do cargo e nenhum convite pendente (research R8). Na
+  execução reaberta, conclui só por
+  `POST /processes/{id}/participants/roles/{role_key}/complete`, com as
+  mesmas condições (research R14).
+- `statistical_plan`: conclui no envio do formulário com o anexo
+  (research R13). A execução nova traz formulário novo.
 - `sample_definition`: conclui por `POST /processes/{id}/samples/complete`.
 
 A execução n continua `COMPLETED`.
@@ -120,6 +139,8 @@ continuam impedindo a conclusão.
 | `STRUCTURE_REJECTED` | execução da homologação | `decision_id`, `justification`, `rejected_points` |
 | `ACTIVITY_REOPENED` | execução nova do ponto | `activity_key`, `previous_run_number`, `run_number`, `reason` |
 | `ACTIVITY_UNBLOCKED` | execução nova da homologação | já existente, gravado pelo motor |
+| `FORM_SUBMITTED` | execução do plano estatístico | `activity_key`, `run_number` |
+| `ROLE_ASSIGNMENT_COMPLETED` | execução reaberta da atribuição | `activity_key`, `role_key`, `run_number` |
 
 ## Template de coleta (research R9)
 

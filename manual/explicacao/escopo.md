@@ -71,8 +71,8 @@ flowchart LR
 | RF033 | Notificações | Parcial | Base de envio pronta; usada em convites, recuperação de senha e problemas no recebimento de amostras e na decisão sobre eles; sem central de notificações |
 | RF034 | Logs e auditoria | Sim | Linha do tempo por processo, históricos de RBAC e catálogo, logs estruturados |
 
-Na homologação, o BraCVAM confere as designações ativas e a consistência
-das amostras. Um convite adicional criado após a conclusão do cargo não
+Na homologação, o BraCVAM confere as designações ativas, o plano
+estatístico e a consistência das amostras. Um convite adicional criado após a conclusão do cargo não
 reabre a atividade nem bloqueia a aprovação. Veja
 [Designar participantes](../guias/designar-participantes.md).
 
@@ -107,7 +107,7 @@ baixa nem envia resultados (RF042).
 | RF049 | Distribuição dos materiais | Não | |
 | RF050 | Revisão cega | Parcial | Só o cegamento das amostras; o gabarito das substâncias fica restrito ao Grupo de Seleção |
 | RF051–RF054 | Pareceres e consolidação | Não | |
-| RF055–RF059 | Análise estatística | Não | A homologação da estrutura não exige plano estatístico; a exigência fica para quando a análise estatística entrar (issue #25) |
+| RF055–RF059 | Análise estatística | Não | O Estatístico envia o plano estatístico na Etapa 2, e o BraCVAM o confere na homologação da estrutura; não há tratamento estatístico dos resultados |
 | RF060 | Validação final | Não | |
 | RF061 | Relatório final | Não | |
 | RF062 | Exportação | Não | |

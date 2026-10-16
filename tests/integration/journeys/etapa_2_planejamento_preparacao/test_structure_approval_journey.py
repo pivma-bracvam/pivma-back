@@ -9,6 +9,8 @@ Personas:
   reprovar.
 - Ricardo, do Grupo de Seleção de Amostras. Define as amostras e as conclui
   de novo quando Helena reprova o ponto.
+- Estela, a estatística do estudo. Envia o plano estatístico e manda outro
+  quando Helena o reprova.
 - Thiago, analista de um laboratório participante. Só começa o recebimento
   depois da aprovação.
 
@@ -16,18 +18,22 @@ Estado inicial comum: deploy novo com perfis, permissões, templates e
 administrador canônicos. Os atores se cadastram pela API; o administrador
 concede o perfil BraCVAM a Helena e cadastra instituições, laboratórios e
 vínculos. O proponente submete o processo, Helena aprova a triagem e a
-equipe designa os oito cargos pela API. Ricardo cadastra uma substância com
-SDS. Cada troca de ator usa logout/login públicos.
+equipe designa os oito cargos pela API. Estela envia o plano estatístico, e
+Ricardo cadastra uma substância com SDS. Cada troca de ator usa logout/login
+públicos.
 
 Jornadas:
 
 1. Helena confere a estrutura completa, aprova, e a Etapa 3 abre para os
    laboratórios (US1).
-2. Helena reprova o ponto dos laboratórios; Marcos troca o laboratório,
-   Ricardo refaz as amostras e Helena aprova na terceira execução (US2, o
-   critério de conclusão da issue).
+2. Helena reprova o ponto dos laboratórios; Marcos designa o laboratório
+   certo antes de revogar o errado e declara que terminou, Ricardo refaz as
+   amostras e Helena aprova na terceira execução (US2, o critério de
+   conclusão da issue).
 3. Helena só aprova a estrutura completa: a decisão é recusada antes da
    abertura e com pendência, e Marcos não decide (US3).
+4. Estela envia o plano, Helena o reprova, Estela envia outro num
+   formulário novo e Helena aprova (US4).
 
 Os desvios de cada passo (cada erro, cada perfil, concorrência) ficam nos
 testes focados de `tests/api/routers/test_structure_approval_*`.
@@ -53,6 +59,7 @@ from tests.integration.journeys.conftest import (
 )
 from tests.integration.journeys.sample_steps import (
     ORIGIN,
+    PDF,
     designate,
     ok,
     register_substance,
@@ -112,8 +119,11 @@ def _laboratorio_com_analista(client, name):
     return laboratory, user
 
 
-async def _equipe_montada(session, client, monkeypatch):
-    """Preparo comum pela API, após o bootstrap de um deploy novo."""
+async def _equipe_montada(session, client, monkeypatch, *, plano=True):
+    """Preparo comum pela API, após o bootstrap de um deploy novo.
+
+    Com `plano`, Estela envia o plano estatístico depois da designação.
+    """
     await bootstrap_fresh_deploy(session, monkeypatch)
     team = SimpleNamespace(**{
         role: SimpleNamespace(**sign_up(client, name))
@@ -199,6 +209,9 @@ async def _equipe_montada(session, client, monkeypatch):
         'lead_laboratory',
         team.laboratories[0],
     )
+    team.estela = team.statistician
+    if plano:
+        _enviar_plano(client, team)
     _entrar(client, team.selector)
     assert (
         _tarefas(client, team.process_id, 'sample_definition')[0]['status']
@@ -212,6 +225,35 @@ async def _equipe_montada(session, client, monkeypatch):
     team.marcos = team.manager
     team.ricardo, team.thiago = team.selector, team.lab_users[0]
     return team
+
+
+def _formulario_do_plano(client, process_id):
+    return f'/processes/{process_id}/activities/statistical_plan/form'
+
+
+def _anexar_plano(client, process_id, filename='plano.pdf'):
+    return ok(
+        client.post(
+            f'{_formulario_do_plano(client, process_id)}'
+            '/fields/plan_file/attachment',
+            files={'file': (filename, PDF, 'application/pdf')},
+            headers=ORIGIN,
+        )
+    )
+
+
+def _enviar_plano(client, team):
+    """Estela anexa o plano e envia o formulário."""
+    _entrar(client, team.estela)
+    _anexar_plano(client, team.process_id)
+    sent = ok(
+        client.post(
+            _formulario_do_plano(client, team.process_id),
+            json={'values': {'summary': 'Análise de concordância.'}},
+            headers=ORIGIN,
+        )
+    )
+    assert sent['status'] == 'COMPLETED'
 
 
 def _concluir_amostras(client, team):
@@ -281,13 +323,13 @@ async def test_bracvam_homologa_a_estrutura_e_libera_o_recebimento(
     _entrar(client, team.thiago)
     assert _tarefas(client, team.process_id, 'sample_receipt') == []
 
-    # 3. Helena abre o painel: os nove pontos concluídos, sem pendência e
+    # 3. Helena abre o painel: os dez pontos concluídos, sem pendência e
     #    só com as contagens das amostras.
     _entrar(client, team.helena)
     response = client.get(f'/processes/{team.process_id}/structure-approval')
     panel = ok(response)
     assert panel['status'] == 'IN_PROGRESS'
-    assert len(panel['points']) == 9  # noqa: PLR2004
+    assert len(panel['points']) == 10  # noqa: PLR2004
     assert {p['status'] for p in panel['points']} == {'COMPLETED'}
     assert all(p['pending'] == [] for p in panel['points'])
     assert _pontos(panel)['sample_definition']['samples'] == {
@@ -393,23 +435,42 @@ async def test_bracvam_reprova_o_laboratorio_e_a_estrutura_volta_para_correcao( 
     [reabertura] = _eventos(client, team.process_id, 'ACTIVITY_REOPENED')
     assert reabertura['context_data']['reason'] == 'Laboratório errado.'
 
-    # 5. Marcos revoga o laboratório errado e designa o certo: o ponto
-    #    conclui e a homologação reabre para Helena.
+    # 5. Marcos designa o laboratório certo antes de revogar o errado. A
+    #    tarefa dele continua aberta e Helena segue sem homologação.
     _entrar(client, team.marcos)
+    designate(
+        client, team.process_id, certo_user, 'participating_laboratory', certo
+    )
     wrong = _designacao(client, team.process_id, errado)
     revoked = client.delete(
         f'/processes/{team.process_id}/participants/{wrong["id"]}',
         headers=ORIGIN,
     )
     assert revoked.status_code == HTTPStatus.NO_CONTENT, revoked.text
-    designate(
-        client, team.process_id, certo_user, 'participating_laboratory', certo
+    [open_task] = _tarefas(client, team.process_id, labs)
+    assert (open_task['activity_run_number'], open_task['status']) == (
+        2,
+        'READY',
     )
+    _entrar(client, team.helena)
+    assert _tarefas(client, team.process_id, APPROVAL, status='READY') == []
+
+    # 6. Marcos declara que terminou a troca: o ponto conclui e a
+    #    homologação reabre para Helena.
+    _entrar(client, team.marcos)
+    completed = ok(
+        client.post(
+            f'/processes/{team.process_id}/participants/roles/'
+            'participating_laboratory/complete',
+            headers=ORIGIN,
+        )
+    )
+    assert (completed['run_number'], completed['status']) == (2, 'COMPLETED')
     _entrar(client, team.helena)
     [task] = _tarefas(client, team.process_id, APPROVAL, status='READY')
     assert task['activity_run_number'] == 2  # noqa: PLR2004
 
-    # 6. O painel aponta as amostras fora da equipe nova, e a aprovação é
+    # 7. O painel aponta as amostras fora da equipe nova, e a aprovação é
     #    recusada.
     pending = {
         (item['code'], item['laboratory']['id'])
@@ -427,7 +488,7 @@ async def test_bracvam_reprova_o_laboratorio_e_a_estrutura_volta_para_correcao( 
     assert refused.status_code == HTTPStatus.CONFLICT
     assert refused.json()['detail']['code'] == 'structure_pending'
 
-    # 7. Helena reprova as amostras; Ricardo vê a tarefa e conclui de novo.
+    # 8. Helena reprova as amostras; Ricardo vê a tarefa e conclui de novo.
     ok(
         _decidir(
             client,
@@ -450,7 +511,7 @@ async def test_bracvam_reprova_o_laboratorio_e_a_estrutura_volta_para_correcao( 
     )
     _concluir_amostras(client, team)
 
-    # 8. Helena vê a homologação na execução 3, sem pendência, e aprova.
+    # 9. Helena vê a homologação na execução 3, sem pendência, e aprova.
     _entrar(client, team.helena)
     panel = _painel(client, team.process_id)
     assert (panel['status'], panel['run_number']) == ('IN_PROGRESS', 3)
@@ -464,14 +525,14 @@ async def test_bracvam_reprova_o_laboratorio_e_a_estrutura_volta_para_correcao( 
         )
     )
 
-    # 9. O laboratório certo vê o recebimento; o revogado não.
+    # 10. O laboratório certo vê o recebimento; o revogado não.
     _entrar(client, certo_user)
     [receipt] = _tarefas(client, team.process_id, 'sample_receipt')
     assert receipt['laboratory']['id'] == str(certo.id)
     _entrar(client, errado_user)
     assert _tarefas(client, team.process_id, 'sample_receipt') == []
 
-    # 10. O painel mostra as três decisões, da mais recente para a mais
+    # 11. O painel mostra as três decisões, da mais recente para a mais
     #     antiga, com os pontos reprovados e os motivos.
     _entrar(client, team.helena)
     decisions = _painel(client, team.process_id)['decisions']
@@ -576,3 +637,102 @@ async def test_bracvam_so_aprova_a_estrutura_completa(
         _entrar(client, user)
         [receipt] = _tarefas(client, team.process_id, 'sample_receipt')
         assert receipt['laboratory']['id'] == str(laboratory.id)
+
+
+@pytest.mark.asyncio
+async def test_estatistica_envia_o_plano_e_reenvia_apos_reprovacao(  # noqa: PLR0914, PLR0915
+    journey_client, session, monkeypatch
+):
+    plan = 'statistical_plan'
+    # 1. A equipe está montada e Estela vê a tarefa do plano.
+    client = journey_client
+    team = await _equipe_montada(session, client, monkeypatch, plano=False)
+    form_url = _formulario_do_plano(client, team.process_id)
+    _entrar(client, team.estela)
+    [task] = _tarefas(client, team.process_id, plan)
+    assert (task['title'], task['status']) == ('Plano Estatístico', 'READY')
+
+    # 2. Estela tenta enviar sem o anexo e é recusada.
+    refused = client.post(form_url, json={'values': {}}, headers=ORIGIN)
+    assert refused.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert refused.json()['detail']['fields'][0]['field'] == (
+        'values.plan_file'
+    )
+
+    # 3. Estela anexa o plano e envia; Ricardo conclui as amostras.
+    _enviar_plano(client, team)
+    _concluir_amostras(client, team)
+
+    # 4. Helena vê o plano como ponto do painel e lê o formulário enviado.
+    _entrar(client, team.helena)
+    point = _pontos(_painel(client, team.process_id))[plan]
+    assert (point['status'], point['pending']) == ('COMPLETED', [])
+    sent = ok(client.get(form_url))
+    assert sent['is_submitted'] is True
+    assert sent['values']['summary'] == 'Análise de concordância.'
+    assert sent['fields'][0]['attachment']['filename'] == 'plano.pdf'
+
+    # 5. Helena reprova o plano com o motivo.
+    rejected = ok(
+        _decidir(
+            client,
+            team.process_id,
+            outcome='REJECTED',
+            justification='Plano incompleto.',
+            rejected_points=[
+                {'activity_key': plan, 'reason': 'Falta o tamanho amostral.'}
+            ],
+        )
+    )
+    assert rejected['reopened'] == [{'activity_key': plan, 'run_number': 2}]
+
+    # 6. Helena consulta o formulário e o anexo que fundamentaram a
+    #    reprovação pela execução anterior.
+    previous = ok(client.get(f'{form_url}?run_number=1'))
+    assert previous['is_submitted'] is True
+    assert previous['values']['summary'] == 'Análise de concordância.'
+    assert previous['fields'][0]['attachment']['filename'] == 'plano.pdf'
+    previous_attachment = client.get(
+        f'{form_url}/fields/plan_file/attachment?run_number=1'
+    )
+    assert previous_attachment.status_code == HTTPStatus.OK
+    assert previous_attachment.content == PDF
+
+    # 7. Estela vê a tarefa nova ao lado da concluída e um formulário em
+    #    branco; envia o plano revisado.
+    _entrar(client, team.estela)
+    history = _tarefas(client, team.process_id, plan, current_run='false')
+    assert [(t['activity_run_number'], t['status']) for t in history] == [
+        (1, 'COMPLETED'),
+        (2, 'READY'),
+    ]
+    blank = ok(client.get(form_url))
+    assert blank['is_submitted'] is False
+    assert blank['fields'][0]['attachment'] is None
+    _anexar_plano(client, team.process_id, 'plano-revisado.pdf')
+    ok(client.post(form_url, json={'values': {}}, headers=ORIGIN))
+
+    # 8. Helena vê a homologação reaberta, lê o plano revisado e aprova.
+    _entrar(client, team.helena)
+    panel = _painel(client, team.process_id)
+    assert (panel['status'], panel['run_number']) == ('IN_PROGRESS', 2)
+    revised = ok(client.get(form_url))
+    assert revised['fields'][0]['attachment']['filename'] == (
+        'plano-revisado.pdf'
+    )
+    ok(
+        _decidir(
+            client,
+            team.process_id,
+            outcome='APPROVED',
+            justification='Equipe, plano e amostras conferidos.',
+        )
+    )
+
+    # 9. A linha do tempo registra os dois envios do plano.
+    sends = _eventos(client, team.process_id, 'FORM_SUBMITTED')
+    assert [e['context_data'] for e in sends] == [
+        {'activity_key': plan, 'run_number': 1},
+        {'activity_key': plan, 'run_number': 2},
+    ]
+    assert {e['user_id'] for e in sends} == {str(team.estela.id)}

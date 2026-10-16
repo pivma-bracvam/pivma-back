@@ -18,6 +18,7 @@ from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.sample_factory import _user, lab_user, new_laboratory
 from tests.factories.structure_approval_factory import (
     activity,
+    complete_role,
     decide,
     decisions,
     designate,
@@ -178,10 +179,11 @@ async def test_approval_reopens_only_when_the_last_rejected_point_completes(
     )
 
     await designate(session, ctx, await _user(session), 'statistician')
+    await complete_role(session, ctx, 'statistician')
     assert (await activity(session, ctx.process_id)).status == 'BLOCKED'
     assert len(await runs(session, ctx.process_id)) == 1
 
-    await designate(session, ctx, await _user(session), 'sponsor')
+    await complete_role(session, ctx, 'sponsor')
     approval = await activity(session, ctx.process_id)
     second = (await runs(session, ctx.process_id))[1]
     [task] = await run_tasks(session, second.id)

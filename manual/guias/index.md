@@ -12,6 +12,7 @@ navegador, troque por `credentials: 'include'` e envie o `Origin` do frontend.
 | [Conduzir a triagem](conduzir-a-triagem.md) | BraCVAM |
 | [Responder ao retorno](responder-ao-retorno.md) | Proponente |
 | [Designar participantes](designar-participantes.md) | Proponente, Grupo Gestor, BraCVAM, Administrador |
+| [Enviar o plano estatístico](enviar-o-plano-estatistico.md) | Estatístico |
 | [Definir amostras cegas](definir-amostras-cegas.md) | Grupo de Seleção de Amostras |
 | [Montar um template de coleta](montar-template-de-coleta.md) | BraCVAM, Administrador |
 | [Receber amostras](receber-amostras.md) | Laboratório participante, Grupo de Seleção de Amostras |

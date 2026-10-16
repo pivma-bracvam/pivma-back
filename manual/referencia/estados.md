@@ -56,7 +56,14 @@ stateDiagram-v2
 ```
 
 Um ponto reprovado volta de `COMPLETED` para `IN_PROGRESS` com uma execução
-nova. A execução anterior continua `COMPLETED`.
+nova. A execução anterior continua `COMPLETED`. Cada ponto volta a
+`COMPLETED` assim:
+
+| Ponto | Conclui quando |
+|---|---|
+| Atribuição de cargo | Quem gere o cargo declara que terminou, com ao menos uma designação ativa e nenhum convite pendente. Designar e revogar não fecham a execução reaberta |
+| Plano estatístico | O Estatístico envia o formulário novo com o anexo |
+| Definição das amostras | O Grupo de Seleção conclui as amostras de novo |
 
 ## Execução de atividade
 

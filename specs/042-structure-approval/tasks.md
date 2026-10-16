@@ -375,3 +375,54 @@ Verificação dos ajustes (2026-10-14):
 - `poetry run poe lint`: sem erros.
 - `PYTHONPATH=src poetry run poe docs-build`: build estrito aprovado. Sem `PYTHONPATH`, o hook de rotas não encontra o pacote `pivma` neste ambiente.
 - `git diff --check`: sem erros. A suíte completa e as migrações não foram reexecutadas nestes ajustes, que alteram testes e documentação.
+
+## Phase 9: Revisão do PR #76 (2026-10-16)
+
+Decisões da revisão em Clarifications (sessão 2026-10-16), research R13 e
+R14 e `docs/observacoes-e-pendencias.md` (decisões 1, 2 e 5).
+
+### User Story 4 - O Estatístico envia o plano e o BraCVAM o confere
+
+- [X] T061 [US4] Jornada em `tests/integration/journeys/etapa_2_planejamento_preparacao/test_structure_approval_journey.py`: a estatística vê a tarefa do plano depois da designação, tenta enviar sem anexo e recebe 422, anexa e envia; Helena vê o ponto no painel e lê o formulário; Helena reprova o plano; a estatística encontra formulário novo e envia outro; Helena aprova. O preparo comum (`_equipe_montada`) passa a enviar o plano, e a docstring do módulo ganha a jornada.
+- [X] T062 [P] [US4] Em `tests/api/routers/test_structure_approval_statistical_plan.py`: a atribuição do estatístico concluída abre `statistical_plan` com tarefa `READY` para `statistician` e formulário vazio.
+- [X] T063 [P] [US4] Mesmo arquivo: enviar sem o anexo responde 422 `invalid_form_values` com `values.plan_file`, e a atividade continua `IN_PROGRESS`.
+- [X] T064 [P] [US4] Mesmo arquivo: o envio com anexo conclui a atividade e grava `FORM_SUBMITTED` com `activity_key` e `run_number`.
+- [X] T065 [P] [US4] Mesmo arquivo: com avaliação por IA habilitada para `statistical_plan_v1`, o envio não cria `EvaluationRun`, nem artefato `proposal_dossier`, nem `SUBMISSION_SUBMITTED`, e a triagem continua como estava.
+- [X] T066 [P] [US4] Mesmo arquivo: com o plano em andamento, o painel mostra o ponto `statistical_plan` com `activity_not_completed`, e a homologação não abre.
+- [X] T067 [P] [US4] Mesmo arquivo: reprovar `statistical_plan` abre a execução 2 com `FormInstance` nova e não enviada; a da execução 1 continua enviada, com o anexo.
+- [X] T068 [P] [US4] `tests/integration/bootstrap/test_template_phase_2.py`: `statistical_plan` igual nos cinco templates, com dependência de `assign_statistician`, acesso do `statistician` e formulário `statistical_plan_v1`; a homologação depende das dez atividades.
+- [X] T069 [US4] Os cinco YAML: atividade `statistical_plan`, formulário `statistical_plan_v1` e a dependência nova da homologação (`order_index` 11). Atualizar `src/pivma/templates_data/README.md`.
+- [X] T070 [US4] `submit_proposal_form`, renomeada para `submit_activity_form`, em `src/pivma/core/process_engine.py`: dossiê, `SUBMISSION_SUBMITTED`, IA e triagem só para `proposal_submission`; os demais formulários gravam `FORM_SUBMITTED` e liberam as dependentes.
+- [X] T071 [US4] Preparo dos testes: `tests/factories/structure_approval_factory.py` (`structure_process`) e `tests/integration/journeys/sample_steps.py` (`complete_study_team`) enviam o plano depois de designar o estatístico.
+
+### User Story 2 - Conclusão explícita da atribuição reaberta
+
+- [X] T072 [US2] Jornada 2 de `test_structure_approval_journey.py`: Marcos designa o laboratório certo antes de revogar o errado, o ponto continua em andamento e Helena continua sem homologação; Marcos revoga o errado e declara a conclusão; a homologação reabre.
+- [X] T073 [P] [US2] `tests/api/routers/test_participant_router.py` (seção R8): designar no cargo reaberto não conclui a atividade.
+- [X] T074 [P] [US2] Mesmo arquivo: revogar no cargo reaberto, mantendo designação ativa, não conclui a atividade.
+- [X] T075 [P] [US2] Mesmo arquivo: designar a pessoa nova antes de revogar a antiga e declarar a conclusão deixa a atividade concluída com só a pessoa nova ativa (cenário pedido na revisão).
+- [X] T076 [P] [US2] Mesmo arquivo: a declaração grava `ROLE_ASSIGNMENT_COMPLETED` com `activity_key`, `role_key` e `run_number`, e reabre a homologação quando é o último ponto.
+- [X] T077 [P] [US2] Mesmo arquivo: declaração com o cargo vazio responde 409 `role_without_designation` e a atividade continua em andamento.
+- [X] T078 [P] [US2] Mesmo arquivo: declaração com convite pendente responde 409 `pending_invites`.
+- [X] T079 [P] [US2] Mesmo arquivo: declaração em atribuição já concluída responde 409 `invalid_transition`.
+- [X] T080 [P] [US2] Mesmo arquivo: quem não gere o cargo recebe 403 e nada muda.
+- [X] T081 [P] [US2] Mesmo arquivo: declaração em processo encerrado responde 409 `process_closed`. Processo excluído responde 404, como a revogação.
+- [X] T082 [US2] Ajustar `test_structure_approval_rejection.py` (`test_approval_reopens_only_when_the_last_rejected_point_completes`) para declarar a conclusão dos cargos reabertos.
+- [X] T083 [US2] `_maybe_close_role_assignment_activity` ignora execução com `run_number > 1`; serviço `complete_role_assignment` em `src/pivma/core/participant_service.py`; rota em `src/pivma/routers/process_participants.py` e esquema de resposta em `src/pivma/schemas.py`.
+
+### Polish
+
+- [X] T084 [P] Manual: tutorial `homologacao-da-estrutura.md` (plano e declaração de conclusão), `equipe-e-amostras.md`, guias `designar-participantes.md` e um guia do plano estatístico, referências `rotas.md`, `erros.md`, `eventos.md`, `estados.md`, `templates.md`, `templates-yaml.md`, `perfis-permissoes-cargos.md` e explicações `modelo-de-processo.md` e `escopo.md`. Revisar com `stop-slop` e rodar `poe docs-build`.
+- [X] T085 Atualizar `specs/042-structure-approval/pr-description.md` com as duas mudanças da revisão.
+- [X] T086 Verificação: `poe lint`, testes afetados e suíte completa; relatar só o que rodou.
+
+Verificação da revisão (2026-10-16): `poe lint` sem erros; `PYTHONPATH=src poe docs-build` aprovado; `pytest` completo com 2123 aprovados, 1 ignorado e nenhuma falha. A primeira rodada apontou duas listas exaustivas de templates sem o plano estatístico (`test_activity_type_extension.py`, `test_first_deploy_forms.py`), corrigidas antes da segunda. Sem migração nova; as migrações não foram reexecutadas.
+
+### Correções dos achados da revisão técnica
+
+- [X] T087 [P] [US2] `tests/api/routers/test_participant_router.py`: pessoa gestora com conflito vigente recebe 403 ao concluir atribuição reaberta, sem concluir execução nem gravar evento.
+- [X] T088 [P] [US4] `tests/api/routers/test_structure_approval_statistical_plan.py` e jornada `test_structure_approval_journey.py`: BraCVAM consulta o formulário e baixa o anexo da execução reprovada; número de execução inexistente retorna 404.
+- [X] T089 [US2] `participant_service.complete_role_assignment` bloqueia conflito vigente e a rota mapeia para 403 `forbidden`.
+- [X] T090 [US4] Rotas GET de formulário e anexo aceitam `run_number` para leitura histórica, preservando a escrita na execução atual. Atualizar contrato HTTP e guia do plano.
+
+Verificação final (2026-10-16), depois das correções da revisão técnica (conflito de interesse na declaração de conclusão e leitura de execuções anteriores do formulário por `run_number`): `pytest` completo com 2125 aprovados, 1 ignorado e nenhuma falha.

@@ -36,6 +36,7 @@ POINT_KEYS = [
     'assign_collaborator',
     'assign_adhoc_evaluator',
     'sample_definition',
+    'statistical_plan',
 ]
 
 

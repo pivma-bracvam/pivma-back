@@ -1,8 +1,9 @@
 """Processo com a Etapa 2 montada e a homologação da estrutura (Spec 042).
 
 Usa o template real `pre_validated_method` e os serviços do domínio:
-submissão, triagem aprovada, os oito cargos designados e uma substância com
-SDS. Com `complete_samples`, a homologação abre para o BraCVAM. A jornada
+submissão, triagem aprovada, os oito cargos designados, o plano estatístico
+enviado e uma substância com SDS. Com `complete_samples`, a homologação abre
+para o BraCVAM. A jornada
 percorre o mesmo caminho pela API pública.
 """
 
@@ -21,8 +22,10 @@ from pivma.core import participant_service, sample_service
 from pivma.core.database.models import (
     ActivityInstance,
     ActivityRun,
+    Artifact,
     AuditEvent,
     Decision,
+    FormValue,
     ProcessInstance,
     ProcessTemplate,
     ProcessTemplateVersion,
@@ -30,8 +33,9 @@ from pivma.core.database.models import (
 )
 from pivma.core.process_engine import (
     execute_triage_decision,
+    get_current_form_instance,
     instantiate_process,
-    submit_proposal_form,
+    submit_activity_form,
 )
 from tests.factories.sample_factory import (
     _user,  # noqa: PLC2701
@@ -48,6 +52,7 @@ TEMPLATE_FILE = (
     / 'src/pivma/templates_data/01_pre_validated_method.yaml'
 )
 APPROVAL_KEY = 'structure_approval'
+PLAN_KEY = 'statistical_plan'
 PHASE_2_KEY = 'phase_2_role_assignment'
 # Cargo de cada atribuição não laboratorial e o atributo do contexto.
 PERSON_ROLES = {
@@ -70,7 +75,9 @@ def previous_version_payload() -> dict:
     data['process_template']['version'] -= 1
     for phase in data['phases']:
         phase['activities'] = [
-            a for a in phase['activities'] if a['key'] != APPROVAL_KEY
+            a
+            for a in phase['activities']
+            if a['key'] not in {APPROVAL_KEY, PLAN_KEY}
         ]
         for activity in phase['activities']:
             for dependency in activity.get('dependencies') or []:
@@ -98,7 +105,7 @@ async def _template_version(session, *, previous: bool):
 
 
 async def _approve_triage(session, process_id, proponent, bracvam) -> None:
-    await submit_proposal_form(
+    await submit_activity_form(
         session,
         process_id,
         'proposal_submission',
@@ -124,6 +131,49 @@ async def designate(session, ctx, user, role_key, laboratory=None):
     )
     await session.commit()
     return assignment
+
+
+async def complete_role(session, ctx, role_key) -> None:
+    """O Grupo Gestor declara concluída a atribuição reaberta do cargo."""
+    process = await session.get(ProcessInstance, ctx.process_id)
+    await participant_service.complete_role_assignment(
+        session, process, role_key, ctx.manager.id
+    )
+    await session.commit()
+
+
+async def attach_plan(session, ctx) -> Artifact:
+    """O Estatístico anexa o plano ao formulário da execução atual."""
+    _, run, form, _, fields = await get_current_form_instance(
+        session, ctx.process_id, PLAN_KEY
+    )
+    field = next(f for f in fields if f.field_key == 'plan_file')
+    artifact = Artifact(
+        process_instance_id=ctx.process_id,
+        activity_run_id=run.id,
+        key='form_attachment',
+        name='plano.pdf',
+        status='DRAFT',
+    )
+    session.add(artifact)
+    await session.flush()
+    session.add(
+        FormValue(
+            form_instance_id=form.id,
+            form_field_id=field.id,
+            file_attachment_id=artifact.id,
+        )
+    )
+    await session.commit()
+    return artifact
+
+
+async def submit_plan(session, ctx) -> None:
+    """O Estatístico anexa o plano e envia o formulário."""
+    await attach_plan(session, ctx)
+    await submit_activity_form(
+        session, ctx.process_id, PLAN_KEY, {}, ctx.statistician.id
+    )
 
 
 async def finish_samples(session, ctx) -> None:
@@ -175,13 +225,15 @@ async def structure_process(  # noqa: PLR0913
     lab_count: int = 2,
     collection_template_id=None,
     complete_samples: bool = True,
+    send_plan: bool = True,
     previous_version: bool = False,
 ) -> SimpleNamespace:
     """Processo com os oito cargos designados e uma substância com SDS.
 
-    Com `complete_samples`, conclui as amostras: na versão atual, a
-    homologação fica em andamento; com `previous_version`, o recebimento
-    abre por laboratório.
+    Com `send_plan`, o Estatístico envia o plano (só na versão atual). Com
+    `complete_samples`, conclui as amostras: na versão atual, com o plano
+    enviado, a homologação fica em andamento; com `previous_version`, o
+    recebimento abre por laboratório.
     """
     ctx = await planning_process(
         session,
@@ -207,6 +259,8 @@ async def structure_process(  # noqa: PLR0913
             ctx.laboratories, ctx.lab_users, strict=True
         )
     ]
+    if send_plan and not previous_version:
+        await submit_plan(session, ctx)
 
     ctx.substance = await sample_service.create_substance(
         session, ctx.process_id, ctx.selector.id, substance_payload()

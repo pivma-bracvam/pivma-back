@@ -49,6 +49,10 @@ complexidade desnecessária e lacunas ou debitos tecnicos."
 - **CONFIRMADO, decisão da equipe (#26, decisão 5)**: a Etapa 3 começava na
   conclusão das amostras, e o template de coleta travava nesse momento.
   Esta feature muda as duas regras (ver Clarifications).
+- **CONFIRMADO, revisão do PR #76 (2026-10-16)**: a equipe incluiu o plano
+  estatístico na homologação e pediu que a atribuição de cargo reaberta não
+  conclua sozinha na primeira designação (ver Clarifications, sessão
+  2026-10-16).
 
 ## Clarifications
 
@@ -58,8 +62,10 @@ complexidade desnecessária e lacunas ou debitos tecnicos."
   equipe (atribuições de cargo) e as amostras. A #25 saiu do escopo e
   nenhuma fonte define o plano estatístico. Se ela voltar, acrescenta o
   ponto. A decisão vai para a descrição da PR e para a issue.
+  **Substituída na sessão 2026-10-16.**
 - Q: Quais atividades da Etapa 2 bloqueiam a aprovação? → A: As nove: as
-  oito atribuições de cargo e a definição das amostras.
+  oito atribuições de cargo e a definição das amostras. **Passam a dez na
+  sessão 2026-10-16.**
 - Q: Quando o template de coleta trava, se a homologação pode reabrir as
   amostras? → A: Quando a Etapa 3 de algum processo vinculado começa. Nos
   processos novos isso acontece na aprovação da homologação. Nos processos
@@ -69,13 +75,34 @@ complexidade desnecessária e lacunas ou debitos tecnicos."
 - Q: Como uma atribuição de cargo reaberta conclui de novo? → A: Na próxima
   designação ou na próxima revogação do cargo, desde que reste ao menos uma
   designação ativa e nenhum convite pendente. Não existe rota nova de
-  conclusão.
+  conclusão. **Substituída na sessão 2026-10-16.**
 
 - Q: Um convite adicional criado depois da conclusão do cargo bloqueia a
   homologação? → A: Não. Ele não reabre a atividade nem constitui, por si
   só, pendência. A aprovação considera as designações ativas e a
   consistência das amostras no momento da decisão. Em atividades abertas
   ou reabertas, os convites pendentes continuam impedindo a conclusão.
+
+### Session 2026-10-16 (revisão do PR #76, equipe)
+
+- Q: A homologação exige plano estatístico? → A: Sim, nesta entrega. A
+  Etapa 2 ganha a atividade `statistical_plan`, do Estatístico, que abre
+  quando a atribuição do estatístico conclui. Ela usa o formulário
+  existente: plano em anexo, obrigatório, e resumo opcional. A homologação
+  depende dela, e o plano vira um ponto que pode ser reprovado; a nova
+  execução cria formulário novo e guarda o anterior. Sem avaliação por IA
+  nesta entrega. O envio de formulário só cria o Dossiê de Submissão e só
+  aciona a pré-avaliação e a triagem na submissão da proposta.
+- Q: Quais atividades da Etapa 2 bloqueiam a aprovação? → A: As dez: as
+  oito atribuições de cargo, o plano estatístico e a definição das
+  amostras.
+- Q: Como uma atribuição de cargo reaberta conclui de novo? → A: Quem gere o
+  cargo declara que terminou a correção por uma rota de conclusão. A rota
+  só aceita o cargo com ao menos uma designação ativa e nenhum convite
+  pendente e recusa quem tem conflito de interesse vigente. Designar ou
+  revogar não conclui a atividade reaberta, então a ordem entre designar a
+  pessoa nova e revogar a antiga não importa. Na primeira execução, a
+  atividade continua concluindo na designação ou na revogação.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -90,18 +117,19 @@ amostras.
 3. É o caminho feliz e entrega o portão de governança.
 
 **Independent Test**: num ambiente recém-provisionado, criar o processo,
-passar pela triagem, designar os oito cargos, concluir as amostras, aprovar
+passar pela triagem, designar os oito cargos, enviar o plano estatístico,
+concluir as amostras, aprovar
 a homologação e confirmar que o laboratório participante tem o recebimento
 em andamento.
 
 **Acceptance Scenarios**:
 
-1. **Given** as nove atividades da Etapa 2 concluídas, **When** o BraCVAM
+1. **Given** as dez atividades da Etapa 2 concluídas, **When** o BraCVAM
    consulta o processo, **Then** a homologação está em andamento com uma
    tarefa para o cargo BraCVAM, e o recebimento de amostras continua
    bloqueado.
 2. **Given** a homologação em andamento, **When** o BraCVAM consulta o
-   painel, **Then** vê os nove pontos com o estado de cada um, as pessoas e
+   painel, **Then** vê os dez pontos com o estado de cada um, as pessoas e
    laboratórios designados em cada cargo, a contagem de substâncias,
    laboratórios e códigos das amostras e a lista de pendências, vazia.
 3. **Given** o painel sem pendências, **When** o BraCVAM aprova com
@@ -140,8 +168,10 @@ preciso, aprovar e confirmar o recebimento aberto.
    **Then** a execução anterior continua visível, concluída, e a nova traz o
    motivo da reprovação.
 3. **Given** uma atribuição de cargo reaberta, **When** o responsável
-   designa alguém ou revoga uma designação e o cargo fica com ao menos uma
-   designação ativa e nenhum convite pendente, **Then** a atividade conclui.
+   designa alguém ou revoga uma designação, **Then** a atividade continua
+   em andamento. **When** ele declara que terminou a correção e o cargo tem
+   ao menos uma designação ativa e nenhum convite pendente, **Then** a
+   atividade conclui.
 4. **Given** a definição das amostras reaberta, **When** o Grupo de Seleção
    ajusta as substâncias e conclui de novo, **Then** os códigos passam a
    corresponder aos laboratórios participantes ativos e a atividade conclui.
@@ -150,6 +180,13 @@ preciso, aprovar e confirmar o recebimento aberto.
    execução e tarefa novas, e as decisões anteriores continuam no histórico.
 6. **Given** a homologação reaberta e sem pendências, **When** o BraCVAM
    aprova, **Then** a Etapa 3 abre como na User Story 1.
+7. **Given** uma atribuição de cargo reaberta, **When** o responsável
+   designa a pessoa nova antes de revogar a antiga, **Then** a atividade e a
+   homologação não avançam; depois que ele revoga a antiga e declara que
+   terminou, a atividade conclui com só a pessoa nova no cargo.
+8. **Given** uma atribuição de cargo reaberta com o cargo vazio ou com
+   convite pendente, **When** o responsável declara que terminou, **Then** a
+   declaração é recusada com conflito e nada muda.
 
 ---
 
@@ -166,7 +203,7 @@ estado muda.
 
 **Acceptance Scenarios**:
 
-1. **Given** alguma das nove atividades sem concluir, **When** o BraCVAM
+1. **Given** alguma das dez atividades sem concluir, **When** o BraCVAM
    tenta decidir, **Then** a decisão é recusada com conflito, porque a
    homologação ainda não está aberta.
 2. **Given** a homologação em andamento e um cargo sem designação ativa,
@@ -191,11 +228,46 @@ estado muda.
 
 ---
 
+### User Story 4 - O Estatístico envia o plano e o BraCVAM o confere (Priority: P1)
+
+Quando o Grupo Gestor designa o Estatístico, uma tarefa de plano
+estatístico aparece para ele. Ele anexa o plano, escreve um resumo se
+quiser e envia. O plano vira um ponto da homologação. Se o BraCVAM o
+reprovar, o Estatístico recebe um formulário novo e o plano anterior fica
+no histórico.
+
+**Why this priority**: a revisão do PR #76 tornou o plano obrigatório
+para a homologação. Sem ele, nenhum processo novo chega à Etapa 3.
+
+**Independent Test**: designar o Estatístico, enviar o plano com anexo,
+concluir as amostras, conferir o ponto no painel, reprovar o plano,
+enviar outro e aprovar.
+
+**Acceptance Scenarios**:
+
+1. **Given** a atribuição do estatístico concluída, **When** o Estatístico
+   consulta as tarefas, **Then** vê a tarefa do plano estatístico pronta.
+2. **Given** o formulário do plano sem anexo, **When** o Estatístico
+   envia, **Then** recebe erro de validação e a atividade continua em
+   andamento.
+3. **Given** o plano anexado, **When** o Estatístico envia, **Then** a
+   atividade conclui, a linha do tempo registra o envio e o processo não
+   ganha Dossiê de Submissão, pré-avaliação por IA nem mudança na triagem.
+4. **Given** a homologação em andamento, **When** o BraCVAM consulta o
+   painel, **Then** vê o plano estatístico como ponto e lê o formulário
+   enviado com o anexo.
+5. **Given** o plano reprovado, **When** o Estatístico abre a tarefa,
+   **Then** encontra um formulário novo, e o formulário anterior continua
+   enviado na execução anterior e pode ser consultado pelo BraCVAM pelo
+   número da execução.
+
+---
+
 ### Edge Cases
 
 - Ponto reprovado cujo trabalho não precisa de mudança: o responsável
-  revoga e designa de novo, ou conclui as amostras sem alteração. Não há
-  atalho para fechar sem agir.
+  declara que terminou a atribuição de cargo sem mudar a equipe, conclui as
+  amostras sem alteração ou envia o plano de novo.
 - Reprovação de um cargo do qual outros dependem (por exemplo, o Grupo
   Gestor): só a atividade reprovada reabre. As dependentes já concluídas
   continuam concluídas; o BraCVAM reprova também as que quiser rever.
@@ -231,7 +303,7 @@ estado muda.
 
 - **FR-001**: Os cinco templates de processo MUST ganhar, na Etapa 2, a
   atividade de homologação da estrutura, que só o cargo BraCVAM edita e que
-  depende da conclusão das nove atividades da Etapa 2.
+  depende da conclusão das dez atividades da Etapa 2.
 - **FR-002**: O recebimento de amostras (Etapa 3) MUST depender da
   conclusão da homologação, e não mais da conclusão das amostras.
 - **FR-003**: Processos criados antes desta feature MUST manter o fluxo
@@ -240,7 +312,7 @@ estado muda.
 **Painel**
 
 - **FR-004**: Quem vê a homologação MUST poder consultar o painel do
-  processo com, para cada um dos nove pontos: chave, nome, estado, número
+  processo com, para cada um dos dez pontos: chave, nome, estado, número
   da execução atual e pendências.
 - **FR-005**: Nos pontos de atribuição de cargo, o painel MUST listar as
   designações ativas (pessoa e, quando houver, laboratório).
@@ -276,9 +348,11 @@ estado muda.
 - **FR-014**: Quando o último ponto reprovado conclui de novo, a homologação
   MUST voltar a ficar em andamento com execução e tarefa novas, uma única
   vez, mesmo quando os últimos pontos concluem ao mesmo tempo.
-- **FR-015**: Uma atribuição de cargo em andamento MUST concluir na
-  designação ou na revogação do cargo, quando restar ao menos uma
-  designação ativa e nenhum convite pendente.
+- **FR-015**: Uma atribuição de cargo na primeira execução MUST concluir
+  na designação ou na revogação do cargo, quando restar ao menos uma
+  designação ativa e nenhum convite pendente. Uma atribuição reaberta pela
+  homologação NÃO DEVE concluir na designação nem na revogação; ela conclui
+  pela rota de FR-028.
 - **FR-016**: A definição das amostras reaberta MUST aceitar alterações e
   nova conclusão pelas regras atuais.
 - **FR-017**: A decisão MUST ser recusada se: a homologação não está em
@@ -289,12 +363,37 @@ estado muda.
   homologação MUST resultar em uma aceita e outra recusada com conflito.
 - **FR-019**: As rotas de escrita MUST exigir sessão e origem confiável.
 
+**Plano estatístico**
+
+- **FR-025**: Os cinco templates MUST ganhar, na Etapa 2, a atividade
+  `statistical_plan`, que só o cargo Estatístico edita, que depende da
+  atribuição do estatístico e que tem um formulário com o plano em anexo,
+  obrigatório, e um resumo opcional. A homologação MUST depender dela.
+- **FR-026**: O envio do formulário do plano MUST concluir a atividade,
+  liberar as dependentes e registrar o envio na linha do tempo. Ele NÃO
+  DEVE criar Dossiê de Submissão, abrir pré-avaliação por IA nem mudar a
+  triagem; esses efeitos ficam restritos à submissão da proposta.
+- **FR-027**: A reprovação do plano MUST abrir uma execução com formulário
+  novo. O formulário anterior MUST continuar enviado na execução anterior.
+
+**Conclusão da atribuição reaberta**
+
+- **FR-028**: Quem pode designar um cargo MUST poder declarar concluída a
+  atribuição desse cargo em andamento. A declaração MUST ser recusada com
+  conflito se a atividade não está em andamento, se o cargo não tem
+  designação ativa ou se há convite pendente para o cargo, com `403
+  forbidden` quando a pessoa tem conflito de interesse vigente no processo,
+  e com `process_closed` se o processo não aceita alterações. A declaração
+  MUST concluir a execução, liberar as dependentes e registrar quem declarou
+  na linha do tempo.
+
 **Auditoria**
 
 - **FR-020**: Cada decisão MUST ficar gravada com resultado, autor, data,
   justificativa e pontos reprovados com motivo, sem edição posterior.
 - **FR-021**: A linha do tempo do processo MUST registrar a aprovação, a
-  reprovação (com os pontos) e a reabertura de cada atividade.
+  reprovação (com os pontos), a reabertura de cada atividade, o envio do
+  plano estatístico e a declaração de conclusão da atribuição reaberta.
 
 **Template de coleta**
 
@@ -312,12 +411,12 @@ estado muda.
 ### Key Entities
 
 - **Homologação da estrutura**: atividade da Etapa 2, do cargo BraCVAM, que
-  depende das nove atividades da etapa e da qual a Etapa 3 depende. Cada
+  depende das dez atividades da etapa e da qual a Etapa 3 depende. Cada
   abertura é uma execução.
 - **Decisão de homologação**: resultado (aprovada ou reprovada), autor,
   data e justificativa, ligados à execução da homologação. Na reprovação,
   traz a lista de pontos com motivo.
-- **Ponto auditado**: uma das nove atividades da Etapa 2, com seu estado,
+- **Ponto auditado**: uma das dez atividades da Etapa 2, com seu estado,
   suas execuções e as pendências calculadas.
 
 ## Success Criteria *(mandatory)*
@@ -353,4 +452,5 @@ estado muda.
   permitidos; o painel e as pendências cobrem o risco.
 - Os testes e fábricas que levam um processo à Etapa 3 passam a aprovar a
   homologação no preparo.
-- Plano estatístico, reuniões e atas (RF028) ficam fora desta feature.
+- Reuniões e atas (RF028) e a avaliação por IA do plano estatístico ficam
+  fora desta feature.

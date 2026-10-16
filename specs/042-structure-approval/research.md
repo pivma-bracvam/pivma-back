@@ -28,8 +28,8 @@ leitura do código e das respostas do usuário em 2026-10-14.
   código. A pendência de cada ponto depende do `activity_type`:
   `role_assignment` e `sample_definition`.
 - **Rationale**: a issue pede um portão generalizado. Se um template
-  acrescentar um ponto à Etapa 2 (por exemplo, o plano estatístico quando a
-  #25 voltar), basta declarar a dependência no YAML.
+  acrescentar um ponto à Etapa 2, basta declarar a dependência no YAML. O
+  plano estatístico entrou assim (R13).
 - **Alternatives considered**: lista fixa das nove chaves. Duplicaria o YAML
   e quebraria com a primeira mudança de template.
 
@@ -152,7 +152,9 @@ ou reabertas, os convites pendentes continuam impedindo a conclusão.
   a homologação exige (pendência `role_without_designation`). Ganha teste de
   regressão.
 - **Alternatives considered**: rota explícita de conclusão. Recusada pelo
-  usuário.
+  usuário em 2026-10-14 e adotada na revisão do PR #76 (R14).
+- **Revisão de 2026-10-16**: a condição de designação ativa continua, mas
+  só vale para a primeira execução. Ver R14.
 
 ## R9. Trava do template de coleta pelo início da Etapa 3
 
@@ -221,3 +223,56 @@ ou reabertas, os convites pendentes continuam impedindo a conclusão.
 - **Alternatives considered**: travar o processo em toda conclusão de ponto.
   Funciona, mas espalha `_lock_process` por designação, revogação, convites e
   amostras, e serializa operações que não disputam nada.
+
+## R13. Plano estatístico como atividade de formulário (revisão do PR #76)
+
+- **Decision**: a Etapa 2 ganha `statistical_plan` (`order_index` 10;
+  a homologação passa a 11), com `assigned_role` e `access.edit`
+  `statistician`, dependência `assign_statistician` e
+  `form_template_key: "statistical_plan_v1"`. O formulário tem
+  `plan_file` (`file_upload`, obrigatório, PDF ou DOCX) e `summary`
+  (`textarea`, opcional). A homologação ganha a dependência
+  `statistical_plan`. As versões dos templates não sobem de novo: a
+  homologação ainda não saiu da branch, e a versão 5 (7 no template 04)
+  ainda não chegou a nenhum ambiente.
+- **Envio**: `submit_activity_form` (antes `submit_proposal_form`,
+  renomeada porque deixou de ser só da proposta) valida, grava e conclui a
+  execução para qualquer formulário. Os efeitos da proposta (Dossiê de Submissão,
+  `SUBMISSION_SUBMITTED`, pré-avaliação por IA e triagem) passam a valer
+  só para `proposal_submission`. Os demais formulários gravam
+  `FORM_SUBMITTED` (`activity_key`, `run_number`) e chamam
+  `_advance_dependent_activities`. Sem esse corte, uma avaliação por IA
+  configurada para o formulário do plano mexeria na triagem.
+- **Painel**: o ponto do plano usa só a pendência `activity_not_completed`.
+  O BraCVAM lê o plano pelo formulário (`GET .../activities/statistical_plan/form`)
+  e baixa o anexo pela rota de anexos, porque Admin e BraCVAM veem toda
+  atividade.
+- **Reprovação**: `_activate_activity` já cria `FormInstance` nova na
+  execução nova; a anterior continua enviada.
+- **Alternatives considered**: uma tabela própria para o plano, com rota
+  dedicada. Repetiria o que o formulário já faz (anexo, rascunho, envio,
+  histórico por execução).
+
+## R14. Conclusão explícita da atribuição reaberta (revisão do PR #76)
+
+- **Decision**: `_maybe_close_role_assignment_activity` deixa de concluir
+  execuções com `run_number > 1`. A rota
+  `POST /processes/{id}/participants/roles/{role_key}/complete` conclui a
+  atribuição em andamento do cargo. Autorização: `can_manage_role_assignment`,
+  a mesma da designação. Com a atividade travada e relida, a rota confere
+  que ela está `IN_PROGRESS` com execução aberta (409
+  `invalid_transition`), que não há convite pendente (409
+  `pending_invites`) e que o cargo tem designação ativa (409
+  `role_without_designation`). Depois conclui a execução, libera as
+  dependentes e grava `ROLE_ASSIGNMENT_COMPLETED` (`activity_key`,
+  `role_key`, `run_number`).
+- **Rationale**: a gestora pode designar a pessoa nova antes de revogar a
+  antiga. Com o fechamento automático, a atividade concluía na designação,
+  a homologação reabria com as duas pessoas no cargo e o painel não
+  acusava nada, porque só aponta cargo vazio. A rota faz a gestora dizer
+  quando terminou. Na primeira execução não há pessoa antiga a trocar, e o
+  fechamento automático continua.
+- **Alternatives considered**: pendência para cargo com mais de uma
+  designação. Cargos como laboratórios participantes e colaboradores
+  aceitam várias pessoas, então a regra não separa erro de equipe
+  legítima.

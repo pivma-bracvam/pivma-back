@@ -18,6 +18,7 @@ sequenceDiagram
     B->>API: reprova o ponto dos laboratórios, com motivo
     API-->>G: devolve a tarefa de indicar laboratórios
     G->>API: indica o segundo laboratório
+    G->>API: declara que terminou a correção
     API-->>B: reabre a homologação
     B->>API: tenta aprovar
     API-->>B: pendência: laboratório sem amostras
@@ -38,8 +39,8 @@ sequenceDiagram
 ## Antes de começar
 
 Faça o tutorial [Montar a equipe e preparar as amostras](equipe-e-amostras.md)
-inteiro. Ele termina com os oito cargos designados e as amostras concluídas,
-o que abre a homologação para o BraCVAM. Use o mesmo terminal: os comandos
+inteiro. Ele termina com os oito cargos designados, o plano estatístico
+enviado e as amostras concluídas, o que abre a homologação para o BraCVAM. Use o mesmo terminal: os comandos
 abaixo reaproveitam as funções `login`, `signup` e `designar` e a variável
 `$INST`.
 
@@ -60,7 +61,7 @@ abaixo reaproveitam as funções `login`, `signup` e `designar` e a variável
 ## 1. O triador abre o painel
 
 O triador tem uma tarefa nova: a homologação da estrutura do estudo. O
-painel lista os nove pontos da Etapa 2, as pessoas designadas em cada cargo
+painel lista os dez pontos da Etapa 2, as pessoas designadas em cada cargo
 e as contagens das amostras. Nenhum ponto tem pendência.
 
 ??? example "Como fazer pela API"
@@ -105,11 +106,14 @@ motivo do triador na linha do tempo do processo.
     A resposta é `"O protocolo prevê dois laboratórios."`. A gestora não vê
     a decisão do triador, só o motivo do ponto dela.
 
-## 4. A gestora indica o segundo laboratório
+## 4. A gestora indica o segundo laboratório e declara que terminou
 
 O administrador cadastra o segundo laboratório e vincula a técnica dele. A
-gestora indica a técnica como laboratório participante. A tarefa dela se
-fecha, e a homologação volta para o triador.
+gestora indica a técnica como laboratório participante. A tarefa dela
+continua aberta: numa atribuição reaberta, designar e revogar não fecham a
+tarefa, então a gestora pode trocar pessoas na ordem que quiser. Quando a
+equipe fica certa, ela declara que terminou. A tarefa se fecha, e a
+homologação volta para o triador.
 
 ??? example "Como fazer pela API"
     ```bash
@@ -121,7 +125,12 @@ fecha, e a homologação volta para o triador.
       -H 'Content-Type: application/json' \
       -d "{\"institution_id\":\"$INST\",\"laboratory_id\":\"$LAB2\"}" -o /dev/null -w '%{http_code}\n'
     designar $GM $TECNICA_ID participating_laboratory $LAB2
+    curl -s -X POST $API/processes/$PID/participants/roles/participating_laboratory/complete \
+      -H "Authorization: Bearer $GM" | jq
     ```
+
+    Resposta: `run_number` 2 e `status` `COMPLETED`. Com um convite pendente
+    ou o cargo vazio, a declaração responde `409`.
 
 ## 5. O painel aponta o laboratório sem amostras
 
@@ -184,6 +193,8 @@ autor, data, justificativa e os pontos reprovados com os motivos.
 - A Etapa 3 só abre depois que o BraCVAM aprova a estrutura.
 - Reprovar um ponto devolve a tarefa a quem o executa, com o motivo, e
   guarda a execução anterior.
+- Um cargo reprovado só fecha quando a gestora declara que terminou a
+  correção.
 - A homologação reabre sozinha quando o último ponto reprovado conclui.
 - A aprovação confere a estrutura no momento da decisão: um laboratório sem
   amostras impede a aprovação.

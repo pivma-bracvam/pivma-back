@@ -188,12 +188,27 @@ phases:
             required_status: "COMPLETED"
             condition_type: "ACTIVITY_COMPLETED"
 
-      # Spec 042: homologação da estrutura pelo BraCVAM. Abre quando as nove
+      # Spec 042 (revisão do PR #76): plano estatístico. Abre quando o
+      # Estatístico é designado; é um ponto da homologação.
+      - key: "statistical_plan"
+        name: "Plano Estatístico"
+        order_index: 10
+        assigned_role: "statistician"
+        access:
+          edit: ["statistician"]
+          view: []
+        form_template_key: "statistical_plan_v1"
+        dependencies:
+          - required_activity_key: "assign_statistician"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      # Spec 042: homologação da estrutura pelo BraCVAM. Abre quando as dez
       # atividades da etapa concluem; os pontos auditados são estas
       # dependências. A Etapa 3 só abre depois da aprovação.
       - key: "structure_approval"
         name: "Homologação da Estrutura do Estudo"
-        order_index: 10
+        order_index: 11
         assigned_role: "bracvam"
         access:
           edit: ["bracvam"]
@@ -222,6 +237,9 @@ phases:
             required_status: "COMPLETED"
             condition_type: "ACTIVITY_COMPLETED"
           - required_activity_key: "assign_adhoc_evaluator"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "statistical_plan"
             required_status: "COMPLETED"
             condition_type: "ACTIVITY_COMPLETED"
           - required_activity_key: "sample_definition"
@@ -284,3 +302,24 @@ forms:
         ai_validation_rules:
           min_length: 30
 
+  # Spec 042 (revisão do PR #76): plano estatístico da Etapa 2, igual nos
+  # cinco templates. Sem avaliação por IA.
+  - key: "statistical_plan_v1"
+    name: "Plano Estatístico"
+    version: 1
+    description: "Plano estatístico do estudo, conferido pelo BraCVAM na homologação da estrutura."
+    fields:
+      - field_key: "plan_file"
+        label: "Plano estatístico"
+        field_type: "file_upload"
+        is_required: true
+        order_index: 1
+        help_text: "Documento com o plano estatístico do estudo."
+        validation_rules:
+          allowed_extensions: ["pdf", "docx"]
+      - field_key: "summary"
+        label: "Resumo do plano"
+        field_type: "textarea"
+        is_required: false
+        order_index: 2
+        help_text: "Resumo curto para o BraCVAM, opcional."

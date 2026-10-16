@@ -33,7 +33,6 @@ from tests.factories.structure_approval_factory import (
     runs,
     structure_process,
 )
-from tests.factories.user_factory import UserFactory
 
 LOCK_WAIT_LIMIT_SECONDS = 5
 WAITING_FOR_ACTIVITY = text(
@@ -49,13 +48,6 @@ async def _bracvam(session):
     )
 
 
-async def _new_user(session):
-    user = UserFactory()
-    session.add(user)
-    await session.commit()
-    return user
-
-
 async def _assign(session, ctx, user, role_key, laboratory=None):
     """Designa pelo serviço, sem confirmar a transação."""
     process = await session.get(ProcessInstance, ctx.process_id)
@@ -67,6 +59,14 @@ async def _assign(session, ctx, user, role_key, laboratory=None):
         laboratory_id=laboratory.id if laboratory else None,
         actor_id=ctx.proponent.id,
         source='api',
+    )
+
+
+async def _complete(session, ctx, role_key):
+    """Declara concluída a atribuição reaberta, sem confirmar (R14)."""
+    process = await session.get(ProcessInstance, ctx.process_id)
+    await participant_service.complete_role_assignment(
+        session, process, role_key, ctx.manager.id
     )
 
 
@@ -119,13 +119,11 @@ async def test_last_two_rejected_points_reopen_the_approval_once(engine):
                     {'activity_key': 'assign_sponsor', 'reason': 'Rever.'},
                 ],
             )
-            statistician = await _new_user(setup)
-            sponsor = await _new_user(setup)
 
         await _race(
             engine,
-            lambda s: _assign(s, ctx, statistician, 'statistician'),
-            lambda s: _assign(s, ctx, sponsor, 'sponsor'),
+            lambda s: _complete(s, ctx, 'statistician'),
+            lambda s: _complete(s, ctx, 'sponsor'),
         )
 
         async with AsyncSession(engine) as check:

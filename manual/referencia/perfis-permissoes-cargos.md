@@ -64,7 +64,7 @@ aceito. `proponent` é dado a quem cria o processo.
 | `sample_selection_group` | Grupo de Seleção de Amostras | `assign_sample_selection_group` | Único que vê substâncias, códigos e SDS |
 | `lead_laboratory` | Laboratório líder | `assign_lead_laboratory` | Exige vínculo com o laboratório. Não dá acesso a execuções de laboratório |
 | `participating_laboratory` | Laboratório participante | `assign_participating_laboratory` | Exige vínculo. No máximo uma designação ativa por usuário e processo |
-| `statistician` | Estatístico | `assign_statistician` | |
+| `statistician` | Estatístico | `assign_statistician` | Envia o plano estatístico (`statistical_plan`) |
 | `collaborator` | Colaborador | `assign_collaborator` | |
 | `adhoc_evaluator` | Avaliador ad hoc | `assign_adhoc_evaluator` | |
 | `study_manager` | Gerente do Estudo | — | Só por designação direta |

@@ -34,9 +34,13 @@ from pivma.core.listing import (
     paginate_items,
     paginate_query,
 )
-from pivma.core.participant_service import create_assignment
+from pivma.core.participant_service import (
+    complete_role_assignment,
+    create_assignment,
+)
 from pivma.core.process_engine import (
     IMMUTABLE_PROCESS_STATUSES,
+    AuthorizationError,
     ConflictError,
     NotFoundError,
     _maybe_close_role_assignment_activity,  # noqa: PLC2701
@@ -64,6 +68,7 @@ from pivma.schemas import (
     ParticipantHistoryListResponse,
     ParticipantListResponse,
     ProcessRef,
+    RoleAssignmentCompletionResponse,
     SortApplied,
 )
 
@@ -308,13 +313,55 @@ async def revoke_participant(
             ),
         )
     )
-    # Uma atribuição reaberta pela homologação fecha na revogação, se o
-    # cargo continua com alguém designado (Spec 042, research R8).
+    # Na primeira execução, a atribuição fecha na revogação se o cargo
+    # continua com alguém designado (Spec 042, research R8 e R14).
     await _maybe_close_role_assignment_activity(
         session, process, assignment.role_key, current_user.id
     )
     await session.commit()
     return Response(status_code=HTTPStatus.NO_CONTENT)
+
+
+@router.post(
+    '/{process_id}/participants/roles/{role_key}/complete',
+    response_model=RoleAssignmentCompletionResponse,
+    status_code=HTTPStatus.OK,
+)
+async def complete_participant_role(
+    process_id: UUID,
+    role_key: str,
+    session: Session,
+    current_user: CurrentUser,
+    _origin: TrustedOrigin,
+):
+    """Declara concluída a atribuição do cargo (Spec 042, research R14)."""
+    if not await can_manage_role_assignment(
+        session, current_user.id, process_id, role_key
+    ):
+        raise forbidden()
+    process = await _get_active_process(session, process_id)
+    if process is None:
+        raise not_found('Processo não encontrado.')
+    if process.status in IMMUTABLE_PROCESS_STATUSES:
+        raise conflict(
+            'Processo encerrado não aceita alterações.', 'process_closed'
+        )
+
+    try:
+        act, run = await complete_role_assignment(
+            session, process, role_key, current_user.id
+        )
+    except AuthorizationError as e:
+        raise forbidden() from e
+    except NotFoundError as e:
+        raise not_found(str(e)) from e
+    except ConflictError as e:
+        raise domain_conflict(e) from e
+
+    await session.commit()
+    return RoleAssignmentCompletionResponse(
+        activity_key=act.key, run_number=run.run_number, status=act.status
+    )
 
 
 @router.post(

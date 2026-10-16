@@ -73,24 +73,26 @@ abre por evento, quando a IA ou a triagem devolvem a submissão.
 ## Fase 2: composição da governança
 
 A triagem aprovada abre `assign_sponsor` e `assign_group_manager` para o
-proponente. Com o Grupo Gestor designado, abrem as demais atribuições. Uma
-atividade de atribuição fecha sozinha numa designação ou numa revogação,
-quando o cargo fica com ao menos uma designação ativa e sem convite
-pendente. `sample_definition` abre quando o Grupo de Seleção de Amostras e
-os laboratórios participantes estão designados. Detalhes em
+proponente. Com o Grupo Gestor designado, abrem as demais atribuições. Na
+primeira execução, uma atividade de atribuição fecha sozinha numa
+designação ou numa revogação, quando o cargo fica com ao menos uma
+designação ativa e sem convite pendente. `sample_definition` abre quando o
+Grupo de Seleção de Amostras e os laboratórios participantes estão
+designados. `statistical_plan` abre quando o Estatístico é designado: ele
+envia o plano por um formulário com anexo obrigatório. Detalhes em
 [Templates de processo](../referencia/templates.md).
 
 ### Homologação da estrutura
 
 A fase termina em `structure_approval`, o portão entre a Etapa 2 e a Etapa
-3. Ela abre para o BraCVAM quando as nove atividades anteriores concluem.
+3. Ela abre para o BraCVAM quando as dez atividades anteriores concluem.
 Essas dependências são os pontos que o BraCVAM confere no painel
 (`GET /processes/{id}/structure-approval`), com as pessoas designadas e as
 contagens das amostras.
 
 ```mermaid
 flowchart LR
-    P[Nove pontos concluídos] --> H[structure_approval]
+    P[Dez pontos concluídos] --> H[structure_approval]
     H -->|APPROVED| E3[Etapa 3]
     H -->|REJECTED| R[Pontos reabertos]
     R -->|último ponto conclui| H
@@ -107,11 +109,19 @@ flowchart LR
   bloqueada e reabre sozinha, numa execução nova, quando o último ponto
   reprovado conclui. Dependentes de um ponto reaberto que já tinham
   concluído não mudam.
+- **Cargo reaberto**: designar e revogar não fecham a execução reaberta de
+  uma atribuição. Quem gere o cargo declara que terminou a correção
+  (`POST /processes/{id}/participants/roles/{role_key}/complete`). Assim a
+  gestora pode designar a pessoa nova antes de revogar a antiga sem que a
+  homologação reabra com as duas no cargo.
+- **Plano reaberto**: o Estatístico recebe um formulário novo. O anterior
+  continua enviado na execução anterior.
 - **Decisões**: ficam em `decisions` com autor, data, justificativa e os
   pontos reprovados, e aparecem no painel e na linha do tempo.
 
 Os processos criados com a versão anterior de cada template não têm a
-homologação: neles, a conclusão de `sample_definition` abre a Etapa 3.
+homologação nem o plano estatístico: neles, a conclusão de
+`sample_definition` abre a Etapa 3.
 
 ## Fase 3: execução da validação
 

@@ -11,12 +11,14 @@ sequenceDiagram
     actor A as Administrador
     actor P as Proponente
     actor G as Grupo Gestor
+    actor E as Estatístico
     actor S as Seleção de Amostras
     actor L as Laboratório
     participant API
     A->>API: cadastra o laboratório e vincula sua equipe
     P->>API: indica o patrocinador e o Grupo Gestor
     G->>API: indica a seleção de amostras, os laboratórios e os especialistas
+    E->>API: envia o plano estatístico
     API-->>S: abre a definição das amostras
     S->>API: cadastra substâncias e fichas de segurança
     S->>API: conclui e gera os códigos cegos
@@ -29,6 +31,7 @@ sequenceDiagram
 - **Administrador**: mantém o cadastro de instituições e laboratórios.
 - **Proponente**: indica o patrocinador e quem vai gerir o estudo.
 - **Grupo Gestor**: monta o restante da equipe.
+- **Estatístico**: envia o plano estatístico do estudo.
 - **Grupo de Seleção de Amostras**: único que conhece as substâncias.
 - **Laboratório participante**: vai testar as amostras sem saber o que são.
 
@@ -132,7 +135,27 @@ recusaria.
 
     Cada designação responde `201`.
 
-## 5. A seleção de amostras cadastra as substâncias
+## 5. O estatístico envia o plano estatístico
+
+Quando a gestora indica o estatístico, ele recebe a tarefa do plano
+estatístico. Ele anexa o plano em PDF ou DOCX, escreve um resumo curto e
+envia. Sem o anexo, a plataforma recusa o envio. O BraCVAM confere o plano
+na homologação, junto com a equipe e as amostras.
+
+??? example "Como fazer pela API"
+    ```bash
+    EST=$(login estatistico senha-segura-123)
+    FORM=$API/processes/$PID/activities/statistical_plan/form
+    printf '%%PDF-1.4\n%%%%EOF\n' > plano.pdf
+    curl -s -X POST $FORM/fields/plan_file/attachment -H "Authorization: Bearer $EST" \
+      -F file=@plano.pdf -o /dev/null -w '%{http_code}\n'
+    curl -s -X POST $FORM -H "Authorization: Bearer $EST" -H 'Content-Type: application/json' \
+      -d '{"values":{"summary":"Análise de concordância entre laboratórios."}}' | jq .status
+    ```
+
+    O anexo responde `200`, e o envio, `"COMPLETED"`.
+
+## 6. A seleção de amostras cadastra as substâncias
 
 Com a equipe formada, a responsável pela seleção recebe a tarefa de definir
 as amostras. Ela cadastra cada substância com nome, número CAS, lote,
@@ -164,7 +187,7 @@ participante.
 
     A tarefa é `sample_definition`.
 
-## 6. A seleção conclui e imprime as etiquetas
+## 7. A seleção conclui e imprime as etiquetas
 
 Quando todas as substâncias têm ficha, a seleção conclui a etapa. A lista de
 laboratórios fica congelada e as amostras só mudam se o BraCVAM reprovar
@@ -179,7 +202,7 @@ Nenhuma delas mostra o nome da substância.
       | jq '.data[] | {code, lot, laboratory: .laboratory.name}'
     ```
 
-## 7. O laboratório não vê o que há nos frascos
+## 8. O laboratório não vê o que há nos frascos
 
 O técnico do laboratório participa do processo, mas não consegue ver as
 substâncias. Para ele, a lista de substâncias não existe. Ele só vê os
@@ -200,6 +223,7 @@ BraCVAM confere a equipe e as amostras:
 - O proponente indica o patrocinador e o gestor; o gestor monta o resto da
   equipe.
 - Laboratórios precisam estar cadastrados e ter pessoas vinculadas.
+- O estatístico envia o plano pelo formulário da tarefa dele.
 - Só o Grupo de Seleção conhece as substâncias.
 - Cada laboratório recebe códigos próprios, sem nada que identifique o
   conteúdo.

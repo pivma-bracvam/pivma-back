@@ -77,6 +77,7 @@ async def test_template_detail_declares_both_phases_with_activity_type(
         'assign_collaborator': 'role_assignment',
         'assign_adhoc_evaluator': 'role_assignment',
         'sample_definition': 'sample_definition',
+        'statistical_plan': 'form',
         'structure_approval': 'structure_approval',
     }
 
