@@ -27,8 +27,10 @@ atividade por laboratório.
 ## Laboratórios congelados
 
 Os laboratórios de um estudo são os que receberam código cego na conclusão de
-`sample_definition`. Essa lista fica congelada: quem for designado depois não
-ganha execução, e quem perder a designação mantém a sua.
+`sample_definition`. Essa lista fica congelada: depois que a Etapa 3 abre,
+quem for designado não ganha execução, e quem perder a designação mantém a
+sua. Antes disso, a homologação da estrutura recusa a aprovação enquanto a
+lista não bater com os laboratórios participantes.
 
 ## Uma cadeia por laboratório
 

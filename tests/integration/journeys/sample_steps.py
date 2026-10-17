@@ -1,7 +1,9 @@
-"""Passos comuns às jornadas de amostras (Specs 031 e 040).
+"""Passos comuns às jornadas de amostras (Specs 031, 040 e 042).
 
 Leva um processo do template 1 da submissão até a definição das amostras
 aberta para o Grupo de Seleção, pela API pública, como a jornada da Spec 031.
+Depois completa a equipe, envia o plano estatístico e aprova a homologação,
+que abre a Etapa 3.
 """
 
 from http import HTTPStatus
@@ -29,20 +31,24 @@ async def _user(session):
 
 
 async def study_team(session, *, lab_count: int) -> SimpleNamespace:
-    """Templates carregados, proponente, gestor, Grupo de Seleção e labs."""
+    """Templates carregados e as pessoas dos oito cargos da Etapa 2."""
     await bootstrap_all_templates(session)
     laboratories = [await new_laboratory(session) for _ in range(lab_count)]
     return SimpleNamespace(
         proponent=await _user(session),
         manager=await _user(session),
         selector=await _user(session),
+        sponsor=await _user(session),
+        statistician=await _user(session),
+        collaborator=await _user(session),
+        adhoc=await _user(session),
         laboratories=laboratories,
         lab_users=[await lab_user(session, lab) for lab in laboratories],
     )
 
 
-def _designate(client, process_id, user, role_key, laboratory=None):
-    ok(
+def designate(client, process_id, user, role_key, laboratory=None) -> dict:
+    return ok(
         client.post(
             f'/processes/{process_id}/participants',
             json={
@@ -91,16 +97,68 @@ def open_sample_definition(
         )
     )
     authenticate(client, team.proponent)
-    _designate(client, process_id, team.manager, 'group_manager')
+    designate(client, process_id, team.manager, 'group_manager')
     authenticate(client, team.manager)
-    _designate(client, process_id, team.selector, 'sample_selection_group')
+    designate(client, process_id, team.selector, 'sample_selection_group')
     for laboratory, user in zip(
         team.laboratories, team.lab_users, strict=True
     ):
-        _designate(
+        designate(
             client, process_id, user, 'participating_laboratory', laboratory
         )
     return process_id
+
+
+def send_statistical_plan(client, process_id, statistician) -> None:
+    """O Estatístico anexa o plano e envia o formulário (Spec 042, US4)."""
+    authenticate(client, statistician)
+    form = f'/processes/{process_id}/activities/statistical_plan/form'
+    ok(
+        client.post(
+            f'{form}/fields/plan_file/attachment',
+            files={'file': ('plano.pdf', PDF, 'application/pdf')},
+            headers=ORIGIN,
+        )
+    )
+    ok(client.post(form, json={'values': {}}, headers=ORIGIN))
+
+
+def complete_study_team(client, team, process_id) -> None:
+    """Designa os cargos que faltam depois de `open_sample_definition`.
+
+    O proponente designa o patrocinador; o Grupo Gestor, que gere os
+    participantes do processo, designa os demais. O Estatístico envia o
+    plano.
+    """
+    authenticate(client, team.proponent)
+    designate(client, process_id, team.sponsor, 'sponsor')
+    authenticate(client, team.manager)
+    designate(client, process_id, team.statistician, 'statistician')
+    designate(client, process_id, team.collaborator, 'collaborator')
+    designate(client, process_id, team.adhoc, 'adhoc_evaluator')
+    designate(
+        client,
+        process_id,
+        team.lab_users[0],
+        'lead_laboratory',
+        team.laboratories[0],
+    )
+    send_statistical_plan(client, process_id, team.statistician)
+
+
+def approve_structure(client, process_id, bracvam_user) -> dict:
+    """O BraCVAM aprova a homologação da estrutura (Spec 042)."""
+    authenticate(client, bracvam_user)
+    return ok(
+        client.post(
+            f'/processes/{process_id}/structure-approval/decision',
+            json={
+                'outcome': 'APPROVED',
+                'justification': 'Equipe e amostras conferidas.',
+            },
+            headers=ORIGIN,
+        )
+    )
 
 
 def register_substance(client, process_id, payload) -> dict:

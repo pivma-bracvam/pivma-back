@@ -1,21 +1,24 @@
 # Montar a equipe e preparar as amostras
 
-Depois da triagem, o estudo precisa de gente: um Grupo Gestor para coordenar,
-um grupo que escolhe as substâncias e os laboratórios que vão testá-las.
-Neste tutorial a equipe é montada e as amostras são preparadas de forma cega:
-os laboratórios recebem frascos com códigos, sem saber o que há dentro.
+Depois da triagem, o estudo precisa de gente: um patrocinador, um Grupo
+Gestor para coordenar, um grupo que escolhe as substâncias, os laboratórios
+que vão testá-las e os especialistas que acompanham o estudo. Neste tutorial
+a equipe é montada e as amostras são preparadas de forma cega: os
+laboratórios recebem frascos com códigos, sem saber o que há dentro.
 
 ```mermaid
 sequenceDiagram
     actor A as Administrador
     actor P as Proponente
     actor G as Grupo Gestor
+    actor E as Estatístico
     actor S as Seleção de Amostras
     actor L as Laboratório
     participant API
     A->>API: cadastra o laboratório e vincula sua equipe
-    P->>API: indica o Grupo Gestor
-    G->>API: indica a seleção de amostras e o laboratório
+    P->>API: indica o patrocinador e o Grupo Gestor
+    G->>API: indica a seleção de amostras, os laboratórios e os especialistas
+    E->>API: envia o plano estatístico
     API-->>S: abre a definição das amostras
     S->>API: cadastra substâncias e fichas de segurança
     S->>API: conclui e gera os códigos cegos
@@ -26,8 +29,9 @@ sequenceDiagram
 ## Os personagens
 
 - **Administrador**: mantém o cadastro de instituições e laboratórios.
-- **Proponente**: indica quem vai gerir o estudo.
+- **Proponente**: indica o patrocinador e quem vai gerir o estudo.
 - **Grupo Gestor**: monta o restante da equipe.
+- **Estatístico**: envia o plano estatístico do estudo.
 - **Grupo de Seleção de Amostras**: único que conhece as substâncias.
 - **Laboratório participante**: vai testar as amostras sem saber o que são.
 
@@ -46,8 +50,9 @@ tutorial continua aquele processo, que já está na Fase 2. Recupere o processo:
 
 ## 1. As novas pessoas criam suas contas
 
-A gestora do estudo, a responsável pela seleção de amostras e o técnico do
-laboratório se cadastram.
+A gestora do estudo, a responsável pela seleção de amostras, o técnico do
+laboratório, o patrocinador, o estatístico, a colaboradora e o avaliador ad
+hoc se cadastram.
 
 ??? example "Como fazer pela API"
     ```bash
@@ -59,6 +64,10 @@ laboratório se cadastram.
     GESTORA_ID=$(signup gestora)
     SELECAO_ID=$(signup selecao)
     TECNICO_ID=$(signup tecnico)
+    PATROCINIO_ID=$(signup patrocinio)
+    ESTATISTICO_ID=$(signup estatistico)
+    COLABORADORA_ID=$(signup colaboradora)
+    AVALIADOR_ID=$(signup avaliador)
     ```
 
 ## 2. O administrador cadastra o laboratório
@@ -82,24 +91,31 @@ instituição, o laboratório e vincula o técnico.
 
     O vínculo responde `201`.
 
-## 3. O proponente indica o Grupo Gestor
+## 3. O proponente indica o patrocinador e o Grupo Gestor
 
-O proponente tem duas tarefas abertas desde a triagem. Ele indica a gestora
-para o Grupo Gestor. A tarefa correspondente se fecha sozinha, e a gestora
-passa a ver o processo.
+O proponente tem duas tarefas abertas desde a triagem. Ele indica o
+patrocinador e a gestora para o Grupo Gestor. Cada tarefa se fecha sozinha,
+e a gestora passa a ver o processo.
 
 ??? example "Como fazer pela API"
     ```bash
-    curl -s -X POST $API/processes/$PID/participants -H "Authorization: Bearer $PROP" \
-      -H 'Content-Type: application/json' \
-      -d "{\"user_id\":\"$GESTORA_ID\",\"role_key\":\"group_manager\"}" -o /dev/null -w '%{http_code}\n'
+    designar() {  # token, usuário, cargo e, para laboratório, o laboratório
+      LAB_JSON=${4:+,\"laboratory_id\":\"$4\"}
+      curl -s -X POST $API/processes/$PID/participants -H "Authorization: Bearer $1" \
+        -H 'Content-Type: application/json' \
+        -d "{\"user_id\":\"$2\",\"role_key\":\"$3\"$LAB_JSON}" -o /dev/null -w '%{http_code}\n'
+    }
+    designar $PROP $PATROCINIO_ID sponsor
+    designar $PROP $GESTORA_ID group_manager
     ```
 
 ## 4. A gestora monta a equipe
 
 A gestora recebe as tarefas de indicar o restante da equipe. Ela indica a
-responsável pela seleção de amostras e o técnico como laboratório
-participante, apontando o laboratório dele.
+responsável pela seleção de amostras, o técnico como laboratório
+participante e como laboratório líder, apontando o laboratório dele, o
+estatístico, a colaboradora e o avaliador ad hoc. O BraCVAM só homologa a
+estrutura com os oito cargos preenchidos.
 
 Se ela tentasse indicar alguém sem vínculo com o laboratório, a plataforma
 recusaria.
@@ -109,16 +125,37 @@ recusaria.
     GM=$(login gestora senha-segura-123)
     curl -s "$API/tasks?process_id=$PID&status=READY" -H "Authorization: Bearer $GM" \
       | jq '.data[] | .activity_key'
-    curl -s -X POST $API/processes/$PID/participants -H "Authorization: Bearer $GM" \
-      -H 'Content-Type: application/json' \
-      -d "{\"user_id\":\"$SELECAO_ID\",\"role_key\":\"sample_selection_group\"}" -o /dev/null -w '%{http_code}\n'
-    curl -s -X POST $API/processes/$PID/participants -H "Authorization: Bearer $GM" \
-      -H 'Content-Type: application/json' \
-      -d "{\"user_id\":\"$TECNICO_ID\",\"role_key\":\"participating_laboratory\",\"laboratory_id\":\"$LAB\"}" \
-      -o /dev/null -w '%{http_code}\n'
+    designar $GM $SELECAO_ID sample_selection_group
+    designar $GM $TECNICO_ID participating_laboratory $LAB
+    designar $GM $TECNICO_ID lead_laboratory $LAB
+    designar $GM $ESTATISTICO_ID statistician
+    designar $GM $COLABORADORA_ID collaborator
+    designar $GM $AVALIADOR_ID adhoc_evaluator
     ```
 
-## 5. A seleção de amostras cadastra as substâncias
+    Cada designação responde `201`.
+
+## 5. O estatístico envia o plano estatístico
+
+Quando a gestora indica o estatístico, ele recebe a tarefa do plano
+estatístico. Ele anexa o plano em PDF ou DOCX, escreve um resumo curto e
+envia. Sem o anexo, a plataforma recusa o envio. O BraCVAM confere o plano
+na homologação, junto com a equipe e as amostras.
+
+??? example "Como fazer pela API"
+    ```bash
+    EST=$(login estatistico senha-segura-123)
+    FORM=$API/processes/$PID/activities/statistical_plan/form
+    printf '%%PDF-1.4\n%%%%EOF\n' > plano.pdf
+    curl -s -X POST $FORM/fields/plan_file/attachment -H "Authorization: Bearer $EST" \
+      -F file=@plano.pdf -o /dev/null -w '%{http_code}\n'
+    curl -s -X POST $FORM -H "Authorization: Bearer $EST" -H 'Content-Type: application/json' \
+      -d '{"values":{"summary":"Análise de concordância entre laboratórios."}}' | jq .status
+    ```
+
+    O anexo responde `200`, e o envio, `"COMPLETED"`.
+
+## 6. A seleção de amostras cadastra as substâncias
 
 Com a equipe formada, a responsável pela seleção recebe a tarefa de definir
 as amostras. Ela cadastra cada substância com nome, número CAS, lote,
@@ -150,11 +187,12 @@ participante.
 
     A tarefa é `sample_definition`.
 
-## 6. A seleção conclui e imprime as etiquetas
+## 7. A seleção conclui e imprime as etiquetas
 
 Quando todas as substâncias têm ficha, a seleção conclui a etapa. A lista de
-laboratórios fica congelada e as amostras não mudam mais. As etiquetas trazem
-só o código, o lote e um QR. Nenhuma delas mostra o nome da substância.
+laboratórios fica congelada e as amostras só mudam se o BraCVAM reprovar
+esse ponto na homologação. As etiquetas trazem só o código, o lote e um QR.
+Nenhuma delas mostra o nome da substância.
 
 ??? example "Como fazer pela API"
     ```bash
@@ -164,12 +202,13 @@ só o código, o lote e um QR. Nenhuma delas mostra o nome da substância.
       | jq '.data[] | {code, lot, laboratory: .laboratory.name}'
     ```
 
-## 7. O laboratório não vê o que há nos frascos
+## 8. O laboratório não vê o que há nos frascos
 
 O técnico do laboratório participa do processo, mas não consegue ver as
 substâncias. Para ele, a lista de substâncias não existe. Ele só vê os
-frascos do próprio laboratório, pelo código, quando eles chegam:
-[Quando um frasco chega com problema](recebimento-com-avaria.md).
+frascos do próprio laboratório, pelo código, quando eles chegam. Antes, o
+BraCVAM confere a equipe e as amostras:
+[Quando o BraCVAM reprova a estrutura](homologacao-da-estrutura.md).
 
 ??? example "Como fazer pela API"
     ```bash
@@ -181,8 +220,10 @@ frascos do próprio laboratório, pelo código, quando eles chegam:
 
 ## O que você viu
 
-- O proponente indica só o gestor; o gestor monta o resto da equipe.
+- O proponente indica o patrocinador e o gestor; o gestor monta o resto da
+  equipe.
 - Laboratórios precisam estar cadastrados e ter pessoas vinculadas.
+- O estatístico envia o plano pelo formulário da tarefa dele.
 - Só o Grupo de Seleção conhece as substâncias.
 - Cada laboratório recebe códigos próprios, sem nada que identifique o
   conteúdo.

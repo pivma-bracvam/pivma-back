@@ -16,7 +16,8 @@ Personas:
 Estado inicial comum: ambiente com os templates padrão; um processo do
 template 1 percorrido pela API pública até a definição das amostras
 concluída, com dois laboratórios e duas substâncias refrigeradas (2 °C a
-8 °C), cada uma com um frasco de reserva. A Etapa 3 está aberta.
+8 °C), cada uma com um frasco de reserva. A equipe da Etapa 2 está completa
+e o BraCVAM aprovou a homologação da estrutura, que abre a Etapa 3.
 
 Jornadas:
 
@@ -49,6 +50,8 @@ from tests.factories.sample_factory import VALID_CAS, substance_payload
 from tests.factories.sample_receipt_factory import receipt_payload
 from tests.integration.journeys.sample_steps import (
     ORIGIN,
+    approve_structure,
+    complete_study_team,
     my_tasks,
     ok,
     open_sample_definition,
@@ -67,9 +70,10 @@ def _attachments_dir(tmp_path, monkeypatch):
 
 
 async def _etapa_3_aberta(session, client, bracvam_user):
-    """Estado inicial comum: Ricardo cadastrou e concluiu as amostras."""
+    """Estado inicial comum: amostras concluídas e estrutura homologada."""
     team = await study_team(session, lab_count=2)
     process_id = open_sample_definition(client, team, bracvam_user)
+    complete_study_team(client, team, process_id)
     authenticate(client, team.selector)
     team.substances = [
         register_substance(
@@ -91,6 +95,7 @@ async def _etapa_3_aberta(session, client, bracvam_user):
             f'/processes/{process_id}/samples/complete', headers=ORIGIN
         )
     )
+    approve_structure(client, process_id, bracvam_user)
     team.process_id = process_id
     team.thiago, team.ricardo = team.lab_users[0], team.selector
     return team

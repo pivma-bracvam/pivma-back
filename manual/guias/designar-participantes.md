@@ -1,8 +1,20 @@
 # Designar participantes
 
 Com a triagem aprovada, a Fase 2 abre as atividades de atribuição de cargo.
-Cada uma fecha quando o cargo recebe a primeira designação e não sobra convite
-pendente para ele.
+Cada uma fecha numa designação ou numa revogação, quando o cargo fica com ao
+menos uma designação ativa e sem convite pendente. Revogar o último convite
+de um cargo vazio não fecha a atividade.
+
+Se o BraCVAM reprova um cargo na homologação da estrutura, a atribuição volta
+com uma execução nova e o motivo. Designar e revogar não fecham essa
+execução, então você pode trocar pessoas em qualquer ordem. Quando terminar,
+declare a conclusão (veja [Concluir uma atribuição reaberta](#concluir-uma-atribuicao-reaberta)).
+
+Criar um convite adicional depois que a atribuição concluiu não reabre a
+atividade nem impede, por si só, a homologação. O BraCVAM confere as
+designações ativas e a consistência das amostras no momento da decisão.
+Em atribuições abertas ou reabertas, os convites pendentes continuam
+impedindo a conclusão.
 
 ```mermaid
 flowchart TD
@@ -16,7 +28,11 @@ flowchart TD
     GM --> AH[assign_adhoc_evaluator<br/>BraCVAM]
     SSG --> SD[sample_definition]
     PL --> SD
+    ST --> SP[statistical_plan<br/>Estatístico]
 ```
+
+Quando `assign_statistician` fecha, o Estatístico recebe a tarefa do plano
+estatístico. Veja [Enviar o plano estatístico](enviar-o-plano-estatistico.md).
 
 ## Quem pode designar
 
@@ -40,7 +56,7 @@ Veja [Administrar usuários e acessos](administrar-usuarios-e-acessos.md#vincula
 
 | Erro | Quando |
 |---|---|
-| `403 forbidden` | Quem chama não pode designar esse cargo |
+| `403 forbidden` | Quem chama não pode gerir o cargo |
 | `409 duplicate` | Mesmo usuário e cargo já ativos no processo, ou segunda designação de `participating_laboratory` do usuário no processo |
 | `409 inactive_entity` | Usuário ou laboratório inativo |
 | `409` | Usuário sem vínculo com o laboratório; processo encerrado |
@@ -85,6 +101,28 @@ Cada designação traz `effective`. Uma designação ativa deixa de dar acesso
 quando o usuário é desativado ou, nos cargos de laboratório, quando o vínculo,
 o laboratório ou a instituição deixam de estar ativos. Veja
 [Autorização](../explicacao/autorizacao.md#designacao-efetiva).
+
+## Concluir uma atribuição reaberta
+
+Depois de corrigir um cargo reprovado na homologação, declare que terminou.
+Pode declarar quem pode designar o cargo.
+
+```bash
+curl -s -X POST $API/processes/$PID/participants/roles/participating_laboratory/complete \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+A resposta traz `activity_key`, `run_number` e `status` `COMPLETED`. Se era o
+último ponto reprovado, a homologação reabre para o BraCVAM.
+
+| Erro | Quando |
+|---|---|
+| `403 forbidden` | Sem gestão do cargo ou com conflito de interesse vigente no processo |
+| `404 not_found` | Processo inexistente ou excluído, ou cargo sem atribuição no processo |
+| `409 invalid_transition` | A atribuição não está em andamento |
+| `409 pending_invites` | O cargo tem convite pendente |
+| `409 role_without_designation` | O cargo não tem designação ativa |
+| `409 process_closed` | Processo encerrado, cancelado ou arquivado |
 
 ## Declarar conflito de interesse
 

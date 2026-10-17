@@ -41,10 +41,35 @@ Um `CHECK` no banco aceita só esses quatro valores. `CLOSED`, `CANCELLED` e
 | `COMPLETED` | Concluída |
 | `CANCELLED` | Cancelada pela exclusão do processo |
 
+### Homologação da estrutura
+
+A atividade `structure_approval` fecha a Etapa 2. Ela volta a `BLOCKED`
+quando o BraCVAM reprova pontos, com `blocked_reason` "Aguardando a
+reexecução dos pontos reprovados.".
+
+```mermaid
+stateDiagram-v2
+    [*] --> BLOCKED
+    BLOCKED --> IN_PROGRESS: os pontos concluem<br/>(execução nova)
+    IN_PROGRESS --> COMPLETED: aprovação<br/>(fase 2 concluída, Etapa 3 abre)
+    IN_PROGRESS --> BLOCKED: reprovação<br/>(pontos reabertos)
+```
+
+Um ponto reprovado volta de `COMPLETED` para `IN_PROGRESS` com uma execução
+nova. A execução anterior continua `COMPLETED`. Cada ponto volta a
+`COMPLETED` assim:
+
+| Ponto | Conclui quando |
+|---|---|
+| Atribuição de cargo | Quem gere o cargo declara que terminou, com ao menos uma designação ativa e nenhum convite pendente. Designar e revogar não fecham a execução reaberta |
+| Plano estatístico | O Estatístico envia o formulário novo com o anexo |
+| Definição das amostras | O Grupo de Seleção conclui as amostras de novo |
+
 ## Execução de atividade
 
 Cada atividade tem uma ou mais execuções (`run_number`). Uma revisão do
-retorno ou uma reabertura cria a execução seguinte.
+retorno, uma reabertura ou a reprovação de um ponto na homologação cria a
+execução seguinte.
 
 ```mermaid
 stateDiagram-v2

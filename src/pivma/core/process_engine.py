@@ -854,12 +854,14 @@ async def require_activity_access(
         )
 
 
-async def get_current_form_instance(
+async def get_current_form_instance(  # noqa: PLR0913
     session: AsyncSession,
     process_id: UUID,
     activity_key: str,
     user_id: UUID | None = None,
     access: AccessLevel = 'view',
+    *,
+    run_number: int | None = None,
 ) -> tuple[
     ActivityInstance,
     ActivityRun,
@@ -916,7 +918,16 @@ async def get_current_form_instance(
     if not runs:
         raise NotFoundError(f'Sem execuções na atividade {activity_key!r}.')
 
-    current_run = runs[0]
+    current_run = (
+        runs[0]
+        if run_number is None
+        else next((r for r in runs if r.run_number == run_number), None)
+    )
+    if current_run is None:
+        raise NotFoundError(
+            f'Execução {run_number} não encontrada na atividade '
+            f'{activity_key!r}.'
+        )
     form_instances = [
         fi for fi in current_run.form_instances if fi.deleted_at is None
     ]
@@ -1835,8 +1846,12 @@ async def _dependency_satisfied(
 ) -> bool:
     if dependency.required_activity_id is None:
         return True
-    required_act = await session.get(
-        ActivityInstance, dependency.required_activity_id
+    # Lê do banco, não do objeto em memória: sob a trava do dependente, a
+    # conclusão confirmada por outra transação precisa aparecer (R12).
+    required_act = await session.scalar(
+        select(ActivityInstance)
+        .where(ActivityInstance.id == dependency.required_activity_id)
+        .execution_options(populate_existing=True)
     )
     return (
         required_act is not None
@@ -1942,6 +1957,9 @@ async def _advance_dependent_activities(
     tarefa específico para uma atividade cujo caminho de ativação era, antes
     da Issue #22, bespoke (ex. ``triage_evaluation``) — sem isso, toda
     atividade destravada por aqui usa ``act.name`` como título (Spec 017).
+
+    O dependente de escopo ``process`` é travado e relido antes de conferir
+    as dependências (Spec 042, research R12).
     """
     dep_stmt = select(ActivityDependency).where(
         ActivityDependency.required_activity_id == completed_act.id,
@@ -1984,6 +2002,18 @@ async def _advance_dependent_activities(
             )
             continue
         if dependent_act is None or dependent_act.status != 'BLOCKED':
+            continue
+        # Trava e relê o dependente antes de conferir as dependências: se
+        # os dois últimos pré-requisitos concluem ao mesmo tempo, a segunda
+        # transação espera a primeira e enxerga a conclusão dela, em vez de
+        # as duas deixarem o dependente bloqueado (Spec 042, research R12).
+        dependent_act = await session.scalar(
+            select(ActivityInstance)
+            .where(ActivityInstance.id == dependent_act.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if dependent_act.status != 'BLOCKED':
             continue
 
         all_deps_stmt = select(ActivityDependency).where(
@@ -2033,7 +2063,7 @@ async def _complete_activity_run(
 ) -> None:
     """Conclui a execução atual de uma atividade e suas tarefas.
 
-    Ponto único para o efeito hoje duplicado em ``submit_proposal_form`` e
+    Ponto único para o efeito hoje duplicado em ``submit_activity_form`` e
     ``execute_triage_decision`` (Issue #22): marcar a execução, a atividade e
     todas as suas tarefas como ``COMPLETED``. Não destrava dependentes — isso
     fica a cargo do chamador, via ``_advance_dependent_activities``, porque
@@ -2954,6 +2984,39 @@ async def _find_role_assignment_activity(
     )
 
 
+async def _role_closing_blocker(
+    session: AsyncSession, process_id: UUID, role_key: str
+) -> str | None:
+    """O que impede concluir a atribuição do cargo, ou ``None``.
+
+    ``pending_invites``: há convite pendente para o cargo (Spec 028,
+    FR-017). ``role_without_designation``: o cargo não tem designação ativa
+    (Spec 042, research R8).
+    """
+    pending_invite = await session.scalar(
+        select(RoleAssignmentInvite.id).where(
+            RoleAssignmentInvite.process_instance_id == process_id,
+            RoleAssignmentInvite.role_key == role_key,
+            RoleAssignmentInvite.status == 'pending',
+            RoleAssignmentInvite.deleted_at.is_(None),
+        )
+    )
+    if pending_invite is not None:
+        return 'pending_invites'
+
+    active_assignment = await session.scalar(
+        select(Assignment.id).where(
+            Assignment.process_instance_id == process_id,
+            Assignment.role_key == role_key,
+            Assignment.revoked_at.is_(None),
+            Assignment.deleted_at.is_(None),
+        )
+    )
+    if active_assignment is None:
+        return 'role_without_designation'
+    return None
+
+
 async def _maybe_close_role_assignment_activity(
     session: AsyncSession,
     process: ProcessInstance,
@@ -2963,14 +3026,19 @@ async def _maybe_close_role_assignment_activity(
     """Fecha a etapa de atribuição de cargo do papel, se aplicável (Spec 028).
 
     Chamado ao final de toda designação criada (direta, Spec 006, ou por
-    aceite de convite). Reaproveita ``_complete_activity_run`` +
-    ``_advance_dependent_activities`` (Spec 026) — não existe um endpoint
-    "concluir atividade" dedicado (research.md R4). Sempre no-op silencioso
+    aceite de convite) e de toda revogação de designação ou de convite
+    (Spec 042, research R8). Reaproveita ``_complete_activity_run`` +
+    ``_advance_dependent_activities`` (Spec 026). Sempre no-op silencioso
     quando não há nada a fechar: papel sem etapa ``role_assignment``
     declarada na versão do template desta instância, etapa já ``COMPLETED``,
-    etapa ainda ``BLOCKED`` (sem execução), ou convite ``pending`` restante
-    para o papel (FR-017) — nesse último caso a etapa só fecha quando o
-    último convite pendente for aceito ou revogado.
+    etapa ainda ``BLOCKED`` (sem execução), convite ``pending`` restante
+    para o papel (FR-017) — nesse caso a etapa só fecha quando o último
+    convite pendente for aceito ou revogado — ou papel sem designação ativa,
+    para que a etapa nunca conclua com o cargo vazio.
+
+    Só fecha a primeira execução. A execução reaberta pela homologação
+    conclui por ``participant_service.complete_role_assignment``, para que
+    a troca de pessoa não feche no meio (Spec 042, research R14).
     """
     act = await _find_role_assignment_activity(session, process, role_key)
     if act is None or act.status == 'COMPLETED':
@@ -2985,31 +3053,32 @@ async def _maybe_close_role_assignment_activity(
         .order_by(ActivityRun.run_number.desc())
         .limit(1)
     )
-    if run is None:
+    if run is None or run.run_number > 1:
         return
 
-    pending_invite = await session.scalar(
-        select(RoleAssignmentInvite.id).where(
-            RoleAssignmentInvite.process_instance_id == process.id,
-            RoleAssignmentInvite.role_key == role_key,
-            RoleAssignmentInvite.status == 'pending',
-            RoleAssignmentInvite.deleted_at.is_(None),
-        )
-    )
-    if pending_invite is not None:
+    if await _role_closing_blocker(session, process.id, role_key):
         return
 
     await _complete_activity_run(session, run, act, user_id)
     await _advance_dependent_activities(session, process, act, user_id)
 
 
-async def submit_proposal_form(  # noqa: PLR0914, PLR0915
+async def submit_activity_form(  # noqa: PLR0914, PLR0915
     session: AsyncSession,
     process_id: UUID,
     activity_key: str,
     values_dict: dict[str, Any],
     user_id: UUID,
-) -> tuple[ActivityInstance, ActivityRun, Artifact, EvaluationRun | None]:
+) -> tuple[
+    ActivityInstance, ActivityRun, Artifact | None, EvaluationRun | None
+]:
+    """Envia o formulário da execução atual da atividade.
+
+    Só a submissão da proposta gera o Dossiê de Submissão, a pré-avaliação
+    por IA e o avanço da triagem. Os demais formulários, como o plano
+    estatístico, concluem a atividade e liberam as dependentes (Spec 042,
+    research R13).
+    """
     await ensure_process_mutable(session, process_id)
     (
         act,
@@ -3047,6 +3116,24 @@ async def submit_proposal_form(  # noqa: PLR0914, PLR0915
 
     p_stmt = select(ProcessInstance).where(ProcessInstance.id == process_id)
     process = (await session.execute(p_stmt)).scalar_one()
+
+    if act.key != 'proposal_submission':
+        session.add(
+            AuditEvent(
+                process_instance_id=process_id,
+                activity_run_id=current_run.id,
+                user_id=user_id,
+                event_type='FORM_SUBMITTED',
+                context_data={
+                    'activity_key': act.key,
+                    'run_number': current_run.run_number,
+                },
+            )
+        )
+        await _advance_dependent_activities(session, process, act, user_id)
+        process.set_update_audit(user_id)
+        await session.commit()
+        return act, current_run, None, None
 
     doc_name = (
         f'Dossiê de Submissão - {act.name} (Run #{current_run.run_number})'

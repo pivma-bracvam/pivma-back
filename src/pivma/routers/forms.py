@@ -2,7 +2,13 @@ from http import HTTPStatus
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    HTTPException,
+    Query,
+    UploadFile,
+)
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 
@@ -39,7 +45,7 @@ from pivma.core.process_engine import (
     get_current_form_instance,
     is_artifact_referenced_by_submitted_form,
     save_form_values_draft,
-    submit_proposal_form,
+    submit_activity_form,
 )
 from pivma.dependencies import (
     CurrentUser,
@@ -153,10 +159,15 @@ async def get_activity_form(
     activity_key: str,
     session: Session,
     current_user: CurrentUser,
+    run_number: int | None = Query(default=None, ge=1),
 ):
     try:
         _, _, form_inst, template, fields = await get_current_form_instance(
-            session, id, activity_key, current_user.id
+            session,
+            id,
+            activity_key,
+            current_user.id,
+            run_number=run_number,
         )
     except NotFoundError as e:
         raise domain_error(HTTPStatus.NOT_FOUND, e) from e
@@ -271,7 +282,7 @@ async def submit_form(  # noqa: PLR0913, PLR0917
     _: TrustedOrigin,
 ):
     try:
-        act, run, artifact, pre_eval_run = await submit_proposal_form(
+        act, run, artifact, pre_eval_run = await submit_activity_form(
             session=session,
             process_id=id,
             activity_key=activity_key,
@@ -319,10 +330,16 @@ async def _load_file_field(  # noqa: PLR0913
     user_id: UUID,
     *,
     access: AccessLevel = 'view',
+    run_number: int | None = None,
 ) -> tuple[Any, Any, FormField]:
     try:
         _, run, form_inst, _, fields = await get_current_form_instance(
-            session, process_id, activity_key, user_id, access
+            session,
+            process_id,
+            activity_key,
+            user_id,
+            access,
+            run_number=run_number,
         )
     except NotFoundError as e:
         raise domain_error(HTTPStatus.NOT_FOUND, e) from e
@@ -565,9 +582,15 @@ async def download_field_attachment(  # noqa: PLR0913, PLR0917
     session: Session,
     current_user: CurrentUser,
     settings: SettingsDependency,
+    run_number: int | None = Query(default=None, ge=1),
 ):
     _run, form_inst, field = await _load_file_field(
-        session, id, activity_key, field_key, current_user.id
+        session,
+        id,
+        activity_key,
+        field_key,
+        current_user.id,
+        run_number=run_number,
     )
     form_value = await _active_form_value(session, form_inst.id, field.id)
     if form_value is None or form_value.file_attachment_id is None:

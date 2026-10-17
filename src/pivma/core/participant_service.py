@@ -19,8 +19,11 @@ from pivma.core.authorization import (
     LABORATORY_ROLE_KEYS,
     effective_assignment_ids,
     has_active_laboratory_affiliation,
+    has_current_conflict,
 )
 from pivma.core.database.models import (
+    ActivityInstance,
+    ActivityRun,
     Assignment,
     AuditEvent,
     Laboratory,
@@ -29,9 +32,14 @@ from pivma.core.database.models import (
 )
 from pivma.core.process_engine import (
     IMMUTABLE_PROCESS_STATUSES,
+    AuthorizationError,
     ConflictError,
     NotFoundError,
+    _advance_dependent_activities,  # noqa: PLC2701
+    _complete_activity_run,  # noqa: PLC2701
+    _find_role_assignment_activity,  # noqa: PLC2701
     _maybe_close_role_assignment_activity,  # noqa: PLC2701
+    _role_closing_blocker,  # noqa: PLC2701
 )
 
 
@@ -122,6 +130,76 @@ async def create_assignment(  # noqa: PLR0913, PLR0917
         session, process, role_key, actor_id
     )
     return assignment
+
+
+ROLE_CLOSING_MESSAGES = {
+    'pending_invites': 'O cargo tem convite pendente.',
+    'role_without_designation': 'O cargo não tem designação ativa.',
+}
+
+
+async def complete_role_assignment(
+    session: AsyncSession,
+    process: ProcessInstance,
+    role_key: str,
+    actor_id: UUID,
+) -> tuple[ActivityInstance, ActivityRun]:
+    """Conclui a atribuição de cargo em andamento (Spec 042, research R14).
+
+    É como a atribuição reaberta pela homologação conclui: designar e
+    revogar não a fecham, então a gestora pode trocar a pessoa em qualquer
+    ordem e declara aqui que terminou. A atividade é travada e relida, e a
+    segunda declaração simultânea encontra a execução já concluída. Não
+    comita.
+    """
+    act = await _find_role_assignment_activity(session, process, role_key)
+    if act is None:
+        raise NotFoundError('Cargo sem atribuição neste processo.')
+    act = await session.scalar(
+        select(ActivityInstance)
+        .where(ActivityInstance.id == act.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    run = await session.scalar(
+        select(ActivityRun)
+        .where(
+            ActivityRun.activity_instance_id == act.id,
+            ActivityRun.status == 'IN_PROGRESS',
+            ActivityRun.deleted_at.is_(None),
+        )
+        .order_by(ActivityRun.run_number.desc())
+        .limit(1)
+    )
+    if act.status != 'IN_PROGRESS' or run is None:
+        raise ConflictError(
+            'A atribuição do cargo não está em andamento.',
+            code='invalid_transition',
+        )
+    if await has_current_conflict(session, actor_id, process.id):
+        raise AuthorizationError(
+            'Usuário com conflito de interesse vigente neste processo.'
+        )
+    blocker = await _role_closing_blocker(session, process.id, role_key)
+    if blocker is not None:
+        raise ConflictError(ROLE_CLOSING_MESSAGES[blocker], code=blocker)
+
+    await _complete_activity_run(session, run, act, actor_id)
+    session.add(
+        AuditEvent(
+            process_instance_id=process.id,
+            activity_run_id=run.id,
+            user_id=actor_id,
+            event_type='ROLE_ASSIGNMENT_COMPLETED',
+            context_data={
+                'activity_key': act.key,
+                'role_key': role_key,
+                'run_number': run.run_number,
+            },
+        )
+    )
+    await _advance_dependent_activities(session, process, act, actor_id)
+    return act, run
 
 
 EFFECTIVENESS_LOST = 'PARTICIPANT_EFFECTIVENESS_LOST'

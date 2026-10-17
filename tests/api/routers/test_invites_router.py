@@ -663,3 +663,43 @@ async def test_listing_shows_delivery_only_for_visible_invites(
     assert [(i['role_key'], i['delivery']['status']) for i in items] == [
         ('sponsor', 'pending')
     ]
+
+
+@pytest.mark.asyncio
+async def test_revoking_the_only_invite_keeps_empty_role_open(
+    client, session, bracvam_user
+):
+    """Spec 042, research R8: revogar o único convite pendente de um cargo
+    sem designação não conclui a atribuição com o cargo vazio."""
+    from tests.api.routers.test_participant_router import (  # noqa: PLC0415
+        create_participant,
+    )
+
+    process_id, proponente = await _process_in_planning_phase(
+        client, session, bracvam_user
+    )
+    await grant_participants_management(session, bracvam_user)
+    gestor = UserFactory()
+    session.add(gestor)
+    await session.commit()
+    authenticate(client, proponente)
+    assert (
+        create_participant(client, process_id, gestor.id, 'group_manager')
+    ).status_code == HTTPStatus.CREATED
+    authenticate(client, bracvam_user)
+    invite = create_invite(
+        client, process_id, 'unico@exemplo.org', 'adhoc_evaluator'
+    )
+    assert invite.status_code == HTTPStatus.CREATED
+
+    revoked = revoke_invite_req(client, process_id, invite.json()['id'])
+
+    assert revoked.status_code == HTTPStatus.OK
+    tasks = client.get(
+        '/tasks',
+        params={
+            'process_id': process_id,
+            'activity_key': 'assign_adhoc_evaluator',
+        },
+    ).json()['data']
+    assert [task['status'] for task in tasks] == ['READY']

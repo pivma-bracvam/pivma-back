@@ -14,7 +14,7 @@ flowchart LR
     A[Criar o template] --> B[Adicionar colunas]
     B --> C[Baixar o arquivo-modelo]
     B --> D[Vincular ao processo]
-    D --> E[Amostras concluídas:<br/>estrutura travada]
+    D --> E[Etapa 3 começa:<br/>estrutura travada]
 ```
 
 Rota base: `/collection-templates`.
@@ -106,9 +106,10 @@ depois.
 
 ## Quando o template trava
 
-O template trava quando um processo vinculado conclui a definição das
-amostras. A partir daí, `locked` vale `true` e as mudanças estruturais
-respondem `409 template_locked`:
+O template trava quando a Etapa 3 de um processo vinculado começa: na
+aprovação da homologação da estrutura ou, nos processos criados com a versão
+anterior do template, na conclusão das amostras. A partir daí, `locked` vale
+`true` e as mudanças estruturais respondem `409 template_locked`:
 
 - criar, alterar ou excluir coluna;
 - mudar `min_experiments` ou `min_replicates` para um valor diferente do
@@ -118,10 +119,11 @@ O nome, a descrição, a consulta e o download continuam liberados. Reenviar
 os mínimos com o valor atual também passa, para o frontend poder mandar o
 objeto inteiro.
 
-O template não destrava: a definição das amostras não reabre, e um processo
-encerrado, arquivado ou excluído continua contando. Se a conclusão das
-amostras e uma mudança estrutural chegam juntas, a API processa uma depois da
-outra. Se a conclusão vem primeiro, a mudança é recusada.
+O template não destrava: um processo encerrado, arquivado ou excluído depois
+do início da Etapa 3 continua contando. Excluir o processo antes disso não
+trava o template. Se a abertura da Etapa 3 e uma mudança estrutural chegam
+juntas, a API processa uma depois da outra. Se a abertura vem primeiro, a
+mudança é recusada.
 
 Rotas e erros completos: [Rotas](../referencia/rotas.md#templates-de-coleta)
 e [Erros](../referencia/erros.md#codigos).

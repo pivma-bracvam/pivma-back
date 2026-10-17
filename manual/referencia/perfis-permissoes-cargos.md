@@ -22,6 +22,9 @@ Além das permissões, Administrador e BraCVAM:
 - veem todos os processos e todas as atividades;
 - têm os cargos `admin` e `bracvam` em toda atividade, o que só dá edição onde
   o template lista esses cargos em `edit`.
+- Só o cargo `bracvam` edita a triagem, as atribuições de colaborador e de
+  avaliador ad hoc e a homologação da estrutura (`structure_approval`). O
+  Admin vê o painel da homologação, mas não decide (`403`).
 
 Rotas exclusivas do perfil Administrador (`403 admin_only` para os demais):
 reprocessar pré-avaliação e os logs administrativos.
@@ -61,7 +64,7 @@ aceito. `proponent` é dado a quem cria o processo.
 | `sample_selection_group` | Grupo de Seleção de Amostras | `assign_sample_selection_group` | Único que vê substâncias, códigos e SDS |
 | `lead_laboratory` | Laboratório líder | `assign_lead_laboratory` | Exige vínculo com o laboratório. Não dá acesso a execuções de laboratório |
 | `participating_laboratory` | Laboratório participante | `assign_participating_laboratory` | Exige vínculo. No máximo uma designação ativa por usuário e processo |
-| `statistician` | Estatístico | `assign_statistician` | |
+| `statistician` | Estatístico | `assign_statistician` | Envia o plano estatístico (`statistical_plan`) |
 | `collaborator` | Colaborador | `assign_collaborator` | |
 | `adhoc_evaluator` | Avaliador ad hoc | `assign_adhoc_evaluator` | |
 | `study_manager` | Gerente do Estudo | — | Só por designação direta |

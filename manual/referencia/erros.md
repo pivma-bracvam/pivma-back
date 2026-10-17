@@ -72,7 +72,10 @@ cada grupo).
 | 409 | `reserved_key` | Coluna com `codigo_amostra`, `experimento` ou `replica` como chave |
 | 409 | `position_taken` | Posição ocupada por outra coluna ativa do template de coleta |
 | 409 | `position_limit_reached` | Coluna sem posição quando a última coluna ativa já está em 2147483647 |
-| 409 | `template_locked` | Mudança estrutural em template de coleta travado (colunas ou mínimos) |
+| 409 | `template_locked` | Mudança estrutural (colunas ou mínimos) em template de coleta com um processo vinculado que já começou a Etapa 3 |
+| 409 | `structure_pending` | Aprovar a homologação da estrutura com pendência no painel |
+| 409 | `pending_invites` | Declarar concluída a atribuição de um cargo com convite pendente |
+| 409 | `role_without_designation` | Declarar concluída a atribuição de um cargo sem designação ativa |
 | 413 | `payload_too_large` | Corpo grande demais |
 | 413 | `file_too_large` | Anexo acima de `ATTACHMENT_MAX_SIZE_MB` |
 | 422 | `validation_error` | Entrada inválida (com `fields`) |
@@ -87,6 +90,7 @@ cada grupo).
 | 422 | `no_laboratories` | Concluir amostras sem laboratório participante |
 | 422 | `laboratory_not_frozen` | Dispensar laboratório fora do conjunto congelado |
 | 422 | `invalid_options` | Coluna `select` sem opções ou com opção repetida; outro tipo com opções |
+| 422 | `invalid_point` | Reprovar na homologação uma atividade que não é ponto dela |
 | 500 | `internal_error` | Erro inesperado. O detalhe vai só para o log |
 | 503 | `service_unavailable` | Dependência indisponível |
 | 503 | `ai_unavailable` | Provedor de IA falhou ao sugerir critérios ou testar uma versão |

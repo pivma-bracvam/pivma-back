@@ -28,7 +28,7 @@ from pivma.core.database.models import (
 from pivma.core.process_engine import (
     execute_triage_decision,
     instantiate_process,
-    submit_proposal_form,
+    submit_activity_form,
 )
 from pivma.core.return_review_service import decide_return_review
 from tests.conftest import _make_rbac_user
@@ -123,7 +123,7 @@ async def test_triage_evaluation_gets_own_due_date(
         session, 'Instância - triagem desbloqueada'
     )
 
-    await submit_proposal_form(
+    await submit_activity_form(
         session,
         process.id,
         'proposal_submission',
@@ -157,7 +157,7 @@ async def test_role_assignment_activity_activated_by_triage_has_no_due_date(
         session, 'Instância - fase 2 sem prazo'
     )
 
-    await submit_proposal_form(
+    await submit_activity_form(
         session,
         process.id,
         'proposal_submission',
@@ -186,7 +186,7 @@ async def test_reopened_submission_run_gets_its_own_due_date(session):
         session, 'Instância - retrabalho da submissão'
     )
 
-    await submit_proposal_form(
+    await submit_activity_form(
         session,
         process.id,
         'proposal_submission',

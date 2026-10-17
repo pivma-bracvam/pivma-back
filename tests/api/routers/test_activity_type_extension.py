@@ -77,6 +77,8 @@ async def test_template_detail_declares_both_phases_with_activity_type(
         'assign_collaborator': 'role_assignment',
         'assign_adhoc_evaluator': 'role_assignment',
         'sample_definition': 'sample_definition',
+        'statistical_plan': 'form',
+        'structure_approval': 'structure_approval',
     }
 
     phase_3_activities = {
@@ -117,15 +119,16 @@ async def test_template_detail_defaults_activity_type_for_legacy_templates(
         for phase in resp.json()['definition']['phases']:
             for activity in phase['activities']:
                 # A revisão do retorno (Spec 030), as atribuições de cargo
-                # (Spec 028), a atividade de amostras (Spec 031) e as do
-                # recebimento (Spec 040) declaram `activity_type`; as demais
-                # recebem o padrão `form`.
+                # (Spec 028), a atividade de amostras (Spec 031), a
+                # homologação (Spec 042) e as do recebimento (Spec 040)
+                # declaram `activity_type`; as demais recebem o padrão `form`.
                 if activity['key'] == 'submission_return_review':
                     expected = 'return_review'
                 elif activity['key'].startswith('assign_'):
                     expected = 'role_assignment'
                 elif activity['key'] in {
                     'sample_definition',
+                    'structure_approval',
                     'sample_receipt',
                     'sample_receipt_resolution',
                 }:
@@ -157,7 +160,7 @@ async def test_role_assignment_activities_unlock_on_triage_approval(
     )
     assert resp.status_code == HTTPStatus.CREATED
     process_id = resp.json()['id']
-    assert resp.json()['template']['version'] == 6
+    assert resp.json()['template']['version'] == 7
 
     client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',

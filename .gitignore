@@ -46,6 +46,8 @@ htmlcov/
 .nox/
 .coverage
 .coverage.*
+# Cópias que o macOS cria em conflito de sincronização (".coverage 2")
+.coverage *
 .cache
 nosetests.xml
 coverage.xml

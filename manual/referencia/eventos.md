@@ -26,6 +26,9 @@ flowchart TD
 ```
 
 - `LABORATORY_WAIVED` só aparece para o gestor do processo.
+- `STRUCTURE_APPROVED` e `STRUCTURE_REJECTED` seguem a homologação da
+  estrutura: só Admin e BraCVAM os veem. `ACTIVITY_REOPENED` segue o ponto
+  reaberto: quem vê essa atividade vê o motivo.
 - Os eventos da resolução de inconformidades (`SAMPLE_NONCONFORMITY_*`,
   `SAMPLE_VIAL_RESENT`, `SAMPLE_RECEIPT_RESOLUTION_OPENED`) seguem a atividade
   `sample_receipt_resolution`: Grupo de Seleção, Admin e BraCVAM. Nenhum
@@ -37,12 +40,14 @@ flowchart TD
 | Grupo | `event_type` |
 |---|---|
 | Processo | `PROCESS_CREATED`, `PROCESS_DELETED`, `PROCESS_ARCHIVED`, `PROCESS_WITHDRAWN` |
-| Atividades | `ACTIVITY_UNBLOCKED` |
-| Submissão | `FORM_DRAFT_SAVED`, `FORM_ATTACHMENT_UPLOADED`, `FORM_ATTACHMENT_REMOVED`, `SUBMISSION_UPDATED`, `SUBMISSION_SUBMITTED` |
+| Atividades | `ACTIVITY_UNBLOCKED`, `ACTIVITY_REOPENED` |
+| Formulários | `FORM_DRAFT_SAVED`, `FORM_ATTACHMENT_UPLOADED`, `FORM_ATTACHMENT_REMOVED`, `FORM_SUBMITTED` |
+| Submissão | `SUBMISSION_UPDATED`, `SUBMISSION_SUBMITTED` |
 | Pré-avaliação por IA | `AI_PRE_EVALUATION_STARTED`, `AI_PRE_EVALUATION_COMPLETED`, `AI_PRE_EVALUATION_FAILED`, `AI_CRITERION_FEEDBACK_RECORDED`, `DIRECT_REVIEW_REQUESTED` |
 | Triagem | `FIELD_REVIEWED`, `TRIAGE_APPROVED`, `TRIAGE_REJECTED`, `REVISION_REQUESTED` |
 | Revisão do retorno | `RETURN_REVIEW_OPENED`, `RETURN_REVIEW_DECIDED` |
-| Participantes | `PARTICIPANT_ASSIGNED`, `PARTICIPANT_REVOKED`, `CONFLICT_DECLARED`, `PARTICIPANT_EFFECTIVENESS_LOST`, `PARTICIPANT_EFFECTIVENESS_RESTORED` |
+| Homologação da estrutura | `STRUCTURE_APPROVED`, `STRUCTURE_REJECTED` |
+| Participantes | `PARTICIPANT_ASSIGNED`, `PARTICIPANT_REVOKED`, `ROLE_ASSIGNMENT_COMPLETED`, `CONFLICT_DECLARED`, `PARTICIPANT_EFFECTIVENESS_LOST`, `PARTICIPANT_EFFECTIVENESS_RESTORED` |
 | Convites | `INVITE_CREATED`, `INVITE_RESENT`, `INVITE_REVOKED`, `INVITE_ACCEPTED` |
 | Amostras cegas | `SAMPLE_SUBSTANCE_REGISTERED`, `SAMPLE_SUBSTANCE_UPDATED`, `SAMPLE_SUBSTANCE_REMOVED`, `SAMPLE_SDS_UPLOADED`, `SAMPLE_SDS_DOWNLOADED`, `SAMPLE_CODES_GENERATED`, `SAMPLE_DEFINITION_COMPLETED` |
 | Execução por laboratório | `LABORATORY_RUN_COMPLETED`, `LABORATORY_WAIVED`, `LABORATORY_RUN_REOPENED` |
@@ -55,6 +60,11 @@ flowchart TD
 |---|---|
 | `PROCESS_CREATED` | `code`, `title` e, se o processo nasce com template de coleta, `collection_template_id` |
 | `REVISION_REQUESTED` | `source`: `AI_PRE_EVALUATION` ou `TRIAGE` |
+| `STRUCTURE_APPROVED` | `decision_id`, `justification` |
+| `STRUCTURE_REJECTED` | `decision_id`, `justification`, `rejected_points` (`[{activity_key, reason}]`) |
+| `ACTIVITY_REOPENED` | `activity_key`, `previous_run_number`, `run_number`, `reason`; ligado à execução nova do ponto reprovado |
+| `FORM_SUBMITTED` | `activity_key`, `run_number`; envio de formulário que não é a proposta, como o plano estatístico |
+| `ROLE_ASSIGNMENT_COMPLETED` | `activity_key`, `role_key`, `run_number`; quem gere o cargo declarou concluída a atribuição reaberta |
 | `PARTICIPANT_EFFECTIVENESS_LOST` / `_RESTORED` | `reason`: `affiliation_ended`, `laboratory_deactivated`, `institution_deactivated`, `affiliation_created` |
 | `LABORATORY_*` | `laboratory_id` |
 | `SAMPLE_*` | Só identificadores e contagens; nunca nome químico, CAS, código ou justificativa |
