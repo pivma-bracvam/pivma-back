@@ -27,14 +27,12 @@ TEMPLATE_FILES = {
     'scope_extension': '02_scope_extension.yaml',
     'me_too_validation': '03_me_too_validation.yaml',
     'validated_method_dossier': '04_validated_method_dossier.yaml',
-    'proof_of_concept': '05_proof_of_concept.yaml',
 }
 NEW_VERSIONS = {
     'pre_validated_method': 5,
     'scope_extension': 5,
     'me_too_validation': 5,
     'validated_method_dossier': 7,
-    'proof_of_concept': 5,
 }
 PHASE_2 = 'phase_2_role_assignment'
 COMPARED_KEYS = (

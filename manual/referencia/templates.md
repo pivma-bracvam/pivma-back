@@ -1,18 +1,25 @@
 # Templates de processo
 
-Cinco templates vêm com o sistema, em `src/pivma/templates_data/`, e são
-carregados pelo provisionamento. Um processo usa a versão publicada mais
-recente do template na criação e fica nela até o fim.
+Quatro templates vêm com o sistema, em `src/pivma/templates_data/`, e são
+carregados pelo provisionamento. Cada template é um tipo de submissão. Um
+processo usa a versão publicada mais recente do template na criação e fica
+nela até o fim.
 
-| `key` | Nome | Versão | Formulário de submissão |
-|---|---|---|---|
-| `pre_validated_method` | Método Pré-Validado | 5 | `submission_pre_validated_v1` (1 campo) |
-| `scope_extension` | Extensão de Escopo de Aplicação | 5 | `submission_scope_extension_v1` (1 campo) |
-| `me_too_validation` | Validação Me-Too | 5 | `submission_me_too_v1` (1 campo) |
-| `validated_method_dossier` | Método Validado – Dossiê Submetido | 7 | `submission_validated_dossier_v1` (2 campos) |
-| `proof_of_concept` | Prova de Conceito (PoC) | 5 | `submission_proof_of_concept_v1` (formulário completo) |
+`GET /processes/templates` lista os tipos pela `display_order` declarada em
+cada YAML, nesta ordem:
 
-Os cinco têm as mesmas fases e atividades. Muda o formulário de submissão;
+| Ordem | `key` | Nome | Versão | Formulário de submissão |
+|---|---|---|---|---|
+| 1 | `pre_validated_method` | Método Novo | 5 | `submission_pre_validated_v1` (1 campo) |
+| 2 | `validated_method_dossier` | Método Novo – Dossiê Completo | 7 | `submission_validated_dossier_v1` (2 campos) |
+| 3 | `scope_extension` | Extensão do Domínio de Aplicação | 5 | `submission_scope_extension_v1` (1 campo) |
+| 4 | `me_too_validation` | Método Similar | 5 | `submission_me_too_v1` (1 campo) |
+
+Cada formulário de submissão se chama "Formulário de Submissão - <nome do
+tipo>". Um template sem `display_order`, criado direto no banco, aparece
+depois dos quatro.
+
+Os quatro têm as mesmas fases e atividades. Muda o formulário de submissão;
 todos trazem também o formulário `statistical_plan_v1`, do plano
 estatístico. Os processos criados com a versão anterior de cada template não
 têm a homologação da estrutura nem o plano estatístico: neles, o
@@ -74,6 +81,6 @@ laboratório congelado em `sample_definition` ganha a própria execução. Veja
 
 | Rota | Conteúdo |
 |---|---|
-| `GET /processes/templates` | Templates ativos |
+| `GET /processes/templates` | Templates ativos, por `display_order` |
 | `GET /processes/templates/{key}` | Definição da versão: fases, atividades, formulários |
 | `GET /processes/templates/{key}/forms/{form_key}` | Campos de um formulário |

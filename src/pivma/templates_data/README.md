@@ -13,6 +13,7 @@ process_template:
   key: "identificador_do_processo"
   name: "Nome do Processo"
   description: "Descrição detalhada..."
+  display_order: 1
   version: 1
   is_active: true
 
@@ -44,6 +45,8 @@ forms:
         order_index: 1
 ```
 
+`display_order` é obrigatório: um inteiro maior ou igual a 1 que define a posição do tipo em `GET /processes/templates`. Tipos com a mesma ordem saem pela `key`. O bootstrap confere a ordem de todos os arquivos antes de gravar qualquer um e para com erro que cita a `key` do arquivo sem ordem válida.
+
 O script `bootstrap_process_templates.py` lê esses arquivos, registra as entidades `FormTemplate` e mapeia cada elemento da lista `fields` para instâncias de `FormField`. Atividades que não declaram `form_template_key` (como a triagem e etapas sem formulário) criam execuções e tarefas diretamente, sem gerar `FormInstance`.
 
 ### 1.1 Acesso por atividade (`access`)
@@ -58,9 +61,9 @@ Cada atividade declara quais cargos podem vê-la e editá-la. As concessões val
 
 A atividade `submission_return_review` (`activity_type: "return_review"`) existe na fase 1 de todos os templates. Ela não tem dependências nem formulário e nasce bloqueada; o motor a abre por evento, quando a IA ou a triagem devolvem a submissão ao proponente.
 
-A fase 2 (`phase_2_role_assignment`) é igual nos cinco templates: as oito atividades de atribuição de cargo (`activity_type: "role_assignment"`), a atividade `sample_definition` (`activity_type: "sample_definition"`, Spec 031), o plano estatístico `statistical_plan` e a homologação `structure_approval` (`activity_type: "structure_approval"`, Spec 042). `sample_definition` só concede edição a `sample_selection_group` e depende de `assign_sample_selection_group` e `assign_participating_laboratory`. `statistical_plan` é uma atividade de formulário (`form_template_key: "statistical_plan_v1"`, com o plano em anexo obrigatório e um resumo opcional): só o `statistician` edita, e ela depende de `assign_statistician`. O formulário `statistical_plan_v1` aparece igual nos cinco arquivos. A homologação fecha a fase: só o `bracvam` edita, e ela depende das dez atividades anteriores. Essas dependências são os pontos que o BraCVAM confere e pode reprovar; para auditar um ponto novo, declare a dependência. Ao mudar uma atividade da fase, mude nos cinco arquivos; `tests/integration/bootstrap/test_template_phase_2.py` compara as cópias.
+A fase 2 (`phase_2_role_assignment`) é igual nos quatro templates: as oito atividades de atribuição de cargo (`activity_type: "role_assignment"`), a atividade `sample_definition` (`activity_type: "sample_definition"`, Spec 031), o plano estatístico `statistical_plan` e a homologação `structure_approval` (`activity_type: "structure_approval"`, Spec 042). `sample_definition` só concede edição a `sample_selection_group` e depende de `assign_sample_selection_group` e `assign_participating_laboratory`. `statistical_plan` é uma atividade de formulário (`form_template_key: "statistical_plan_v1"`, com o plano em anexo obrigatório e um resumo opcional): só o `statistician` edita, e ela depende de `assign_statistician`. O formulário `statistical_plan_v1` aparece igual nos quatro arquivos. A homologação fecha a fase: só o `bracvam` edita, e ela depende das dez atividades anteriores. Essas dependências são os pontos que o BraCVAM confere e pode reprovar; para auditar um ponto novo, declare a dependência. Ao mudar uma atividade da fase, mude nos quatro arquivos; `tests/integration/bootstrap/test_template_phase_2.py` compara as cópias.
 
-A fase 3 (`phase_3_validation_execution`, Spec 040) também é igual nos cinco templates. `sample_receipt` (`activity_type: "sample_receipt"`) é executada por laboratório (`execution_scope: "per_laboratory"`), só o `participating_laboratory` edita e ela depende de `structure_approval`. `sample_receipt_resolution` (`activity_type: "sample_receipt_resolution"`) é do `sample_selection_group`, não tem dependências e nasce bloqueada: o motor a abre quando um laboratório registra um frasco fora de ordem. `tests/integration/bootstrap/test_template_phase_3.py` compara as cópias.
+A fase 3 (`phase_3_validation_execution`, Spec 040) também é igual nos quatro templates. `sample_receipt` (`activity_type: "sample_receipt"`) é executada por laboratório (`execution_scope: "per_laboratory"`), só o `participating_laboratory` edita e ela depende de `structure_approval`. `sample_receipt_resolution` (`activity_type: "sample_receipt_resolution"`) é do `sample_selection_group`, não tem dependências e nasce bloqueada: o motor a abre quando um laboratório registra um frasco fora de ordem. `tests/integration/bootstrap/test_template_phase_3.py` compara as cópias.
 
 A carga dos templates falha, indicando template, atividade e cargo, quando uma atividade não tem nenhum cargo em `edit` ou quando um cargo está fora do vocabulário de cargos (`ACTIVITY_CARGOS` em `pivma.core.authorization`).
 
@@ -319,5 +322,3 @@ forms:
    ```
    *(Ou execute através do container ou suite de migrações correspondente).*
 3. Os formulários atualizados estarão imediatamente disponíveis nas APIs de processo e no endpoint `GET /processes/{id}/activities/{activity_key}/form`.
-
-> **Exemplo real completo:** `05_proof_of_concept.yaml` reproduz o Formulário Preliminar (FP) do BraCVAM — 9 seções via `validation_rules.section`, campos `boolean` + `textarea` para os itens "SIM/NÃO + especifique", e `file_upload` restrito a PDF. Ver `specs/015-first-deploy-baseline/data-model.md` para o mapeamento campo a campo e as aproximações assumidas (limites por nº de palavras, grupos de checkbox, tabelas repetíveis não são suportados nativamente).

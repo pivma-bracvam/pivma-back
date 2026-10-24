@@ -25,12 +25,18 @@ curl -s $API/processes/templates -H "Authorization: Bearer $TOKEN"
 ```bash
 curl -s -X POST $API/processes -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"template_key":"proof_of_concept","title":"Método 3T3 NRU"}'
+  -d '{"template_key":"pre_validated_method","title":"Método 3T3 NRU"}'
 ```
 
 `title` tem de 3 a 255 caracteres. O processo usa a versão publicada mais
-recente do template. Os cinco templates estão em
+recente do template. Os quatro templates estão em
 [Templates de processo](../referencia/templates.md).
+
+A resposta traz o `code` da submissão, no formato `VAL-<ano>-<número>`,
+como `VAL-2026-0001`. O ano é o da criação no horário de Brasília. O número
+recomeça em 1 a cada ano, tem pelo menos quatro dígitos e passa a cinco
+depois de 9999 (`VAL-2026-10000`). Duas criações simultâneas recebem
+números diferentes, e uma criação que falha não gasta número.
 
 ## 2. Ler o formulário
 
@@ -47,7 +53,7 @@ seção), `values` (o que já foi salvo), `reviews` (pareceres da triagem) e
 ```bash
 curl -s -X PUT $FORM -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"values":{"method_name":"3T3 NRU","intended_purpose":"Fototoxicidade"}}'
+  -d '{"values":{"method_title":"Ensaio 3T3 NRU de fototoxicidade"}}'
 ```
 
 O rascunho aceita valores incompletos. Valores com tipo errado respondem
@@ -65,10 +71,12 @@ Valores inválidos aqui respondem `422 invalid_submission_values`.
 
 ## 4. Anexar arquivos
 
-Campos do tipo `file_upload` recebem arquivo por campo:
+Campos do tipo `file_upload` recebem arquivo por campo. Os formulários de
+submissão atuais não têm campo de arquivo; a rota vale para o template que
+declarar um:
 
 ```bash
-curl -s -X POST $FORM/fields/sop_files/attachment -H "Authorization: Bearer $TOKEN" \
+curl -s -X POST $FORM/fields/$FIELD_KEY/attachment -H "Authorization: Bearer $TOKEN" \
   -F file=@protocolo.pdf
 ```
 

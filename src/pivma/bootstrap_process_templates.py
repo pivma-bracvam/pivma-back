@@ -119,6 +119,7 @@ async def _sync_process_template_and_version(
             name=pt_data['name'],
             description=pt_data.get('description'),
             is_active=pt_data.get('is_active', True),
+            display_order=pt_data.get('display_order'),
         )
         session.add(process_template)
         await session.flush()
@@ -126,6 +127,7 @@ async def _sync_process_template_and_version(
         process_template.name = pt_data['name']
         process_template.description = pt_data.get('description')
         process_template.is_active = pt_data.get('is_active', True)
+        process_template.display_order = pt_data.get('display_order')
 
     version_num = pt_data.get('version', 1)
     v_stmt = select(ProcessTemplateVersion).where(
@@ -165,6 +167,18 @@ def _validate_activity_access(data: dict[str, Any]) -> None:
                 ) from exc
 
 
+def validate_display_order(data: dict[str, Any]) -> None:
+    """Recusa o YAML sem ordem de exibição inteira >= 1 (Spec 043,
+    FR-003a)."""
+    pt_data = data.get('process_template', {})
+    order = pt_data.get('display_order')
+    if type(order) is not int or order < 1:
+        raise ValidationError(
+            f'Template {pt_data.get("key")!r}: display_order deve ser um '
+            'inteiro maior ou igual a 1.'
+        )
+
+
 async def sync_template_from_dict(
     session: AsyncSession, data: dict[str, Any]
 ) -> tuple[ProcessTemplate, ProcessTemplateVersion, list[FormTemplate]]:
@@ -183,10 +197,18 @@ async def bootstrap_all_templates(session: AsyncSession) -> None:
     if not templates_dir.exists():
         return
 
+    # Valida todos os YAMLs antes de gravar: sync_template_from_dict faz
+    # commit a cada template.
+    templates = [
+        load_yaml_template(yaml_file)
+        for yaml_file in sorted(templates_dir.glob('*.yaml'))
+    ]
+    for data in templates:
+        validate_display_order(data)
+
     loaded_keys = set()
     loaded_form_keys = set()
-    for yaml_file in sorted(templates_dir.glob('*.yaml')):
-        data = load_yaml_template(yaml_file)
+    for data in templates:
         if 'process_template' in data and 'key' in data['process_template']:
             loaded_keys.add(data['process_template']['key'])
         for f_data in data.get('forms', []):

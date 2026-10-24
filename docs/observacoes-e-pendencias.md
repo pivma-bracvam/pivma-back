@@ -85,3 +85,35 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 ### PENDÊNCIAS
 
 - Avaliação por IA do plano estatístico: fora desta entrega. Se entrar, não pode travar o envio nem mexer na triagem.
+
+## Terminologia dos tipos e código da submissão (documento do BraCVAM, Spec 043)
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: o documento "Sugestões de ajustes no sistema PiVMA", que o BraCVAM enviou em outubro de 2026, seção 1 (tipos de submissão) e seção 2.1, item 3 (código da submissão). Não há issue no GitHub.
+- **Conflito**: os nomes atuais dos tipos vêm da Spec 015 e misturam termos em inglês. O BraCVAM pede a terminologia do OECD GD 34, outra ordem e a remoção da Prova de Conceito. `GET /processes/templates` ordena por nome, e a ordem alfabética dos nomes novos não coincide com a pedida. O Plano de Trabalho (seção 3.2, "crCode") só exige um código único, e o código atual termina em 16 caracteres aleatórios que ninguém consegue citar.
+- **Decisão**: as decisões abaixo. Os demais pedidos do documento (título único, explicação do envio para análise e Formulário Preliminar em toda submissão) seguem em discussão na equipe.
+- **Validação**: confirmada pelo usuário em 2026-10-24.
+
+### DECISÕES VIGENTES
+
+1. **Nomes e descrições**: os tipos passam a ser, nesta ordem:
+
+    | Ordem | Chave | Nome | Descrição |
+    |---|---|---|---|
+    | 1 | `pre_validated_method` | Método Novo | Método em desenvolvimento ou já desenvolvido, cujo processo de validação ainda não foi executado. |
+    | 2 | `validated_method_dossier` | Método Novo – Dossiê Completo | Método novo já desenvolvido, com protocolo estabelecido e processo de validação concluído, cujo dossiê está disponível para avaliação por pares. |
+    | 3 | `scope_extension` | Extensão do Domínio de Aplicação | Proposta de ampliação do domínio de aplicação de um método já validado, incluindo uma nova finalidade de uso ou aplicação regulatória. |
+    | 4 | `me_too_validation` | Método Similar | Método de ensaio estrutural e funcionalmente semelhante a um método de referência já validado e aceito, podendo ser candidato a um processo de validação baseado em padrões de desempenho (performance standards). |
+
+    A expressão "Fitness for Purpose Validation" sai da descrição da Extensão.
+2. **Chaves técnicas**: as chaves dos tipos e dos formulários continuam as mesmas. O frontend e os testes dependem delas. Esconder as chaves da tela cabe ao frontend.
+3. **Ordem**: `GET /processes/templates` devolve os tipos na ordem da tabela. O template de processo passa a declarar a própria ordem de exibição, e a lista deixa de ordenar pelo nome. A ordem é obrigatória no YAML: o bootstrap recusa o arquivo sem ela (usuário, 2026-10-24).
+4. **Prova de Conceito**: sai por completo. Removemos o YAML, o formulário `submission_proof_of_concept_v1`, os testes que cobrem só esse tipo e as menções no manual e no `templates_data/README.md`. A Spec 015 fica como está, por ser histórico. O mapeamento do Formulário Preliminar continua em `specs/015-first-deploy-baseline/data-model.md` e no histórico do git, caso a equipe aceite o pedido de levá-lo a toda submissão.
+5. **Código da submissão**: o formato passa a `VAL-<ano>-<sequencial>`, como `VAL-2026-0001`. A sequência recomeça em 1 a cada ano e usa no mínimo quatro dígitos, com zeros à esquerda; acima de 9999, o número só cresce (`VAL-2026-10000`). O ano é o da criação no horário de Brasília (`America/Sao_Paulo`), onde a plataforma terá a maior parte dos usuários. Duas criações simultâneas nunca recebem o mesmo número, e uma criação que falha não consome número.
+6. **Dados existentes**: o banco do preview só tem dados de teste, e a produção vai começar vazia. Não migramos os códigos antigos nem tratamos processos abertos da Prova de Conceito.
+
+### PENDÊNCIAS
+
+- Título único, explicação do botão "Enviar para análise" e Formulário Preliminar em toda submissão: aguardam decisão da equipe.
+- O frontend ainda mostra as chaves técnicas (`PRE_VALIDATED_METHOD`) nos cartões dos tipos.

@@ -112,7 +112,6 @@ async def test_template_detail_defaults_activity_type_for_legacy_templates(
         'pre_validated_method',
         'scope_extension',
         'me_too_validation',
-        'proof_of_concept',
     ):
         resp = client.get(f'/processes/templates/{template_key}')
         assert resp.status_code == HTTPStatus.OK

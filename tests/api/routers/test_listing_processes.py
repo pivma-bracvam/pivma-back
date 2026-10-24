@@ -62,15 +62,13 @@ def _return_for_revision(client, pid, proponent, bracvam_user, value):
 
 
 @pytest.mark.asyncio
-async def test_templates_envelope_ordered_by_name(client, session):
+async def test_templates_envelope_ordered_by_display_order(client, session):
     authenticate(client, await _proponent(session))
 
     body = _get(client, '/processes/templates')
 
     assert set(body) == ENVELOPE_KEYS
-    names = [item['name'] for item in body['data']]
-    assert names == sorted(names)
-    assert body['sort'] == {'by': 'name', 'order': 'asc'}
+    assert body['sort'] == {'by': 'display_order', 'order': 'asc'}
 
 
 @pytest.mark.asyncio

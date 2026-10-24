@@ -1,4 +1,4 @@
-"""Etapa 3 nos cinco templates: recebimento e resolução (Spec 040, FR-017)."""
+"""Etapa 3 nos quatro templates: recebimento e resolução (Spec 040, FR-017)."""
 
 from pathlib import Path
 
@@ -27,7 +27,6 @@ TEMPLATE_FILES = {
     'scope_extension': '02_scope_extension.yaml',
     'me_too_validation': '03_me_too_validation.yaml',
     'validated_method_dossier': '04_validated_method_dossier.yaml',
-    'proof_of_concept': '05_proof_of_concept.yaml',
 }
 PHASE_3 = 'phase_3_validation_execution'
 

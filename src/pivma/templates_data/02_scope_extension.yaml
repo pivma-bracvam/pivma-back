@@ -1,7 +1,8 @@
 process_template:
   key: "scope_extension"
-  name: "Extensão de Escopo de Aplicação"
-  description: "Método já validado sendo proposta uma nova aplicação regulatória ou nova finalidade de uso (Fitness-for-Purpose Validation)."
+  name: "Extensão do Domínio de Aplicação"
+  description: "Proposta de ampliação do domínio de aplicação de um método já validado, incluindo uma nova finalidade de uso ou aplicação regulatória."
+  display_order: 3
   version: 5
   is_active: true
 
@@ -48,7 +49,7 @@ phases:
   # Fase 2 (Spec 031): cópia da Fase 2 do template 04 (Spec 028) com a
   # atividade de amostras. Mantenha as oito atribuições idênticas às do
   # template 04 — `tests/integration/bootstrap/test_template_phase_2.py`
-  # compara os cinco templates.
+  # compara os quatro templates.
   - key: "phase_2_role_assignment"
     name: "Fase 2: Composição da Governança"
     order_index: 2
@@ -276,7 +277,7 @@ phases:
 
 forms:
   - key: "submission_scope_extension_v1"
-    name: "Formulário de Submissão - Extensão de Escopo"
+    name: "Formulário de Submissão - Extensão do Domínio de Aplicação"
     version: 1
     description: "Proposta de nova finalidade de uso ou matriz biológica para método previamente validado."
     fields:
@@ -288,7 +289,7 @@ forms:
         help_text: "Nome do método alternativo proposto."
 
   # Spec 042 (revisão do PR #76): plano estatístico da Etapa 2, igual nos
-  # cinco templates. Sem avaliação por IA.
+  # quatro templates. Sem avaliação por IA.
   - key: "statistical_plan_v1"
     name: "Plano Estatístico"
     version: 1
