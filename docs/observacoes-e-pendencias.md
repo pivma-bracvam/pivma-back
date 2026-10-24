@@ -138,3 +138,34 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 
   Para impor uma mudança de YAML a um formulário editado, a equipe sobe a `version` do formulário no YAML acima da versão do banco. A edição do BraCVAM nesse formulário se perde.
 - **Validação**: confirmada pelo usuário em 2026-10-24.
+
+## Conteúdo dos formulários de submissão (formulário do BraCVAM para as opções 1, 2 e 3)
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: a equipe repassou em 2026-10-24 a [pasta do BraCVAM no Google Drive](https://drive.google.com/drive/folders/1i3RI2f-P7SvJh9abQIqbAq4BFHYzo4ki), com dois arquivos:
+  - "etapas sistema NPAI gerenciamento validação.pptx" lista cinco opções de submissão: (1) método novo com validação por executar; (2) método já validado com nova aplicação; (3) método já validado com novo sistema teste; (4) método novo com validação concluída e dossiê pronto; (5) ideia de método ainda a desenvolver.
+  - "Formulario_BraCVAM SISTEMA - Novos métodos, métodos já validados ou novos desfechos - opções 1,2 e 3.docx" traz o formulário de submissão dessas três opções, com 48 perguntas em 13 seções: proponente, método, necessidade e impacto, fundamentação científica, sistema teste, protocolo, controle de qualidade, desempenho, capacidade preditiva, limitações, propriedade intelectual, interesse regulatório e anexos.
+- **Conflito**: os formulários de submissão em `src/pivma/templates_data/` são provisórios. A Spec 015 os definiu "só para haver algo na tela":
+  - Método Novo, Extensão do Domínio de Aplicação e Método Similar têm um campo, "Título do método" (SC-007 da Spec 015);
+  - o Dossiê Completo tem o título e um campo de terminologia com avaliação de IA, feito para demonstrar a IA;
+  - o único formulário que reproduzia um formulário real do BraCVAM era o Formulário Preliminar da Prova de Conceito, com 81 campos, que a Spec 043 removeu junto com o tipo.
+
+  As cinco opções da apresentação não coincidem com os quatro tipos do sistema. A opção 5 corresponde à Prova de Conceito, removida. A opção 3 não tem tipo equivalente, e o Método Similar não aparece na apresentação. A numeração da apresentação também difere da ordem de exibição: o Dossiê Completo é a opção 4 lá e o 2º tipo na tela.
+- **Decisão**: nenhuma. O formulário fica fora da Spec 043.
+- **Validação**: pendente.
+
+### PENDÊNCIAS
+
+1. **Tipos atendidos**: o formulário das opções 1, 2 e 3 vale para quais tipos? A opção 1 é o Método Novo e a opção 2 é a Extensão do Domínio de Aplicação. A opção 3 cabe na Extensão, no Método Similar ou em um tipo novo? E o Método Similar usa qual formulário?
+2. **Dossiê Completo**: o BraCVAM ainda não enviou o formulário da opção 4. Até lá, o tipo continua com o formulário provisório?
+3. **Quem cadastra os campos**: a equipe escreve o formulário no YAML, versionado e coberto por testes, ou o BraCVAM o monta pelo editor? Pela regra do bootstrap (seção anterior), um formulário editado no banco só volta a seguir o YAML quando a `version` do YAML passar a do banco.
+4. **Formulário Preliminar em toda submissão**: este formulário substitui esse pedido, que segue pendente na seção da Spec 043?
+5. **Forma dos campos**, que o documento não define:
+   - perguntas compostas, como a 8 ("Possui um Patrocinador? Quem? Qual a verba prevista?"), viram um campo ou vários?
+   - perguntas de resposta fechada, como a 2 (natureza da instituição) e a 11 (tipo de método), viram listas de opções? Quais opções?
+   - quais perguntas são obrigatórias?
+   - a pergunta 10 ("Nome oficial do método e sigla") substitui o campo "Título do método"? A pendência do título único depende disso.
+   - a seção 1 repete dados do cadastro do proponente (e-mail, instituição). O formulário os pede de novo ou os traz do cadastro?
+   - os anexos da seção 13 ficam em um campo de arquivo ou em um por tipo de documento (POP, artigos, relatórios, planilhas)?
+6. **Avaliação de IA**: quais campos a IA avalia na triagem, e com quais critérios? A apresentação diz que os critérios ainda precisam ser definidos.
