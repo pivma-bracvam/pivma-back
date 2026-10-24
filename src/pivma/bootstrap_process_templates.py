@@ -15,6 +15,7 @@ from pivma.core.database.models import (
 )
 from pivma.core.process_engine import (
     ValidationError,
+    _prune_evaluation_assignments,
     resolve_activity_access,
     validate_execution_scopes,
 )
@@ -70,11 +71,34 @@ async def _sync_form_fields(
             field.ai_context_instructions = fld.get('ai_context_instructions')
             field.ai_validation_rules = fld.get('ai_validation_rules')
 
+    # Campos fora do YAML (criados pelo editor) saem com as avaliações deles.
+    yaml_keys = [fld['field_key'] for fld in fields_data]
+    extra_fields = (
+        await session.scalars(
+            select(FormField).where(
+                FormField.form_template_id == form_template_id,
+                FormField.field_key.not_in(yaml_keys),
+                FormField.deleted_at.is_(None),
+            )
+        )
+    ).all()
+    for field in extra_fields:
+        field.deleted_at = datetime.now(UTC)
+    if extra_fields:
+        await _prune_evaluation_assignments(
+            session,
+            form_template_id,
+            {field.field_key for field in extra_fields},
+            None,
+        )
+
 
 async def _sync_forms(
     session: AsyncSession, forms_data: list[dict[str, Any]]
-) -> list[FormTemplate]:
+) -> tuple[list[FormTemplate], set[str]]:
+    """Devolve os formulários e as chaves dos que o editor alterou."""
     synced = []
+    edited_keys = set()
     for f_data in forms_data:
         f_key = f_data['key']
         stmt = select(FormTemplate).where(
@@ -92,6 +116,12 @@ async def _sync_forms(
             )
             session.add(form)
             await session.flush()
+        elif form.version > f_data.get('version', 1):
+            # O editor soma 1 à versão a cada gravação: o banco prevalece
+            # até o YAML subir a versão acima dela.
+            edited_keys.add(f_key)
+            synced.append(form)
+            continue
         else:
             form.name = f_data['name']
             form.version = f_data.get('version', 1)
@@ -99,11 +129,28 @@ async def _sync_forms(
 
         await _sync_form_fields(session, form.id, f_data.get('fields', []))
         synced.append(form)
-    return synced
+    return synced, edited_keys
+
+
+def _keep_edited_forms(
+    data: dict[str, Any],
+    current_payload: dict[str, Any] | None,
+    edited_keys: set[str],
+) -> dict[str, Any]:
+    """Troca, no YAML, a entrada dos formulários editados pela que está na
+    definição gravada."""
+    if not edited_keys or not current_payload:
+        return data
+    current = {f['key']: f for f in current_payload.get('forms', [])}
+    forms = [
+        current.get(f['key'], f) if f['key'] in edited_keys else f
+        for f in data.get('forms', [])
+    ]
+    return {**data, 'forms': forms}
 
 
 async def _sync_process_template_and_version(
-    session: AsyncSession, data: dict[str, Any]
+    session: AsyncSession, data: dict[str, Any], edited_form_keys: set[str]
 ) -> tuple[ProcessTemplate, ProcessTemplateVersion]:
     pt_data = data['process_template']
     p_key = pt_data['key']
@@ -138,17 +185,29 @@ async def _sync_process_template_and_version(
     v_res = await session.execute(v_stmt)
     version = v_res.scalar_one_or_none()
 
+    latest = await session.scalar(
+        select(ProcessTemplateVersion)
+        .where(
+            ProcessTemplateVersion.template_id == process_template.id,
+            ProcessTemplateVersion.deleted_at.is_(None),
+        )
+        .order_by(ProcessTemplateVersion.version_number.desc())
+    )
+    payload = _keep_edited_forms(
+        data, latest.definition_payload if latest else None, edited_form_keys
+    )
+
     if version is None:
         version = ProcessTemplateVersion(
             template_id=process_template.id,
             version_number=version_num,
-            definition_payload=data,
+            definition_payload=payload,
             is_published=True,
         )
         session.add(version)
         await session.flush()
     else:
-        version.definition_payload = data
+        version.definition_payload = payload
 
     return process_template, version
 
@@ -184,9 +243,11 @@ async def sync_template_from_dict(
 ) -> tuple[ProcessTemplate, ProcessTemplateVersion, list[FormTemplate]]:
     _validate_activity_access(data)
     validate_execution_scopes(data)
-    synced_forms = await _sync_forms(session, data.get('forms', []))
+    synced_forms, edited_form_keys = await _sync_forms(
+        session, data.get('forms', [])
+    )
     process_template, version = await _sync_process_template_and_version(
-        session, data
+        session, data, edited_form_keys
     )
     await session.commit()
     return process_template, version, synced_forms

@@ -47,7 +47,9 @@ forms:
 
 `display_order` é obrigatório: um inteiro maior ou igual a 1 que define a posição do tipo em `GET /processes/templates`. Tipos com a mesma ordem saem pela `key`. O bootstrap confere a ordem de todos os arquivos antes de gravar qualquer um e para com erro que cita a `key` do arquivo sem ordem válida.
 
-O script `bootstrap_process_templates.py` lê esses arquivos, registra as entidades `FormTemplate` e mapeia cada elemento da lista `fields` para instâncias de `FormField`. Atividades que não declaram `form_template_key` (como a triagem e etapas sem formulário) criam execuções e tarefas diretamente, sem gerar `FormInstance`.
+O script `bootstrap_process_templates.py` lê esses arquivos, registra as entidades `FormTemplate` e mapeia cada elemento da lista `fields` para instâncias de `FormField`. Campos que estão no banco e não estão no YAML são desativados, e as avaliações de IA deixam de apontar para eles.
+
+O bootstrap roda a cada início da API e preserva o que o BraCVAM editou. O editor (`PUT /processes/templates/{key}/forms/{form_key}`) soma 1 à `version` do formulário a cada gravação. Quando a versão no banco é maior que a do YAML, o bootstrap não mexe no formulário nem na entrada dele na definição da versão do template. Para impor o YAML a um formulário editado, suba a `version` do formulário no YAML acima da versão do banco; a edição feita no editor se perde. Atividades que não declaram `form_template_key` (como a triagem e etapas sem formulário) criam execuções e tarefas diretamente, sem gerar `FormInstance`.
 
 ### 1.1 Acesso por atividade (`access`)
 
@@ -321,4 +323,5 @@ forms:
    poetry run python -m pivma.bootstrap_process_templates
    ```
    *(Ou execute através do container ou suite de migrações correspondente).*
-3. Os formulários atualizados estarão imediatamente disponíveis nas APIs de processo e no endpoint `GET /processes/{id}/activities/{activity_key}/form`.
+3. Um formulário que o BraCVAM editou só recebe a mudança se a `version` dele no YAML passar a do banco (seção 1).
+4. Os formulários atualizados estarão imediatamente disponíveis nas APIs de processo e no endpoint `GET /processes/{id}/activities/{activity_key}/form`.

@@ -117,3 +117,24 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 
 - Título único, explicação do botão "Enviar para análise" e Formulário Preliminar em toda submissão: aguardam decisão da equipe.
 - O frontend ainda mostra as chaves técnicas (`PRE_VALIDATED_METHOD`) nos cartões dos tipos.
+
+## Bootstrap e o editor de formulários (revisão da Spec 043)
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: a Spec 012 (Q4) diz que a definição salva pelo editor passa a valer para os novos processos. O `entrypoint.sh` roda `python -m pivma.bootstrap_system` a cada início do contêiner da API, e esse comando sincroniza os formulários a partir dos YAMLs de `src/pivma/templates_data/`.
+- **Conflito**: a cada deploy ou reinício da API, o bootstrap desfaz o que o BraCVAM salvou no editor. Uma reprodução em 2026-10-24, editando dois formulários de `pre_validated_method` e rodando o bootstrap de novo, mostrou que:
+  - o nome do formulário volta ao do YAML e a versão volta de 2 para 1;
+  - o rótulo, a obrigatoriedade e a configuração de IA dos campos do YAML voltam aos valores do YAML;
+  - um campo que o editor removeu volta a aparecer;
+  - um campo que o editor criou continua na tabela de campos, mas some da definição da versão do template, e as duas fontes passam a divergir.
+- **Opções**:
+  1. O bootstrap só cria o que falta e nunca altera formulário existente. Uma mudança de YAML num formulário que já existe, como os nomes novos da Spec 043, deixa de chegar ao banco e passa a precisar de migração.
+  2. O bootstrap preserva o formulário que o editor alterou. O editor já soma 1 à versão do formulário a cada gravação: quando a versão no banco é maior que a do YAML, o bootstrap deixa o formulário e a entrada dele na definição da versão como estão. Para impor uma mudança de YAML a um formulário editado, a equipe sobe a `version` no YAML. Os demais formulários seguem o YAML como hoje.
+  3. Os YAMLs são a única fonte, e o editor fica restrito a ambientes de teste. Contraria as Specs 012 e 013.
+- **Decisão**: opção 2. O bootstrap compara a versão de cada formulário no banco com a do YAML:
+  - versão do banco maior: o bootstrap não toca no formulário, nos campos dele nem na entrada dele na definição da versão do template;
+  - versão igual ou menor: o YAML prevalece. O bootstrap aplica o YAML, desativa os campos que não estão nele e retira esses campos das avaliações de IA associadas, como o editor faz ao remover um campo.
+
+  Para impor uma mudança de YAML a um formulário editado, a equipe sobe a `version` do formulário no YAML acima da versão do banco. A edição do BraCVAM nesse formulário se perde.
+- **Validação**: confirmada pelo usuário em 2026-10-24.

@@ -77,6 +77,15 @@ laboratório congelado em `sample_definition` ganha a própria execução. Veja
 [Isolamento por laboratório](../explicacao/isolamento-por-laboratorio.md) e
 [Receber amostras](../guias/receber-amostras.md).
 
+## Provisionamento e edição
+
+O provisionamento roda a cada início da API e aplica os YAMLs aos
+formulários que ninguém editou. Cada gravação pelo editor soma 1 à versão do
+formulário. Enquanto a versão no banco for maior que a do YAML, o
+provisionamento deixa o formulário como o BraCVAM o salvou. A equipe impõe o
+YAML subindo a versão do formulário no arquivo acima da do banco; os campos
+que só existiam na edição são desativados.
+
 ## Consultar pela API
 
 | Rota | Conteúdo |
@@ -84,3 +93,4 @@ laboratório congelado em `sample_definition` ganha a própria execução. Veja
 | `GET /processes/templates` | Templates ativos, por `display_order` |
 | `GET /processes/templates/{key}` | Definição da versão: fases, atividades, formulários |
 | `GET /processes/templates/{key}/forms/{form_key}` | Campos de um formulário |
+| `PUT /processes/templates/{key}/forms/{form_key}` | Edita os campos de um formulário. Restrita à gestão do BraCVAM |

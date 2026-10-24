@@ -174,6 +174,19 @@ Coluna e tabela novas, usadas pelas duas histórias.
 
 ---
 
+## Phase 6: Revisão do Codex — bootstrap preserva o editor
+
+Fora do escopo original da Spec 043. A revisão encontrou que o bootstrap, que roda a cada início da API, desfazia o que o BraCVAM salvava no editor de formulários. Decisão (opção 2) em `docs/observacoes-e-pendencias.md`, seção "Bootstrap e o editor de formulários".
+
+- [X] T050 [P] Jornada `test_edicao_do_formulario_sobrevive_ao_deploy_e_chega_ao_proponente` em `tests/integration/journeys/etapa_1_submissao_triagem/test_form_editor_survives_deploy.py`: a administradora edita o formulário de submissão do Método Novo, um novo deploy roda o bootstrap, ela vê a edição intacta (versão 2) e o proponente recebe o formulário editado
+- [X] T051 [P] Em `tests/integration/bootstrap/test_bootstrap_preserves_edited_forms.py`: o campo que o editor removeu continua fora depois do bootstrap, também na definição da versão
+- [X] T052 [P] No mesmo arquivo: com um formulário do template editado, outro formulário do mesmo template, não editado, recebe a mudança do YAML
+- [X] T053 [P] No mesmo arquivo: com a `version` do YAML acima da do banco, o YAML prevalece (nome, versão, rótulos) e o campo criado pelo editor é desativado
+- [X] T054 [P] No mesmo arquivo: quando o YAML prevalece, a avaliação de IA associada ao campo desativado perde a chave e é desativada
+- [X] T055 Em `src/pivma/bootstrap_process_templates.py`: `_sync_forms` pula o formulário com versão no banco maior que a do YAML; `_sync_form_fields` desativa campos fora do YAML e chama `_prune_evaluation_assignments`; `_keep_edited_forms` mantém a entrada do formulário editado na definição da versão
+- [X] T056 [P] Documentar a regra em `src/pivma/templates_data/README.md` e `manual/referencia/templates.md` (inclui a rota `PUT` do editor)
+- [X] T057 Rodar `poe lint`, `poe test` e `poe docs-build` e relatar o resultado real
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
