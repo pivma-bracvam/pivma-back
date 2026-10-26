@@ -26,7 +26,6 @@ CANONICAL_TEMPLATE_KEYS = (
     'scope_extension',
     'me_too_validation',
     'validated_method_dossier',
-    'proof_of_concept',
 )
 
 

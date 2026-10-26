@@ -139,6 +139,14 @@ async def _purge(engine: AsyncEngine, ctx) -> None:  # noqa: PLR0914
             sa.text('DELETE FROM institutions WHERE id = ANY(:i)'),
             {'i': list(institutions)},
         )
+        # O contador do código (Spec 043) referencia o criador do processo.
+        await conn.execute(
+            sa.text(
+                'DELETE FROM process_code_sequences '
+                'WHERE created_by = ANY(:u) OR updated_by = ANY(:u)'
+            ),
+            {'u': users},
+        )
         await conn.execute(
             sa.text('DELETE FROM users WHERE id = ANY(:u)'), {'u': users}
         )

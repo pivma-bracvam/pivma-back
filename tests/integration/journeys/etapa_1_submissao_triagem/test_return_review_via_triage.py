@@ -3,7 +3,7 @@
 BraCVAM aprova (Spec 030, US4).
 
 Parte de um deploy novo e usa a API pública, como a jornada do processo 1,
-no template 1 (Método Pré-Validado). Cobre o ciclo completo da revisão do
+no template 1 (Método Novo). Cobre o ciclo completo da revisão do
 retorno aberta pela triagem: o pedido de revisão, a leitura da justificativa
 pelo proponente, a reabertura da submissão como nova execução e a aprovação
 que conclui a fase 1.

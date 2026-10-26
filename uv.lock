@@ -1269,6 +1269,7 @@ dependencies = [
     { name = "segno" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "structlog" },
+    { name = "tzdata" },
 ]
 
 [package.dev-dependencies]
@@ -1307,6 +1308,7 @@ requires-dist = [
     { name = "segno", specifier = ">=1.6.6,<2.0.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.51,<3.0.0" },
     { name = "structlog", specifier = ">=25.1.0,<26.0.0" },
+    { name = "tzdata", specifier = ">=2025.2,<2027" },
 ]
 
 [package.metadata.requires-dev]

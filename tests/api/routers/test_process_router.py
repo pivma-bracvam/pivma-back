@@ -5,11 +5,22 @@ import pytest
 from sqlalchemy import func, select
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
-from pivma.core.database.models import Assignment, AuditEvent
+from pivma.core.database.models import (
+    Assignment,
+    AuditEvent,
+    ProcessInstance,
+    ProcessTemplate,
+)
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
 TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
+SUBMISSION_TYPE_KEYS = [
+    'pre_validated_method',
+    'validated_method_dossier',
+    'scope_extension',
+    'me_too_validation',
+]
 
 
 @pytest.mark.asyncio
@@ -23,29 +34,99 @@ async def test_list_and_get_process_templates(client, session):
     # 1. List templates
     resp = client.get('/processes/templates')
     assert resp.status_code == HTTPStatus.OK
-    templates = resp.json()['data']
-    expected_templates_count = 5
-    assert len(templates) == expected_templates_count
-    expected_keys = {
-        'pre_validated_method',
-        'scope_extension',
-        'me_too_validation',
-        'validated_method_dossier',
-        'proof_of_concept',
-    }
-    assert {t['key'] for t in templates} == expected_keys
+    body = resp.json()
+    assert [t['key'] for t in body['data']] == SUBMISSION_TYPE_KEYS
+    assert body['sort'] == {'by': 'display_order', 'order': 'asc'}
 
     # 2. Get detail
     resp_detail = client.get('/processes/templates/pre_validated_method')
     assert resp_detail.status_code == HTTPStatus.OK
     detail = resp_detail.json()
     assert detail['key'] == 'pre_validated_method'
-    assert detail['name'] == 'Método Pré-Validado'
+    assert detail['name'] == 'Método Novo'
     assert 'phases' in detail['definition']
 
     # 3. Ensure legacy full_validation returns 404
     resp_legacy = client.get('/processes/templates/full_validation')
     assert resp_legacy.status_code == HTTPStatus.NOT_FOUND
+
+
+async def _authenticated_with_templates(client, session):
+    await bootstrap_all_templates(session)
+    user = UserFactory()
+    session.add(user)
+    await session.commit()
+    authenticate(client, user)
+
+
+@pytest.mark.asyncio
+async def test_template_names_and_descriptions_have_no_english_terms(
+    client, session
+):
+    await _authenticated_with_templates(client, session)
+
+    templates = client.get('/processes/templates').json()['data']
+
+    texts = ' '.join(f'{t["name"]} {t["description"]}' for t in templates)
+    for term in ('Fitness', 'Me-Too', 'Peer-Review', 'Validation-Ready'):
+        assert term not in texts
+
+
+@pytest.mark.asyncio
+async def test_template_without_display_order_comes_after_the_four_types(
+    client, session
+):
+    await _authenticated_with_templates(client, session)
+    session.add(ProcessTemplate(key='aaa_sem_ordem', name='AAA sem ordem'))
+    await session.commit()
+
+    templates = client.get('/processes/templates').json()['data']
+
+    assert [t['key'] for t in templates] == [
+        *SUBMISSION_TYPE_KEYS,
+        'aaa_sem_ordem',
+    ]
+
+
+@pytest.mark.asyncio
+async def test_templates_with_same_display_order_are_sorted_by_key(
+    client, session
+):
+    await _authenticated_with_templates(client, session)
+    session.add_all([
+        ProcessTemplate(key='zz_empate', name='A', display_order=99),
+        ProcessTemplate(key='yy_empate', name='B', display_order=99),
+    ])
+    await session.commit()
+
+    templates = client.get('/processes/templates').json()['data']
+
+    assert [t['key'] for t in templates][-2:] == ['yy_empate', 'zz_empate']
+
+
+@pytest.mark.asyncio
+async def test_proof_of_concept_template_detail_is_not_found(client, session):
+    await _authenticated_with_templates(client, session)
+
+    resp = client.get('/processes/templates/proof_of_concept')
+
+    assert resp.status_code == HTTPStatus.NOT_FOUND
+    assert resp.json()['detail']['code'] == 'not_found'
+
+
+@pytest.mark.asyncio
+async def test_create_proof_of_concept_process_is_not_found(client, session):
+    await _authenticated_with_templates(client, session)
+
+    resp = client.post(
+        '/processes',
+        json={'template_key': 'proof_of_concept', 'title': 'Prova'},
+        headers=TRUSTED_ORIGIN,
+    )
+
+    assert resp.status_code == HTTPStatus.NOT_FOUND
+    assert resp.json()['detail']['code'] == 'not_found'
+    assert await session.scalar(select(func.count(ProcessInstance.id))) == 0
 
 
 @pytest.mark.asyncio

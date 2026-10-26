@@ -252,7 +252,10 @@ async def list_templates(
             ProcessTemplate.deleted_at.is_(None),
             ProcessTemplate.is_active.is_(True),
         ),
-        order_by=(ProcessTemplate.name, ProcessTemplate.key),
+        order_by=(
+            ProcessTemplate.display_order.asc().nulls_last(),
+            ProcessTemplate.key,
+        ),
         page=page,
         per_page=per_page,
     )
@@ -263,7 +266,7 @@ async def list_templates(
         ],
         pagination=build_pagination(page, per_page, total),
         filters_applied=NoFilters(),
-        sort=SortApplied(by='name', order='asc'),
+        sort=SortApplied(by='display_order', order='asc'),
     )
 
 

@@ -85,3 +85,87 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 ### PENDÊNCIAS
 
 - Avaliação por IA do plano estatístico: fora desta entrega. Se entrar, não pode travar o envio nem mexer na triagem.
+
+## Terminologia dos tipos e código da submissão (documento do BraCVAM, Spec 043)
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: o documento "Sugestões de ajustes no sistema PiVMA", que o BraCVAM enviou em outubro de 2026, seção 1 (tipos de submissão) e seção 2.1, item 3 (código da submissão). Não há issue no GitHub.
+- **Conflito**: os nomes atuais dos tipos vêm da Spec 015 e misturam termos em inglês. O BraCVAM pede a terminologia do OECD GD 34, outra ordem e a remoção da Prova de Conceito. `GET /processes/templates` ordena por nome, e a ordem alfabética dos nomes novos não coincide com a pedida. O Plano de Trabalho (seção 3.2, "crCode") só exige um código único, e o código atual termina em 16 caracteres aleatórios que ninguém consegue citar.
+- **Decisão**: as decisões abaixo. Os demais pedidos do documento (título único, explicação do envio para análise e Formulário Preliminar em toda submissão) seguem em discussão na equipe.
+- **Validação**: confirmada pelo usuário em 2026-10-24.
+
+### DECISÕES VIGENTES
+
+1. **Nomes e descrições**: os tipos passam a ser, nesta ordem:
+
+    | Ordem | Chave | Nome | Descrição |
+    |---|---|---|---|
+    | 1 | `pre_validated_method` | Método Novo | Método em desenvolvimento ou já desenvolvido, cujo processo de validação ainda não foi executado. |
+    | 2 | `validated_method_dossier` | Método Novo – Dossiê Completo | Método novo já desenvolvido, com protocolo estabelecido e processo de validação concluído, cujo dossiê está disponível para avaliação por pares. |
+    | 3 | `scope_extension` | Extensão do Domínio de Aplicação | Proposta de ampliação do domínio de aplicação de um método já validado, incluindo uma nova finalidade de uso ou aplicação regulatória. |
+    | 4 | `me_too_validation` | Método Similar | Método de ensaio estrutural e funcionalmente semelhante a um método de referência já validado e aceito, podendo ser candidato a um processo de validação baseado em padrões de desempenho (performance standards). |
+
+    A expressão "Fitness for Purpose Validation" sai da descrição da Extensão.
+2. **Chaves técnicas**: as chaves dos tipos e dos formulários continuam as mesmas. O frontend e os testes dependem delas. Esconder as chaves da tela cabe ao frontend.
+3. **Ordem**: `GET /processes/templates` devolve os tipos na ordem da tabela. O template de processo passa a declarar a própria ordem de exibição, e a lista deixa de ordenar pelo nome. A ordem é obrigatória no YAML: o bootstrap recusa o arquivo sem ela (usuário, 2026-10-24).
+4. **Prova de Conceito**: sai por completo. Removemos o YAML, o formulário `submission_proof_of_concept_v1`, os testes que cobrem só esse tipo e as menções no manual e no `templates_data/README.md`. A Spec 015 fica como está, por ser histórico. O mapeamento do Formulário Preliminar continua em `specs/015-first-deploy-baseline/data-model.md` e no histórico do git, caso a equipe aceite o pedido de levá-lo a toda submissão.
+5. **Código da submissão**: o formato passa a `VAL-<ano>-<sequencial>`, como `VAL-2026-0001`. A sequência recomeça em 1 a cada ano e usa no mínimo quatro dígitos, com zeros à esquerda; acima de 9999, o número só cresce (`VAL-2026-10000`). O ano é o da criação no horário de Brasília (`America/Sao_Paulo`), onde a plataforma terá a maior parte dos usuários. Duas criações simultâneas nunca recebem o mesmo número, e uma criação que falha não consome número.
+6. **Dados existentes**: o banco do preview só tem dados de teste, e a produção vai começar vazia. Não migramos os códigos antigos nem tratamos processos abertos da Prova de Conceito.
+
+### PENDÊNCIAS
+
+- Título único, explicação do botão "Enviar para análise" e Formulário Preliminar em toda submissão: aguardam decisão da equipe.
+- O frontend ainda mostra as chaves técnicas (`PRE_VALIDATED_METHOD`) nos cartões dos tipos.
+
+## Bootstrap e o editor de formulários (revisão da Spec 043)
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: a Spec 012 (Q4) diz que a definição salva pelo editor passa a valer para os novos processos. O `entrypoint.sh` roda `python -m pivma.bootstrap_system` a cada início do contêiner da API, e esse comando sincroniza os formulários a partir dos YAMLs de `src/pivma/templates_data/`.
+- **Conflito**: a cada deploy ou reinício da API, o bootstrap desfaz o que o BraCVAM salvou no editor. Uma reprodução em 2026-10-24, editando dois formulários de `pre_validated_method` e rodando o bootstrap de novo, mostrou que:
+  - o nome do formulário volta ao do YAML e a versão volta de 2 para 1;
+  - o rótulo, a obrigatoriedade e a configuração de IA dos campos do YAML voltam aos valores do YAML;
+  - um campo que o editor removeu volta a aparecer;
+  - um campo que o editor criou continua na tabela de campos, mas some da definição da versão do template, e as duas fontes passam a divergir.
+- **Opções**:
+  1. O bootstrap só cria o que falta e nunca altera formulário existente. Uma mudança de YAML num formulário que já existe, como os nomes novos da Spec 043, deixa de chegar ao banco e passa a precisar de migração.
+  2. O bootstrap preserva o formulário que o editor alterou. O editor já soma 1 à versão do formulário a cada gravação: quando a versão no banco é maior que a do YAML, o bootstrap deixa o formulário e a entrada dele na definição da versão como estão. Para impor uma mudança de YAML a um formulário editado, a equipe sobe a `version` no YAML. Os demais formulários seguem o YAML como hoje.
+  3. Os YAMLs são a única fonte, e o editor fica restrito a ambientes de teste. Contraria as Specs 012 e 013.
+- **Decisão**: opção 2. O bootstrap compara a versão de cada formulário no banco com a do YAML:
+  - versão do banco maior: o bootstrap não toca no formulário, nos campos dele nem na entrada dele na definição da versão do template;
+  - versão igual ou menor: o YAML prevalece. O bootstrap aplica o YAML, desativa os campos que não estão nele e retira esses campos das avaliações de IA associadas, como o editor faz ao remover um campo.
+
+  Para impor uma mudança de YAML a um formulário editado, a equipe sobe a `version` do formulário no YAML acima da versão do banco. A edição do BraCVAM nesse formulário se perde.
+- **Validação**: confirmada pelo usuário em 2026-10-24.
+
+## Conteúdo dos formulários de submissão (formulário do BraCVAM para as opções 1, 2 e 3)
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: a equipe repassou em 2026-10-24 a [pasta do BraCVAM no Google Drive](https://drive.google.com/drive/folders/1i3RI2f-P7SvJh9abQIqbAq4BFHYzo4ki), com dois arquivos:
+  - "etapas sistema NPAI gerenciamento validação.pptx" lista cinco opções de submissão: (1) método novo com validação por executar; (2) método já validado com nova aplicação; (3) método já validado com novo sistema teste; (4) método novo com validação concluída e dossiê pronto; (5) ideia de método ainda a desenvolver.
+  - "Formulario_BraCVAM SISTEMA - Novos métodos, métodos já validados ou novos desfechos - opções 1,2 e 3.docx" traz o formulário de submissão dessas três opções, com 48 perguntas em 13 seções: proponente, método, necessidade e impacto, fundamentação científica, sistema teste, protocolo, controle de qualidade, desempenho, capacidade preditiva, limitações, propriedade intelectual, interesse regulatório e anexos.
+- **Conflito**: os formulários de submissão em `src/pivma/templates_data/` são provisórios. A Spec 015 os definiu "só para haver algo na tela":
+  - Método Novo, Extensão do Domínio de Aplicação e Método Similar têm um campo, "Título do método" (SC-007 da Spec 015);
+  - o Dossiê Completo tem o título e um campo de terminologia com avaliação de IA, feito para demonstrar a IA;
+  - o único formulário que reproduzia um formulário real do BraCVAM era o Formulário Preliminar da Prova de Conceito, com 81 campos, que a Spec 043 removeu junto com o tipo.
+
+  As cinco opções da apresentação não coincidem com os quatro tipos do sistema. A opção 5 corresponde à Prova de Conceito, removida. A opção 3 não tem tipo equivalente, e o Método Similar não aparece na apresentação. A numeração da apresentação também difere da ordem de exibição: o Dossiê Completo é a opção 4 lá e o 2º tipo na tela.
+- **Decisão**: nenhuma. O formulário fica fora da Spec 043.
+- **Validação**: pendente.
+
+### PENDÊNCIAS
+
+1. **Tipos atendidos**: o formulário das opções 1, 2 e 3 vale para quais tipos? A opção 1 é o Método Novo e a opção 2 é a Extensão do Domínio de Aplicação. A opção 3 cabe na Extensão, no Método Similar ou em um tipo novo? E o Método Similar usa qual formulário?
+2. **Dossiê Completo**: o BraCVAM ainda não enviou o formulário da opção 4. Até lá, o tipo continua com o formulário provisório?
+3. **Quem cadastra os campos**: a equipe escreve o formulário no YAML, versionado e coberto por testes, ou o BraCVAM o monta pelo editor? Pela regra do bootstrap (seção anterior), um formulário editado no banco só volta a seguir o YAML quando a `version` do YAML passar a do banco.
+4. **Formulário Preliminar em toda submissão**: este formulário substitui esse pedido, que segue pendente na seção da Spec 043?
+5. **Forma dos campos**, que o documento não define:
+   - perguntas compostas, como a 8 ("Possui um Patrocinador? Quem? Qual a verba prevista?"), viram um campo ou vários?
+   - perguntas de resposta fechada, como a 2 (natureza da instituição) e a 11 (tipo de método), viram listas de opções? Quais opções?
+   - quais perguntas são obrigatórias?
+   - a pergunta 10 ("Nome oficial do método e sigla") substitui o campo "Título do método"? A pendência do título único depende disso.
+   - a seção 1 repete dados do cadastro do proponente (e-mail, instituição). O formulário os pede de novo ou os traz do cadastro?
+   - os anexos da seção 13 ficam em um campo de arquivo ou em um por tipo de documento (POP, artigos, relatórios, planilhas)?
+6. **Avaliação de IA**: quais campos a IA avalia na triagem, e com quais critérios? A apresentação diz que os critérios ainda precisam ser definidos.

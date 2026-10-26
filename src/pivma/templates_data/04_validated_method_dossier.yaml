@@ -1,7 +1,8 @@
 process_template:
   key: "validated_method_dossier"
-  name: "Método Validado – Dossiê Submetido"
-  description: "Método 100% novo já desenvolvido, protocolo estabelecido e toda validação já concluída – dossiê pronto para revisão por pares e adoção regulatória (Peer-Review Ready)."
+  name: "Método Novo – Dossiê Completo"
+  description: "Método novo já desenvolvido, com protocolo estabelecido e processo de validação concluído, cujo dossiê está disponível para avaliação por pares."
+  display_order: 2
   version: 7
   is_active: true
 
@@ -280,7 +281,7 @@ phases:
 
 forms:
   - key: "submission_validated_dossier_v1"
-    name: "Formulário de Submissão - Método Validado (Dossiê Pronto)"
+    name: "Formulário de Submissão - Método Novo – Dossiê Completo"
     version: 1
     description: "Exemplo enxuto do uso da avaliação por IA: descreva o conceito-chave do método e a IA verifica se a terminologia está atualizada."
     fields:
@@ -303,7 +304,7 @@ forms:
           min_length: 30
 
   # Spec 042 (revisão do PR #76): plano estatístico da Etapa 2, igual nos
-  # cinco templates. Sem avaliação por IA.
+  # quatro templates. Sem avaliação por IA.
   - key: "statistical_plan_v1"
     name: "Plano Estatístico"
     version: 1

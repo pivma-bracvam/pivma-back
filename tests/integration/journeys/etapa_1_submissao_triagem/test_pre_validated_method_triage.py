@@ -1,4 +1,4 @@
-"""Jornada: um usuário novo leva o processo 1 (Método Pré-Validado) até a
+"""Jornada: um usuário novo leva o processo 1 (Método Novo) até a
 triagem aprovada pelo BraCVAM.
 
 Diferente dos testes de roteador, a jornada parte do estado de um deploy

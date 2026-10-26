@@ -420,6 +420,10 @@ class ProcessTemplate(AuditMixin):
         Text, nullable=True, default=None
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Spec 043: ordem em GET /processes/templates, declarada no YAML.
+    display_order: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, default=None
+    )
 
     versions: Mapped[list[ProcessTemplateVersion]] = relationship(
         back_populates='template', init=False
@@ -680,6 +684,16 @@ class ProcessInstance(AuditMixin):
     audit_events: Mapped[list[AuditEvent]] = relationship(
         back_populates='process_instance', init=False
     )
+
+
+@table_registry.mapped_as_dataclass
+class ProcessCodeSequence(AuditMixin):
+    """Último número do código da submissão em cada ano (Spec 043)."""
+
+    __tablename__ = 'process_code_sequences'
+
+    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    last_value: Mapped[int] = mapped_column(Integer)
 
 
 @table_registry.mapped_as_dataclass

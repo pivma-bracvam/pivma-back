@@ -1,10 +1,11 @@
-import secrets
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import any_, exists, func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import ColumnElement
@@ -42,6 +43,7 @@ from pivma.core.database.models import (
     Laboratory,
     LaboratoryWaiver,
     Phase,
+    ProcessCodeSequence,
     ProcessInstance,
     ProcessTemplate,
     ProcessTemplateVersion,
@@ -462,6 +464,9 @@ class TriageContext:
     user_id: UUID
 
 
+BRASILIA = ZoneInfo('America/Sao_Paulo')
+
+
 def utc_now() -> datetime:
     return datetime.now(UTC)
 
@@ -615,9 +620,30 @@ def validate_execution_scopes(data: dict[str, Any]) -> None:
             )
 
 
-async def generate_process_code(session: AsyncSession) -> str:
-    year = datetime.now(UTC).year
-    return f'VAL-{year}-{secrets.token_hex(8)}'
+async def generate_process_code(
+    session: AsyncSession, creator_user_id: UUID
+) -> str:
+    """Próximo código do ano no horário de Brasília (Spec 043).
+
+    O upsert trava a linha do ano até o fim da transação da criação: uma
+    criação simultânea espera e recebe o número seguinte, e o rollback de
+    uma criação que falha devolve o número.
+    """
+    year = utc_now().astimezone(BRASILIA).year
+    number = await session.scalar(
+        insert(ProcessCodeSequence)
+        .values(year=year, last_value=1, created_by=creator_user_id)
+        .on_conflict_do_update(
+            index_elements=[ProcessCodeSequence.year],
+            set_={
+                'last_value': ProcessCodeSequence.last_value + 1,
+                'updated_at': func.now(),
+                'updated_by': creator_user_id,
+            },
+        )
+        .returning(ProcessCodeSequence.last_value)
+    )
+    return f'VAL-{year}-{number:04d}'
 
 
 async def _create_phases_and_activities(
@@ -724,7 +750,7 @@ async def instantiate_process(
     creator_user_id: UUID,
     collection_template_id: UUID | None = None,
 ) -> ProcessInstance:
-    code = await generate_process_code(session)
+    code = await generate_process_code(session, creator_user_id)
     payload = template_version.definition_payload
 
     process = ProcessInstance(

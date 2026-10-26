@@ -1,7 +1,8 @@
 process_template:
   key: "pre_validated_method"
-  name: "Método Pré-Validado"
-  description: "Método 100% novo já desenvolvido, protocolo estabelecido e validação interlaboratorial ainda por ser executada (Candidato à Validação Interlaboratorial / Validation-Ready Method)."
+  name: "Método Novo"
+  description: "Método em desenvolvimento ou já desenvolvido, cujo processo de validação ainda não foi executado."
+  display_order: 1
   version: 5
   is_active: true
 
@@ -48,7 +49,7 @@ phases:
   # Fase 2 (Spec 031): cópia da Fase 2 do template 04 (Spec 028) com a
   # atividade de amostras. Mantenha as oito atribuições idênticas às do
   # template 04 — `tests/integration/bootstrap/test_template_phase_2.py`
-  # compara os cinco templates.
+  # compara os quatro templates.
   - key: "phase_2_role_assignment"
     name: "Fase 2: Composição da Governança"
     order_index: 2
@@ -276,7 +277,7 @@ phases:
 
 forms:
   - key: "submission_pre_validated_v1"
-    name: "Formulário de Submissão - Método Pré-Validado"
+    name: "Formulário de Submissão - Método Novo"
     version: 1
     description: "Submissão de método inovador com protocolo fixado para validação interlaboratorial."
     fields:
@@ -288,7 +289,7 @@ forms:
         help_text: "Nome do método alternativo proposto."
 
   # Spec 042 (revisão do PR #76): plano estatístico da Etapa 2, igual nos
-  # cinco templates. Sem avaliação por IA.
+  # quatro templates. Sem avaliação por IA.
   - key: "statistical_plan_v1"
     name: "Plano Estatístico"
     version: 1

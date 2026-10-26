@@ -1,8 +1,8 @@
 """Forma dos formulários de submissão do baseline de primeiro deploy.
 
-Spec 015 e 020. Valida o bootstrap dos cinco templates de processo:
-formulários 1-3 mínimos, formulário 4 com campo de IA e formulário 5 (FP)
-cobrindo as nove seções. A triagem foi desacoplada de formulário próprio.
+Spec 015, 020 e 043. Valida o bootstrap dos quatro templates de processo:
+formulários 1-3 mínimos e formulário 4 com campo de IA. A triagem foi
+desacoplada de formulário próprio.
 """
 
 import pytest
@@ -10,8 +10,6 @@ from sqlalchemy import select
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.core.database.models import FormField, FormTemplate
-
-FP_SECTION_COUNT = 9
 
 
 async def _fields(session, form_key: str) -> list[FormField]:
@@ -75,45 +73,6 @@ async def test_dossier_form_exposes_ai_terminology_field(session):
 
 
 @pytest.mark.asyncio
-async def test_preliminary_form_covers_all_nine_sections(session):
-    await bootstrap_all_templates(session)
-
-    fields = await _fields(session, 'submission_proof_of_concept_v1')
-
-    sections = [(f.validation_rules or {}).get('section') for f in fields]
-    assert None not in sections, 'todo campo do FP deve declarar uma seção'
-    assert len(set(sections)) == FP_SECTION_COUNT
-
-    keys = {f.field_key for f in fields}
-    # elementos representativos de seções distintas
-    for expected in (
-        'proponent_organization',
-        'method_name',
-        'mechanistic_relevance',
-        'protocol_stepwise_described',
-        'within_lab_reproducibility',
-        'predictions_possible',
-        'bibliographic_references',
-        'contains_confidential',
-        'bracvam_validation_request',
-    ):
-        assert expected in keys
-
-    required = {f.field_key for f in fields if f.is_required}
-    assert required == {
-        'proponent_organization',
-        'contact_first_name',
-        'contact_last_name',
-        'contact_email',
-        'method_name',
-    }
-
-    sop = next(f for f in fields if f.field_key == 'sop_files')
-    assert sop.field_type == 'file_upload'
-    assert (sop.validation_rules or {}).get('allowed_extensions') == ['pdf']
-
-
-@pytest.mark.asyncio
 async def test_triage_form_deactivated_and_submission_forms_active(
     session,
 ):
@@ -136,6 +95,5 @@ async def test_triage_form_deactivated_and_submission_forms_active(
         'submission_scope_extension_v1',
         'submission_me_too_v1',
         'submission_validated_dossier_v1',
-        'submission_proof_of_concept_v1',
         'statistical_plan_v1',
     }

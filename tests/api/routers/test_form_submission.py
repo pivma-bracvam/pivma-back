@@ -520,20 +520,9 @@ async def test_active_participant_with_other_role_cannot_save_draft(
                 ),
             },
         ),
-        (
-            'proof_of_concept',
-            'submission_proof_of_concept_v1',
-            {
-                'proponent_organization': 'Instituto de Testes Alternativos',
-                'contact_first_name': 'Ana',
-                'contact_last_name': 'Souza',
-                'contact_email': 'ana.souza@exemplo.org',
-                'method_name': 'Modelo conceitual órgão-em-chip',
-            },
-        ),
     ],
 )
-async def test_all_five_process_forms_definitions_and_submissions(
+async def test_all_four_process_forms_definitions_and_submissions(
     client, session, template_key, expected_form_key, valid_values
 ):
     await bootstrap_all_templates(session)

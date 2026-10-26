@@ -4,6 +4,7 @@ from sqlalchemy import select
 from pivma.bootstrap_process_templates import (
     bootstrap_all_templates,
     sync_template_from_dict,
+    validate_display_order,
 )
 from pivma.core.database.models import (
     FormField,
@@ -11,6 +12,7 @@ from pivma.core.database.models import (
     ProcessTemplate,
     ProcessTemplateVersion,
 )
+from pivma.core.process_engine import ValidationError
 
 
 @pytest.mark.asyncio
@@ -79,25 +81,20 @@ async def test_bootstrap_all_templates_loads_official_processes(session):
     expected_keys = [
         (
             'pre_validated_method',
-            'Método Pré-Validado',
+            'Método Novo',
             'submission_pre_validated_v1',
         ),
         (
-            'scope_extension',
-            'Extensão de Escopo de Aplicação',
-            'submission_scope_extension_v1',
-        ),
-        ('me_too_validation', 'Validação Me-Too', 'submission_me_too_v1'),
-        (
             'validated_method_dossier',
-            'Método Validado – Dossiê Submetido',
+            'Método Novo – Dossiê Completo',
             'submission_validated_dossier_v1',
         ),
         (
-            'proof_of_concept',
-            'Prova de Conceito (PoC)',
-            'submission_proof_of_concept_v1',
+            'scope_extension',
+            'Extensão do Domínio de Aplicação',
+            'submission_scope_extension_v1',
         ),
+        ('me_too_validation', 'Método Similar', 'submission_me_too_v1'),
     ]
 
     for p_key, p_name, f_key in expected_keys:
@@ -122,6 +119,7 @@ async def test_bootstrap_all_templates_loads_official_processes(session):
         )
         form = (await session.execute(f_stmt)).scalar_one_or_none()
         assert form is not None, f'Formulário {f_key} não encontrado no banco.'
+        assert form.name == f'Formulário de Submissão - {p_name}'
 
     # Garantir que full_validation não está ativo
     old_stmt = select(ProcessTemplate).where(
@@ -131,3 +129,26 @@ async def test_bootstrap_all_templates_loads_official_processes(session):
     )
     old_pt = (await session.execute(old_stmt)).scalar_one_or_none()
     assert old_pt is None
+
+
+@pytest.mark.parametrize(
+    'process_template',
+    [
+        {'key': 'sem_ordem'},
+        {'key': 'sem_ordem', 'display_order': 0},
+        {'key': 'sem_ordem', 'display_order': -1},
+        {'key': 'sem_ordem', 'display_order': '1'},
+        {'key': 'sem_ordem', 'display_order': True},
+    ],
+)
+def test_validate_display_order_refuses_missing_or_invalid_order(
+    process_template,
+):
+    with pytest.raises(ValidationError, match="'sem_ordem'"):
+        validate_display_order({'process_template': process_template})
+
+
+def test_validate_display_order_accepts_positive_integer():
+    validate_display_order({
+        'process_template': {'key': 'com_ordem', 'display_order': 1}
+    })

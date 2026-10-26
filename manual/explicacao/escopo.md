@@ -32,7 +32,7 @@ flowchart LR
 
 | RF | Requisito | Estado | Como |
 |---|---|---|---|
-| RF007 | Submissão estruturada | Sim | Formulários dinâmicos por template |
+| RF007 | Submissão estruturada | Sim | Quatro tipos de submissão, cada um com seu formulário dinâmico; código sequencial por ano (`VAL-2026-0001`) |
 | RF008 | Anexos | Sim | Campos de arquivo, com tipo e tamanho validados |
 | RF009 | Edição durante a elaboração | Sim | Rascunho; reabertura pela revisão do retorno |
 | RF010 | Versionamento | Sim | Cada reenvio é uma nova execução; as versões devolvidas ficam guardadas com a justificativa (`submission-versions`) |
