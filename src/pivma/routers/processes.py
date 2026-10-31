@@ -58,6 +58,7 @@ from pivma.core.process_engine import (
     update_form_template_definition,
     update_process_submission,
 )
+from pivma.core.references import template_refs
 from pivma.dependencies import CurrentUser, Session, TrustedOrigin
 from pivma.schemas import (
     CreateProcessRequest,
@@ -556,11 +557,6 @@ async def list_processes(
     visibility = await process_visibility_clause(session, current_user.id)
     if visibility is not None:
         stmt = stmt.where(visibility)
-    stmt = stmt.options(
-        selectinload(ProcessInstance.template_version).selectinload(
-            ProcessTemplateVersion.template
-        )
-    )
     if status:
         stmt = stmt.where(ProcessInstance.status == status)
     else:
@@ -577,6 +573,9 @@ async def list_processes(
         per_page=per_page,
     )
 
+    templates = await template_refs(
+        session, (process.template_version_id for process in items)
+    )
     detail_items = []
     for process in items:
         detail_items.append(
@@ -585,9 +584,7 @@ async def list_processes(
                 code=process.code,
                 title=process.title,
                 status=process.status,
-                template=_template_ref(
-                    process.template_version, process.template_version.template
-                ),
+                template=templates[process.template_version_id],
                 started_at=process.started_at,
                 closed_at=process.closed_at,
                 closure_reason=process.closure_reason,
@@ -618,23 +615,17 @@ async def get_process(id: UUID, session: Session, current_user: CurrentUser):
     visibility = await process_visibility_clause(session, current_user.id)
     if visibility is not None:
         stmt = stmt.where(visibility)
-    stmt = stmt.options(
-        selectinload(ProcessInstance.template_version).selectinload(
-            ProcessTemplateVersion.template
-        )
-    )
     p = (await session.execute(stmt)).scalar_one_or_none()
     if not p:
         raise http_error(HTTPStatus.NOT_FOUND, 'Processo não encontrado.')
 
+    templates = await template_refs(session, [p.template_version_id])
     return ProcessInstanceDetail(
         id=p.id,
         code=p.code,
         title=p.title,
         status=p.status,
-        template=_template_ref(
-            p.template_version, p.template_version.template
-        ),
+        template=templates[p.template_version_id],
         started_at=p.started_at,
         closed_at=p.closed_at,
         closure_reason=p.closure_reason,

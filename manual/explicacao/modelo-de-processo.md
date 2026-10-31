@@ -19,7 +19,7 @@ erDiagram
 
 | Entidade | Papel |
 |---|---|
-| Template e versão | Definição declarativa (YAML). O processo fica na versão em que nasceu |
+| Template e versão | Definição declarativa (YAML). O processo fica na versão em que nasceu. Quando o YAML sai, o bootstrap aposenta o template: ele não aceita processos novos e não aparece em `GET /processes/templates`, mas a lista e o detalhe mostram o tipo dos processos já criados |
 | Processo | Título, código, ciclo de vida (`OPEN`, `CLOSED`, `CANCELLED`, `ARCHIVED`) |
 | Fase | Agrupa atividades em ordem |
 | Atividade | Unidade de trabalho com cargo responsável, concessões de ver/editar, dependências e prazo |
