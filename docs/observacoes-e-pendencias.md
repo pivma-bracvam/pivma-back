@@ -139,6 +139,19 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
   Para impor uma mudança de YAML a um formulário editado, a equipe sobe a `version` do formulário no YAML acima da versão do banco. A edição do BraCVAM nesse formulário se perde.
 - **Validação**: confirmada pelo usuário em 2026-10-24.
 
+## Processos de tipo aposentado (Spec 044)
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: o `GET /processes` do preview respondeu 500 em 2026-10-31. O banco tem 3 processos `OPEN` de `proof_of_concept`, tipo que o bootstrap aposentou em 2026-10-26.
+- **Conflito**: a decisão 6 da Spec 043 dispensou o tratamento desses processos. A equipe não previu que um deles derrubaria a lista inteira de quem o enxerga.
+- **Decisão**: a lista e o detalhe mostram o tipo aposentado dos processos existentes, sem mudar o formato da resposta. O tipo continua fora de `GET /processes/templates` e não aceita processos novos.
+- **Validação**: confirmada pelo usuário em 2026-10-31.
+
+### PENDÊNCIAS
+
+- Destino dos 3 processos do preview: a equipe decide se os cancela. O formulário `submission_proof_of_concept_v1` também saiu, e ninguém testou se esses processos ainda avançam.
+
 ## Conteúdo dos formulários de submissão (formulário do BraCVAM para as opções 1, 2 e 3)
 
 ### DIVERGÊNCIA REGISTRADA

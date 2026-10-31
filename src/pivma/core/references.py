@@ -11,8 +11,14 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pivma.core.database.models import Institution, Laboratory, User
-from pivma.schemas import InstitutionRef, LaboratoryRef, UserRef
+from pivma.core.database.models import (
+    Institution,
+    Laboratory,
+    ProcessTemplate,
+    ProcessTemplateVersion,
+    User,
+)
+from pivma.schemas import InstitutionRef, LaboratoryRef, TemplateRef, UserRef
 
 
 async def user_refs(
@@ -49,6 +55,35 @@ async def laboratory_refs(
     return {
         laboratory.id: laboratory_ref(laboratory, institution)
         for laboratory, institution in rows
+    }
+
+
+async def template_refs(
+    session: AsyncSession, version_ids: Iterable[UUID]
+) -> dict[UUID, TemplateRef]:
+    """Inclui tipos aposentados: o processo segue no tipo em que nasceu."""
+    wanted = set(version_ids)
+    if not wanted:
+        return {}
+    rows = await session.execute(
+        select(
+            ProcessTemplateVersion.id,
+            ProcessTemplateVersion.version_number,
+            ProcessTemplate.key,
+            ProcessTemplate.name,
+        )
+        .join(
+            ProcessTemplate,
+            ProcessTemplate.id == ProcessTemplateVersion.template_id,
+        )
+        .where(ProcessTemplateVersion.id.in_(wanted))
+        .execution_options(skip_soft_delete_filter=True)
+    )
+    return {
+        row.id: TemplateRef(
+            key=row.key, name=row.name, version=row.version_number
+        )
+        for row in rows
     }
 
 
