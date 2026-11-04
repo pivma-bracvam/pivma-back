@@ -182,3 +182,16 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
    - a seção 1 repete dados do cadastro do proponente (e-mail, instituição). O formulário os pede de novo ou os traz do cadastro?
    - os anexos da seção 13 ficam em um campo de arquivo ou em um por tipo de documento (POP, artigos, relatórios, planilhas)?
 6. **Avaliação de IA**: quais campos a IA avalia na triagem, e com quais critérios? A apresentação diz que os critérios ainda precisam ser definidos.
+
+## Perfil do usuário (Spec 045)
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: a equipe decidiu em reunião criar o perfil do usuário, a partir de um pedido indireto do BraCVAM. O frontend apontou que `GET /users/{user_id}` não existe e que a API não expõe a data de criação da conta, as datas dos cargos globais nem os cargos locais por pessoa.
+- **Conflito**: o Plano de Trabalho não descreve uma página de perfil. Os cargos locais de outra pessoa revelam em quais processos ela atua, e a constituição proíbe contornar o cegamento.
+- **Decisão**: o perfil mostra os dados da conta sem `username` e os cargos globais vigentes, com datas. Os cargos locais ficam numa listagem própria, paginada por processo. A própria pessoa vê tudo o que é seu. `users.read` dá acesso ao perfil e a todos os cargos locais de outras contas, porque continua restrita a perfis administrativos; uma consulta mais restrita, se for necessária, terá permissão própria. `GET /auth/me` não muda.
+- **Validação**: decisões da equipe repassadas pelo usuário em 2026-11-04. Registradas em `specs/045-user-profile/spec.md` (Clarifications).
+
+### PENDÊNCIAS
+
+- Visão do perfil de outras pessoas por membros comuns, sem e-mail e `username`: a equipe ainda vai decidir se cria a permissão.

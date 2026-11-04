@@ -1,3 +1,4 @@
+from collections import defaultdict
 from http import HTTPStatus
 from typing import Annotated
 from uuid import UUID
@@ -13,9 +14,16 @@ from pivma.core.authorization import (
     USERS_READ,
     active_profiles_for_users,
     ensure_administrator_remains,
+    has_permission,
 )
 from pivma.core.database import get_session
-from pivma.core.database.models import AccessProfile, User, UserAccessProfile
+from pivma.core.database.models import (
+    AccessProfile,
+    Assignment,
+    ProcessInstance,
+    User,
+    UserAccessProfile,
+)
 from pivma.core.errors import api_error
 from pivma.core.listing import (
     PageQuery,
@@ -23,17 +31,26 @@ from pivma.core.listing import (
     build_pagination,
     paginate_query,
 )
+from pivma.core.references import laboratory_refs
 from pivma.core.security import hash_password
 from pivma.dependencies import (
+    CurrentUser,
     TrustedOrigin,
     require_permission,
 )
 from pivma.schemas import (
     AdminUser,
+    GlobalProfileAssignment,
     ProfileRef,
     SortApplied,
     UserListFilters,
     UserListResponse,
+    UserProcessRef,
+    UserProcessRole,
+    UserProcessRoleFilters,
+    UserProcessRoleListResponse,
+    UserProcessRoles,
+    UserProfile,
     UserPublic,
     UserSchema,
     UserUpdate,
@@ -184,6 +201,188 @@ async def list_users(  # noqa: PLR0913, PLR0917
             search=search, active=active, profile_id=profile_id
         ),
         sort=SortApplied(by='username', order='asc'),
+    )
+
+
+async def authorize_profile_read(
+    session: AsyncSession, actor: User, user_id: UUID
+) -> None:
+    """Ponto único de acesso ao perfil e aos cargos de uma conta (Spec 045).
+
+    A própria pessoa ou quem tem users.read. Roda antes de qualquer leitura
+    da conta consultada: o 403 não revela se ela existe.
+    """
+    if actor.id == user_id or await has_permission(
+        session, actor.id, USERS_READ
+    ):
+        return
+    raise api_error(
+        HTTPStatus.FORBIDDEN, 'forbidden', 'Sem permissão para esta ação.'
+    )
+
+
+async def _get_user_or_404(session: AsyncSession, user_id: UUID) -> User:
+    # A administração consulta também contas desativadas.
+    user = await session.scalar(
+        select(User)
+        .where(User.id == user_id)
+        .execution_options(skip_soft_delete_filter=True)
+    )
+    if user is None:
+        raise api_error(
+            HTTPStatus.NOT_FOUND, 'not_found', 'Usuário não encontrado.'
+        )
+    return user
+
+
+PROFILE_READ_RESPONSES = {
+    HTTPStatus.UNAUTHORIZED: {
+        'description': (
+            'Sessão ausente, inválida, vencida ou ligada a conta inativa.'
+        ),
+    },
+    HTTPStatus.FORBIDDEN: {
+        'description': (
+            'A conta consultada é outra e a sessão não possui users.read. '
+            'A resposta não indica se ela existe.'
+        ),
+    },
+    HTTPStatus.NOT_FOUND: {
+        'description': 'O UUID não identifica uma conta (só com users.read).',
+    },
+}
+
+
+@router.get(
+    '/{user_id}',
+    operation_id='getUserProfile',
+    response_model=UserProfile,
+    description=(
+        'Perfil da conta, sem username. A própria pessoa sempre consulta o '
+        'seu perfil; outra conta, só com users.read.'
+    ),
+    responses=PROFILE_READ_RESPONSES,
+)
+async def get_user_profile(
+    user_id: UUID, session: Session, actor: CurrentUser
+):
+    await authorize_profile_read(session, actor, user_id)
+    user = await _get_user_or_404(session, user_id)
+    rows = await session.execute(
+        select(
+            AccessProfile.id, AccessProfile.name, UserAccessProfile.created_at
+        )
+        .join(AccessProfile, AccessProfile.id == UserAccessProfile.profile_id)
+        .where(UserAccessProfile.user_id == user_id)
+        .order_by(UserAccessProfile.created_at.asc(), AccessProfile.id.asc())
+    )
+    return UserProfile(
+        id=user.id,
+        full_name=user.full_name,
+        email=user.email,
+        active=user.deleted_at is None,
+        created_at=user.created_at,
+        global_profiles=[
+            GlobalProfileAssignment(
+                id=profile_id, name=name, assigned_at=assigned_at
+            )
+            for profile_id, name, assigned_at in rows
+        ],
+    )
+
+
+@router.get(
+    '/{user_id}/process-roles',
+    operation_id='listUserProcessRoles',
+    response_model=UserProcessRoleListResponse,
+    description=(
+        'Cargos locais da conta, um item por processo. A paginação conta '
+        'processos. A própria pessoa sempre consulta os seus cargos; outra '
+        'conta, só com users.read.'
+    ),
+    responses=PROFILE_READ_RESPONSES,
+)
+async def list_user_process_roles(  # noqa: PLR0913, PLR0917
+    user_id: UUID,
+    session: Session,
+    actor: CurrentUser,
+    active: Annotated[bool, Query()] = True,
+    page: PageQuery = 1,
+    per_page: PerPageQuery = 20,
+):
+    await authorize_profile_read(session, actor, user_id)
+    await _get_user_or_404(session, user_id)
+    predicates = (
+        Assignment.user_id == user_id,
+        Assignment.revoked_at.is_(None)
+        if active
+        else Assignment.revoked_at.is_not(None),
+    )
+    process_ids, total = await paginate_query(
+        session,
+        select(Assignment.process_instance_id)
+        .join(
+            ProcessInstance,
+            ProcessInstance.id == Assignment.process_instance_id,
+        )
+        .where(*predicates)
+        .group_by(Assignment.process_instance_id),
+        order_by=(
+            func.max(Assignment.assigned_at).desc(),
+            Assignment.process_instance_id.asc(),
+        ),
+        page=page,
+        per_page=per_page,
+    )
+    assignments = list(
+        await session.scalars(
+            select(Assignment)
+            .where(
+                *predicates, Assignment.process_instance_id.in_(process_ids)
+            )
+            .order_by(Assignment.assigned_at.desc(), Assignment.id.asc())
+        )
+    )
+    # Os ids já saíram filtrados da página; ignorar o filtro aqui evita
+    # perder um processo excluído entre as duas consultas.
+    processes = {
+        process.id: process
+        for process in await session.scalars(
+            select(ProcessInstance)
+            .where(ProcessInstance.id.in_(process_ids))
+            .execution_options(skip_soft_delete_filter=True)
+        )
+    }
+    laboratories = await laboratory_refs(
+        session, (assignment.laboratory_id for assignment in assignments)
+    )
+    roles_by_process = defaultdict(list)
+    for assignment in assignments:
+        roles_by_process[assignment.process_instance_id].append(
+            UserProcessRole(
+                id=assignment.id,
+                role_key=assignment.role_key,
+                laboratory=laboratories.get(assignment.laboratory_id),
+                assigned_at=assignment.assigned_at,
+                revoked_at=assignment.revoked_at,
+            )
+        )
+    return UserProcessRoleListResponse(
+        data=[
+            UserProcessRoles(
+                process=UserProcessRef(
+                    id=process_id,
+                    code=processes[process_id].code,
+                    title=processes[process_id].title,
+                    status=processes[process_id].status,
+                ),
+                roles=roles_by_process[process_id],
+            )
+            for process_id in process_ids
+        ],
+        pagination=build_pagination(page, per_page, total),
+        filters_applied=UserProcessRoleFilters(active=active),
+        sort=SortApplied(by='last_assigned_at', order='desc'),
     )
 
 
