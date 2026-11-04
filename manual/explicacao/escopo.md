@@ -22,7 +22,7 @@ flowchart LR
 | RF | Requisito | Estado | Como |
 |---|---|---|---|
 | RF001 | Cadastro e autenticação | Sim | Cadastro público, login por cookie ou Bearer, recuperação de senha |
-| RF002 | Perfis de acesso | Sim | Perfis globais com permissões; Administrador e BraCVAM oficiais |
+| RF002 | Perfis de acesso | Sim | Perfis globais com permissões; Administrador e BraCVAM oficiais. O perfil de cada conta mostra os cargos globais vigentes e os cargos locais por processo |
 | RF003 | Vinculação institucional | Sim | Instituições, laboratórios e vínculos de usuários |
 | RF004 | Controle de acesso | Sim | Permissão global, cargo no processo, concessão por atividade, isolamento por laboratório |
 | RF005 | Designação de participantes | Sim | Designação direta e convite por link ou e-mail |

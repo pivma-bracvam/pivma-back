@@ -36,7 +36,7 @@ reprocessar pré-avaliação e os logs administrativos.
 | `rbac.read` | Consultar perfis, permissões, acessos e histórico do RBAC |
 | `rbac.profiles.manage` | Criar, alterar e desativar perfis |
 | `rbac.assignments.manage` | Dar e tirar perfis de usuários |
-| `users.read` | Listar contas |
+| `users.read` | Listar contas e consultar o perfil e os cargos locais de qualquer conta |
 | `users.manage` | Alterar e desativar contas |
 | `institutional.read` | Consultar instituições, laboratórios, vínculos e histórico |
 | `institutional.catalogs.manage` | Gerir instituições e laboratórios |

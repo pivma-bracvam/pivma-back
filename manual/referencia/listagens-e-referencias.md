@@ -58,6 +58,29 @@ todo o conjunto filtrado. `include=summary` devolve
 `ai_pre_evaluation_in_progress`: processos visíveis com pré-avaliação por IA
 em andamento, que não têm tarefa aberta nesse intervalo.
 
+## Cargos locais de uma conta
+
+`GET /users/{id}/process-roles` traz um item por processo, com `process`
+(`id`, `code`, `title`, `status`) e `roles`. Cada cargo traz `id` (o da
+designação), `role_key`, `laboratory` (`null` fora dos cargos de
+laboratório), `assigned_at` e `revoked_at`.
+
+| Filtro | Valores | Padrão |
+|---|---|---|
+| `active` | `true`: cargos não revogados; `false`: revogados | `true` |
+
+| Regra | Valor |
+|---|---|
+| Paginação | Conta processos, não cargos |
+| Ordem dos processos | Designação mais recente entre os cargos do item, da mais nova para a mais antiga, e depois o `id` do processo. `sort` vale `{"by": "last_assigned_at", "order": "desc"}` |
+| Ordem dos cargos | `assigned_at` decrescente, depois `id` |
+| Processo com cargos ativos e revogados | Aparece nas duas consultas, cada vez só com os cargos do filtro |
+| Processos encerrados, cancelados e arquivados | Aparecem |
+| Designações e processos excluídos | Não aparecem |
+
+Quem pode consultar está em
+[Perfil de uma conta](../guias/administrar-usuarios-e-acessos.md#perfil-de-uma-conta).
+
 ## Referências resumidas
 
 Entidades relacionadas vêm como objetos pequenos, de formato fixo e um nível

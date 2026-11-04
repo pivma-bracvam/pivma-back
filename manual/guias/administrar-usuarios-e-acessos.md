@@ -26,6 +26,27 @@ desativar a si mesmo (`409 self_deactivation`) nem a última conta
 administradora ativa (`409 last_administrator`). `GET /users?active=false`
 lista as inativas.
 
+## Perfil de uma conta
+
+| Ação | Rota |
+|---|---|
+| Ver o perfil | `GET /users/{id}` |
+| Ver os cargos locais | `GET /users/{id}/process-roles?active=true` |
+
+A pessoa consulta o próprio perfil com o `id` de `GET /auth/me`, sem
+permissão. Para consultar outra conta, você precisa de `users.read`, e as
+contas desativadas também aparecem, com `active: false`. Sem a permissão, a
+resposta é `403 forbidden`, igual para uma conta que existe e para uma que
+não existe. Com a permissão, um `id` desconhecido responde `404 not_found`.
+
+O perfil traz `id`, `full_name`, `email`, `active`, `created_at` e
+`global_profiles`, nunca o `username`. Cada cargo global vigente vem com
+`id`, `name` e `assigned_at`, a data da atribuição atual. O histórico de
+concessões e revogações fica em `GET /rbac/changes`.
+
+Os cargos locais vêm agrupados por processo. Veja
+[Cargos locais de uma conta](../referencia/listagens-e-referencias.md#cargos-locais-de-uma-conta).
+
 ## Perfis globais
 
 | Ação | Rota |

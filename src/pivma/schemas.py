@@ -1800,6 +1800,67 @@ class UserListResponse(ListPage[AdminUser, UserListFilters]):
     """Usuários da administração."""
 
 
+# ==========================================
+# PERFIL DO USUÁRIO (Spec 045)
+# ==========================================
+
+
+class GlobalProfileAssignment(BaseModel):
+    id: UUID = Field(description='Identificador do perfil de acesso')
+    name: str = Field(description='Nome do perfil de acesso')
+    assigned_at: datetime = Field(description='Data da atribuição vigente')
+    model_config = ConfigDict(extra='forbid')
+
+
+class UserProfile(BaseModel):
+    """Perfil de uma conta. Nunca traz username nem hash de senha."""
+
+    id: UUID = Field(description='Identificador do usuário')
+    full_name: str | None = Field(description='Nome completo')
+    email: str = Field(
+        description='E-mail', json_schema_extra={'format': 'email'}
+    )
+    active: bool = Field(description='Conta ativa')
+    created_at: datetime = Field(description='Data de criação da conta')
+    global_profiles: list[GlobalProfileAssignment] = Field(
+        description='Cargos globais vigentes'
+    )
+    model_config = ConfigDict(extra='forbid')
+
+
+class UserProcessRef(ProcessRef):
+    status: ProcessLifecycle = Field(description='Status do processo')
+    model_config = ConfigDict(extra='forbid')
+
+
+class UserProcessRole(BaseModel):
+    id: UUID = Field(description='Identificador da designação')
+    role_key: str = Field(description='Cargo no processo')
+    laboratory: LaboratoryRef | None = Field(
+        description='Laboratório do cargo, quando houver'
+    )
+    assigned_at: datetime = Field(description='Data da designação')
+    revoked_at: datetime | None = Field(description='Data da revogação')
+    model_config = ConfigDict(extra='forbid')
+
+
+class UserProcessRoles(BaseModel):
+    process: UserProcessRef = Field(description='Processo')
+    roles: list[UserProcessRole] = Field(description='Cargos no processo')
+    model_config = ConfigDict(extra='forbid')
+
+
+class UserProcessRoleFilters(BaseModel):
+    active: bool = Field(description='Cargos vigentes (true) ou revogados')
+    model_config = ConfigDict(extra='forbid')
+
+
+class UserProcessRoleListResponse(
+    ListPage[UserProcessRoles, UserProcessRoleFilters]
+):
+    """Cargos locais de uma conta, um item por processo."""
+
+
 class PermissionListResponse(ListPage[PermissionPublic, NoFilters]):
     """Catálogo de permissões."""
 
