@@ -45,8 +45,15 @@ curl -s $FORM -H "Authorization: Bearer $TOKEN"
 ```
 
 Traz `fields` (definição de cada campo: tipo, obrigatoriedade, opções,
-seção), `values` (o que já foi salvo), `reviews` (pareceres da triagem) e
-`is_submitted`.
+seção), `values` (o que já foi salvo), `reviews` (pareceres desta execução),
+`previous_reviews` (pareceres da execução anterior) e `is_submitted`.
+
+Depois de `REVISE`, `reviews` volta vazio e você lê em `previous_reviews` o que
+a triagem apontou. Com `?run_number=N`, a resposta mostra a execução `N`, e
+`previous_reviews` traz os pareceres da execução `N-1`. O objeto vem vazio na
+primeira execução, depois de uma devolução pela IA e nas demais atividades.
+Ele pode trazer uma chave ausente de `fields`, se o campo saiu do formulário
+depois da avaliação. Nenhum parecer identifica quem avaliou.
 
 ## 3. Salvar rascunho
 
@@ -121,14 +128,18 @@ curl -s $API/processes/$PID/submission-versions -H "Authorization: Bearer $TOKEN
 
 Lista as versões que foram devolvidas para revisão (pela IA ou pela triagem),
 cada uma com `run_number`, conteúdo, data do envio e da devolução e a
-justificativa. `GET .../submission-versions/{run_number}` traz uma delas. A
-versão atual é a do formulário.
+justificativa. `GET .../submission-versions/{run_number}` traz uma delas, com
+os pareceres daquela execução em `reviews`, assim que a triagem decide. Uma
+versão devolvida pela IA tem `reviews` vazio, e o resultado fica em
+`GET .../pre-evaluation`. A versão atual
+é a do formulário.
 
 ## Excluir o processo
 
 `DELETE /processes/{id}` exclui logicamente um processo `OPEN`. Pode o
 proponente ou Admin/BraCVAM. O processo vira `CANCELLED`, as tarefas e
-execuções abertas são canceladas e os documentos ficam guardados.
+execuções abertas são canceladas, os avisos de devolução pendentes também, e
+os documentos ficam guardados.
 
 Próximo passo: a [triagem](conduzir-a-triagem.md) ou, se houver retorno,
 [responder ao retorno](responder-ao-retorno.md).

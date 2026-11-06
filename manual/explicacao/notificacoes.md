@@ -1,7 +1,8 @@
 # Notificações
 
 Usos atuais: convite por e-mail, recuperação de senha, aviso de problema no
-recebimento de amostras e aviso da decisão sobre esse problema.
+recebimento de amostras, aviso da decisão sobre esse problema e aviso de
+devolução da submissão.
 
 ## Gravar junto, enviar depois
 
@@ -33,7 +34,7 @@ stateDiagram-v2
     pending --> sent: SMTP aceitou
     pending --> pending: erro temporário<br/>espera e tenta de novo
     pending --> failed: erro permanente, prazo vencido,<br/>tentativas esgotadas, chave errada
-    pending --> cancelled: convite aceito ou revogado,<br/>novo pedido de senha
+    pending --> cancelled: convite aceito ou revogado,<br/>novo pedido de senha,<br/>reprocessamento da IA, exclusão do processo
 ```
 
 | Erro | Tratamento |
@@ -67,9 +68,27 @@ Grupo seguem: o Grupo recebe só a tarefa e o laboratório lê a orientação na
 lista de frascos. Ao contrário do convite, esses avisos não são recusados,
 porque ninguém pode ficar travado por uma configuração da implantação.
 
+## Devolução da submissão
+
+Quando a triagem pede revisão ou a pré-avaliação por IA devolve a submissão,
+por resultado negativo ou por falha, cada pessoa com o cargo `proponent` ativo
+no processo e conta ativa recebe um e-mail (`submission_returned_email`). O
+aviso traz código e título do processo, a origem (`Triagem` ou `Pré-avaliação
+por IA`), o prazo da tarefa e a orientação de acessar a pi\*VMA. O e-mail nunca
+traz justificativa, pareceres, resultado da IA, indicação de falha da IA nem o
+nome de quem avaliou.
+
+O envio fica ligado à execução do retorno (`subject_type`
+`submission_return_review`). O reprocessamento da IA e a exclusão do processo
+cancelam o envio pendente, com `error_code` `return_review_cancelled`. Nas
+decisões do proponente, inclusive a desistência, o envio segue.
+
+Sem `NOTIFICATION_EMAIL_BACKEND`, a devolução conclui e a tarefa abre, sem
+pedido de envio.
+
 ## Rastro
 
-Envios ligados a um processo (convites e avisos de recebimento) gravam `NOTIFICATION_SENT`,
+Envios ligados a um processo (convites, avisos de recebimento e avisos de devolução) gravam `NOTIFICATION_SENT`,
 `NOTIFICATION_FAILED` ou `NOTIFICATION_CANCELLED` na linha do tempo. O convite
 mostra a situação em `delivery`.
 

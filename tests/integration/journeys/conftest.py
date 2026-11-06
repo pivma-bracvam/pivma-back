@@ -6,6 +6,7 @@ import pytest
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.bootstrap_system import (
+    BRACVAM_PROFILE_ID,
     sync_canonical_permissions,
     sync_canonical_profiles,
     sync_initial_administrator,
@@ -61,6 +62,17 @@ def log_out(client):
     response = client.post('/auth/logout')
     assert response.status_code == HTTPStatus.NO_CONTENT
     client.cookies.clear()
+
+
+def make_bracvam(client, username):
+    """Cadastra o usuário e concede o perfil BraCVAM pelo administrador."""
+    user = sign_up(client, username)
+    log_in(client, ADMIN_EMAIL, ADMIN_PASSWORD)
+    granted = client.post(
+        f'/rbac/users/{user["id"]}/profiles/{BRACVAM_PROFILE_ID}'
+    )
+    assert granted.status_code == HTTPStatus.CREATED, granted.text
+    log_out(client)
 
 
 def process_tasks(client, process_id):

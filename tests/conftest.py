@@ -271,5 +271,21 @@ def email_invite_settings(use_settings):
     return use_settings(email_settings())
 
 
+@pytest.fixture
+def return_email_settings(monkeypatch):
+    """Devolução com canal falso e a mesma chave do worker (Spec 046, R3)."""
+    settings = email_settings()
+    monkeypatch.setattr('pivma.core.process_engine.Settings', lambda: settings)
+    return settings
+
+
+@pytest.fixture
+def no_email_channel(monkeypatch):
+    """Devolução sem canal, independente do `.env` local (Spec 046, R3)."""
+    settings = email_settings(NOTIFICATION_EMAIL_BACKEND=None)
+    monkeypatch.setattr('pivma.core.process_engine.Settings', lambda: settings)
+    return settings
+
+
 # PubChem simulado da consulta por CAS (Spec 040).
 from tests.factories.pubchem_factory import fake_pubchem  # noqa: E402, F401

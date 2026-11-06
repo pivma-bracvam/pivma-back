@@ -45,6 +45,7 @@ from pivma.core.process_engine import (
     get_current_form_instance,
     is_artifact_referenced_by_submitted_form,
     save_form_values_draft,
+    submission_run_reviews,
     submit_activity_form,
 )
 from pivma.dependencies import (
@@ -162,7 +163,7 @@ async def get_activity_form(
     run_number: int | None = Query(default=None, ge=1),
 ):
     try:
-        _, _, form_inst, template, fields = await get_current_form_instance(
+        _, run, form_inst, template, fields = await get_current_form_instance(
             session,
             id,
             activity_key,
@@ -199,6 +200,12 @@ async def get_activity_form(
                 reviewed_at=fr.reviewed_at,
             )
 
+    previous_reviews = (
+        await submission_run_reviews(session, id, run.run_number - 1)
+        if activity_key == 'proposal_submission'
+        else {}
+    )
+
     return FormInstanceResponse(
         form_instance_id=form_inst.id,
         template_key=template.key,
@@ -227,6 +234,7 @@ async def get_activity_form(
         ],
         values=values_dict,
         reviews=reviews_dict,
+        previous_reviews=previous_reviews,
     )
 
 
