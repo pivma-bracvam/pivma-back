@@ -24,6 +24,29 @@ Toda listagem responde no mesmo formato:
 | `sort` | Ordem aplicada. Cada listagem tem uma ordem padrão estável |
 | `facets`, `summary` | Só quando pedidos com `include=` (hoje só em `GET /tasks`) |
 
+## Processos
+
+`GET /processes` lista os processos que o usuário pode ver, do mais novo para
+o mais antigo.
+
+| Filtro | Valores | Padrão |
+|---|---|---|
+| `status` | `OPEN`, `CLOSED`, `CANCELLED`, `ARCHIVED` | todos, menos `ARCHIVED` |
+| `mine` | `true`: só onde o usuário tem o cargo `proponent` ativo | `false` |
+| `submission_state` | `draft`, `submitted` | todos |
+
+`draft` traz as submissões que nunca foram enviadas. `submitted` traz as que
+foram enviadas ao menos uma vez, inclusive as devolvidas pela triagem ou pela
+IA. Os filtros se combinam e `filters_applied` devolve os três. Valor inválido
+responde `422`.
+
+Para as listas do proponente:
+
+```bash
+curl -s "$API/processes?mine=true&submission_state=draft" -H "Authorization: Bearer $TOKEN"
+curl -s "$API/processes?mine=true&submission_state=submitted" -H "Authorization: Bearer $TOKEN"
+```
+
 ## Tarefas
 
 `GET /tasks` lista as tarefas das atividades que o usuário pode ver.

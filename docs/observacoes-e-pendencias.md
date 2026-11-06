@@ -195,3 +195,16 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 ### PENDÊNCIAS
 
 - Visão do perfil de outras pessoas por membros comuns, sem e-mail e `username`: a equipe ainda vai decidir se cria a permissão.
+
+## Listas de submissões do proponente
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: em 2026-11-06, a tela de Submissões do preview mostrou "Não foi possível carregar suas submissões". O frontend chama `/api/submissions/sent` e `/api/submissions/drafts`, e as duas respondem `404`. O backend nunca teve essas rotas, e a API publicada estava igual à `develop`.
+- **Conflito**: `GET /processes` só filtrava por `status`. A lista não informava quem é o proponente nem se a submissão já foi enviada, e `GET /tasks` devolve tarefas e mistura rascunhos com submissões devolvidas.
+- **Decisão**: `GET /processes` ganha os filtros `mine` e `submission_state` (`draft` ou `submitted`), sem spec própria, por ser uma mudança pontual. `mine=true` exige o cargo `proponent` ativo. `draft` significa que a submissão nunca foi enviada, e `submitted`, que foi enviada ao menos uma vez. A submissão devolvida continua em `submitted`, para o proponente responder ao retorno.
+- **Validação**: confirmada pelo usuário em 2026-11-06.
+
+### PENDÊNCIAS
+
+- O proxy do frontend precisa passar a chamar `GET /processes` com esses filtros. A equipe do frontend ainda não confirmou quais URLs `sent` e `drafts` chamam.

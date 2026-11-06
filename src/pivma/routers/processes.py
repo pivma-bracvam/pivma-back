@@ -55,6 +55,8 @@ from pivma.core.process_engine import (
     instantiate_process,
     list_returned_submission_versions,
     process_visibility_clause,
+    proponent_process_clause,
+    submission_state_clause,
     update_form_template_definition,
     update_process_submission,
 )
@@ -77,6 +79,7 @@ from pivma.schemas import (
     ProcessTemplateSummary,
     ReplaceSubmissionRequest,
     SortApplied,
+    SubmissionState,
     SubmissionVersionListResponse,
     SubmissionVersionResponse,
     TemplateRef,
@@ -540,10 +543,12 @@ async def create_process(
     response_model=ProcessListResponse,
     status_code=HTTPStatus.OK,
 )
-async def list_processes(
+async def list_processes(  # noqa: PLR0913, PLR0917
     session: Session,
     current_user: CurrentUser,
     status: ProcessLifecycle | None = None,
+    mine: bool = False,
+    submission_state: SubmissionState | None = None,
     page: PageQuery = 1,
     per_page: PerPageQuery = 20,
 ):
@@ -561,6 +566,10 @@ async def list_processes(
         stmt = stmt.where(ProcessInstance.status == status)
     else:
         stmt = stmt.where(ProcessInstance.status != STATUS_ARCHIVED)
+    if mine:
+        stmt = stmt.where(proponent_process_clause(current_user.id))
+    if submission_state:
+        stmt = stmt.where(submission_state_clause(submission_state))
 
     items, total = await paginate_query(
         session,
@@ -598,7 +607,11 @@ async def list_processes(
     return ProcessListResponse(
         data=detail_items,
         pagination=build_pagination(page, per_page, total),
-        filters_applied=ProcessListFilters(status=status),
+        filters_applied=ProcessListFilters(
+            status=status,
+            mine=mine,
+            submission_state=submission_state,
+        ),
         sort=SortApplied(by='created_at', order='desc'),
     )
 

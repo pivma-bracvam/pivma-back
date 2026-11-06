@@ -731,6 +731,7 @@ class CreateProcessRequest(BaseModel):
 # Spec 030: o processo expõe só o ciclo de vida; a posição no fluxo vem das
 # fases e atividades.
 ProcessLifecycle = Literal['OPEN', 'CLOSED', 'CANCELLED', 'ARCHIVED']
+SubmissionState = Literal['draft', 'submitted']
 
 
 class ProcessInstanceDetail(BaseModel):
@@ -1904,6 +1905,15 @@ class InstitutionalChangeListResponse(
 class ProcessListFilters(BaseModel):
     status: ProcessLifecycle | None = Field(
         description='Status do processo; nulo = todos, menos os arquivados'
+    )
+    mine: bool = Field(
+        description='Só processos em que o usuário é o proponente'
+    )
+    submission_state: SubmissionState | None = Field(
+        description=(
+            'Estado da submissão: `draft` nunca foi enviada; `submitted` '
+            'foi enviada ao menos uma vez. Nulo = todos'
+        )
     )
 
 

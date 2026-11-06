@@ -14,6 +14,7 @@ from pivma.core.authorization import (
     ACTIVITY_CARGOS,
     GLOBAL_ACTIVITY_CARGOS,
     PARTICIPATING_LABORATORY_ROLE_KEY,
+    PROPONENT_ROLE_KEY,
     active_participant_process_scope,
     global_cargos,
     has_current_conflict,
@@ -170,6 +171,41 @@ async def process_visibility_clause(
     if await has_platform_wide_access(session, user_id):
         return None
     return ProcessInstance.id.in_(active_participant_process_scope(user_id))
+
+
+def proponent_process_clause(user_id: UUID) -> ColumnElement:
+    """Processos em que o usuário tem o cargo de proponente ativo."""
+    return exists(
+        process_cargos_scope(user_id).where(
+            Assignment.process_instance_id == ProcessInstance.id,
+            Assignment.role_key == PROPONENT_ROLE_KEY,
+        )
+    )
+
+
+def submission_state_clause(state: str) -> ColumnElement:
+    """`submitted`: a proposta foi enviada ao menos uma vez.
+
+    A revisão abre outra execução com formulário novo, mas a submissão
+    devolvida segue `submitted`. `draft` é o que nunca foi enviado.
+    """
+    was_submitted = exists(
+        select(FormInstance.id)
+        .join(ActivityRun, FormInstance.activity_run_id == ActivityRun.id)
+        .join(
+            ActivityInstance,
+            ActivityRun.activity_instance_id == ActivityInstance.id,
+        )
+        .where(
+            ActivityInstance.process_instance_id == ProcessInstance.id,
+            ActivityInstance.key == 'proposal_submission',
+            ActivityInstance.deleted_at.is_(None),
+            ActivityRun.deleted_at.is_(None),
+            FormInstance.deleted_at.is_(None),
+            FormInstance.is_submitted.is_(True),
+        )
+    )
+    return was_submitted if state == 'submitted' else ~was_submitted
 
 
 async def activity_view_clause(

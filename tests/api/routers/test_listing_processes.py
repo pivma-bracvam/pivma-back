@@ -1,10 +1,14 @@
 """Spec 033, US1 (3b) - listagens de processos no envelope padrão."""
 
 from http import HTTPStatus
+from uuid import UUID
 
 import pytest
+from sqlalchemy import select
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
+from pivma.core.database.models import Assignment
+from pivma.core.process_engine import utc_now
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.user_factory import UserFactory
 
@@ -78,7 +82,11 @@ async def test_processes_envelope_default_filters(client, session):
     body = _get(client, '/processes')
 
     assert set(body) == ENVELOPE_KEYS
-    assert body['filters_applied'] == {'status': None}
+    assert body['filters_applied'] == {
+        'status': None,
+        'mine': False,
+        'submission_state': None,
+    }
     assert body['sort'] == {'by': 'created_at', 'order': 'desc'}
 
 
@@ -103,7 +111,146 @@ async def test_processes_status_filter_echoed(client, session):
     body = _get(client, '/processes', status='CLOSED')
 
     assert body['data'] == []
-    assert body['filters_applied'] == {'status': 'CLOSED'}
+    assert body['filters_applied']['status'] == 'CLOSED'
+
+
+def _submit(client, pid):
+    response = client.post(
+        FORM.format(pid=pid),
+        json={'values': {'method_title': 'Método'}},
+        headers=ORIGIN,
+    )
+    assert response.status_code == HTTPStatus.OK, response.text
+
+
+def _ids(body):
+    return [item['id'] for item in body['data']]
+
+
+async def _other_user(session):
+    user = UserFactory()
+    session.add(user)
+    await session.commit()
+    return user
+
+
+@pytest.mark.asyncio
+async def test_processes_filters_echoed(client, session):
+    authenticate(client, await _proponent(session))
+
+    body = _get(client, '/processes', mine=True, submission_state='draft')
+
+    assert body['filters_applied'] == {
+        'status': None,
+        'mine': True,
+        'submission_state': 'draft',
+    }
+
+
+@pytest.mark.asyncio
+async def test_processes_mine_skips_process_of_another_proponent(
+    client, session, bracvam_user
+):
+    authenticate(client, await _proponent(session))
+    pid = _new_process(client)
+
+    authenticate(client, bracvam_user)
+
+    assert pid in _ids(_get(client, '/processes'))
+    assert _ids(_get(client, '/processes', mine=True)) == []
+
+
+@pytest.mark.asyncio
+async def test_processes_mine_skips_participant_in_another_role(
+    client, session
+):
+    owner = await _proponent(session)
+    authenticate(client, owner)
+    pid = _new_process(client)
+    sponsor = await _other_user(session)
+    session.add(
+        Assignment(
+            process_instance_id=UUID(pid),
+            user_id=sponsor.id,
+            role_key='sponsor',
+            assigned_by=owner.id,
+        )
+    )
+    await session.commit()
+
+    authenticate(client, sponsor)
+
+    assert _ids(_get(client, '/processes')) == [pid]
+    assert _ids(_get(client, '/processes', mine=True)) == []
+
+
+@pytest.mark.asyncio
+async def test_processes_mine_skips_revoked_proponent(client, session):
+    owner = await _proponent(session)
+    authenticate(client, owner)
+    pid = _new_process(client)
+    assignment = await session.scalar(
+        select(Assignment).where(
+            Assignment.process_instance_id == UUID(pid),
+            Assignment.user_id == owner.id,
+        )
+    )
+    assignment.revoked_at = utc_now()
+    await session.commit()
+
+    assert _ids(_get(client, '/processes', mine=True)) == []
+
+
+@pytest.mark.asyncio
+async def test_processes_submission_state_respects_visibility(client, session):
+    authenticate(client, await _proponent(session))
+    _new_process(client)
+
+    authenticate(client, await _other_user(session))
+
+    assert _ids(_get(client, '/processes', submission_state='draft')) == []
+
+
+@pytest.mark.asyncio
+async def test_processes_filters_combine_with_status(client, session):
+    authenticate(client, await _proponent(session))
+    _new_process(client)
+
+    body = _get(
+        client,
+        '/processes',
+        mine=True,
+        submission_state='draft',
+        status='CLOSED',
+    )
+
+    assert body['data'] == []
+
+
+@pytest.mark.asyncio
+async def test_processes_submission_state_counts_filtered_pages(
+    client, session
+):
+    authenticate(client, await _proponent(session))
+    for index in range(3):
+        _new_process(client, f'Rascunho {index}')
+    _submit(client, _new_process(client, 'Enviada'))
+
+    body = _get(
+        client, '/processes', submission_state='draft', per_page=2, page=2
+    )
+
+    assert len(body['data']) == 1
+    assert body['pagination']['total_items'] == 3  # noqa: PLR2004
+
+
+@pytest.mark.asyncio
+async def test_processes_rejects_unknown_submission_state(client, session):
+    authenticate(client, await _proponent(session))
+
+    response = client.get('/processes', params={'submission_state': 'sent'})
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
 @pytest.mark.asyncio
