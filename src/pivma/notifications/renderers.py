@@ -234,3 +234,46 @@ def render_sample_decision_email(
 
 
 RENDERERS[SAMPLE_DECISION_EMAIL] = render_sample_decision_email
+
+
+# --- Devolução da submissão ao proponente (Spec 046) ---
+
+SUBMISSION_RETURNED_EMAIL = 'submission_returned_email'
+
+RETURN_SOURCE_LABELS = {
+    'TRIAGE': 'Triagem',
+    'AI_PRE_EVALUATION': 'Pré-avaliação por IA',
+}
+
+
+def render_submission_returned_email(
+    payload: dict[str, Any],
+) -> tuple[str, str, str]:
+    """Aviso ao proponente: só processo, origem e prazo, sem o conteúdo do
+    retorno nem quem avaliou."""
+    process = f'{payload["process_code"]} — {payload["process_title"]}'
+    rows = [
+        ('Processo', process),
+        ('Origem', RETURN_SOURCE_LABELS[payload['source']]),
+    ]
+    if payload['due_date']:
+        rows.append(('Prazo', _format_deadline(payload['due_date'])))
+    intro = 'A sua submissão foi devolvida e aguarda a sua resposta.'
+    action = 'Acesse a pi*VMA para ler o retorno e responder.'
+    text = '\n'.join([
+        intro,
+        '',
+        *(f'{label}: {value}' for label, value in rows),
+        '',
+        action,
+    ])
+    items = ''.join(
+        f'<li><strong>{label}:</strong> {escape(value)}</li>'
+        for label, value in rows
+    )
+    html = f'<p>{intro}</p><ul>{items}</ul><p>{action}</p>'
+    subject = f'Submissão devolvida — {payload["process_code"]}'
+    return subject, text, html
+
+
+RENDERERS[SUBMISSION_RETURNED_EMAIL] = render_submission_returned_email

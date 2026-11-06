@@ -41,7 +41,9 @@ curl -s -X POST $API/processes/$PID/triage/reviews -H "Authorization: Bearer $TO
 ```
 
 `status` é texto livre; a API não valida os valores. Os pareceres aparecem em
-`reviews` na leitura do formulário.
+`reviews` na leitura do formulário. Depois da escolha `REVISE`, passam para
+`previous_reviews` e continuam na versão devolvida. O proponente não vê quem
+avaliou.
 
 ## 4. Dar retorno sobre a IA (opcional)
 

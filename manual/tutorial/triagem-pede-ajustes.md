@@ -122,8 +122,8 @@ A triagem volta para a lista do triador. Desta vez, ele aprova.
 ## 6. A versão devolvida fica guardada
 
 A primeira versão não se perde. O histórico da proposta guarda cada versão
-devolvida, com o conteúdo enviado e a justificativa da devolução. A versão
-atual é a que está no formulário. Assim dá para comparar o que mudou entre o
+devolvida, com o conteúdo enviado, a justificativa da devolução e os pareceres
+por campo da triagem. A versão atual é a que está no formulário. Assim dá para comparar o que mudou entre o
 pedido de ajuste e a aprovação.
 
 ??? example "Como fazer pela API"

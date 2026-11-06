@@ -52,7 +52,7 @@ arquivo `.env`. Modelo: `.env.example`.
 | `SMTP_TIMEOUT_SECONDS` | `15` | Timeout |
 | `NOTIFICATION_FROM_ADDRESS` | — | Remetente |
 | `NOTIFICATION_FROM_NAME` | `pi*VMA` | Nome do remetente |
-| `NOTIFICATION_ENCRYPTION_KEY` | — | Chave Fernet do conteúdo pendente |
+| `NOTIFICATION_ENCRYPTION_KEY` | — | Chave Fernet do conteúdo pendente; se estiver malformada, a aplicação não inicia |
 | `NOTIFICATION_MAX_ATTEMPTS` | `5` | Tentativas por envio |
 | `NOTIFICATION_RETRY_BASE_SECONDS` | `30` | Primeira espera; dobra a cada tentativa |
 | `NOTIFICATION_RETRY_MAX_SECONDS` | `900` | Espera máxima |

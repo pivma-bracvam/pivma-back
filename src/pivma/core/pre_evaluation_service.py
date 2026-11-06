@@ -156,10 +156,6 @@ async def _execute(session: AsyncSession, run_id: UUID) -> None:  # noqa: PLR091
 
     # Spec 030 (R8): a disputa entre `_execute`, `retry_run` e a contestação
     # é pela própria execução da IA, não mais pelo status do processo.
-    # TODO(spec-030): teste de concorrência adiado — provar que _execute,
-    # retry_run e a contestação da IA sobre a mesma EvaluationRun têm um único
-    # vencedor (FR-031), com duas sessões reais como em
-    # tests/integration/database/test_process_retirement_concurrency.py.
     locked_run = await session.scalar(
         select(EvaluationRun)
         .where(
@@ -432,23 +428,45 @@ async def record_feedback(
 
 
 async def retry_run(
-    session: AsyncSession, run_id: UUID, user_id: UUID
+    session: AsyncSession, run_id: UUID, actor_id: UUID
 ) -> EvaluationRun:
-    """Cria uma nova execução (a antiga permanece imutável) — US2 T037."""
+    """Cria uma nova execução (a antiga permanece imutável) — US2 T037.
+
+    Só vale para a execução mais recente, com falha e retorno da IA aberto
+    (Spec 046, FR-016a). A trava do retorno vem antes da trava da execução,
+    na ordem da escolha do proponente.
+    """
     old = await session.get(EvaluationRun, run_id)
     if old is None:
         raise NotFoundError('Execução não encontrada.')
     if old.status == 'completed':
         raise ConflictError('Execução já concluída; nada a reprocessar.')
     await ensure_process_mutable(session, old.process_instance_id)
-    await cancel_open_return_review(session, old.process_instance_id, user_id)
+    return_cancelled = await cancel_open_return_review(
+        session, old.process_instance_id, actor_id
+    )
+    failed_run = await session.scalar(
+        select(EvaluationRun)
+        .where(EvaluationRun.id == run_id, EvaluationRun.status == 'failed')
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    latest = await _latest_run(session, old.process_instance_id)
+    if not return_cancelled or failed_run is None or latest.id != run_id:
+        await session.rollback()
+        raise ConflictError(
+            'Só a pré-avaliação mais recente, com falha e retorno aberto, '
+            'pode ser reprocessada.'
+        )
 
     new_run = EvaluationRun(
         process_instance_id=old.process_instance_id,
         activity_run_id=old.activity_run_id,
         form_instance_id=old.form_instance_id,
     )
-    new_run.set_creation_audit(user_id)
+    # `_execute` usa este autor nos eventos da IA; quem reprocessou fica no
+    # evento do cancelamento do retorno.
+    new_run.set_creation_audit(old.created_by)
     session.add(new_run)
     # O roteamento final é refeito por `_execute` ao término da nova execução.
     await session.commit()

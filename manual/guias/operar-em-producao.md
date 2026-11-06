@@ -29,7 +29,7 @@ A imagem instala as dependências pelo `uv.lock`, sem o grupo `dev`.
 | `AI_PROVIDER`, `OPENAI_API_KEY` | `openai` e a chave |
 | `NOTIFICATION_EMAIL_BACKEND` | `smtp` |
 | `SMTP_*`, `NOTIFICATION_FROM_ADDRESS` | Provedor de e-mail |
-| `NOTIFICATION_ENCRYPTION_KEY` | Chave Fernet (gerar abaixo) |
+| `NOTIFICATION_ENCRYPTION_KEY` | Chave Fernet (gerar abaixo); se estiver malformada, a aplicação não inicia |
 | `INVITE_URL_TEMPLATE`, `PASSWORD_RESET_URL_TEMPLATE` | Páginas do frontend, com `{token}` |
 | `SAMPLE_QR_BASE_URL` | Endereço público do frontend |
 

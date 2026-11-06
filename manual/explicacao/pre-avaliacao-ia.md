@@ -63,7 +63,8 @@ BraCVAM.
 |---|---|
 | Provedor de IA falha durante a execução | Execução `failed`; abre a revisão do retorno |
 | API reinicia com execução em andamento | Na subida, a execução presa é marcada como falha |
-| Administrador reprocessa (`POST /admin/pre-evaluations/{run_id}/retry`) | Nova execução; a antiga fica como estava; a revisão do retorno aberta é cancelada |
+| Administrador reprocessa (`POST /admin/pre-evaluations/{run_id}/retry`) | Só a execução mais recente, com status `failed` e retorno da IA aberto. Nova execução, com o mesmo criador; a antiga fica como estava; o retorno da IA e o aviso pendente são cancelados, e `RETURN_REVIEW_CANCELLED` registra o administrador |
+| Reprocessamento fora dessa condição: execução em andamento, concluída ou antiga, retorno já decidido ou retorno aberto pela triagem depois de uma contestação | `409 conflict`, sem nenhum efeito |
 
 ## Versões imutáveis
 

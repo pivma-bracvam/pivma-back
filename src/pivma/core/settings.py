@@ -1,6 +1,7 @@
 from typing import Literal
 from urllib.parse import urlsplit
 
+from cryptography.fernet import Fernet
 from pydantic import Field, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -9,6 +10,8 @@ MIN_JWT_SECRET_BYTES = 32
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
+        # O erro de validação não repete segredos do ambiente.
+        hide_input_in_errors=True,
         env_file='.env', env_file_encoding='utf-8', extra='ignore'
     )
 
@@ -84,6 +87,19 @@ class Settings(BaseSettings):
             raise ValueError(
                 f'{info.field_name} must contain {{token}} exactly once'
             )
+        return value
+
+    @field_validator('NOTIFICATION_ENCRYPTION_KEY')
+    @classmethod
+    def validate_notification_encryption_key(cls, value):
+        # Chave malformada falharia ao cifrar, no meio da operação de negócio.
+        if value:
+            try:
+                Fernet(value.encode())
+            except ValueError as exc:
+                raise ValueError(
+                    'NOTIFICATION_ENCRYPTION_KEY must be a Fernet key'
+                ) from exc
         return value
 
     @field_validator('JWT_SECRET_KEY')

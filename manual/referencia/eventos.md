@@ -45,7 +45,7 @@ flowchart TD
 | Submissão | `SUBMISSION_UPDATED`, `SUBMISSION_SUBMITTED` |
 | Pré-avaliação por IA | `AI_PRE_EVALUATION_STARTED`, `AI_PRE_EVALUATION_COMPLETED`, `AI_PRE_EVALUATION_FAILED`, `AI_CRITERION_FEEDBACK_RECORDED`, `DIRECT_REVIEW_REQUESTED` |
 | Triagem | `FIELD_REVIEWED`, `TRIAGE_APPROVED`, `TRIAGE_REJECTED`, `REVISION_REQUESTED` |
-| Revisão do retorno | `RETURN_REVIEW_OPENED`, `RETURN_REVIEW_DECIDED` |
+| Revisão do retorno | `RETURN_REVIEW_OPENED`, `RETURN_REVIEW_DECIDED`, `RETURN_REVIEW_CANCELLED` |
 | Homologação da estrutura | `STRUCTURE_APPROVED`, `STRUCTURE_REJECTED` |
 | Participantes | `PARTICIPANT_ASSIGNED`, `PARTICIPANT_REVOKED`, `ROLE_ASSIGNMENT_COMPLETED`, `CONFLICT_DECLARED`, `PARTICIPANT_EFFECTIVENESS_LOST`, `PARTICIPANT_EFFECTIVENESS_RESTORED` |
 | Convites | `INVITE_CREATED`, `INVITE_RESENT`, `INVITE_REVOKED`, `INVITE_ACCEPTED` |
@@ -60,6 +60,8 @@ flowchart TD
 |---|---|
 | `PROCESS_CREATED` | `code`, `title` e, se o processo nasce com template de coleta, `collection_template_id` |
 | `REVISION_REQUESTED` | `source`: `AI_PRE_EVALUATION` ou `TRIAGE` |
+| `RETURN_REVIEW_OPENED` | `source`, `run_number`; `user_id` vem nulo para quem não tem a permissão `triage.review`, porque o proponente não vê quem devolveu a submissão |
+| `RETURN_REVIEW_CANCELLED` | `source`, `run_number`; o autor é o administrador que reprocessou a pré-avaliação |
 | `STRUCTURE_APPROVED` | `decision_id`, `justification` |
 | `STRUCTURE_REJECTED` | `decision_id`, `justification`, `rejected_points` (`[{activity_key, reason}]`) |
 | `ACTIVITY_REOPENED` | `activity_key`, `previous_run_number`, `run_number`, `reason`; ligado à execução nova do ponto reprovado |
