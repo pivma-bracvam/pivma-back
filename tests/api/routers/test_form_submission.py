@@ -19,6 +19,7 @@ from pivma.core.database.models import (
 from tests.activity_state import in_triage
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.participant_factory import AssignmentFactory
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
@@ -51,11 +52,11 @@ async def test_form_draft_and_submission_flow(client, session):
     assert form_resp.status_code == HTTPStatus.OK
     form_data = form_resp.json()
     assert form_data['template_key'] == 'submission_pre_validated_v1'
-    assert len(form_data['fields']) == 1
+    assert len(form_data['fields']) == 56
     assert not form_data['is_submitted']
 
     # 3. Save draft
-    draft_payload = {'values': {'method_title': 'Título em Rascunho'}}
+    draft_payload = {'values': submission_values('Título em Rascunho')}
     draft_resp = client.put(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json=draft_payload,
@@ -78,7 +79,7 @@ async def test_form_draft_and_submission_flow(client, session):
     assert incomplete_resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
     # 6. Submit complete form
-    full_payload = {'values': {'method_title': 'Método de Ensaio Concluído'}}
+    full_payload = {'values': submission_values('Método de Ensaio Concluído')}
     submit_resp = client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json=full_payload,
@@ -138,14 +139,20 @@ async def test_draft_rejects_unknown_field_atomically(client, session):
     assert (
         client.put(
             endpoint,
-            json={'values': {'method_title': 'Anterior'}},
+            json={'values': submission_values('Anterior')},
             headers=TRUSTED_ORIGIN,
         ).status_code
         == HTTPStatus.OK
     )
     response = client.put(
         endpoint,
-        json={'values': {'method_title': 'Novo', 'unknown_field': 'x'}},
+        json={
+            'values': {
+                **submission_values(),
+                'method_title': 'Novo',
+                'unknown_field': 'x',
+            }
+        },
         headers=TRUSTED_ORIGIN,
     )
 
@@ -360,12 +367,12 @@ async def test_draft_replaces_existing_value_and_records_author(
 
     client.put(
         endpoint,
-        json={'values': {'method_title': 'Versão 1'}},
+        json={'values': submission_values('Versão 1')},
         headers=TRUSTED_ORIGIN,
     )
     client.put(
         endpoint,
-        json={'values': {'method_title': 'Versão 2'}},
+        json={'values': submission_values('Versão 2')},
         headers=TRUSTED_ORIGIN,
     )
 
@@ -390,12 +397,12 @@ async def test_draft_null_clears_existing_value(client, session):
 
     client.put(
         endpoint,
-        json={'values': {'method_title': 'A limpar'}},
+        json={'values': submission_values('A limpar')},
         headers=TRUSTED_ORIGIN,
     )
     response = client.put(
         endpoint,
-        json={'values': {'method_title': None}},
+        json={'values': {**submission_values(), 'method_title': None}},
         headers=TRUSTED_ORIGIN,
     )
 
@@ -460,6 +467,7 @@ async def test_active_participant_with_other_role_cannot_save_draft(
             'pre_validated_method',
             'submission_pre_validated_v1',
             {
+                **submission_values(),
                 'method_title': 'Método Pré-Validado Teste',
                 'endpoint_target': 'ocular_irritation',
                 'scientific_justification': (
@@ -477,6 +485,7 @@ async def test_active_participant_with_other_role_cannot_save_draft(
             'scope_extension',
             'submission_scope_extension_v1',
             {
+                **submission_values(),
                 'method_title': 'Extensão de Escopo Teste',
                 'base_validated_method': 'OECD TG 492',
                 'new_application_endpoint': 'medical_devices',
@@ -495,6 +504,7 @@ async def test_active_participant_with_other_role_cannot_save_draft(
             'me_too_validation',
             'submission_me_too_v1',
             {
+                **submission_values(),
                 'method_title': 'Validação Me-Too Teste',
                 'reference_validated_method': 'EpiOcular',
                 'target_test_system': 'Tecido Reconstruído Nacional',
@@ -513,8 +523,9 @@ async def test_active_participant_with_other_role_cannot_save_draft(
             'validated_method_dossier',
             'submission_validated_dossier_v1',
             {
+                **submission_values(),
                 'method_title': 'Dossiê Completo Teste',
-                'terminology_notes': (
+                'method_description': (
                     'Conceito descrito com nomenclatura atual da OCDE e mais'
                     ' de trinta caracteres.'
                 ),

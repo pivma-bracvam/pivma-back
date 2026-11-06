@@ -3,7 +3,7 @@ process_template:
   name: "Método Similar"
   description: "Método de ensaio estrutural e funcionalmente semelhante a um método de referência já validado e aceito, podendo ser candidato a um processo de validação baseado em padrões de desempenho (performance standards)."
   display_order: 4
-  version: 5
+  version: 6
   is_active: true
 
 phases:
@@ -276,17 +276,468 @@ phases:
         dependencies: []
 
 forms:
+  # Formulário oficial do BraCVAM (48 perguntas e anexos), comum aos tipos
+  # 1, 2 e 3 e base do Dossiê. Obrigatórios e opções são provisórios: ver
+  # docs/observacoes-e-pendencias.md.
   - key: "submission_me_too_v1"
     name: "Formulário de Submissão - Método Similar"
-    version: 1
-    description: "Avaliação de método mecanisticamente e funcionalmente semelhante a método já validado."
+    version: 2
+    description: "Este formulário destina-se à submissão preliminar de métodos novos, método adaptado para outro desfecho ou métodos já validados para avaliação de prontidão técnico-científica, relevância regulatória e potencial ingresso para processo formal de validação. O BraCVAM reconhece que determinadas informações submetidas podem possuir caráter confidencial ou envolver propriedade intelectual. O fornecimento de informações completas, consistentes e adequadamente documentadas contribui para maior agilidade e qualidade do processo de análise. Observe que uma avaliação positiva do formulário não constitui um compromisso do BraCVAM de proceder à validação do método de teste. É previsível que nem todos os métodos de teste apresentados possam ser validados pelo BraCVAM."
     fields:
-      - field_key: "method_title"
-        label: "Título do método"
+      - field_key: "institution_name"
+        label: "Nome da instituição"
         field_type: "text"
         is_required: true
         order_index: 1
-        help_text: "Nome do método alternativo proposto."
+        validation_rules:
+          section: "1. Identificação do Proponente"
+
+      - field_key: "institution_nature"
+        label: "Natureza da instituição"
+        field_type: "text"
+        is_required: true
+        order_index: 2
+        validation_rules:
+          section: "1. Identificação do Proponente"
+
+      - field_key: "proposal_owner"
+        label: "Responsável pela proposta"
+        field_type: "text"
+        is_required: true
+        order_index: 3
+        validation_rules:
+          section: "1. Identificação do Proponente"
+
+      - field_key: "owner_position"
+        label: "Cargo/Função"
+        field_type: "text"
+        is_required: true
+        order_index: 4
+        validation_rules:
+          section: "1. Identificação do Proponente"
+
+      - field_key: "contact_email"
+        label: "E-mail de contato"
+        field_type: "text"
+        is_required: true
+        order_index: 5
+        validation_rules:
+          section: "1. Identificação do Proponente"
+
+      - field_key: "contact_phone"
+        label: "Telefone"
+        field_type: "text"
+        is_required: true
+        order_index: 6
+        validation_rules:
+          section: "1. Identificação do Proponente"
+
+      - field_key: "country"
+        label: "País"
+        field_type: "text"
+        is_required: true
+        order_index: 7
+        validation_rules:
+          section: "1. Identificação do Proponente"
+
+      - field_key: "sponsor_details"
+        label: "Possui um Patrocinador? Quem? Qual a verba prevista a ser disponibilizada?"
+        field_type: "textarea"
+        is_required: false
+        order_index: 8
+        validation_rules:
+          section: "1. Identificação do Proponente"
+
+      - field_key: "development_partners"
+        label: "Parceiros envolvidos no desenvolvimento?"
+        field_type: "textarea"
+        is_required: false
+        order_index: 9
+        validation_rules:
+          section: "1. Identificação do Proponente"
+
+      - field_key: "method_title"
+        label: "Nome oficial do método e sigla (caso tenha)"
+        field_type: "text"
+        is_required: true
+        order_index: 10
+        validation_rules:
+          section: "2. Identificação do Método"
+
+      - field_key: "method_kind"
+        label: "Tipo de método"
+        field_type: "select"
+        is_required: true
+        order_index: 11
+        options:
+          - value: "new_method"
+            label: "Método novo"
+          - value: "adapted_endpoint"
+            label: "Método adaptado para outro desfecho"
+          - value: "validated_method"
+            label: "Método já validado"
+        validation_rules:
+          section: "2. Identificação do Método"
+
+      - field_key: "application_area"
+        label: "Área principal de aplicação"
+        field_type: "text"
+        is_required: true
+        order_index: 12
+        validation_rules:
+          section: "2. Identificação do Método"
+
+      - field_key: "method_description"
+        label: "Descreva o método"
+        field_type: "textarea"
+        is_required: true
+        order_index: 13
+        validation_rules:
+          section: "2. Identificação do Método"
+
+      - field_key: "replaced_test"
+        label: "Qual teste atual o método pretende substituir ou reduzir uso de animais?"
+        field_type: "textarea"
+        is_required: false
+        order_index: 14
+        validation_rules:
+          section: "3. Necessidade e Impacto"
+
+      - field_key: "problem_addressed"
+        label: "Qual problema técnico/regulatório o método resolve?"
+        field_type: "textarea"
+        is_required: false
+        order_index: 15
+        validation_rules:
+          section: "3. Necessidade e Impacto"
+
+      - field_key: "sector_demand"
+        label: "Existe demanda do setor produtivo ou regulatório?"
+        field_type: "textarea"
+        is_required: false
+        order_index: 16
+        validation_rules:
+          section: "3. Necessidade e Impacto"
+
+      - field_key: "three_rs_impact"
+        label: "Estimativa de impacto em 3Rs"
+        field_type: "textarea"
+        is_required: false
+        order_index: 17
+        validation_rules:
+          section: "3. Necessidade e Impacto"
+
+      - field_key: "mechanistic_rationale"
+        label: "Descreva o racional mecanístico do método"
+        field_type: "textarea"
+        is_required: false
+        order_index: 18
+        validation_rules:
+          section: "4. Fundamentação Científica"
+
+      - field_key: "measured_endpoint"
+        label: "Qual desfecho é medido?"
+        field_type: "text"
+        is_required: false
+        order_index: 19
+        validation_rules:
+          section: "4. Fundamentação Científica"
+
+      - field_key: "endpoint_biological_relevance"
+        label: "O desfecho possui relevância biológica comprovada?"
+        field_type: "textarea"
+        is_required: false
+        order_index: 20
+        validation_rules:
+          section: "4. Fundamentação Científica"
+
+      - field_key: "scientific_references"
+        label: "Cite principais referências científicas que embasam o seu método"
+        field_type: "textarea"
+        is_required: false
+        order_index: 21
+        validation_rules:
+          section: "4. Fundamentação Científica"
+
+      - field_key: "test_system"
+        label: "Sistema teste utilizado"
+        field_type: "text"
+        is_required: false
+        order_index: 22
+        validation_rules:
+          section: "5. Sistema Teste"
+
+      - field_key: "test_system_origin"
+        label: "Origem do sistema teste"
+        field_type: "text"
+        is_required: false
+        order_index: 23
+        validation_rules:
+          section: "5. Sistema Teste"
+
+      - field_key: "animal_derived_inputs"
+        label: "Usa insumos de origem animal? Justifique"
+        field_type: "textarea"
+        is_required: false
+        order_index: 24
+        validation_rules:
+          section: "5. Sistema Teste"
+
+      - field_key: "animal_free_alternative"
+        label: "Existe alternativa livre de componentes animais?"
+        field_type: "boolean"
+        is_required: false
+        order_index: 25
+        validation_rules:
+          section: "5. Sistema Teste"
+
+      - field_key: "sop_status"
+        label: "Existe POP escrito e completo? Caso não, qual estado atual do POP?"
+        field_type: "textarea"
+        is_required: false
+        order_index: 26
+        validation_rules:
+          section: "6. Protocolo e Padronização"
+
+      - field_key: "equipment"
+        label: "Equipamentos utilizados?"
+        field_type: "text"
+        is_required: false
+        order_index: 27
+        validation_rules:
+          section: "6. Protocolo e Padronização"
+
+      - field_key: "assay_total_time"
+        label: "Tempo total do ensaio"
+        field_type: "text"
+        is_required: false
+        order_index: 28
+        validation_rules:
+          section: "6. Protocolo e Padronização"
+
+      - field_key: "estimated_cost_per_test"
+        label: "Faixa de custo estimada por teste"
+        field_type: "text"
+        is_required: false
+        order_index: 29
+        validation_rules:
+          section: "6. Protocolo e Padronização"
+
+      - field_key: "has_positive_control"
+        label: "Possui controle positivo?"
+        field_type: "boolean"
+        is_required: false
+        order_index: 30
+        validation_rules:
+          section: "7. Controle de Qualidade"
+
+      - field_key: "has_negative_control"
+        label: "Possui controle negativo?"
+        field_type: "boolean"
+        is_required: false
+        order_index: 31
+        validation_rules:
+          section: "7. Controle de Qualidade"
+
+      - field_key: "acceptance_criteria"
+        label: "Há critérios de aceitação dos dados obtidos? Quais?"
+        field_type: "textarea"
+        is_required: false
+        order_index: 32
+        validation_rules:
+          section: "7. Controle de Qualidade"
+
+      - field_key: "intralab_repeatability_assessed"
+        label: "Já foi avaliada repetibilidade intra-laboratorial?"
+        field_type: "boolean"
+        is_required: false
+        order_index: 33
+        validation_rules:
+          section: "8. Desempenho e Confiabilidade"
+
+      - field_key: "technology_transfer_done"
+        label: "Já houve transferência tecnológica para outro laboratório?"
+        field_type: "boolean"
+        is_required: false
+        order_index: 34
+        validation_rules:
+          section: "8. Desempenho e Confiabilidade"
+
+      - field_key: "interlab_reproducibility_assessed"
+        label: "Já foi avaliada reprodutibilidade interlaboratorial?"
+        field_type: "boolean"
+        is_required: false
+        order_index: 35
+        validation_rules:
+          section: "8. Desempenho e Confiabilidade"
+
+      - field_key: "available_results_summary"
+        label: "Resuma resultados disponíveis até o momento"
+        field_type: "textarea"
+        is_required: false
+        order_index: 36
+        validation_rules:
+          section: "8. Desempenho e Confiabilidade"
+
+      - field_key: "tested_substances_count"
+        label: "Quantas substâncias/amostras foram testadas?"
+        field_type: "integer"
+        is_required: false
+        order_index: 37
+        validation_rules:
+          section: "9. Capacidade Preditiva"
+
+      - field_key: "evaluated_classes"
+        label: "Quais classes químicas ou categorias de produto foram avaliadas?"
+        field_type: "text"
+        is_required: false
+        order_index: 38
+        validation_rules:
+          section: "9. Capacidade Preditiva"
+
+      - field_key: "comparator_data"
+        label: "Dados comparadores utilizados"
+        field_type: "text"
+        is_required: false
+        order_index: 39
+        validation_rules:
+          section: "9. Capacidade Preditiva"
+
+      - field_key: "predictive_results_summary"
+        label: "Resuma os resultados encontrados"
+        field_type: "textarea"
+        is_required: false
+        order_index: 40
+        validation_rules:
+          section: "9. Capacidade Preditiva"
+
+      - field_key: "non_applicable_situations"
+        label: "Em quais situações o método não deve ser aplicado?"
+        field_type: "textarea"
+        is_required: false
+        order_index: 41
+        validation_rules:
+          section: "10. Limitações"
+
+      - field_key: "known_interferents"
+        label: "Há interferentes conhecidos?"
+        field_type: "textarea"
+        is_required: false
+        order_index: 42
+        validation_rules:
+          section: "10. Limitações"
+
+      - field_key: "technical_logistic_limitations"
+        label: "Há limitações técnicas ou logísticas?"
+        field_type: "textarea"
+        is_required: false
+        order_index: 43
+        validation_rules:
+          section: "10. Limitações"
+
+      - field_key: "proprietary_components"
+        label: "Existe patente, software protegido ou componente proprietário?"
+        field_type: "textarea"
+        is_required: false
+        order_index: 44
+        validation_rules:
+          section: "11. Propriedade Intelectual"
+
+      - field_key: "freely_reproducible"
+        label: "O método pode ser reproduzido por terceiros sem restrição?"
+        field_type: "boolean"
+        is_required: false
+        order_index: 45
+        validation_rules:
+          section: "11. Propriedade Intelectual"
+
+      - field_key: "confidential_information"
+        label: "Informação de caráter sigiloso, quais?"
+        field_type: "textarea"
+        is_required: false
+        order_index: 46
+        validation_rules:
+          section: "11. Propriedade Intelectual"
+
+      - field_key: "submission_objective"
+        label: "Qual objetivo da submissão ao BraCVAM?"
+        field_type: "textarea"
+        is_required: true
+        order_index: 47
+        validation_rules:
+          section: "12. Interesse Regulatório"
+
+      - field_key: "regulatory_agencies"
+        label: "Cite agências regulatórias de interesse"
+        field_type: "text"
+        is_required: false
+        order_index: 48
+        validation_rules:
+          section: "12. Interesse Regulatório"
+
+      - field_key: "sop_file"
+        label: "POP"
+        field_type: "file_upload"
+        is_required: false
+        order_index: 49
+        validation_rules:
+          section: "13. Anexos"
+
+      - field_key: "scientific_articles_file"
+        label: "Artigos científicos"
+        field_type: "file_upload"
+        is_required: false
+        order_index: 50
+        validation_rules:
+          section: "13. Anexos"
+
+      - field_key: "technical_reports_file"
+        label: "Relatórios técnicos"
+        field_type: "file_upload"
+        is_required: false
+        order_index: 51
+        validation_rules:
+          section: "13. Anexos"
+
+      - field_key: "relevant_data_file"
+        label: "Dados de interesse"
+        field_type: "file_upload"
+        is_required: false
+        order_index: 52
+        validation_rules:
+          section: "13. Anexos"
+
+      - field_key: "statistical_spreadsheets_file"
+        label: "Planilhas estatísticas"
+        field_type: "file_upload"
+        is_required: false
+        order_index: 53
+        validation_rules:
+          section: "13. Anexos"
+
+      - field_key: "images_figures_file"
+        label: "Imagens/figuras"
+        field_type: "file_upload"
+        is_required: false
+        order_index: 54
+        validation_rules:
+          section: "13. Anexos"
+
+      - field_key: "quality_certificates_file"
+        label: "Certificados de qualidade"
+        field_type: "file_upload"
+        is_required: false
+        order_index: 55
+        validation_rules:
+          section: "13. Anexos"
+
+      - field_key: "other_documents_file"
+        label: "Outros dados relevantes para avaliação"
+        field_type: "file_upload"
+        is_required: false
+        order_index: 56
+        validation_rules:
+          section: "13. Anexos"
 
   # Spec 042 (revisão do PR #76): plano estatístico da Etapa 2, igual nos
   # quatro templates. Sem avaliação por IA.

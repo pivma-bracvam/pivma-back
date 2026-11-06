@@ -27,6 +27,7 @@ from pivma.core.database.models import (
     FormInstance,
 )
 from tests.api.routers.test_rbac_router import authenticate
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
@@ -159,14 +160,15 @@ async def test_role_assignment_activities_unlock_on_triage_approval(
     )
     assert resp.status_code == HTTPStatus.CREATED
     process_id = resp.json()['id']
-    assert resp.json()['template']['version'] == 7
+    assert resp.json()['template']['version'] == 8
 
     client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json={
             'values': {
+                **submission_values(),
                 'method_title': 'Método com roteiro de duas fases',
-                'terminology_notes': (
+                'method_description': (
                     'Conceito descrito com nomenclatura atual e '
                     'detalhamento suficiente para avaliação.'
                 ),

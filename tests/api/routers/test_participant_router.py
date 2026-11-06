@@ -39,6 +39,7 @@ from tests.factories.structure_approval_factory import (
     runs,
     structure_process,
 )
+from tests.factories.submission_factory import submission_values
 
 ORIGIN = {'Origin': 'https://testserver'}
 
@@ -959,8 +960,9 @@ async def _process_in_planning_phase(client, session, bracvam_user):
         f'/processes/{process_id}/activities/proposal_submission/form',
         json={
             'values': {
+                **submission_values(),
                 'method_title': 'Método para atribuição de cargo',
-                'terminology_notes': (
+                'method_description': (
                     'Conceito descrito com nomenclatura atual e '
                     'detalhamento suficiente para avaliação.'
                 ),

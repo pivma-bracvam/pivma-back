@@ -40,8 +40,15 @@ O proponente abre um novo processo e envia a primeira versão.
       -H 'Content-Type: application/json' \
       -d '{"template_key":"pre_validated_method","title":"Ensaio RhCE"}' | jq -r .id)
     FORM=$API/processes/$PID/activities/proposal_submission/form
+    VALUES=$(jq -n --arg title "Ensaio RhCE" '{
+      institution_name: "Instituto Exemplo", institution_nature: "Pública",
+      proposal_owner: "Pessoa Proponente", owner_position: "Pesquisadora",
+      contact_email: "proponente@example.org", contact_phone: "+55 21 0000-0000",
+      country: "Brasil", method_title: $title, method_kind: "new_method",
+      application_area: "Toxicologia", method_description: "Ensaio in vitro.",
+      submission_objective: "Avaliar a prontidão para validação."}')
     curl -s -X POST $FORM -H "Authorization: Bearer $PROP" \
-      -H 'Content-Type: application/json' -d '{"values":{"method_title":"Ensaio RhCE"}}' | jq .run_number
+      -H 'Content-Type: application/json' -d "{\"values\":$VALUES}" | jq .run_number
     ```
 
     A resposta mostra `1`: é a primeira versão.
@@ -92,9 +99,9 @@ enviado. Ele completa o que faltava e envia de novo. Esta é a segunda versão.
     ```bash
     curl -s -X POST $API/processes/$PID/return-review -H "Authorization: Bearer $PROP" \
       -H 'Content-Type: application/json' -d '{"choice":"REVISE"}' | jq
+    VALUES=$(echo "$VALUES" | jq '.method_title = "Ensaio RhCE com controles positivo e negativo"')
     curl -s -X POST $FORM -H "Authorization: Bearer $PROP" \
-      -H 'Content-Type: application/json' \
-      -d '{"values":{"method_title":"Ensaio RhCE com controles positivo e negativo"}}' | jq .run_number
+      -H 'Content-Type: application/json' -d "{\"values\":$VALUES}" | jq .run_number
     ```
 
     A resposta mostra `2`.

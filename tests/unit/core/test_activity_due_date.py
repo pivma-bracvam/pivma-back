@@ -32,6 +32,7 @@ from pivma.core.process_engine import (
 )
 from pivma.core.return_review_service import decide_return_review
 from tests.conftest import _make_rbac_user
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 
@@ -43,8 +44,9 @@ async def _make_bracvam(session):
 
 
 SUBMISSION_VALUES = {
+    **submission_values(),
     'method_title': 'Método com roteiro de duas fases',
-    'terminology_notes': (
+    'method_description': (
         'Conceito descrito com nomenclatura atual e detalhamento '
         'suficiente para avaliação.'
     ),

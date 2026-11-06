@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.sample_factory import lab_user, new_laboratory
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 ORIGIN = {'Origin': 'https://testserver'}
@@ -84,7 +85,7 @@ def open_sample_definition(
     ok(
         client.post(
             f'/processes/{process_id}/activities/proposal_submission/form',
-            json={'values': {'method_title': 'Ensaio RhCE'}},
+            json={'values': submission_values('Ensaio RhCE')},
             headers=ORIGIN,
         )
     )

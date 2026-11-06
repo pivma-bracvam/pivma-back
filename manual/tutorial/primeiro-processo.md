@@ -107,10 +107,17 @@ leria a proposta antes. Como não há critérios, ela vai direto para a triagem.
 ??? example "Como fazer pela API"
     ```bash
     FORM=$API/processes/$PID/activities/proposal_submission/form
+    VALUES=$(jq -n --arg title "Método 3T3 NRU" '{
+      institution_name: "Instituto Exemplo", institution_nature: "Pública",
+      proposal_owner: "Pessoa Proponente", owner_position: "Pesquisadora",
+      contact_email: "proponente@example.org", contact_phone: "+55 21 0000-0000",
+      country: "Brasil", method_title: $title, method_kind: "new_method",
+      application_area: "Toxicologia", method_description: "Ensaio in vitro.",
+      submission_objective: "Avaliar a prontidão para validação."}')
     curl -s -X PUT $FORM -H "Authorization: Bearer $PROP" \
-      -H 'Content-Type: application/json' -d '{"values":{"method_title":"Método 3T3 NRU"}}'
+      -H 'Content-Type: application/json' -d "{\"values\":$VALUES}"
     curl -s -X POST $FORM -H "Authorization: Bearer $PROP" \
-      -H 'Content-Type: application/json' -d '{"values":{"method_title":"Método 3T3 NRU"}}' | jq
+      -H 'Content-Type: application/json' -d "{\"values\":$VALUES}" | jq
     ```
 
     A resposta traz `status: "COMPLETED"` e `pre_evaluation: null`.

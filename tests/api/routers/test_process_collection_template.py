@@ -41,7 +41,8 @@ def _create(client, **fields):
             'template_key': 'pre_validated_method',
             'title': 'Validação de citotoxicidade',
             **fields,
-        }, headers=ORIGIN,
+        },
+        headers=ORIGIN,
     )
 
 

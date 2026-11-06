@@ -49,6 +49,7 @@ from tests.factories.sample_factory import (
     VALID_CAS,
     substance_payload,
 )
+from tests.factories.submission_factory import submission_values
 from tests.integration.journeys.conftest import (
     ADMIN_EMAIL,
     ADMIN_PASSWORD,
@@ -167,7 +168,7 @@ async def _equipe_montada(session, client, monkeypatch, *, plano=True):
     submitted = ok(
         client.post(
             f'/processes/{team.process_id}/activities/proposal_submission/form',
-            json={'values': {'method_title': 'Ensaio RhCE'}},
+            json={'values': submission_values('Ensaio RhCE')},
         )
     )
     assert submitted['status'] == 'COMPLETED'

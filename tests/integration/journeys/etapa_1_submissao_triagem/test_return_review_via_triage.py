@@ -16,6 +16,7 @@ from sqlalchemy import select
 
 from pivma.bootstrap_system import BRACVAM_PROFILE_ID
 from pivma.core.database.models import Phase
+from tests.factories.submission_factory import submission_values
 from tests.integration.journeys.conftest import (
     ADMIN_EMAIL,
     ADMIN_PASSWORD,
@@ -64,7 +65,7 @@ async def test_triage_revision_then_resubmission_then_approval(
         '/processes',
         json={'template_key': 'pre_validated_method', 'title': 'Método'},
     ).json()['id']
-    client.post(FORM.format(pid=pid), json={'values': {'method_title': 'V1'}})
+    client.post(FORM.format(pid=pid), json={'values': submission_values('V1')})
     log_out(client)
 
     # 2. O BraCVAM pede revisão; abre a primeira execução da revisão do
@@ -84,7 +85,7 @@ async def test_triage_revision_then_resubmission_then_approval(
     )
     assert revise.status_code == HTTPStatus.OK, revise.text
     resubmit = client.post(
-        FORM.format(pid=pid), json={'values': {'method_title': 'V2'}}
+        FORM.format(pid=pid), json={'values': submission_values('V2')}
     )
     assert resubmit.json()['run_number'] == 2
     log_out(client)

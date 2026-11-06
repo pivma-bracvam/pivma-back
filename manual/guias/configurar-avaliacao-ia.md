@@ -82,7 +82,7 @@ curl -s $API/form-templates/submission_validated_dossier_v1/evaluable-fields \
 curl -s -X PUT $API/form-templates/submission_validated_dossier_v1/evaluation-assignments \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"assignments":[{"definition_id":"'$DEF_ID'","target_type":"field",
-                       "field_keys":["terminology_notes"]}]}'
+                       "field_keys":["method_description"]}]}'
 ```
 
 | `target_type` | `field_keys` |

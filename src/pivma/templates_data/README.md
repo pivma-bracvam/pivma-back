@@ -176,7 +176,7 @@ O `GET .../form` passa a expor, em cada campo `file_upload`, o objeto
 `attachment` (nome, tamanho, tipo, `checksum_sha256`, `uploaded_at`) ou `null`.
 
 ### 5.3 Agrupamento Visual (`section`)
-Pode ser declarado como chave de primeiro nível no campo ou dentro de `validation_rules`:
+No YAML, declare a seção dentro de `validation_rules`. O bootstrap não grava `section` como chave de primeiro nível; essa forma vale só no corpo do editor (`PUT /processes/templates/{key}/forms/{form_key}`):
 ```yaml
 validation_rules:
   section: "Documentação de Suporte"
@@ -271,7 +271,8 @@ forms:
         field_type: "textarea"
         is_required: true
         order_index: 3
-        section: "Justificativa Técnica"
+        validation_rules:
+          section: "Justificativa Técnica"
         ai_evaluation_enabled: true
         ai_context_instructions: "Verificar consistência com os princípios 3R e viabilidade biológica."
         ai_validation_rules:
@@ -307,8 +308,8 @@ forms:
         field_type: "file_upload"
         is_required: true
         order_index: 7
-        section: "Anexos e Documentação"
         validation_rules:
+          section: "Anexos e Documentação"
           allowed_extensions: ["pdf"]
           max_size_mb: 50
 ```

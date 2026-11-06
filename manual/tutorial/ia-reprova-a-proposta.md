@@ -39,7 +39,7 @@ resultado é previsível e não há custo.
 
 O triador cria uma avaliação com um critério em linguagem natural: "Deve
 conter cronograma financeiro aprovado". Depois publica e liga a avaliação ao
-campo de terminologia do formulário do dossiê. A partir daí, toda proposta
+campo de descrição do método no formulário do dossiê. A partir daí, toda proposta
 desse tipo passa pela IA.
 
 ??? example "Como fazer pela API"
@@ -56,7 +56,7 @@ desse tipo passa pela IA.
       -o /dev/null -w '%{http_code}\n'
     curl -s -X PUT $API/form-templates/submission_validated_dossier_v1/evaluation-assignments \
       -H "Authorization: Bearer $BRAC" -H 'Content-Type: application/json' \
-      -d '{"assignments":[{"definition_id":"'$DEF'","target_type":"field","field_keys":["terminology_notes"]}]}' \
+      -d '{"assignments":[{"definition_id":"'$DEF'","target_type":"field","field_keys":["method_description"]}]}' \
       -o /dev/null -w '%{http_code}\n'
     ```
 
@@ -74,10 +74,16 @@ nada a fazer.
     PID=$(curl -s -X POST $API/processes -H "Authorization: Bearer $PROP" \
       -H 'Content-Type: application/json' \
       -d '{"template_key":"validated_method_dossier","title":"Dossiê 3T3 NRU"}' | jq -r .id)
+    VALUES=$(jq -n --arg title "3T3 NRU" '{
+      institution_name: "Instituto Exemplo", institution_nature: "Pública",
+      proposal_owner: "Pessoa Proponente", owner_position: "Pesquisadora",
+      contact_email: "proponente@example.org", contact_phone: "+55 21 0000-0000",
+      country: "Brasil", method_title: $title, method_kind: "new_method",
+      application_area: "Toxicologia", method_description: "Ensaio in vitro.",
+      submission_objective: "Avaliar a prontidão para validação."}')
     curl -s -X POST $API/processes/$PID/activities/proposal_submission/form \
       -H "Authorization: Bearer $PROP" -H 'Content-Type: application/json' \
-      -d '{"values":{"method_title":"3T3 NRU","terminology_notes":"Usa a captação de vermelho neutro como marcador de viabilidade celular, com terminologia alinhada às diretrizes da OCDE."}}' \
-      | jq .pre_evaluation.status
+      -d "{\"values\":$VALUES}" | jq .pre_evaluation.status
     ```
 
     Resultado: `"in_progress"`.

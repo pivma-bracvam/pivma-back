@@ -115,7 +115,7 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 
 ### PENDÊNCIAS
 
-- Título único, explicação do botão "Enviar para análise" e Formulário Preliminar em toda submissão: aguardam decisão da equipe.
+- Título único e explicação do botão "Enviar para análise": aguardam decisão da equipe. O pedido do Formulário Preliminar em toda submissão foi resolvido na seção "Conteúdo dos formulários de submissão".
 - O frontend ainda mostra as chaves técnicas (`PRE_VALIDATED_METHOD`) nos cartões dos tipos.
 
 ## Bootstrap e o editor de formulários (revisão da Spec 043)
@@ -165,23 +165,24 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
   - o único formulário que reproduzia um formulário real do BraCVAM era o Formulário Preliminar da Prova de Conceito, com 81 campos, que a Spec 043 removeu junto com o tipo.
 
   As cinco opções da apresentação não coincidem com os quatro tipos do sistema. A opção 5 corresponde à Prova de Conceito, removida. A opção 3 não tem tipo equivalente, e o Método Similar não aparece na apresentação. A numeração da apresentação também difere da ordem de exibição: o Dossiê Completo é a opção 4 lá e o 2º tipo na tela.
-- **Decisão**: nenhuma. O formulário fica fora da Spec 043.
-- **Validação**: pendente.
+- **Fontes adicionais (2026-11-06)**: Gleidson indicou esse formulário de 48 perguntas como o correto. A [pasta do projeto](https://drive.google.com/drive/folders/1hhf4X1acU_cCv61Rd7yyZwbLiJKoiRMU) traz também o Formulário Preliminar `BraCVAM.F0001-v1` e o OECD GD 34. Na reunião de 18/09/2026, Filipe descreveu o Método Similar como "método já validado, sendo proposto um novo sistema teste", o que liga esse tipo à opção 3.
+- **Decisão**: o formulário de 48 perguntas substitui os formulários provisórios, sem spec própria e sem validar antes com o BraCVAM, que dará feedback sobre a entrega:
+  1. **Tipos**: Método Novo (opção 1), Extensão do Domínio de Aplicação (opção 2) e Método Similar (opção 3) usam os mesmos 56 campos: as 48 perguntas e 8 anexos da seção 13.
+  2. **Dossiê Completo**: o BraCVAM não enviou o formulário da opção 4. O tipo usa os mesmos 56 campos e uma seção 14 com 8 anexos, baseada na seção VII do OECD GD 34. Esta é uma proposta da equipe.
+  3. **Formulário Preliminar**: o formulário de 48 perguntas atende ao pedido de levar um formulário a toda submissão. O Formulário Preliminar não entra no sistema.
+  4. **Obrigatórios**: 12 campos, as perguntas 1 a 7, 10 a 13 e 47. Os demais e todos os anexos são opcionais, porque a apresentação trata os documentos como "caso tenha" e um método pode ainda não ter esses dados.
+  5. **Forma dos campos**: a pergunta 10 usa a chave `method_title`, a 11 vira seleção com as três opções do próprio texto, e a 8 fica em um campo. Perguntas fechadas sem opções definidas ficam em texto livre. A seção 1 pede os dados de novo, sem trazê-los do cadastro. Cada anexo aceita um arquivo.
+  6. **Campos em YAML**: a equipe mantém os formulários nos YAMLs. Eles sobem para a versão 2, e os templates de processo sobem de versão. Edições anteriores feitas no editor do preview são substituídas.
+  7. **IA**: nenhum campo dispara IA por padrão, porque a pré-avaliação só roda com uma avaliação atribuída. O campo de demonstração `terminology_notes` sai do Dossiê Completo, e `method_description` do Dossiê assume a marca `ai_evaluation_enabled`, que só permite atribuir uma avaliação. O BraCVAM habilita outros campos pelo editor.
+- **Validação**: confirmada pelo usuário em 2026-11-06. Obrigatórios, opções e a seção 14 são provisórios até o feedback do BraCVAM.
 
 ### PENDÊNCIAS
 
-1. **Tipos atendidos**: o formulário das opções 1, 2 e 3 vale para quais tipos? A opção 1 é o Método Novo e a opção 2 é a Extensão do Domínio de Aplicação. A opção 3 cabe na Extensão, no Método Similar ou em um tipo novo? E o Método Similar usa qual formulário?
-2. **Dossiê Completo**: o BraCVAM ainda não enviou o formulário da opção 4. Até lá, o tipo continua com o formulário provisório?
-3. **Quem cadastra os campos**: a equipe escreve o formulário no YAML, versionado e coberto por testes, ou o BraCVAM o monta pelo editor? Pela regra do bootstrap (seção anterior), um formulário editado no banco só volta a seguir o YAML quando a `version` do YAML passar a do banco.
-4. **Formulário Preliminar em toda submissão**: este formulário substitui esse pedido, que segue pendente na seção da Spec 043?
-5. **Forma dos campos**, que o documento não define:
-   - perguntas compostas, como a 8 ("Possui um Patrocinador? Quem? Qual a verba prevista?"), viram um campo ou vários?
-   - perguntas de resposta fechada, como a 2 (natureza da instituição) e a 11 (tipo de método), viram listas de opções? Quais opções?
-   - quais perguntas são obrigatórias?
-   - a pergunta 10 ("Nome oficial do método e sigla") substitui o campo "Título do método"? A pendência do título único depende disso.
-   - a seção 1 repete dados do cadastro do proponente (e-mail, instituição). O formulário os pede de novo ou os traz do cadastro?
-   - os anexos da seção 13 ficam em um campo de arquivo ou em um por tipo de documento (POP, artigos, relatórios, planilhas)?
-6. **Avaliação de IA**: quais campos a IA avalia na triagem, e com quais critérios? A apresentação diz que os critérios ainda precisam ser definidos.
+1. **Formulário da opção 4**: quando o BraCVAM o enviar, ele substitui a proposta da seção 14. A decisão atual deixa os anexos do dossiê opcionais.
+2. **Fluxo do Dossiê Completo**: a apresentação aplica as etapas C, D e E só às opções 1, 2 e 3. O template do Dossiê ainda repete as fases 2 e 3 dos outros tipos, e o proponente cairia em uma validação já concluída.
+3. **Título duplicado**: o título do processo continua separado da pergunta 10. A pendência do título único segue aberta.
+4. **Feedback do BraCVAM**: obrigatórios, opções das perguntas fechadas, separação da pergunta 8, reuso dos dados do cadastro e formato dos anexos.
+5. **Avaliação de IA**: quais campos a IA avalia na triagem, e com quais critérios. A apresentação diz que os critérios ainda precisam ser definidos.
 
 ## Perfil do usuário (Spec 045)
 

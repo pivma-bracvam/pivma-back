@@ -8,12 +8,13 @@ from sqlalchemy import select
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.core.database.models import AuditEvent
 from tests.api.routers.test_rbac_router import authenticate
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
 
 FLOW_STATUSES = {'SUBMISSION', 'AI_PRE_EVALUATION', 'TRIAGE', 'PLANNING'}
-VALUES = {'method_title': 'Ensaio RhCE para irritação'}
+VALUES = submission_values('Ensaio RhCE para irritação')
 
 
 async def _proponent(client, session):

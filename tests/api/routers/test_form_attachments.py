@@ -16,6 +16,7 @@ from pivma.core.database.models import (
     FormValue,
 )
 from tests.api.routers.test_rbac_router import authenticate
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 ORIGIN = {'Origin': 'https://testserver'}
@@ -100,7 +101,7 @@ async def test_upload_then_submit_bundles_attachment(client, session):
 
     submit = client.post(
         FORM_URL.format(pid=pid),
-        json={'values': {'method_title': 'M'}},
+        json={'values': submission_values('M')},
         headers=ORIGIN,
     )
     assert submit.status_code == HTTPStatus.OK, submit.text
@@ -140,7 +141,7 @@ async def test_submit_blocked_without_required_attachment(client, session):
 
     submit = client.post(
         FORM_URL.format(pid=pid),
-        json={'values': {'method_title': 'M'}},
+        json={'values': submission_values('M')},
         headers=ORIGIN,
     )
 
@@ -193,7 +194,7 @@ async def test_draft_save_succeeds_with_file_field_present(client, session):
 
     resp = client.put(
         FORM_URL.format(pid=pid),
-        json={'values': {'method_title': 'draft'}},
+        json={'values': submission_values('draft')},
         headers=ORIGIN,
     )
 
@@ -260,7 +261,7 @@ async def test_upload_rejected_after_submission(client, session):
     upload(client, pid)
     client.post(
         FORM_URL.format(pid=pid),
-        json={'values': {'method_title': 'M'}},
+        json={'values': submission_values('M')},
         headers=ORIGIN,
     )
 
@@ -280,7 +281,7 @@ async def test_replacing_attachment_after_revision_keeps_submitted_snapshot(
     first_id = first.json()['attachment']['artifact_id']
     submit = client.post(
         FORM_URL.format(pid=pid),
-        json={'values': {'method_title': 'Método enviado'}},
+        json={'values': submission_values('Método enviado')},
         headers=ORIGIN,
     )
     assert submit.status_code == HTTPStatus.OK

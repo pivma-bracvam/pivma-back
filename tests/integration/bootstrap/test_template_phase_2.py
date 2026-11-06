@@ -29,10 +29,10 @@ TEMPLATE_FILES = {
     'validated_method_dossier': '04_validated_method_dossier.yaml',
 }
 NEW_VERSIONS = {
-    'pre_validated_method': 5,
-    'scope_extension': 5,
-    'me_too_validation': 5,
-    'validated_method_dossier': 7,
+    'pre_validated_method': 6,
+    'scope_extension': 6,
+    'me_too_validation': 6,
+    'validated_method_dossier': 8,
 }
 PHASE_2 = 'phase_2_role_assignment'
 COMPARED_KEYS = (

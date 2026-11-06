@@ -24,12 +24,13 @@ from tests.factories.participant_factory import (
     ConflictInterestDeclarationFactory,
     grant_cargo,
 )
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
 
 FORM = '/processes/{pid}/activities/proposal_submission/form'
-VALUES = {'method_title': 'Ensaio RhCE para irritação'}
+VALUES = submission_values('Ensaio RhCE para irritação')
 
 
 def _form(pid):

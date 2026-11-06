@@ -23,6 +23,7 @@ from pivma.core.database.models import (
 )
 from pivma.core.security import create_access_token
 from pivma.core.settings import Settings
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 ORIGIN = {'Origin': 'https://testserver'}
@@ -99,13 +100,14 @@ async def submit_to_triage(client, session):
     process_id = created.json()['id']
     client.put(
         f'/processes/{process_id}/activities/proposal_submission/form',
-        json={'values': {'method_title': 'Rascunho'}},
+        json={'values': submission_values('Rascunho')},
         headers=ORIGIN,
     )
     client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json={
             'values': {
+                **submission_values(),
                 'method_title': 'Método',
                 'endpoint_target': 'phototoxicity',
                 'scientific_justification': 'Justificativa suficiente.',

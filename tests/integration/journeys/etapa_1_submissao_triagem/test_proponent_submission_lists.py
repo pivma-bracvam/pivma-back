@@ -11,6 +11,7 @@ from http import HTTPStatus
 import pytest
 
 from pivma.bootstrap_system import BRACVAM_PROFILE_ID
+from tests.factories.submission_factory import submission_values
 from tests.integration.journeys.conftest import (
     ADMIN_EMAIL,
     ADMIN_PASSWORD,
@@ -64,7 +65,7 @@ async def test_proponent_tracks_own_drafts_and_sent_submissions(
     draft = _new_process(client, 'Ainda em rascunho')
     sent = _new_process(client, 'Já enviada')
     submitted = client.post(
-        FORM.format(pid=sent), json={'values': {'method_title': 'Método'}}
+        FORM.format(pid=sent), json={'values': submission_values('Método')}
     )
     assert submitted.status_code == HTTPStatus.OK, submitted.text
 

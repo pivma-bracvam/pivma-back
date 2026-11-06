@@ -6,6 +6,7 @@ import pytest
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from tests.api.routers.test_rbac_router import authenticate
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
@@ -36,7 +37,7 @@ async def test_process_timeline_events_recorded_and_ordered(
     # 2. Save Draft
     client.put(
         f'/processes/{process_id}/activities/proposal_submission/form',
-        json={'values': {'method_title': 'Rascunho Timeline'}},
+        json={'values': submission_values('Rascunho Timeline')},
         headers=TRUSTED_ORIGIN,
     )
 
@@ -45,6 +46,7 @@ async def test_process_timeline_events_recorded_and_ordered(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json={
             'values': {
+                **submission_values(),
                 'method_title': 'Método Timeline',
                 'endpoint_target': 'phototoxicity',
                 'scientific_justification': 'Justificativa para timeline.',
@@ -116,7 +118,7 @@ async def test_timeline_hides_events_of_activities_without_view(
     ).json()['id']
     client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
-        json={'values': {'method_title': 'Método'}},
+        json={'values': submission_values('Método')},
         headers=TRUSTED_ORIGIN,
     )
     authenticate(client, bracvam_user)

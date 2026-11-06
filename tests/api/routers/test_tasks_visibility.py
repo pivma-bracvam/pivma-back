@@ -13,6 +13,7 @@ import pytest
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.participant_factory import grant_cargo
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
@@ -88,7 +89,7 @@ async def _submitted_process_with_sponsor(client, session):
 def _submit(client, process_id):
     resp = client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
-        json={'values': {'method_title': 'Título'}},
+        json={'values': submission_values('Título')},
         headers=TRUSTED_ORIGIN,
     )
     assert resp.status_code == HTTPStatus.OK, resp.text

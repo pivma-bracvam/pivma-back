@@ -20,6 +20,7 @@ from tests.ai_eval_helpers import (
     create_and_submit_process,
     publish_evaluation_and_assign,
 )
+from tests.factories.submission_factory import submission_values
 from tests.integration.journeys.conftest import (
     ADMIN_EMAIL,
     ADMIN_PASSWORD,
@@ -83,7 +84,7 @@ async def test_bracvam_builds_stage_one_board_in_one_call(
     log_in(client, 'triagem')
     pid = _new_process(client, 'Aguardando triagem')
     sent = client.post(
-        FORM.format(pid=pid), json={'values': {'method_title': 'Método'}}
+        FORM.format(pid=pid), json={'values': submission_values('Método')}
     )
     assert sent.status_code == HTTPStatus.OK, sent.text
     log_out(client)

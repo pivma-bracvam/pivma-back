@@ -6,6 +6,7 @@ import pytest
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from tests.api.routers.test_rbac_router import authenticate
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
@@ -33,8 +34,9 @@ async def test_triage_field_review_flow(client, session, bracvam_user):
 
     full_payload = {
         'values': {
+            **submission_values(),
             'method_title': 'Método para Triagem',
-            'terminology_notes': (
+            'method_description': (
                 'Conceito descrito com nomenclatura atual e detalhamento.'
             ),
         }
@@ -55,7 +57,7 @@ async def test_triage_field_review_flow(client, session, bracvam_user):
                 'comments': 'Título claro e objetivo.',
             },
             {
-                'field_key': 'terminology_notes',
+                'field_key': 'method_description',
                 'status': 'OBSERVACAO',
                 'comments': 'Necessário complementar referências.',
             },
@@ -75,4 +77,4 @@ async def test_triage_field_review_flow(client, session, bracvam_user):
     assert form_resp.status_code == HTTPStatus.OK
     reviews = form_resp.json()['reviews']
     assert reviews['method_title']['status'] == 'CONFORME'
-    assert reviews['terminology_notes']['status'] == 'OBSERVACAO'
+    assert reviews['method_description']['status'] == 'OBSERVACAO'

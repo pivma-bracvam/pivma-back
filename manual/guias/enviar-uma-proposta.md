@@ -56,7 +56,8 @@ curl -s -X PUT $FORM -H "Authorization: Bearer $TOKEN" \
   -d '{"values":{"method_title":"Ensaio 3T3 NRU de fototoxicidade"}}'
 ```
 
-O rascunho aceita valores incompletos. Valores com tipo errado respondem
+O rascunho aceita valores incompletos. Para enviar, preencha os
+[12 campos obrigatórios](../referencia/templates.md). Valores com tipo errado respondem
 `422 invalid_form_values`, com um item em `fields` por campo
 (`field: values.<chave>`).
 

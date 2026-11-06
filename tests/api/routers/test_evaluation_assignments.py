@@ -9,7 +9,7 @@ from tests.ai_eval_helpers import TRUSTED_ORIGIN
 from tests.api.routers.test_rbac_router import authenticate
 
 TEMPLATE_KEY = 'submission_validated_dossier_v1'
-AI_FIELD = 'terminology_notes'
+AI_FIELD = 'method_description'
 
 
 async def _published_definition(client) -> str:

@@ -22,6 +22,7 @@ from pivma.core.process_engine import (
     submit_activity_form,
 )
 from tests.conftest import _make_rbac_user
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 
@@ -64,7 +65,7 @@ async def test_triage_activity_has_no_form_instance(session):
         session=session,
         process_id=process.id,
         activity_key='proposal_submission',
-        values_dict={'method_title': 'Método Teste Desacoplado'},
+        values_dict=submission_values('Método Teste Desacoplado'),
         user_id=proponent.id,
     )
 

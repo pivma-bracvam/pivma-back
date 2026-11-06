@@ -44,6 +44,7 @@ from tests.factories.sample_factory import (
     substance_payload,
 )
 from tests.factories.sample_receipt_factory import attach_sds
+from tests.factories.submission_factory import submission_values
 
 ORIGIN = {'Origin': 'https://testserver'}
 TEMPLATE_KEY = 'pre_validated_method'
@@ -109,7 +110,7 @@ async def _approve_triage(session, process_id, proponent, bracvam) -> None:
         session,
         process_id,
         'proposal_submission',
-        {'method_title': 'Ensaio RhCE'},
+        submission_values('Ensaio RhCE'),
         proponent.id,
     )
     await execute_triage_decision(

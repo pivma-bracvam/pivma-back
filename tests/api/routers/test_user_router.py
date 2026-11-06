@@ -199,7 +199,9 @@ def concurrent_administrators(engine):
             )
             await session.execute(
                 delete(AccessProfilePermission).where(
-                    AccessProfilePermission.profile_id.in_(scenario.profile_ids)
+                    AccessProfilePermission.profile_id.in_(
+                        scenario.profile_ids
+                    )
                 )
             )
             await session.execute(
@@ -250,9 +252,7 @@ def concurrent_deactivation_responses(engine, concurrent_administrators):
             )
 
         with ThreadPoolExecutor(2) as executor:
-            return list(
-                executor.map(deactivate, scenario.administrator_ids)
-            )
+            return list(executor.map(deactivate, scenario.administrator_ids))
 
     app.dependency_overrides[get_session] = independent_session
     try:
@@ -478,9 +478,7 @@ async def test_deactivate_user_returns_204_without_body(
 ):
     authenticate(client, user_manager)
 
-    response = client.delete(
-        f'/users/{other_user.id}', headers=TRUSTED_ORIGIN
-    )
+    response = client.delete(f'/users/{other_user.id}', headers=TRUSTED_ORIGIN)
 
     assert response.status_code == HTTPStatus.NO_CONTENT
     assert response.content == b''
@@ -492,9 +490,7 @@ async def test_deactivate_user_sets_deleted_at(
 ):
     authenticate(client, user_manager)
 
-    response = client.delete(
-        f'/users/{other_user.id}', headers=TRUSTED_ORIGIN
-    )
+    response = client.delete(f'/users/{other_user.id}', headers=TRUSTED_ORIGIN)
 
     assert response.status_code == HTTPStatus.NO_CONTENT
     deleted_user = await read_user_including_inactive(session, other_user.id)
@@ -508,9 +504,7 @@ async def test_deactivate_user_sets_deleted_by_actor(
 ):
     authenticate(client, user_manager)
 
-    response = client.delete(
-        f'/users/{other_user.id}', headers=TRUSTED_ORIGIN
-    )
+    response = client.delete(f'/users/{other_user.id}', headers=TRUSTED_ORIGIN)
 
     assert response.status_code == HTTPStatus.NO_CONTENT
     deleted_user = await read_user_including_inactive(session, other_user.id)
@@ -522,9 +516,12 @@ def test_deactivated_user_is_absent_from_default_listing(
     client, user_manager, other_user
 ):
     authenticate(client, user_manager)
-    assert client.delete(
-        f'/users/{other_user.id}', headers=TRUSTED_ORIGIN
-    ).status_code == HTTPStatus.NO_CONTENT
+    assert (
+        client.delete(
+            f'/users/{other_user.id}', headers=TRUSTED_ORIGIN
+        ).status_code
+        == HTTPStatus.NO_CONTENT
+    )
 
     response = client.get('/users')
 
@@ -538,9 +535,12 @@ def test_deactivated_user_is_in_inactive_listing(
     client, user_manager, other_user
 ):
     authenticate(client, user_manager)
-    assert client.delete(
-        f'/users/{other_user.id}', headers=TRUSTED_ORIGIN
-    ).status_code == HTTPStatus.NO_CONTENT
+    assert (
+        client.delete(
+            f'/users/{other_user.id}', headers=TRUSTED_ORIGIN
+        ).status_code
+        == HTTPStatus.NO_CONTENT
+    )
 
     response = client.get('/users?active=false')
 
@@ -553,9 +553,7 @@ def test_deactivated_user_is_in_inactive_listing(
 async def test_deactivate_user_requires_authentication_without_mutation(
     client, session, other_user
 ):
-    response = client.delete(
-        f'/users/{other_user.id}', headers=TRUSTED_ORIGIN
-    )
+    response = client.delete(f'/users/{other_user.id}', headers=TRUSTED_ORIGIN)
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
     current_user = await read_user_including_inactive(session, other_user.id)
@@ -570,9 +568,7 @@ async def test_deactivate_user_requires_users_manage_without_mutation(
 ):
     authenticate(client, user)
 
-    response = client.delete(
-        f'/users/{other_user.id}', headers=TRUSTED_ORIGIN
-    )
+    response = client.delete(f'/users/{other_user.id}', headers=TRUSTED_ORIGIN)
 
     assert response.status_code == HTTPStatus.FORBIDDEN
     current_user = await read_user_including_inactive(session, other_user.id)
@@ -599,9 +595,7 @@ async def test_deactivate_user_requires_trusted_origin_without_mutation(
     assert current_user.deleted_by is None
 
 
-def test_deactivate_user_returns_404_for_unknown_uuid(
-    client, user_manager
-):
+def test_deactivate_user_returns_404_for_unknown_uuid(client, user_manager):
     authenticate(client, user_manager)
 
     response = client.delete(f'/users/{uuid4()}', headers=TRUSTED_ORIGIN)
@@ -635,9 +629,7 @@ def test_deactivate_user_openapi_matches_contract(client):
 
     assert operation['operationId'] == 'deactivateUser'
     assert operation['x-required-permission'] == USERS_MANAGE
-    assert {'204', '401', '403', '404', '409'} <= set(
-        operation['responses']
-    )
+    assert {'204', '401', '403', '404', '409'} <= set(operation['responses'])
 
 
 @pytest.mark.asyncio
@@ -694,9 +686,7 @@ async def test_deactivate_one_of_two_administrators_preserves_the_other(
     await session.commit()
     authenticate(client, user_manager)
 
-    response = client.delete(
-        f'/users/{other_user.id}', headers=TRUSTED_ORIGIN
-    )
+    response = client.delete(f'/users/{other_user.id}', headers=TRUSTED_ORIGIN)
 
     assert response.status_code == HTTPStatus.NO_CONTENT
     remaining_admin = await read_user_including_inactive(
@@ -763,9 +753,7 @@ async def test_old_token_is_rejected_after_user_deactivation(
         other_user.id, Settings().JWT_SECRET_KEY
     )
     authenticate(client, user_manager)
-    response = client.delete(
-        f'/users/{other_user.id}', headers=TRUSTED_ORIGIN
-    )
+    response = client.delete(f'/users/{other_user.id}', headers=TRUSTED_ORIGIN)
     assert response.status_code == HTTPStatus.NO_CONTENT
 
     client.cookies.set('access_token', previous_token)
@@ -778,9 +766,7 @@ def test_login_is_rejected_after_user_deactivation(
     client, user_manager, other_user
 ):
     authenticate(client, user_manager)
-    response = client.delete(
-        f'/users/{other_user.id}', headers=TRUSTED_ORIGIN
-    )
+    response = client.delete(f'/users/{other_user.id}', headers=TRUSTED_ORIGIN)
     assert response.status_code == HTTPStatus.NO_CONTENT
 
     login_response = client.post(

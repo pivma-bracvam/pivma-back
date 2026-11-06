@@ -149,10 +149,10 @@ async def test_yaml_com_versao_maior_prevalece_sobre_a_edicao(
         name='Formulário editado',
     )
     edited = await _form(session, SUBMISSION)
-    assert edited.version == 2  # noqa: PLR2004
+    assert edited.version == 3  # noqa: PLR2004
 
     def bump_version(form):
-        form['version'] = 3
+        form['version'] = 4
 
     _yaml_changing_form(monkeypatch, SUBMISSION, bump_version)
     await bootstrap_all_templates(session)
@@ -160,15 +160,18 @@ async def test_yaml_com_versao_maior_prevalece_sobre_a_edicao(
     form = await _form(session, SUBMISSION)
     assert (form.name, form.version) == (
         'Formulário de Submissão - Método Novo',
-        3,
+        4,
     )
     fields = await _active_fields(session, SUBMISSION)
-    assert set(fields) == {'method_title'}
-    assert fields['method_title'].label == 'Título do método'
+    assert 'extra_notes' not in fields
+    assert (
+        fields['method_title'].label
+        == 'Nome oficial do método e sigla (caso tenha)'
+    )
     payload = await _payload_form(session, SUBMISSION)
-    assert [field['field_key'] for field in payload['fields']] == [
-        'method_title'
-    ]
+    assert 'extra_notes' not in {
+        field['field_key'] for field in payload['fields']
+    }
 
 
 @pytest.mark.asyncio
@@ -198,7 +201,7 @@ async def test_yaml_que_prevalece_desativa_avaliacao_do_campo_removido(
     await session.commit()
 
     def bump_version(form):
-        form['version'] = 3
+        form['version'] = 4
 
     _yaml_changing_form(monkeypatch, SUBMISSION, bump_version)
     await bootstrap_all_templates(session)

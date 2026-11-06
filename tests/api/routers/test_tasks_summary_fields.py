@@ -12,6 +12,7 @@ import pytest
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from tests.api.routers.test_rbac_router import authenticate
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 ORIGIN = {'Origin': 'https://testserver'}
@@ -67,7 +68,7 @@ async def test_task_summary_distinguishes_current_run_after_revision(
     )
     client.post(
         FORM.format(pid=pid),
-        json={'values': {'method_title': 'V1'}},
+        json={'values': submission_values('V1')},
         headers=ORIGIN,
     )
     authenticate(client, bracvam_user)
@@ -108,7 +109,13 @@ async def test_task_summary_separates_phases_for_bracvam(
     )
     client.post(
         FORM.format(pid=pid),
-        json={'values': {'method_title': 'Método', 'terminology_notes': 'x'}},
+        json={
+            'values': {
+                **submission_values(),
+                'method_title': 'Método',
+                'method_description': 'x',
+            }
+        },
         headers=ORIGIN,
     )
     authenticate(client, bracvam_user)

@@ -14,6 +14,7 @@ from sqlalchemy import select
 
 from pivma.bootstrap_system import BRACVAM_PROFILE_ID
 from pivma.core.database.models import AuditEvent
+from tests.factories.submission_factory import submission_values
 from tests.integration.journeys.conftest import (
     ADMIN_EMAIL,
     ADMIN_PASSWORD,
@@ -55,7 +56,7 @@ async def test_new_user_reaches_approved_triage_on_pre_validated_method(
     # 3. Envia a submissão; sem IA configurada, segue direto para a triagem.
     response = client.post(
         f'/processes/{process_id}/activities/proposal_submission/form',
-        json={'values': {'method_title': 'Ensaio RhCE para irritação'}},
+        json={'values': submission_values('Ensaio RhCE para irritação')},
     )
     assert response.status_code == HTTPStatus.OK, response.text
     assert response.json()['status'] == 'COMPLETED'

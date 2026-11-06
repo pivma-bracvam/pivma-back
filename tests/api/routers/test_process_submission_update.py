@@ -2,11 +2,15 @@
 """API tests for the process submission update and history contract."""
 
 from http import HTTPStatus
+from importlib.resources import files
 
 import pytest
 from sqlalchemy import select
 
-from pivma.bootstrap_process_templates import bootstrap_all_templates
+from pivma.bootstrap_process_templates import (
+    bootstrap_all_templates,
+    load_yaml_template,
+)
 from pivma.core.database.models import (
     AuditEvent,
     FormField,
@@ -14,11 +18,21 @@ from pivma.core.database.models import (
     ProcessInstance,
 )
 from tests.api.routers.test_rbac_router import authenticate
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
 
 SUBMISSION_URL = '/processes/{pid}/activities/proposal_submission/form'
+_FORM = load_yaml_template(
+    files('pivma') / 'templates_data' / '01_pre_validated_method.yaml'
+)['forms'][0]
+# O PUT completo exige as chaves dos campos opcionais do formulário oficial.
+OPTIONAL_FORM_VALUES = dict.fromkeys(
+    field['field_key']
+    for field in _FORM['fields']
+    if not field['is_required'] and field['field_type'] != 'file_upload'
+)
 
 
 async def _draft_context(client, session, *, owner=None, with_file=True):
@@ -114,6 +128,8 @@ async def _draft_context(client, session, *, owner=None, with_file=True):
 
 def _complete_values(*, optional_note='nota inicial'):
     return {
+        **OPTIONAL_FORM_VALUES,
+        **submission_values(),
         'method_title': 'Método atualizado',
         'summary': 'Resumo atualizado da proposta',
         'choice': 'a',
@@ -442,7 +458,7 @@ async def test_update_after_formal_submission_returns_conflict(
     _, process_id = await _draft_context(client, session)
     client.post(
         _url(process_id),
-        json={'values': {'method_title': 'Método enviado'}},
+        json={'values': submission_values('Método enviado')},
         headers=TRUSTED_ORIGIN,
     )
 
@@ -460,7 +476,7 @@ async def test_patch_after_formal_submission_returns_conflict(client, session):
     _, process_id = await _draft_context(client, session)
     client.post(
         _url(process_id),
-        json={'values': {'method_title': 'Método enviado'}},
+        json={'values': submission_values('Método enviado')},
         headers=TRUSTED_ORIGIN,
     )
 
@@ -596,7 +612,7 @@ async def test_history_is_frozen_and_latest_form_is_current(
     client, session, bracvam_user
 ):
     owner, process_id = await _draft_context(client, session)
-    first_values = {'method_title': 'Método versão 1'}
+    first_values = submission_values('Método versão 1')
     client.post(
         _url(process_id), json={'values': first_values}, headers=TRUSTED_ORIGIN
     )
@@ -619,7 +635,7 @@ async def test_history_is_frozen_and_latest_form_is_current(
         json={'choice': 'REVISE'},
         headers={'Origin': 'https://testserver'},
     )
-    second_values = {'method_title': 'Método versão 2'}
+    second_values = submission_values('Método versão 2')
     client.patch(
         f'/processes/{process_id}',
         json={'title': 'Título versão 2'},
@@ -655,7 +671,7 @@ async def test_history_is_frozen_and_latest_form_is_current(
     )
     client.post(
         _url(process_id),
-        json={'values': {'method_title': 'Método versão 3'}},
+        json={'values': submission_values('Método versão 3')},
         headers=TRUSTED_ORIGIN,
     )
 
@@ -686,7 +702,7 @@ async def test_history_is_hidden_from_outsider_and_not_editable(
     owner, process_id = await _draft_context(client, session)
     client.post(
         _url(process_id),
-        json={'values': {'method_title': 'Enviado'}},
+        json={'values': submission_values('Enviado')},
         headers=TRUSTED_ORIGIN,
     )
     authenticate(client, bracvam_user)

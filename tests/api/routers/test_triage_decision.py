@@ -16,6 +16,7 @@ from pivma.core.database.models import (
 )
 from tests.activity_state import back_with_proponent, in_triage
 from tests.api.routers.test_rbac_router import authenticate
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
@@ -47,6 +48,7 @@ async def test_triage_decision_needs_revision_and_resubmission(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json={
             'values': {
+                **submission_values(),
                 'method_title': 'Título V1',
                 'endpoint_target': 'corrosivity',
                 'scientific_justification': 'Justificativa inicial.',
@@ -117,6 +119,7 @@ async def test_triage_decision_needs_revision_and_resubmission(
         f'/processes/{process_id}/activities/proposal_submission/form',
         json={
             'values': {
+                **submission_values(),
                 'method_title': 'Título V2 Corrigido',
                 'endpoint_target': 'corrosivity',
                 'scientific_justification': 'Justificativa atualizada.',

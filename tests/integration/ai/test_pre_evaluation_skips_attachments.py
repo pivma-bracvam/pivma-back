@@ -133,7 +133,7 @@ async def test_text_field_still_evaluated_when_attachment_in_same_assignment(
     authenticate(client, ai_eval_admin)
     definition_id = publish_evaluation_and_assign(client, severity='low')
     _assign_fields(
-        client, definition_id, ['terminology_notes', 'pop_document']
+        client, definition_id, ['method_description', 'pop_document']
     )
 
     proponent = UserFactory()
@@ -159,4 +159,4 @@ async def test_text_field_still_evaluated_when_attachment_in_same_assignment(
         for entry in run.evaluated_content_snapshot
     }
     assert statuses['pop_document'] == 'not_evaluated'
-    assert 'terminology_notes' in statuses
+    assert 'method_description' in statuses

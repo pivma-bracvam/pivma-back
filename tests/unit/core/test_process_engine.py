@@ -25,6 +25,7 @@ from pivma.core.process_engine import (
 )
 from pivma.core.return_review_service import decide_return_review
 from tests.conftest import _make_rbac_user
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 
@@ -69,7 +70,7 @@ async def test_full_process_engine_flow_approved(session):
     assert act_map['triage_evaluation'].status == 'BLOCKED'
 
     # 3. Save Draft
-    draft_vals = {'method_title': 'Método 3T3 NRU'}
+    draft_vals = submission_values('Método 3T3 NRU')
     form_inst = await save_form_values_draft(
         session, process.id, 'proposal_submission', draft_vals, user.id
     )
@@ -82,7 +83,7 @@ async def test_full_process_engine_flow_approved(session):
         )
 
     # 5. Submit valid form
-    full_vals = {'method_title': 'Método 3T3 NRU Completo'}
+    full_vals = submission_values('Método 3T3 NRU Completo')
     sub_act, sub_run, artifact, pre_eval_run = await submit_activity_form(
         session, process.id, 'proposal_submission', full_vals, user.id
     )
@@ -159,6 +160,7 @@ async def test_process_engine_flow_diligence_reexecution(session):
 
     # Submit Run 1
     vals_1 = {
+        **submission_values(),
         'method_title': 'Título Inicial',
         'endpoint_target': 'skin_sensitization',
         'scientific_justification': 'Justificativa preliminar',
@@ -224,6 +226,7 @@ async def test_process_engine_flow_rejected(session):
     )
 
     vals = {
+        **submission_values(),
         'method_title': 'Método Inviável',
         'endpoint_target': 'phototoxicity',
         'scientific_justification': 'Sem fundamentação científica.',

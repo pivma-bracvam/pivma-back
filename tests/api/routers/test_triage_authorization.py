@@ -20,10 +20,12 @@ from tests.factories.participant_factory import (
     AssignmentFactory,
     ConflictInterestDeclarationFactory,
 )
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 ORIGIN = {'Origin': 'https://testserver'}
 SUBMISSION = {
+    **submission_values(),
     'method_title': 'Título',
     'endpoint_target': 'corrosivity',
     'scientific_justification': 'Justificativa.',

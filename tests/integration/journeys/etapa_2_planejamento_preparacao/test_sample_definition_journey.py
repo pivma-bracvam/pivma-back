@@ -19,6 +19,7 @@ from tests.factories.sample_factory import (
     new_laboratory,
     substance_payload,
 )
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 ORIGIN = {'Origin': 'https://testserver'}
@@ -86,7 +87,7 @@ async def test_blind_sample_journey_four_substances_three_labs(  # noqa: PLR0914
     _ok(
         client.post(
             f'/processes/{process_id}/activities/proposal_submission/form',
-            json={'values': {'method_title': 'Ensaio RhCE'}},
+            json={'values': submission_values('Ensaio RhCE')},
             headers=ORIGIN,
         )
     )

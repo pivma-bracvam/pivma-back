@@ -22,6 +22,7 @@ from pivma.dependencies import get_model_provider
 from tests.api.routers.test_rbac_router import authenticate
 from tests.conftest import _make_rbac_user
 from tests.factories.invite_factory import InviteFactory
+from tests.factories.submission_factory import submission_values
 from tests.factories.task_listing_factory import listing_process
 from tests.factories.user_factory import UserFactory
 
@@ -421,7 +422,13 @@ async def test_form_values_errors_use_fields(client, session):
     # O rascunho recusa campos que o formulário não tem.
     response = client.put(
         f'/processes/{pid}/activities/proposal_submission/form',
-        json={'values': {'method_title': 'Método', 'campo_inexistente': 'x'}},
+        json={
+            'values': {
+                **submission_values(),
+                'method_title': 'Método',
+                'campo_inexistente': 'x',
+            }
+        },
         headers=ORIGIN,
     )
 

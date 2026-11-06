@@ -10,14 +10,38 @@ cada YAML, nesta ordem:
 
 | Ordem | `key` | Nome | Versão | Formulário de submissão |
 |---|---|---|---|---|
-| 1 | `pre_validated_method` | Método Novo | 5 | `submission_pre_validated_v1` (1 campo) |
-| 2 | `validated_method_dossier` | Método Novo – Dossiê Completo | 7 | `submission_validated_dossier_v1` (2 campos) |
-| 3 | `scope_extension` | Extensão do Domínio de Aplicação | 5 | `submission_scope_extension_v1` (1 campo) |
-| 4 | `me_too_validation` | Método Similar | 5 | `submission_me_too_v1` (1 campo) |
+| 1 | `pre_validated_method` | Método Novo | 6 | `submission_pre_validated_v1` (56 campos) |
+| 2 | `validated_method_dossier` | Método Novo – Dossiê Completo | 8 | `submission_validated_dossier_v1` (64 campos) |
+| 3 | `scope_extension` | Extensão do Domínio de Aplicação | 6 | `submission_scope_extension_v1` (56 campos) |
+| 4 | `me_too_validation` | Método Similar | 6 | `submission_me_too_v1` (56 campos) |
 
 Cada formulário de submissão se chama "Formulário de Submissão - <nome do
 tipo>". Um template sem `display_order`, criado direto no banco, aparece
 depois dos quatro.
+
+Os formulários reproduzem o formulário de submissão do BraCVAM: 48 perguntas
+em 12 seções e 8 anexos na seção 13. O Dossiê Completo acrescenta a seção 14,
+com 8 anexos baseados no OECD GD 34. Cada anexo aceita um arquivo. Só o campo
+`method_description` do Dossiê aceita avaliação de IA de início; os demais
+precisam ser habilitados no editor.
+
+Os 12 campos abaixo são obrigatórios no envio. Os demais, incluindo os anexos,
+são opcionais.
+
+| Pergunta | `field_key` | Tipo |
+|---|---|---|
+| 1 | `institution_name` | `text` |
+| 2 | `institution_nature` | `text` |
+| 3 | `proposal_owner` | `text` |
+| 4 | `owner_position` | `text` |
+| 5 | `contact_email` | `text` |
+| 6 | `contact_phone` | `text` |
+| 7 | `country` | `text` |
+| 10 | `method_title` | `text` |
+| 11 | `method_kind` | `select`: `new_method`, `adapted_endpoint`, `validated_method` |
+| 12 | `application_area` | `text` |
+| 13 | `method_description` | `textarea` |
+| 47 | `submission_objective` | `textarea` |
 
 Os quatro têm as mesmas fases e atividades. Muda o formulário de submissão;
 todos trazem também o formulário `statistical_plan_v1`, do plano

@@ -1,18 +1,20 @@
 """Helpers compartilhados dos testes de avaliação por IA (Spec 013)."""
 
+from tests.factories.submission_factory import submission_values
+
 TRUSTED_ORIGIN = {'Origin': 'https://testserver'}
 AI_EVAL_CODES = ('ai_evaluations.read', 'ai_evaluations.manage')
 
 SUBMISSION_TEMPLATE = 'submission_validated_dossier_v1'
-AI_FIELD = 'terminology_notes'
-FULL_VALUES = {
-    'method_title': 'Método 3T3 NRU',
-    'terminology_notes': (
+AI_FIELD = 'method_description'
+FULL_VALUES = submission_values(
+    'Método 3T3 NRU',
+    method_description=(
         'O conceito central usa metodologia detalhada de captação de '
         'vermelho neutro (NRU) como marcador de viabilidade celular, com '
         'terminologia alinhada às diretrizes da OCDE.'
     ),
-}
+)
 
 
 # Com o provedor fake: se o enunciado tiver palavra-chave presente no

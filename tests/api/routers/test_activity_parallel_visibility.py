@@ -19,6 +19,7 @@ from pivma.core.database.models import ActivityInstance, Phase
 from pivma.core.process_engine import instantiate_process
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.participant_factory import grant_cargo
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 ORIGIN = {'Origin': 'https://testserver'}
@@ -93,7 +94,7 @@ async def test_phase1_completed_after_triage_approval(
     ).json()['id']
     client.post(
         f'/processes/{pid}/activities/proposal_submission/form',
-        json={'values': {'method_title': 'Método'}},
+        json={'values': submission_values('Método')},
         headers=ORIGIN,
     )
     authenticate(client, bracvam_user)

@@ -59,7 +59,7 @@ async def test_edicao_do_formulario_sobrevive_ao_deploy_e_chega_ao_proponente(
     log_in(client, ADMIN_EMAIL, ADMIN_PASSWORD)
     response = client.put(FORM_URL, json={'fields': EDITED_FIELDS})
     assert response.status_code == HTTPStatus.OK, response.text
-    assert response.json()['version'] == 2  # noqa: PLR2004
+    assert response.json()['version'] == 3  # noqa: PLR2004
 
     # 2. Um novo deploy roda o bootstrap dos templates, como faz o
     # entrypoint da API a cada início.
@@ -69,7 +69,7 @@ async def test_edicao_do_formulario_sobrevive_ao_deploy_e_chega_ao_proponente(
     response = client.get(FORM_URL)
     assert response.status_code == HTTPStatus.OK, response.text
     form = response.json()
-    assert form['version'] == 2  # noqa: PLR2004
+    assert form['version'] == 3  # noqa: PLR2004
     assert _labels(form['fields']) == _labels(EDITED_FIELDS)
     log_out(client)
 

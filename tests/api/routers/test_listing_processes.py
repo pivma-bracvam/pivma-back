@@ -10,6 +10,7 @@ from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.core.database.models import Assignment
 from pivma.core.process_engine import utc_now
 from tests.api.routers.test_rbac_router import authenticate
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 ENVELOPE_KEYS = {'data', 'pagination', 'filters_applied', 'sort'}
@@ -46,7 +47,7 @@ def _return_for_revision(client, pid, proponent, bracvam_user, value):
     authenticate(client, proponent)
     client.post(
         FORM.format(pid=pid),
-        json={'values': {'method_title': value}},
+        json={'values': submission_values(value)},
         headers=ORIGIN,
     )
     authenticate(client, bracvam_user)
@@ -117,7 +118,7 @@ async def test_processes_status_filter_echoed(client, session):
 def _submit(client, pid):
     response = client.post(
         FORM.format(pid=pid),
-        json={'values': {'method_title': 'Método'}},
+        json={'values': submission_values('Método')},
         headers=ORIGIN,
     )
     assert response.status_code == HTTPStatus.OK, response.text
@@ -299,7 +300,7 @@ async def test_timeline_total_counts_only_visible_events(
     pid = _new_process(client)
     client.post(
         FORM.format(pid=pid),
-        json={'values': {'method_title': 'V1'}},
+        json={'values': submission_values('V1')},
         headers=ORIGIN,
     )
     authenticate(client, bracvam_user)
@@ -328,7 +329,7 @@ async def test_timeline_second_page_keeps_order(client, session):
     # O envio gera mais eventos além da criação e da designação.
     client.post(
         FORM.format(pid=pid),
-        json={'values': {'method_title': 'V1'}},
+        json={'values': submission_values('V1')},
         headers=ORIGIN,
     )
     full = _get(client, f'/processes/{pid}/timeline', per_page=100)['data']

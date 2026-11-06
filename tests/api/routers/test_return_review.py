@@ -25,11 +25,12 @@ from tests.ai_eval_helpers import (
 )
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.participant_factory import grant_cargo
+from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
 ORIGIN = {'Origin': 'https://testserver'}
 KEY = 'submission_return_review'
-VALUES = {'method_title': 'Ensaio RhCE para irritação'}
+VALUES = submission_values('Ensaio RhCE para irritação')
 
 
 def _review_url(pid):
