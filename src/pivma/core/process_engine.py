@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import any_, exists, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 from sqlalchemy.sql import ColumnElement
 
 from pivma.core.authorization import (
@@ -50,6 +50,14 @@ from pivma.core.database.models import (
     ProcessTemplateVersion,
     RoleAssignmentInvite,
     Task,
+    User,
+)
+from pivma.core.settings import Settings
+from pivma.notifications.channels import email_channel_available
+from pivma.notifications.renderers import SUBMISSION_RETURNED_EMAIL
+from pivma.notifications.service import (
+    cancel_pending_notifications,
+    enqueue_notification,
 )
 
 
@@ -133,6 +141,7 @@ RETURN_REVIEW_KEY = 'submission_return_review'
 RETURN_REVIEW_ACTIVITY_TYPE = 'return_review'
 RETURN_SOURCE_AI = 'AI_PRE_EVALUATION'
 RETURN_SOURCE_TRIAGE = 'TRIAGE'
+RETURN_EMAIL_CANCEL_REASON = 'return_review_cancelled'
 
 # Atividades abertas só por evento, nunca pelo motor de dependências, com o
 # motivo do bloqueio inicial: a revisão do retorno (Spec 030, R9) e a
@@ -352,6 +361,7 @@ async def delete_process(
         )
     previous_status = process.status
     counts = await _cancel_pending_children(session, process, user_id)
+    await _cancel_return_emails(session, process.id, user_id)
     process.status = STATUS_CANCELLED
     process.closed_at = utc_now()
     process.set_update_audit(user_id)
@@ -404,6 +414,30 @@ async def archive_process(
         )
     )
     return await _commit_lifecycle_change(session, process, user_id)
+
+
+async def _cancel_return_emails(
+    session: AsyncSession, process_id: UUID, user_id: UUID
+) -> None:
+    """Cancela os avisos pendentes de todos os retornos do processo."""
+    run_ids = await session.scalars(
+        select(ActivityRun.id)
+        .join(
+            ActivityInstance,
+            ActivityInstance.id == ActivityRun.activity_instance_id,
+        )
+        .where(
+            ActivityInstance.process_instance_id == process_id,
+            ActivityInstance.key == RETURN_REVIEW_KEY,
+        )
+    )
+    for run_id in run_ids.all():
+        await cancel_pending_notifications(
+            session,
+            subject=(RETURN_REVIEW_KEY, run_id),
+            reason=RETURN_EMAIL_CANCEL_REASON,
+            actor_id=user_id,
+        )
 
 
 async def _cancel_pending_children(
@@ -1603,7 +1637,62 @@ async def get_returned_submission_version(
     )
     if not rows:
         raise NotFoundError('Versão de submissão não encontrada.')
-    return rows[0]
+    return {
+        **rows[0],
+        'reviews': await submission_run_reviews(
+            session, process_id, run_number
+        ),
+    }
+
+
+async def submission_run_reviews(
+    session: AsyncSession, process_id: UUID, run_number: int
+) -> dict[str, dict[str, Any]]:
+    """Pareceres por campo de uma execução da submissão, por `field_key`.
+
+    Só entram pareceres de triagem concluída: o rascunho do triador não é
+    consulta histórica (Spec 046). Sem filtro de exclusão em `FormField`: o
+    parecer sobrevive ao campo que saiu da definição do formulário. Por isso
+    a consulta dispensa o filtro global. A ordem deixa o parecer mais recente
+    valer.
+    """
+    triage_run = aliased(ActivityRun)
+    rows = await session.execute(
+        select(
+            FormField.field_key,
+            FieldReview.status,
+            FieldReview.comments,
+            FieldReview.reviewed_at,
+        )
+        .join(FormField, FormField.id == FieldReview.form_field_id)
+        .join(triage_run, triage_run.id == FieldReview.activity_run_id)
+        .join(FormInstance, FormInstance.id == FieldReview.form_instance_id)
+        .join(ActivityRun, ActivityRun.id == FormInstance.activity_run_id)
+        .join(
+            ActivityInstance,
+            ActivityInstance.id == ActivityRun.activity_instance_id,
+        )
+        .where(
+            ActivityInstance.process_instance_id == process_id,
+            ActivityInstance.key == 'proposal_submission',
+            ActivityRun.run_number == run_number,
+            triage_run.status == 'COMPLETED',
+            FieldReview.deleted_at.is_(None),
+            FormInstance.deleted_at.is_(None),
+            ActivityRun.deleted_at.is_(None),
+            ActivityInstance.deleted_at.is_(None),
+        )
+        .order_by(FieldReview.reviewed_at)
+        .execution_options(skip_soft_delete_filter=True)
+    )
+    return {
+        row.field_key: {
+            'status': row.status,
+            'comments': row.comments,
+            'reviewed_at': row.reviewed_at,
+        }
+        for row in rows
+    }
 
 
 async def _load_submission_version_rows(
@@ -3490,6 +3579,55 @@ async def _latest_submission_run_number(
     )
 
 
+async def _active_proponent_emails(
+    session: AsyncSession, process_id: UUID
+) -> list[str]:
+    return list(
+        await session.scalars(
+            select(User.email)
+            .join(Assignment, Assignment.user_id == User.id)
+            .where(
+                Assignment.process_instance_id == process_id,
+                Assignment.role_key == PROPONENT_ROLE_KEY,
+                Assignment.revoked_at.is_(None),
+                Assignment.deleted_at.is_(None),
+                User.deleted_at.is_(None),
+            )
+            .distinct()
+            .order_by(User.email)
+        )
+    )
+
+
+async def _enqueue_return_emails(
+    session: AsyncSession, run: ActivityRun, task: Task, process_id: UUID
+) -> None:
+    """Pede o aviso de devolução na transação do retorno (Spec 046)."""
+    settings = Settings()
+    # O e-mail não pode travar a devolução (FR-012).
+    if not email_channel_available(settings):
+        return
+    process = await session.get(ProcessInstance, process_id)
+    payload = {
+        'process_code': process.code,
+        'process_title': process.title,
+        'source': run.execution_reason,
+        'due_date': task.due_date.isoformat() if task.due_date else None,
+    }
+    for email in await _active_proponent_emails(session, process_id):
+        await enqueue_notification(
+            session,
+            settings,
+            kind=SUBMISSION_RETURNED_EMAIL,
+            channel='email',
+            recipient=email,
+            payload=payload,
+            actor_id=run.created_by,
+            subject=(RETURN_REVIEW_KEY, run.id),
+            process_instance_id=process_id,
+        )
+
+
 async def open_return_review(
     session: AsyncSession,
     process_id: UUID,
@@ -3556,42 +3694,74 @@ async def open_return_review(
             context_data={'source': source, 'run_number': run.run_number},
         )
     )
+    await _enqueue_return_emails(session, run, task, process_id)
     return run.run_number
 
 
 async def cancel_open_return_review(
     session: AsyncSession, process_id: UUID, user_id: UUID
-) -> None:
-    """Cancela a revisão do retorno em aberto (Spec 030, R9).
+) -> bool:
+    """Cancela o retorno da IA ainda não decidido (Spec 030, R9; Spec 046, R5).
 
     Usada pelo reprocessamento da IA: o retorno que o proponente ainda não
-    decidiu deixa de valer, porque uma nova pré-avaliação vai rodar.
+    decidiu deixa de valer, porque uma nova pré-avaliação vai rodar. Trava as
+    execuções como a escolha do proponente, e o retorno da triagem fica de
+    fora, porque é decisão humana. Devolve se cancelou algum retorno.
     """
     act = await session.scalar(
-        select(ActivityInstance)
-        .where(
+        select(ActivityInstance).where(
             ActivityInstance.process_instance_id == process_id,
             ActivityInstance.key == RETURN_REVIEW_KEY,
             ActivityInstance.deleted_at.is_(None),
         )
-        .options(
-            selectinload(ActivityInstance.runs).selectinload(ActivityRun.tasks)
-        )
     )
-    if act is None or act.status != 'IN_PROGRESS':
-        return
-    for run in act.runs:
-        if run.status != 'IN_PROGRESS':
-            continue
+    if act is None:
+        return False
+    runs = (
+        await session.scalars(
+            select(ActivityRun)
+            .where(
+                ActivityRun.activity_instance_id == act.id,
+                ActivityRun.status == 'IN_PROGRESS',
+                ActivityRun.execution_reason == RETURN_SOURCE_AI,
+                ActivityRun.deleted_at.is_(None),
+            )
+            .options(selectinload(ActivityRun.tasks))
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).all()
+    if not runs:
+        return False
+    for run in runs:
         run.status = STATUS_CANCELLED
         run.set_update_audit(user_id)
         for task in run.tasks:
             if task.status not in {'COMPLETED', STATUS_CANCELLED}:
                 task.status = STATUS_CANCELLED
                 task.set_update_audit(user_id)
+        await cancel_pending_notifications(
+            session,
+            subject=(RETURN_REVIEW_KEY, run.id),
+            reason=RETURN_EMAIL_CANCEL_REASON,
+            actor_id=user_id,
+        )
+        session.add(
+            AuditEvent(
+                process_instance_id=process_id,
+                activity_run_id=run.id,
+                user_id=user_id,
+                event_type='RETURN_REVIEW_CANCELLED',
+                context_data={
+                    'source': run.execution_reason,
+                    'run_number': run.run_number,
+                },
+            )
+        )
     act.status = 'BLOCKED'
     act.blocked_reason = 'Sem retorno pendente.'
     act.set_update_audit(user_id)
+    return True
 
 
 async def _handle_needs_revision(

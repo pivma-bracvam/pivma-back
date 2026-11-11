@@ -845,6 +845,7 @@ class FormInstanceResponse(BaseModel):
     fields: list[FormFieldDefinition]
     values: dict[str, Any]
     reviews: dict[str, FieldReviewSummary]
+    previous_reviews: dict[str, FieldReviewSummary]
 
 
 class SaveFormValuesRequest(BaseModel):
@@ -912,6 +913,7 @@ class SubmissionVersionSummary(BaseModel):
 class SubmissionVersionResponse(SubmissionVersionSummary):
     values: dict[str, Any]
     attachments: list[dict[str, Any]]
+    reviews: dict[str, FieldReviewSummary]
 
 
 class FieldReviewItem(BaseModel):

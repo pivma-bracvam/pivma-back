@@ -166,10 +166,6 @@ async def decide_return_review(
     act = await _review_activity(session, process_id, user_id, 'edit')
     process = await ensure_process_mutable(session, process_id)
 
-    # TODO(spec-030): teste de concorrência adiado — provar que duas escolhas
-    # simultâneas na mesma execução da revisão do retorno têm um único
-    # vencedor e a outra recebe ConflictError (FR-040), com duas sessões
-    # reais.
     run = await _open_run(session, act, lock=True)
     if run is None:
         raise ConflictError('Nenhum retorno pendente para decidir.')

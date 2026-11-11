@@ -860,13 +860,20 @@ async def get_process_timeline(
         page,
         per_page,
     )
+    # O proponente não vê quem devolveu a submissão (Spec 046, FR-006).
+    shows_evaluator = await has_process_review_access(session, current_user.id)
 
     return TimelineListResponse(
         data=[
             TimelineEvent(
                 id=e.id,
                 event_type=e.event_type,
-                user_id=e.user_id,
+                user_id=(
+                    e.user_id
+                    if shows_evaluator
+                    or e.event_type != 'RETURN_REVIEW_OPENED'
+                    else None
+                ),
                 activity_run_id=e.activity_run_id,
                 occurred_at=e.occurred_at,
                 context_data=e.context_data,

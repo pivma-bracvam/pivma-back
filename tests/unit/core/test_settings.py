@@ -2,6 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from pivma.core.settings import Settings
+from pivma.notifications.channels import email_channel_available
 
 
 def test_settings_accepts_required_authentication_configuration(monkeypatch):
@@ -146,3 +147,23 @@ def test_settings_accepts_missing_password_reset_url_template(monkeypatch):
     settings = Settings(_env_file=None)
 
     assert settings.PASSWORD_RESET_URL_TEMPLATE is None
+
+
+def test_malformed_notification_key_is_rejected():
+    with pytest.raises(
+        ValidationError, match='NOTIFICATION_ENCRYPTION_KEY'
+    ) as error:
+        Settings(NOTIFICATION_ENCRYPTION_KEY='chave-sem-formato-fernet')
+
+    assert 'chave-sem-formato-fernet' not in str(error.value)
+
+
+@pytest.mark.parametrize('key', [None, ''])
+def test_absent_notification_key_leaves_channel_unavailable(key):
+    settings = Settings(
+        NOTIFICATION_EMAIL_BACKEND='fake',
+        NOTIFICATION_FROM_ADDRESS='nao-responda@pivma.test',
+        NOTIFICATION_ENCRYPTION_KEY=key,
+    )
+
+    assert email_channel_available(settings) is False

@@ -104,12 +104,12 @@ async def retry_pre_evaluation(
     origin: TrustedOrigin,
     background_tasks: BackgroundTasks,
 ):
-    del actor, origin
+    del origin
     run = await session.get(EvaluationRun, run_id)
     if run is None:
         raise http_error(HTTPStatus.NOT_FOUND, 'Execução não encontrada.')
     try:
-        new_run = await svc.retry_run(session, run_id, run.created_by)
+        new_run = await svc.retry_run(session, run_id, actor.id)
     except (ConflictError, AuthorizationError) as e:
         raise domain_error(HTTPStatus.CONFLICT, e) from e
     background_tasks.add_task(svc.run_pre_evaluation, new_run.id)

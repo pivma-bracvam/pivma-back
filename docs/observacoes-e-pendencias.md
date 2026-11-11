@@ -209,3 +209,32 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 ### PENDÊNCIAS
 
 - O proxy do frontend precisa passar a chamar `GET /processes` com esses filtros. A equipe do frontend ainda não confirmou quais URLs `sent` e `drafts` chamam.
+
+## Retorno ao proponente (Spec 046)
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: a issue #73 pede pareceres por campo acessíveis depois da escolha `REVISE`, "atribuídos à respectiva rodada e autor", e pede avaliar a consulta histórica em `GET /processes/{id}/return-review`. O RF011 pede notificação dos retornos da IA e da validação, sem definir texto nem gatilhos.
+- **Conflito**: a API não mostra ao proponente quem fez a triagem, e a issue fala em autor. O Plano de Trabalho só trata de cegamento na revisão ad hoc (RF050), sem orientar a triagem.
+- **Decisão**:
+  1. **Autor**: o proponente vê rodada, data, status e comentário, sem o autor, que fica guardado para auditoria. Segue a revisão por pares comum, em que o autor do trabalho não conhece o revisor.
+  2. **Pareceres**: `GET .../form` ganha `previous_reviews`, com os pareceres da execução imediatamente anterior. `reviews` mantém o significado.
+  3. **Consulta histórica**: `GET .../submission-versions/{run_number}` ganha `reviews`. `GET .../return-review` continua só para retorno pendente e mantém o `404`.
+  4. **E-mail**: toda devolução avisa o proponente, pela triagem, pela IA negativa ou pela falha da IA. O e-mail traz código, título, origem e prazo, sem justificativa, pareceres ou nome de quem avaliou.
+  5. **Cancelamento do retorno**: o reprocessamento da IA e a exclusão do processo cancelam o e-mail ainda pendente, inclusive o de um retorno já decidido. Nas decisões do proponente, inclusive a desistência, o envio segue.
+- **Validação**: confirmada pelo usuário em 2026-11-06. Registrada em `specs/046-proponent-return/spec.md` (Clarifications).
+
+### DECISÃO TÉCNICA
+
+- **Reprocessamento da IA**: `POST /admin/pre-evaluations/{run_id}/retry` passa a aceitar só a execução mais recente, com status `failed` e retorno da IA aberto, e responde `409` nos demais casos. Um retorno aberto pela triagem depois de uma contestação não conta, porque o reprocessamento cancelaria uma decisão humana. Hoje `retry_run` não trava a execução e aceita `in_progress`, o que permite dois reprocessamentos e o reprocessamento depois da contestação. O manual já descreve a rota como reprocessar "uma pré-avaliação que falhou". Saiu do plano da Spec 046 e foi aprovada pelo usuário em 2026-11-06.
+- **Autor na linha do tempo**: `GET /processes/{id}/timeline` expunha ao proponente o `user_id` do triador em `RETURN_REVIEW_OPENED`, ao contrário do que a spec dava como confirmado. O campo agora vem nulo para quem não tem `triage.review`, e o autor segue gravado. Saiu da revisão da implementação da Spec 046. `RETURN_REVIEW_CANCELLED` e `NOTIFICATION_CANCELLED` mantêm o administrador, que não avaliou a submissão.
+- **Autoria do reprocessamento**: a rota descartava o administrador e passava `run.created_by`, sem nenhum evento para o cancelamento do retorno. O cancelamento passa a gravar `RETURN_REVIEW_CANCELLED` com o administrador como autor. A nova `EvaluationRun` mantém o `created_by` da anterior, para não mudar a autoria dos eventos da IA. Saiu do `/speckit-analyze` da Spec 046 e foi aprovada pelo usuário em 2026-11-06.
+
+- **Pareceres em edição na versão devolvida**: `GET .../submission-versions/{run_number}` só mostra pareceres de execução da triagem concluída. Depois de uma contestação da IA, a versão já consta como devolvida, e sem o filtro mostraria o rascunho do triador. Decidido pelo usuário em 2026-11-06, por ser a opção de melhor prática com um filtro na leitura, sem campo nem estado novo.
+- **Chave de notificação**: `NOTIFICATION_ENCRYPTION_KEY` malformada impede a inicialização. Com o e-mail pedido dentro da devolução, ela deixava a triagem com erro e a pré-avaliação presa em `in_progress`. Saiu do `/speckit-converge` da Spec 046, por SC-004.
+
+### PENDÊNCIAS
+
+- A varredura de execuções presas (`_sweep_stale_runs`) lê `in_progress` sem travar a execução. Ela roda só na inicialização e pega execuções com mais de 15 minutos, então disputa com `_execute` só se outra instância seguir rodando essa execução. Fica fora da Spec 046.
+- `GET .../form` devolve `reviews` sem conferir se a triagem já decidiu, então o proponente lê pareceres ainda em edição. O comportamento já existia, o triador lê o próprio rascunho no mesmo campo, e a mudança aguarda decisão da equipe.
+- `_execute` lê o processo sem trava, e a exclusão do processo não trava a `EvaluationRun`. Se as duas operações se cruzarem no fim da pré-avaliação, o retorno pode abrir em um processo excluído e o aviso sair. A janela é curta e a corrida já existia; a correção mudaria a decisão R8 da Spec 030. Fica fora da Spec 046.
