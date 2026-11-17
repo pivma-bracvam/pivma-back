@@ -29,7 +29,7 @@ curl -s -X POST $API/processes -H "Authorization: Bearer $TOKEN" \
 ```
 
 `title` tem de 3 a 255 caracteres. O processo usa a versão publicada mais
-recente do template. Os quatro templates estão em
+recente do template. Os templates estão em
 [Templates de processo](../referencia/templates.md).
 
 A resposta traz o `code` da submissão, no formato `VAL-<ano>-<número>`,

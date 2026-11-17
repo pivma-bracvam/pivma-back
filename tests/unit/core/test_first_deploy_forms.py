@@ -130,5 +130,6 @@ async def test_triage_form_deactivated_and_submission_forms_active(
         'submission_scope_extension_v1',
         'submission_me_too_v1',
         'submission_validated_dossier_v1',
+        'submission_test_short_v1',
         'statistical_plan_v1',
     }

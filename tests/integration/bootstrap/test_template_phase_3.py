@@ -27,6 +27,7 @@ TEMPLATE_FILES = {
     'scope_extension': '02_scope_extension.yaml',
     'me_too_validation': '03_me_too_validation.yaml',
     'validated_method_dossier': '04_validated_method_dossier.yaml',
+    'test_short_form': '05_test_short_form.yaml',
 }
 PHASE_3 = 'phase_3_validation_execution'
 

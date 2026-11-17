@@ -74,7 +74,7 @@ async def test_bootstrap_deletes_existing_proof_of_concept_form(session):
 
 
 @pytest.mark.asyncio
-async def test_bootstrap_records_display_order_of_the_four_types(session):
+async def test_bootstrap_records_display_order_of_the_types(session):
     await bootstrap_all_templates(session)
 
     rows = await session.execute(
@@ -87,6 +87,7 @@ async def test_bootstrap_records_display_order_of_the_four_types(session):
         ('validated_method_dossier', 2),
         ('scope_extension', 3),
         ('me_too_validation', 4),
+        ('test_short_form', 5),
     ]
 
 

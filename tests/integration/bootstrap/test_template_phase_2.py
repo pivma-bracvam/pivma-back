@@ -27,6 +27,7 @@ TEMPLATE_FILES = {
     'scope_extension': '02_scope_extension.yaml',
     'me_too_validation': '03_me_too_validation.yaml',
     'validated_method_dossier': '04_validated_method_dossier.yaml',
+    'test_short_form': '05_test_short_form.yaml',
 }
 NEW_VERSIONS = {
     'pre_validated_method': 6,
@@ -228,7 +229,7 @@ def _previous_version(template_key):
 
 @pytest.mark.asyncio
 async def test_bootstrap_publishes_new_versions_and_keeps_previous(session):
-    for template_key in TEMPLATE_FILES:
+    for template_key in NEW_VERSIONS:
         await sync_template_from_dict(session, _previous_version(template_key))
 
     await bootstrap_all_templates(session)

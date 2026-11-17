@@ -1,0 +1,341 @@
+# TEMPORÁRIO: tipo de submissão só para testar o fluxo da Fase 1 (envio,
+# triagem, devolução e reenvio) sem preencher os formulários oficiais. Será
+# removido; ver docs/observacoes-e-pendencias.md, "Formulário de teste".
+process_template:
+  key: "test_short_form"
+  name: "[TESTE] Formulário Curto"
+  description: "Tipo temporário, só para testes da equipe. Usa um formulário curto e será removido. Não use para propostas reais."
+  display_order: 5
+  version: 1
+  is_active: true
+
+phases:
+  - key: "phase_1_submission_triage"
+    name: "Fase 1: Submissão e Triagem"
+    order_index: 1
+    activities:
+      - key: "proposal_submission"
+        name: "Submissão da Proposta"
+        order_index: 1
+        assigned_role: "proponent"
+        access:
+          edit: ["proponent"]
+          view: []
+        sla_hours: 168  # 7 dias corridos para preencher e submeter (Spec 018)
+        form_template_key: "submission_test_short_v1"
+        dependencies: []
+
+      - key: "triage_evaluation"
+        name: "Triagem e Decisão BraCVAM"
+        order_index: 2
+        assigned_role: "bracvam"
+        access:
+          edit: ["bracvam"]
+          view: []
+        sla_hours: 72  # 3 dias corridos para a triagem decidir (Spec 018)
+        dependencies:
+          - required_activity_key: "proposal_submission"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "submission_return_review"
+        name: "Revisão do Retorno"
+        order_index: 3
+        assigned_role: "proponent"
+        access:
+          edit: ["proponent"]
+          view: []
+        activity_type: "return_review"
+        sla_hours: 168  # 7 dias corridos para o proponente decidir (Spec 030)
+        dependencies: []  # aberta por evento (retorno da IA ou da triagem)
+
+  # Fase 2 (Spec 031): cópia da Fase 2 do template 04 (Spec 028) com a
+  # atividade de amostras. Mantenha as oito atribuições idênticas às do
+  # template 04 — `tests/integration/bootstrap/test_template_phase_2.py`
+  # compara os quatro templates.
+  - key: "phase_2_role_assignment"
+    name: "Fase 2: Composição da Governança"
+    order_index: 2
+    activities:
+      - key: "assign_sponsor"
+        name: "Definir o Patrocinador"
+        order_index: 1
+        assigned_role: "proponent"
+        access:
+          edit: ["proponent"]
+          view: []
+        activity_type: "role_assignment"
+        target_role_key: "sponsor"
+        dependencies:
+          - required_activity_key: "triage_evaluation"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_group_manager"
+        name: "Definir os integrantes do Grupo Gestor"
+        order_index: 2
+        assigned_role: "proponent"
+        access:
+          edit: ["proponent"]
+          view: []
+        activity_type: "role_assignment"
+        target_role_key: "group_manager"
+        dependencies:
+          - required_activity_key: "triage_evaluation"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_sample_selection_group"
+        name: "Definir o Grupo de Seleção de Amostras"
+        order_index: 3
+        assigned_role: "group_manager"
+        access:
+          edit: ["group_manager"]
+          view: []
+        activity_type: "role_assignment"
+        target_role_key: "sample_selection_group"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_lead_laboratory"
+        name: "Definir o Laboratório Líder"
+        order_index: 4
+        assigned_role: "group_manager"
+        access:
+          edit: ["group_manager"]
+          view: []
+        activity_type: "role_assignment"
+        target_role_key: "lead_laboratory"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_participating_laboratory"
+        name: "Definir os Laboratórios Participantes"
+        order_index: 5
+        assigned_role: "group_manager"
+        access:
+          edit: ["group_manager"]
+          view: []
+        activity_type: "role_assignment"
+        target_role_key: "participating_laboratory"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_statistician"
+        name: "Definir o Estatístico"
+        order_index: 6
+        assigned_role: "group_manager"
+        access:
+          edit: ["group_manager"]
+          view: []
+        activity_type: "role_assignment"
+        target_role_key: "statistician"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_collaborator"
+        name: "Definir Colaboradores e Observadores"
+        order_index: 7
+        assigned_role: "bracvam"
+        access:
+          edit: ["bracvam"]
+          view: []
+        activity_type: "role_assignment"
+        target_role_key: "collaborator"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "assign_adhoc_evaluator"
+        name: "Definir Especialistas Temáticos (Comitê ADHOC)"
+        order_index: 8
+        assigned_role: "bracvam"
+        access:
+          edit: ["bracvam"]
+          view: []
+        activity_type: "role_assignment"
+        target_role_key: "adhoc_evaluator"
+        dependencies:
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      # Spec 031: cadastro das substâncias, códigos cegos por laboratório e
+      # etiquetas. Só o Grupo de Seleção de Amostras vê e edita o conteúdo;
+      # abre quando o Grupo e os Laboratórios Participantes estão atribuídos.
+      - key: "sample_definition"
+        name: "Definição e Preparação das Amostras"
+        order_index: 9
+        assigned_role: "sample_selection_group"
+        access:
+          edit: ["sample_selection_group"]
+          view: []
+        activity_type: "sample_definition"
+        dependencies:
+          - required_activity_key: "assign_sample_selection_group"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "assign_participating_laboratory"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      # Spec 042 (revisão do PR #76): plano estatístico. Abre quando o
+      # Estatístico é designado; é um ponto da homologação.
+      - key: "statistical_plan"
+        name: "Plano Estatístico"
+        order_index: 10
+        assigned_role: "statistician"
+        access:
+          edit: ["statistician"]
+          view: []
+        form_template_key: "statistical_plan_v1"
+        dependencies:
+          - required_activity_key: "assign_statistician"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      # Spec 042: homologação da estrutura pelo BraCVAM. Abre quando as dez
+      # atividades da etapa concluem; os pontos auditados são estas
+      # dependências. A Etapa 3 só abre depois da aprovação.
+      - key: "structure_approval"
+        name: "Homologação da Estrutura do Estudo"
+        order_index: 11
+        assigned_role: "bracvam"
+        access:
+          edit: ["bracvam"]
+          view: []
+        activity_type: "structure_approval"
+        dependencies:
+          - required_activity_key: "assign_sponsor"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "assign_group_manager"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "assign_sample_selection_group"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "assign_lead_laboratory"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "assign_participating_laboratory"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "assign_statistician"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "assign_collaborator"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "assign_adhoc_evaluator"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "statistical_plan"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+          - required_activity_key: "sample_definition"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+  # Spec 040: Etapa 3. O recebimento é por laboratório e abre quando o
+  # BraCVAM aprova a homologação da estrutura (Spec 042). A resolução de
+  # problemas no recebimento é do Grupo de Seleção de Amostras e só abre por
+  # evento, quando um laboratório registra um frasco fora de ordem.
+  - key: "phase_3_validation_execution"
+    name: "Execução da Validação"
+    order_index: 3
+    activities:
+      - key: "sample_receipt"
+        name: "Confirmação de Recebimento de Amostras"
+        order_index: 1
+        assigned_role: "participating_laboratory"
+        access:
+          edit: ["participating_laboratory"]
+          view: []
+        activity_type: "sample_receipt"
+        execution_scope: "per_laboratory"
+        dependencies:
+          - required_activity_key: "structure_approval"
+            required_status: "COMPLETED"
+            condition_type: "ACTIVITY_COMPLETED"
+
+      - key: "sample_receipt_resolution"
+        name: "Resolver problemas no recebimento de amostras"
+        order_index: 2
+        assigned_role: "sample_selection_group"
+        access:
+          edit: ["sample_selection_group"]
+          view: []
+        activity_type: "sample_receipt_resolution"
+        dependencies: []
+
+forms:
+  # TEMPORÁRIO: formulário de teste, com 2 obrigatórios, 1 opcional e 1 anexo.
+  - key: "submission_test_short_v1"
+    name: "Formulário de Submissão - [TESTE] Formulário Curto"
+    version: 1
+    description: "Formulário temporário para testes da equipe. Será removido. Não use para propostas reais."
+    fields:
+      - field_key: "method_title"
+        label: "Nome do método"
+        field_type: "text"
+        is_required: true
+        order_index: 1
+        validation_rules:
+          section: "Teste"
+
+      - field_key: "method_description"
+        label: "Descreva o método"
+        field_type: "textarea"
+        is_required: true
+        order_index: 2
+        ai_evaluation_enabled: true
+        validation_rules:
+          section: "Teste"
+
+      - field_key: "notes"
+        label: "Observações"
+        field_type: "textarea"
+        is_required: false
+        order_index: 3
+        validation_rules:
+          section: "Teste"
+
+      - field_key: "supporting_file"
+        label: "Anexo"
+        field_type: "file_upload"
+        is_required: false
+        order_index: 4
+        validation_rules:
+          section: "Teste"
+
+  # Spec 042 (revisão do PR #76): plano estatístico da Etapa 2, igual nos
+  # quatro templates. Sem avaliação por IA.
+  - key: "statistical_plan_v1"
+    name: "Plano Estatístico"
+    version: 1
+    description: "Plano estatístico do estudo, conferido pelo BraCVAM na homologação da estrutura."
+    fields:
+      - field_key: "plan_file"
+        label: "Plano estatístico"
+        field_type: "file_upload"
+        is_required: true
+        order_index: 1
+        help_text: "Documento com o plano estatístico do estudo."
+        validation_rules:
+          allowed_extensions: ["pdf", "docx"]
+      - field_key: "summary"
+        label: "Resumo do plano"
+        field_type: "textarea"
+        is_required: false
+        order_index: 2
+        help_text: "Resumo curto para o BraCVAM, opcional."

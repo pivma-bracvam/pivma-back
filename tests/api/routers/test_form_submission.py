@@ -573,3 +573,52 @@ async def test_all_four_process_forms_definitions_and_submissions(
     # associadas → sem `ai_evaluation`, sem pré-avaliação.
     assert 'ai_evaluation' not in submit_data
     assert submit_data['pre_evaluation'] is None
+
+
+@pytest.mark.asyncio
+async def test_proponente_escolhe_o_tipo_de_teste_e_envia_so_os_obrigatorios(
+    client, session
+):
+    """Tipo temporário `test_short_form`: some junto com o YAML 05."""
+    await bootstrap_all_templates(session)
+    user = UserFactory()
+    session.add(user)
+    await session.commit()
+    authenticate(client, user)
+
+    # 1. O tipo de teste aparece por último na lista de tipos
+    templates = client.get('/processes/templates').json()['data']
+    assert templates[-1]['key'] == 'test_short_form'
+    assert templates[-1]['name'] == '[TESTE] Formulário Curto'
+
+    # 2. O proponente cria o processo e vê o formulário curto
+    resp = client.post(
+        '/processes',
+        json={'template_key': 'test_short_form', 'title': 'Teste de fluxo'},
+        headers=TRUSTED_ORIGIN,
+    )
+    assert resp.status_code == HTTPStatus.CREATED
+    process_id = resp.json()['id']
+    endpoint = f'/processes/{process_id}/activities/proposal_submission/form'
+    fields = client.get(endpoint).json()['fields']
+    assert [(f['field_key'], f['is_required']) for f in fields] == [
+        ('method_title', True),
+        ('method_description', True),
+        ('notes', False),
+        ('supporting_file', False),
+    ]
+
+    # 3. Envia só os dois obrigatórios e a triagem abre
+    submit_resp = client.post(
+        endpoint,
+        json={
+            'values': {
+                'method_title': 'Método de teste',
+                'method_description': 'Descrição curta.',
+            }
+        },
+        headers=TRUSTED_ORIGIN,
+    )
+    assert submit_resp.status_code == HTTPStatus.OK
+    assert submit_resp.json()['status'] == 'COMPLETED'
+    assert await in_triage(session, process_id)

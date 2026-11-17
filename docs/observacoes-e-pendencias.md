@@ -238,3 +238,15 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 - A varredura de execuções presas (`_sweep_stale_runs`) lê `in_progress` sem travar a execução. Ela roda só na inicialização e pega execuções com mais de 15 minutos, então disputa com `_execute` só se outra instância seguir rodando essa execução. Fica fora da Spec 046.
 - `GET .../form` devolve `reviews` sem conferir se a triagem já decidiu, então o proponente lê pareceres ainda em edição. O comportamento já existia, o triador lê o próprio rascunho no mesmo campo, e a mudança aguarda decisão da equipe.
 - `_execute` lê o processo sem trava, e a exclusão do processo não trava a `EvaluationRun`. Se as duas operações se cruzarem no fim da pré-avaliação, o retorno pode abrir em um processo excluído e o aviso sair. A janela é curta e a corrida já existia; a correção mudaria a decisão R8 da Spec 030. Fica fora da Spec 046.
+
+## Formulário de teste
+
+### DECISÃO TÉCNICA
+
+- **Pedido**: o desenvolvedor do front pediu um formulário menor para testar a Fase 1 (envio ao BraCVAM, triagem, devolução e reenvio) sem mexer nos formulários oficiais, que aguardam o feedback do BraCVAM. Os formulários oficiais já aceitam o envio com os 12 obrigatórios, e a equipe avisou isso a ele.
+- **Decisão**: em 2026-11-17, o usuário aprovou um tipo temporário, `test_short_form` ("[TESTE] Formulário Curto"), em `src/pivma/templates_data/05_test_short_form.yaml`, fora do Spec Kit. O tipo aparece em 5º na lista e copia as fases dos tipos oficiais. O formulário `submission_test_short_v1` tem quatro campos: `method_title` e `method_description` (obrigatórios, o segundo com a marca de IA), `notes` (opcional) e `supporting_file` (anexo opcional). Com isso o front testa campo obrigatório e opcional, pareceres por campo, atribuição de IA e anexo.
+- **Ambiente**: a `develop` e o deploy dela servem só ao desenvolvimento. O tipo não deve chegar à produção.
+
+### PENDÊNCIAS
+
+1. **Remoção**: antes do merge da `develop` na `main`, apague o YAML 05 e tire `test_short_form` dos testes que listam os tipos (busque `test_short_form` e `submission_test_short_v1` em `tests/`), da [referência de templates](../manual/referencia/templates.md), do README de `templates_data` e do escopo. Quando o YAML sai, o bootstrap desativa o tipo e o formulário no banco na próxima inicialização.

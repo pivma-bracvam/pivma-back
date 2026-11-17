@@ -1,7 +1,8 @@
 # Templates de processo
 
-Quatro templates vêm com o sistema, em `src/pivma/templates_data/`, e são
-carregados pelo provisionamento. Cada template é um tipo de submissão. Um
+Cinco templates vêm com o sistema, em `src/pivma/templates_data/`, e são
+carregados pelo provisionamento: quatro tipos de submissão oficiais e um tipo
+temporário de teste. Cada template é um tipo de submissão. Um
 processo usa a versão publicada mais recente do template na criação e fica
 nela até o fim.
 
@@ -14,10 +15,27 @@ cada YAML, nesta ordem:
 | 2 | `validated_method_dossier` | Método Novo – Dossiê Completo | 8 | `submission_validated_dossier_v1` (64 campos) |
 | 3 | `scope_extension` | Extensão do Domínio de Aplicação | 6 | `submission_scope_extension_v1` (56 campos) |
 | 4 | `me_too_validation` | Método Similar | 6 | `submission_me_too_v1` (56 campos) |
+| 5 | `test_short_form` | [TESTE] Formulário Curto | 1 | `submission_test_short_v1` (4 campos) |
 
 Cada formulário de submissão se chama "Formulário de Submissão - <nome do
 tipo>". Um template sem `display_order`, criado direto no banco, aparece
-depois dos quatro.
+depois dos cinco.
+
+## Tipo de teste
+
+`test_short_form` serve para a equipe testar a Fase 1 (envio, triagem,
+devolução e reenvio) sem preencher o formulário oficial. A equipe vai
+removê-lo. Não o use para propostas reais. As fases e atividades são as dos
+tipos oficiais; só o formulário de submissão muda:
+
+| `field_key` | Tipo | Obrigatório |
+|---|---|---|
+| `method_title` | `text` | Sim |
+| `method_description` | `textarea`, aceita avaliação de IA | Sim |
+| `notes` | `textarea` | Não |
+| `supporting_file` | `file_upload` | Não |
+
+## Tipos oficiais
 
 Os formulários reproduzem o formulário de submissão do BraCVAM: 48 perguntas
 em 12 seções e 8 anexos na seção 13. O Dossiê Completo acrescenta a seção 14,

@@ -20,6 +20,7 @@ SUBMISSION_TYPE_KEYS = [
     'validated_method_dossier',
     'scope_extension',
     'me_too_validation',
+    'test_short_form',
 ]
 
 
@@ -73,7 +74,7 @@ async def test_template_names_and_descriptions_have_no_english_terms(
 
 
 @pytest.mark.asyncio
-async def test_template_without_display_order_comes_after_the_four_types(
+async def test_template_without_display_order_comes_after_the_ordered_types(
     client, session
 ):
     await _authenticated_with_templates(client, session)

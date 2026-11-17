@@ -56,6 +56,12 @@ SUBMISSION_TYPES = (
         'processo de validação baseado em padrões de desempenho '
         '(performance standards).',
     ),
+    (
+        'test_short_form',
+        '[TESTE] Formulário Curto',
+        'Tipo temporário, só para testes da equipe. Usa um formulário curto '
+        'e será removido. Não use para propostas reais.',
+    ),
 )
 
 
@@ -70,7 +76,7 @@ async def test_proponente_ve_os_tipos_na_ordem_do_bracvam_e_cria_submissao(
     sign_up(client, 'proponente')
     log_in(client, 'proponente')
 
-    # 2. Vê os quatro tipos, na ordem do BraCVAM, com os textos novos.
+    # 2. Vê os tipos, na ordem do BraCVAM, com os textos novos.
     response = client.get('/processes/templates')
     assert response.status_code == HTTPStatus.OK, response.text
     body = response.json()
