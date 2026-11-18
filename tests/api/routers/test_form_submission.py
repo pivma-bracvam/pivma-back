@@ -576,7 +576,7 @@ async def test_all_four_process_forms_definitions_and_submissions(
 
 
 @pytest.mark.asyncio
-async def test_proponente_escolhe_o_tipo_de_teste_e_envia_so_os_obrigatorios(
+async def test_proponente_preenche_o_formulario_de_teste_e_envia_so_o_titulo(
     client, session
 ):
     """Tipo temporário `test_short_form`: some junto com o YAML 05."""
@@ -591,7 +591,7 @@ async def test_proponente_escolhe_o_tipo_de_teste_e_envia_so_os_obrigatorios(
     assert templates[-1]['key'] == 'test_short_form'
     assert templates[-1]['name'] == '[TESTE] Formulário Curto'
 
-    # 2. O proponente cria o processo e vê o formulário curto
+    # 2. O proponente cria o processo e vê um campo de cada tipo
     resp = client.post(
         '/processes',
         json={'template_key': 'test_short_form', 'title': 'Teste de fluxo'},
@@ -601,22 +601,39 @@ async def test_proponente_escolhe_o_tipo_de_teste_e_envia_so_os_obrigatorios(
     process_id = resp.json()['id']
     endpoint = f'/processes/{process_id}/activities/proposal_submission/form'
     fields = client.get(endpoint).json()['fields']
-    assert [(f['field_key'], f['is_required']) for f in fields] == [
-        ('method_title', True),
-        ('method_description', True),
-        ('notes', False),
-        ('supporting_file', False),
+    assert [
+        (f['field_key'], f['field_type'], f['is_required']) for f in fields
+    ] == [
+        ('method_title', 'text', True),
+        ('free_text', 'textarea', False),
+        ('sum_integer', 'integer', False),
+        ('sum_decimal', 'float', False),
+        ('yes_no', 'boolean', False),
+        ('any_date', 'date', False),
+        ('banana_color', 'select', False),
+        ('any_file', 'file_upload', False),
     ]
 
-    # 3. Envia só os dois obrigatórios e a triagem abre
+    # 3. Salva um rascunho com um valor de cada tipo e o recebe de volta
+    typed_values = {
+        'method_title': 'Teste',
+        'free_text': 'Qualquer coisa.',
+        'sum_integer': 7,
+        'sum_decimal': 3.75,
+        'yes_no': True,
+        'any_date': '2026-11-17',
+        'banana_color': 'yellow',
+    }
+    draft_resp = client.put(
+        endpoint, json={'values': typed_values}, headers=TRUSTED_ORIGIN
+    )
+    assert draft_resp.status_code == HTTPStatus.OK
+    assert client.get(endpoint).json()['values'] == typed_values
+
+    # 4. Envia só o título e a triagem abre
     submit_resp = client.post(
         endpoint,
-        json={
-            'values': {
-                'method_title': 'Método de teste',
-                'method_description': 'Descrição curta.',
-            }
-        },
+        json={'values': {'method_title': 'Teste'}},
         headers=TRUSTED_ORIGIN,
     )
     assert submit_resp.status_code == HTTPStatus.OK

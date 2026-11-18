@@ -244,7 +244,7 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 ### DECISÃO TÉCNICA
 
 - **Pedido**: o desenvolvedor do front pediu um formulário menor para testar a Fase 1 (envio ao BraCVAM, triagem, devolução e reenvio) sem mexer nos formulários oficiais, que aguardam o feedback do BraCVAM. Os formulários oficiais já aceitam o envio com os 12 obrigatórios, e a equipe avisou isso a ele.
-- **Decisão**: em 2026-11-17, o usuário aprovou um tipo temporário, `test_short_form` ("[TESTE] Formulário Curto"), em `src/pivma/templates_data/05_test_short_form.yaml`, fora do Spec Kit. O tipo aparece em 5º na lista e copia as fases dos tipos oficiais. O formulário `submission_test_short_v1` tem quatro campos: `method_title` e `method_description` (obrigatórios, o segundo com a marca de IA), `notes` (opcional) e `supporting_file` (anexo opcional). Com isso o front testa campo obrigatório e opcional, pareceres por campo, atribuição de IA e anexo.
+- **Decisão**: em 2026-11-17, o usuário aprovou um tipo temporário, `test_short_form` ("[TESTE] Formulário Curto"), em `src/pivma/templates_data/05_test_short_form.yaml`, fora do Spec Kit. O tipo aparece em 5º na lista e copia as fases dos tipos oficiais. O formulário `submission_test_short_v1` tem um campo de cada tipo (`text`, `textarea`, `integer`, `float`, `boolean`, `date`, `select` e `file_upload`), com perguntas de resposta óbvia, como "Quanto é 3 + 4?". Só o título é obrigatório. O `textarea` tem a marca de IA, para permitir a atribuição de avaliação. Com isso o front vê cada componente e confere se os valores enviados voltam iguais.
 - **Ambiente**: a `develop` e o deploy dela servem só ao desenvolvimento. O tipo não deve chegar à produção.
 
 ### PENDÊNCIAS

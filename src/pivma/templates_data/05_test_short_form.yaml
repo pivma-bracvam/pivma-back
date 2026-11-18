@@ -6,7 +6,7 @@ process_template:
   name: "[TESTE] Formulário Curto"
   description: "Tipo temporário, só para testes da equipe. Usa um formulário curto e será removido. Não use para propostas reais."
   display_order: 5
-  version: 1
+  version: 2
   is_active: true
 
 phases:
@@ -279,42 +279,82 @@ phases:
         dependencies: []
 
 forms:
-  # TEMPORÁRIO: formulário de teste, com 2 obrigatórios, 1 opcional e 1 anexo.
+  # TEMPORÁRIO: formulário de teste, com um campo de cada tipo. Só o título é
+  # obrigatório.
   - key: "submission_test_short_v1"
     name: "Formulário de Submissão - [TESTE] Formulário Curto"
-    version: 1
+    version: 2
     description: "Formulário temporário para testes da equipe. Será removido. Não use para propostas reais."
     fields:
       - field_key: "method_title"
-        label: "Nome do método"
+        label: "Título do teste"
         field_type: "text"
         is_required: true
         order_index: 1
         validation_rules:
           section: "Teste"
 
-      - field_key: "method_description"
-        label: "Descreva o método"
+      - field_key: "free_text"
+        label: "Escreva qualquer coisa"
         field_type: "textarea"
-        is_required: true
+        is_required: false
         order_index: 2
         ai_evaluation_enabled: true
         validation_rules:
           section: "Teste"
 
-      - field_key: "notes"
-        label: "Observações"
-        field_type: "textarea"
+      - field_key: "sum_integer"
+        label: "Quanto é 3 + 4?"
+        field_type: "integer"
         is_required: false
         order_index: 3
         validation_rules:
           section: "Teste"
 
-      - field_key: "supporting_file"
-        label: "Anexo"
-        field_type: "file_upload"
+      - field_key: "sum_decimal"
+        label: "Quanto é 1,5 + 2,25?"
+        field_type: "float"
         is_required: false
         order_index: 4
+        validation_rules:
+          section: "Teste"
+
+      - field_key: "yes_no"
+        label: "O céu é azul?"
+        field_type: "boolean"
+        is_required: false
+        order_index: 5
+        validation_rules:
+          section: "Teste"
+
+      - field_key: "any_date"
+        label: "Data de hoje"
+        field_type: "date"
+        is_required: false
+        order_index: 6
+        validation_rules:
+          section: "Teste"
+
+      - field_key: "banana_color"
+        label: "Qual a cor da banana madura?"
+        field_type: "select"
+        is_required: false
+        order_index: 7
+        options:
+          - value: "yellow"
+            label: "Amarela"
+          - value: "green"
+            label: "Verde"
+          - value: "blue"
+            label: "Azul"
+        validation_rules:
+          section: "Teste"
+
+      - field_key: "any_file"
+        label: "Envie qualquer arquivo"
+        field_type: "file_upload"
+        is_required: false
+        order_index: 8
         validation_rules:
           section: "Teste"
 

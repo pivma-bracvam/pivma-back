@@ -15,7 +15,7 @@ cada YAML, nesta ordem:
 | 2 | `validated_method_dossier` | Método Novo – Dossiê Completo | 8 | `submission_validated_dossier_v1` (64 campos) |
 | 3 | `scope_extension` | Extensão do Domínio de Aplicação | 6 | `submission_scope_extension_v1` (56 campos) |
 | 4 | `me_too_validation` | Método Similar | 6 | `submission_me_too_v1` (56 campos) |
-| 5 | `test_short_form` | [TESTE] Formulário Curto | 1 | `submission_test_short_v1` (4 campos) |
+| 5 | `test_short_form` | [TESTE] Formulário Curto | 2 | `submission_test_short_v1` (8 campos) |
 
 Cada formulário de submissão se chama "Formulário de Submissão - <nome do
 tipo>". Um template sem `display_order`, criado direto no banco, aparece
@@ -26,14 +26,19 @@ depois dos cinco.
 `test_short_form` serve para a equipe testar a Fase 1 (envio, triagem,
 devolução e reenvio) sem preencher o formulário oficial. A equipe vai
 removê-lo. Não o use para propostas reais. As fases e atividades são as dos
-tipos oficiais; só o formulário de submissão muda:
+tipos oficiais; só o formulário de submissão muda. Ele tem um campo de cada
+tipo, e só o título é obrigatório:
 
-| `field_key` | Tipo | Obrigatório |
+| `field_key` | Pergunta | Tipo |
 |---|---|---|
-| `method_title` | `text` | Sim |
-| `method_description` | `textarea`, aceita avaliação de IA | Sim |
-| `notes` | `textarea` | Não |
-| `supporting_file` | `file_upload` | Não |
+| `method_title` | Título do teste | `text`, obrigatório |
+| `free_text` | Escreva qualquer coisa | `textarea`, aceita avaliação de IA |
+| `sum_integer` | Quanto é 3 + 4? | `integer` |
+| `sum_decimal` | Quanto é 1,5 + 2,25? | `float` |
+| `yes_no` | O céu é azul? | `boolean` |
+| `any_date` | Data de hoje | `date` |
+| `banana_color` | Qual a cor da banana madura? | `select`: `yellow`, `green`, `blue` |
+| `any_file` | Envie qualquer arquivo | `file_upload` |
 
 ## Tipos oficiais
 
