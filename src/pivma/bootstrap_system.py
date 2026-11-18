@@ -8,8 +8,10 @@ migrações DDL. Provisiona:
 4. Sincronização dos templates canônicos de processos e formulários (Fase 1).
 5. (Opcional) Conta inicial de Administrador configurada por variáveis de
    ambiente.
+6. (TEMPORÁRIO) Contas de demonstração do deploy de desenvolvimento, se
+   ``demo_accounts.yaml`` existir.
 
-Nenhum dado fictício, processo de teste ou avaliação simulada é criado aqui.
+Nenhum processo de teste ou avaliação simulada é criado aqui.
 """
 
 import asyncio
@@ -25,6 +27,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from pivma.bootstrap_demo_accounts import sync_demo_accounts
 from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.core.authorization import ADMINISTRATOR_SYSTEM_KEY
 from pivma.core.database.models import (
@@ -336,6 +339,10 @@ async def run_system_bootstrap() -> None:
                 session, profiles[ADMINISTRATOR_SYSTEM_KEY]
             )
             await session.commit()
+
+        # 6. Contas de demonstração (TEMPORÁRIO, só com o YAML presente)
+        await sync_demo_accounts(session, profiles)
+        await session.commit()
 
     await engine.dispose()
     logger.info('System production bootstrap completed successfully!')

@@ -12,6 +12,17 @@ Escolha uma das formas:
 | Na implantação | Defina `INITIAL_ADMIN_EMAIL` e `INITIAL_ADMIN_PASSWORD` (e, se quiser, `INITIAL_ADMIN_USERNAME`). O `bootstrap_system` cria a conta e dá o perfil. No Docker, ele roda a cada subida da API |
 | Conta já cadastrada | `poetry run python -m pivma.bootstrap_rbac --user-id <UUID>`. Idempotente; recusa se outra conta ativa já for administradora |
 
+## Contas de demonstração
+
+Enquanto `src/pivma/demo_accounts.yaml` existir, o `bootstrap_system` cria as
+contas de demonstração do deploy de desenvolvimento, uma por cargo, com
+e-mail `<username>@example.com`. Ele cria também a "Instituição de
+Demonstração", os laboratórios Demo A e Demo B, o perfil de `demo.bracvam`
+e `demo.admin` e os vínculos das contas `demo.lab.*`. Uma conta que já
+existe fica como está. O YAML guarda só o hash das senhas; a equipe guarda
+as senhas fora do repositório. O arquivo é temporário e sai antes da
+produção.
+
 ## Contas
 
 | Ação | Rota | Permissão |

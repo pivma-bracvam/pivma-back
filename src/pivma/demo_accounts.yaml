@@ -1,0 +1,66 @@
+# TEMPORÁRIO: contas de demonstração do deploy de desenvolvimento.
+#
+# O provisionamento (bootstrap_demo_accounts.py) cria estas contas, a
+# instituição e os laboratórios se faltarem. O arquivo guarda só o hash das
+# senhas; as senhas ficam fora do repositório. Remova este arquivo antes de
+# levar a develop para a main (veja docs/observacoes-e-pendencias.md).
+
+institution: "Instituição de Demonstração"
+laboratories:
+  - "Laboratório Demo A"
+  - "Laboratório Demo B"
+
+accounts:
+  # Proponente: cria e envia a submissão
+  - username: "demo.proponente"
+    full_name: "Demo Proponente"
+    password_hash: "$argon2id$v=19$m=65536,t=3,p=4$hqyfrmYIyplosz9IHuUzJQ$OLyfDvCd5X2Kyocni5eOUDh6iXqJjb9uISMyKsiNUYg"
+  # Membro do BraCVAM: triagem, colaborador, ad hoc e homologação
+  - username: "demo.bracvam"
+    full_name: "Demo BraCVAM"
+    password_hash: "$argon2id$v=19$m=65536,t=3,p=4$NR837F53qpL7lF1aGamufQ$Mo+DBHU/kgB4T2ayhaiFRQuYhrofnMQsz8prN5aXKig"
+    profile: "bracvam"
+  # Administrador da plataforma
+  - username: "demo.admin"
+    full_name: "Demo Administrador"
+    password_hash: "$argon2id$v=19$m=65536,t=3,p=4$0xFfZTrg6m+iz6aqjC9deg$93Jybl+ffZFsuVoyewwRNuCoVZuSXcf3I9hsctbXa2k"
+    profile: "administrator"
+  # Patrocinador
+  - username: "demo.patrocinador"
+    full_name: "Demo Patrocinador"
+    password_hash: "$argon2id$v=19$m=65536,t=3,p=4$e2uCiKVl9C+b6G8F/2pF+w$6P4u0DBNqmjO3anP5057f6mnDix9tpMRDwUN3RqnP3k"
+  # Grupo Gestor
+  - username: "demo.gestor"
+    full_name: "Demo Grupo Gestor"
+    password_hash: "$argon2id$v=19$m=65536,t=3,p=4$hsMAERsqJLDeQ0E1p20ezQ$H+LXpR7rubLWB8VUBF+AJKnwDkjsuBiNh1jyUY6kUlc"
+  # Grupo de Seleção de Amostras
+  - username: "demo.selecao"
+    full_name: "Demo Seleção de Amostras"
+    password_hash: "$argon2id$v=19$m=65536,t=3,p=4$kZCcWwWqEg77P6g8x5WLyA$kbOkWiKn0nu2wW/5r8l9THbvwTS3Pq7hNxiHJNM19Tg"
+  # Estatístico
+  - username: "demo.estatistico"
+    full_name: "Demo Estatístico"
+    password_hash: "$argon2id$v=19$m=65536,t=3,p=4$8CYYjvu3kVgNl3YDLN3LQA$VHeAttDxvDu5BunGgbaGiZk5ksDqcLu7rYI8k3qWIGs"
+  # Colaborador
+  - username: "demo.colaborador"
+    full_name: "Demo Colaborador"
+    password_hash: "$argon2id$v=19$m=65536,t=3,p=4$JVmNJrcFCztYah/jn6yxZw$WDCx8nz+AlI5crKOxpR58nY+zkte9vUHciknVmptxEo"
+  # Avaliador ad hoc
+  - username: "demo.adhoc"
+    full_name: "Demo Avaliador Ad Hoc"
+    password_hash: "$argon2id$v=19$m=65536,t=3,p=4$ta2sDFTkFtZthVWd0TMEhQ$zkdOp3afy7w6PJGWP3lT4QCNdF/lqrNg0XrNnRu32H0"
+  # Laboratório líder
+  - username: "demo.lab.lider"
+    full_name: "Demo Laboratório Líder"
+    password_hash: "$argon2id$v=19$m=65536,t=3,p=4$4/sGbORfsx/SANsP+5kK6g$pzojiXSoJwlTXcmghIF+82i7oi2pOcwYkqPf+FcCnk0"
+    laboratory: "Laboratório Demo A"
+  # Laboratório participante A
+  - username: "demo.lab.a"
+    full_name: "Demo Laboratório A"
+    password_hash: "$argon2id$v=19$m=65536,t=3,p=4$RqwMhY1TkiqEG6gXrSbEAA$v0BjTtY+eDGPlkndSvkAYIMkDwZviRsvj65izmGzjNA"
+    laboratory: "Laboratório Demo A"
+  # Laboratório participante B
+  - username: "demo.lab.b"
+    full_name: "Demo Laboratório B"
+    password_hash: "$argon2id$v=19$m=65536,t=3,p=4$zmJ1JuCAXXTHlmjVg71ofw$hcfCZA4jERhWmMz2k+WWzXyAUxu2DLrCgCFGQZCIM7w"
+    laboratory: "Laboratório Demo B"

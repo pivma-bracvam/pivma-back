@@ -23,7 +23,7 @@ As tarefas `docs-*` exigem o grupo `docs`: `poetry install --with docs` ou
 |---|---|
 | `alembic upgrade head` | Aplica as migrações |
 | `alembic revision --autogenerate -m "<descrição>"` | Gera uma migração a partir dos modelos |
-| `python -m pivma.bootstrap_system` | Provisiona perfis, permissões, templates e o administrador inicial. Idempotente |
+| `python -m pivma.bootstrap_system` | Provisiona perfis, permissões, templates, o administrador inicial e, com `demo_accounts.yaml`, as [contas de demonstração](../guias/administrar-usuarios-e-acessos.md#contas-de-demonstracao). Idempotente |
 | `python -m pivma.bootstrap_process_templates` | Só os templates |
 | `python -m pivma.bootstrap_rbac --user-id <UUID>` | Torna uma conta existente a administradora inicial |
 | `python -m pivma.notifications.worker` | Worker de envio de notificações |

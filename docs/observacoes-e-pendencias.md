@@ -250,3 +250,14 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 ### PENDÊNCIAS
 
 1. **Remoção**: antes do merge da `develop` na `main`, apague o YAML 05 e tire `test_short_form` dos testes que listam os tipos (busque `test_short_form` e `submission_test_short_v1` em `tests/`), da [referência de templates](../manual/referencia/templates.md), do README de `templates_data` e do escopo. Quando o YAML sai, o bootstrap desativa o tipo e o formulário no banco na próxima inicialização.
+
+## Contas de demonstração
+
+### DECISÃO TÉCNICA
+
+- **Pedido**: em 2026-11-18, o usuário pediu contas para uma apresentação ponta a ponta ao orientador, com a visão de cada cargo, criadas pelo back para o deploy de desenvolvimento receber pelo CI/CD.
+- **Decisão**: `src/pivma/demo_accounts.yaml` lista 12 contas `demo.*` (proponente, BraCVAM, administrador e uma por cargo da Fase 2 e da Fase 3), a "Instituição de Demonstração" e os laboratórios Demo A e Demo B. O passo 6 do `bootstrap_system` (`bootstrap_demo_accounts.py`) cria o que faltar e não altera contas existentes. O YAML guarda só hashes argon2 de senhas aleatórias; as senhas ficam com a equipe, fora do repositório, que é público. Os e-mails usam `example.com`, que não recebe mensagens.
+
+### PENDÊNCIAS
+
+1. **Remoção**: antes do merge da `develop` na `main`, apague `src/pivma/demo_accounts.yaml`, `src/pivma/bootstrap_demo_accounts.py`, o passo 6 de `bootstrap_system.py`, `tests/integration/bootstrap/test_demo_accounts_bootstrap.py` e a seção "Contas de demonstração" do [guia de usuários](../manual/guias/administrar-usuarios-e-acessos.md), além da menção em `manual/referencia/comandos.md`. As contas já criadas no banco de dev continuam lá até a limpeza do banco.
