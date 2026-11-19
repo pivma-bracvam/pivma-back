@@ -40,8 +40,8 @@ class Settings(BaseSettings):
 
     # Convite de designação por link (Spec 028). Prazo padrão de validade do
     # link, configurável por implantação (FR-008) — não é um parâmetro por
-    # convite individual.
-    INVITE_EXPIRATION_HOURS: int = Field(default=1)
+    # convite individual. 168 h = 7 dias (decisão de 2026-11-18).
+    INVITE_EXPIRATION_HOURS: int = Field(default=168)
 
     # Amostras cegas (Spec 031). Base da URL do frontend gravada no QR code
     # do frasco; sem valor, usa a primeira origem de `AUTH_ALLOWED_ORIGINS`.

@@ -36,7 +36,7 @@ arquivo `.env`. Modelo: `.env.example`.
 
 | Variável | Padrão | Uso |
 |---|---|---|
-| `INVITE_EXPIRATION_HOURS` | `1` | Validade do convite |
+| `INVITE_EXPIRATION_HOURS` | `168` | Validade do convite, em horas (7 dias) |
 | `INVITE_URL_TEMPLATE` | — | Página de aceite no frontend; deve conter `{token}` uma vez |
 | `PASSWORD_RESET_URL_TEMPLATE` | — | Página de redefinição; deve conter `{token}` uma vez |
 

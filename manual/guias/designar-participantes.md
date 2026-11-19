@@ -74,7 +74,7 @@ curl -s -X POST $API/processes/$PID/participants/invites -H "Authorization: Bear
 | `link` (padrão) | A resposta traz o `token`; você compartilha o link |
 | `email` | A API envia o link para o e-mail. Exige e-mail e `INVITE_URL_TEMPLATE` configurados, senão `409 channel_unavailable` |
 
-O convite vale `INVITE_EXPIRATION_HOURS` (1 hora por padrão).
+O convite vale `INVITE_EXPIRATION_HOURS` (168 horas, ou 7 dias, por padrão).
 `GET .../invites` lista os convites com `delivery` (situação do envio).
 Reenviar (`.../invites/{id}/resend`) renova o token e o prazo; revogar
 (`.../invites/{id}/revoke`) cancela o envio pendente.

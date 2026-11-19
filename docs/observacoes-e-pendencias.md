@@ -270,3 +270,10 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 - **Conflito**: na reunião de feedback de 2026-11-18, a equipe pediu que o BraCVAM designe todos os cargos da Fase 2.
 - **Decisão**: as oito atividades `role_assignment` dos templates têm o BraCVAM como executor. Só quem tem `process.participants.manage` (Administrador e BraCVAM, que têm todas as permissões) designa, convida, reenvia e revoga cargos. O Proponente e o Grupo Gestor deixam de designar. O Grupo Gestor também deixa de ver todos os participantes e os eventos de designação de terceiros. As dependências entre atividades não mudam: as demais designações continuam esperando a do Grupo Gestor.
 - **Validação**: confirmada pelo usuário em 2026-11-18, fora do Spec Kit. Substitui a FR-003 e a matriz de executores da Spec 028.
+
+## Prazo do convite de designação
+
+### DECISÃO TÉCNICA
+
+- **Fonte**: o pedido que abriu a Spec 028 fixou o prazo do convite em 1 hora, configurável por `INVITE_EXPIRATION_HOURS`.
+- **Decisão**: em 2026-11-18, o usuário pediu 7 dias. O padrão de `INVITE_EXPIRATION_HOURS` passa a ser 168. Uma implantação que defina a variável continua usando o próprio valor.
