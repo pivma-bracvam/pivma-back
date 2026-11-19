@@ -2,7 +2,7 @@
 
 Antes de os laboratórios receberem as amostras, o BraCVAM confere a equipe e
 as amostras do estudo. Neste tutorial o triador encontra um laboratório a
-menos do que o protocolo prevê e reprova esse ponto. A gestora indica o
+menos do que o protocolo prevê e reprova esse ponto. O triador indica o
 laboratório que faltava, a seleção de amostras gera os códigos dele, e o
 triador aprova. A Etapa 3 abre para os dois laboratórios, e cada decisão
 fica no histórico.
@@ -10,15 +10,14 @@ fica no histórico.
 ```mermaid
 sequenceDiagram
     actor B as BraCVAM
-    actor G as Grupo Gestor
     actor S as Seleção de Amostras
     actor L as Laboratórios
     participant API
     B->>API: abre o painel da homologação
     B->>API: reprova o ponto dos laboratórios, com motivo
-    API-->>G: devolve a tarefa de indicar laboratórios
-    G->>API: indica o segundo laboratório
-    G->>API: declara que terminou a correção
+    API-->>B: devolve a tarefa de indicar laboratórios
+    B->>API: indica o segundo laboratório
+    B->>API: declara que terminou a correção
     API-->>B: reabre a homologação
     B->>API: tenta aprovar
     API-->>B: pendência: laboratório sem amostras
@@ -30,9 +29,8 @@ sequenceDiagram
 
 ## Os personagens
 
-- **Triador do BraCVAM**: confere a estrutura e decide. Vê quantas
-  substâncias e códigos existem, nunca quais são.
-- **Gestora do estudo**: corrige a equipe.
+- **Triador do BraCVAM**: confere a estrutura, decide e corrige a equipe.
+  Vê quantas substâncias e códigos existem, nunca quais são.
 - **Seleção de Amostras**: refaz as amostras quando o BraCVAM pede.
 - **Técnicos dos laboratórios**: esperam a aprovação para receber os frascos.
 
@@ -47,7 +45,6 @@ abaixo reaproveitam as funções `login`, `signup` e `designar` e a variável
 ??? example "Como fazer pela API"
     ```bash
     TRI=$(login triador senha-segura-123)
-    GM=$(login gestora senha-segura-123)
     SEL=$(login selecao senha-segura-123)
     ADMIN=$(login admin@example.com admin-senha-123)
     PID=$(curl -s "$API/processes" -H "Authorization: Bearer $TRI" \
@@ -78,7 +75,7 @@ e as contagens das amostras. Nenhum ponto tem pendência.
 
 O protocolo prevê dois laboratórios, e a equipe tem um. O triador reprova o
 ponto "Definir os Laboratórios Participantes" e escreve o motivo. A
-homologação fica bloqueada até a gestora corrigir.
+homologação fica bloqueada até a equipe ser corrigida.
 
 ??? example "Como fazer pela API"
     ```bash
@@ -89,31 +86,30 @@ homologação fica bloqueada até a gestora corrigir.
 
     Resposta: `status` `BLOCKED` e o ponto reaberto na execução 2.
 
-## 3. A gestora vê a tarefa de volta
+## 3. O triador vê a tarefa de volta
 
-A tarefa de indicar laboratórios volta para a gestora como uma execução
-nova. A execução anterior continua concluída no histórico. A gestora lê o
-motivo do triador na linha do tempo do processo.
+A tarefa de indicar laboratórios volta para o triador como uma execução
+nova. A execução anterior continua concluída no histórico. O motivo da
+reprovação aparece na linha do tempo do processo.
 
 ??? example "Como fazer pela API"
     ```bash
     curl -s "$API/tasks?process_id=$PID&activity_key=assign_participating_laboratory&current_run=false" \
-      -H "Authorization: Bearer $GM" | jq '.data[] | {activity_run_number, status}'
-    curl -s "$API/processes/$PID/timeline?per_page=100" -H "Authorization: Bearer $GM" \
+      -H "Authorization: Bearer $TRI" | jq '.data[] | {activity_run_number, status}'
+    curl -s "$API/processes/$PID/timeline?per_page=100" -H "Authorization: Bearer $TRI" \
       | jq '.data[] | select(.event_type=="ACTIVITY_REOPENED") | .context_data.reason'
     ```
 
-    A resposta é `"O protocolo prevê dois laboratórios."`. A gestora não vê
-    a decisão do triador, só o motivo do ponto dela.
+    A resposta é `"O protocolo prevê dois laboratórios."`.
 
-## 4. A gestora indica o segundo laboratório e declara que terminou
+## 4. O triador indica o segundo laboratório e declara que terminou
 
-O administrador cadastra o segundo laboratório e vincula a técnica dele. A
-gestora indica a técnica como laboratório participante. A tarefa dela
-continua aberta: numa atribuição reaberta, designar e revogar não fecham a
-tarefa, então a gestora pode trocar pessoas na ordem que quiser. Quando a
-equipe fica certa, ela declara que terminou. A tarefa se fecha, e a
-homologação volta para o triador.
+O administrador cadastra o segundo laboratório e vincula a técnica dele. O
+triador indica a técnica como laboratório participante. A tarefa continua
+aberta: numa atribuição reaberta, designar e revogar não fecham a tarefa,
+então o triador pode trocar pessoas na ordem que quiser. Quando a equipe
+fica certa, ele declara que terminou. A tarefa se fecha, e a homologação
+reabre.
 
 ??? example "Como fazer pela API"
     ```bash
@@ -124,9 +120,9 @@ homologação volta para o triador.
     curl -s -X POST $API/institutional/users/$TECNICA_ID/affiliations -H "Authorization: Bearer $ADMIN" \
       -H 'Content-Type: application/json' \
       -d "{\"institution_id\":\"$INST\",\"laboratory_id\":\"$LAB2\"}" -o /dev/null -w '%{http_code}\n'
-    designar $GM $TECNICA_ID participating_laboratory $LAB2
+    designar $TRI $TECNICA_ID participating_laboratory $LAB2
     curl -s -X POST $API/processes/$PID/participants/roles/participating_laboratory/complete \
-      -H "Authorization: Bearer $GM" | jq
+      -H "Authorization: Bearer $TRI" | jq
     ```
 
     Resposta: `run_number` 2 e `status` `COMPLETED`. Com um convite pendente
@@ -193,7 +189,7 @@ autor, data, justificativa e os pontos reprovados com os motivos.
 - A Etapa 3 só abre depois que o BraCVAM aprova a estrutura.
 - Reprovar um ponto devolve a tarefa a quem o executa, com o motivo, e
   guarda a execução anterior.
-- Um cargo reprovado só fecha quando a gestora declara que terminou a
+- Um cargo reprovado só fecha quando o triador declara que terminou a
   correção.
 - A homologação reabre sozinha quando o último ponto reprovado conclui.
 - A aprovação confere a estrutura no momento da decisão: um laboratório sem

@@ -217,14 +217,14 @@ async def _participant_of_a_affiliated_to_b(session, ctx):
 
 @pytest.mark.asyncio
 async def test_second_participating_lab_designation_returns_409(
-    client, session
+    client, session, bracvam_user
 ):
     """Regra existente: o índice único de designação ativa (research R3)."""
     ctx = await _process(session)
     user = await _participant_of_a_affiliated_to_b(session, ctx)
     process_id, user_id = ctx.process_id, user.id
     lab_a, lab_b = ctx.labs[LAB_A].id, ctx.labs[LAB_B].id
-    authenticate(client, ctx.group_manager)
+    authenticate(client, bracvam_user)
 
     resp = create_participant(
         client, process_id, user_id, 'participating_laboratory', lab_b
@@ -243,7 +243,7 @@ async def test_second_participating_lab_designation_returns_409(
 
 @pytest.mark.asyncio
 async def test_participating_lab_designation_after_revocation_returns_201(
-    client, session
+    client, session, bracvam_user
 ):
     ctx = await _process(session)
     user = await _participant_of_a_affiliated_to_b(session, ctx)
@@ -253,7 +253,7 @@ async def test_participating_lab_designation_after_revocation_returns_201(
             Assignment.user_id == user.id,
         )
     )
-    authenticate(client, ctx.group_manager)
+    authenticate(client, bracvam_user)
     revoked = revoke_participant(client, ctx.process_id, assignment_id)
     assert revoked.status_code == HTTPStatus.NO_CONTENT
 
@@ -269,11 +269,13 @@ async def test_participating_lab_designation_after_revocation_returns_201(
 
 
 @pytest.mark.asyncio
-async def test_lead_of_a_can_be_designated_participant_of_b(client, session):
+async def test_lead_of_a_can_be_designated_participant_of_b(
+    client, session, bracvam_user
+):
     ctx = await _process(session)
     lead = await lead_of_lab(session, ctx, LAB_A)
     await affiliate(session, lead, ctx.labs[LAB_B])
-    authenticate(client, ctx.group_manager)
+    authenticate(client, bracvam_user)
 
     resp = create_participant(
         client,

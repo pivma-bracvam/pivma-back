@@ -2,11 +2,12 @@
 
 Personas:
 
-- Helena, do BraCVAM. Antes de liberar a Etapa 3, confere se a equipe está
-  completa e se cada laboratório participante tem amostras. Não vê nome
+- Helena, do BraCVAM. Designa os oito cargos do estudo e corrige o que
+  reprovar. Antes de liberar a Etapa 3, confere se a equipe está completa e
+  se cada laboratório participante tem amostras. Não vê nome
   químico, CAS nem código cego.
-- Marcos, do Grupo Gestor. Monta a equipe do estudo e corrige o que Helena
-  reprovar.
+- Marcos, do Grupo Gestor. Coordena o estudo, mas não decide a
+  homologação.
 - Ricardo, do Grupo de Seleção de Amostras. Define as amostras e as conclui
   de novo quando Helena reprova o ponto.
 - Estela, a estatística do estudo. Envia o plano estatístico e manda outro
@@ -17,8 +18,8 @@ Personas:
 Estado inicial comum: deploy novo com perfis, permissões, templates e
 administrador canônicos. Os atores se cadastram pela API; o administrador
 concede o perfil BraCVAM a Helena e cadastra instituições, laboratórios e
-vínculos. O proponente submete o processo, Helena aprova a triagem e a
-equipe designa os oito cargos pela API. Estela envia o plano estatístico, e
+vínculos. O proponente submete o processo, Helena aprova a triagem e
+designa os oito cargos pela API. Estela envia o plano estatístico, e
 Ricardo cadastra uma substância com SDS. Cada troca de ator usa logout/login
 públicos.
 
@@ -26,8 +27,8 @@ Jornadas:
 
 1. Helena confere a estrutura completa, aprova, e a Etapa 3 abre para os
    laboratórios (US1).
-2. Helena reprova o ponto dos laboratórios; Marcos designa o laboratório
-   certo antes de revogar o errado e declara que terminou, Ricardo refaz as
+2. Helena reprova o ponto dos laboratórios, designa o laboratório certo
+   antes de revogar o errado e declara que terminou; Ricardo refaz as
    amostras e Helena aprova na terceira execução (US2, o critério de
    conclusão da issue).
 3. Helena só aprova a estrutura completa: a decisão é recusada antes da
@@ -184,10 +185,8 @@ async def _equipe_montada(session, client, monkeypatch, *, plano=True):
         )
     )
     assert triaged['outcome'] == 'APPROVED'
-    _entrar(client, team.proponent)
     designate(client, team.process_id, team.manager, 'group_manager')
     designate(client, team.process_id, team.sponsor, 'sponsor')
-    _entrar(client, team.manager)
     for user, role in (
         (team.selector, 'sample_selection_group'),
         (team.statistician, 'statistician'),
@@ -372,7 +371,7 @@ async def test_bracvam_homologa_a_estrutura_e_libera_o_recebimento(
 
 
 def _designacao(client, process_id, laboratory):
-    """Designação ativa do laboratório participante, vista por Marcos."""
+    """Designação ativa do laboratório participante, vista por Helena."""
     data = ok(
         client.get(
             f'/processes/{process_id}/participants', params={'per_page': 100}
@@ -414,15 +413,13 @@ async def test_bracvam_reprova_o_laboratorio_e_a_estrutura_volta_para_correcao( 
     assert rejected['status'] == 'BLOCKED'
     assert rejected['reopened'] == [{'activity_key': labs, 'run_number': 2}]
 
-    # 3. Marcos vê a tarefa nova do ponto ao lado da concluída; Helena fica
-    #    sem homologação a fazer e Thiago sem recebimento.
-    _entrar(client, team.marcos)
+    # 3. Helena vê a tarefa nova do ponto ao lado da concluída e fica sem
+    #    homologação a fazer; Thiago fica sem recebimento.
     history = _tarefas(client, team.process_id, labs, current_run='false')
     assert [(t['activity_run_number'], t['status']) for t in history] == [
         (1, 'COMPLETED'),
         (2, 'READY'),
     ]
-    _entrar(client, team.helena)
     assert _tarefas(client, team.process_id, APPROVAL, status='READY') == []
     _entrar(client, team.thiago)
     assert _tarefas(client, team.process_id, 'sample_receipt') == []
@@ -436,9 +433,8 @@ async def test_bracvam_reprova_o_laboratorio_e_a_estrutura_volta_para_correcao( 
     [reabertura] = _eventos(client, team.process_id, 'ACTIVITY_REOPENED')
     assert reabertura['context_data']['reason'] == 'Laboratório errado.'
 
-    # 5. Marcos designa o laboratório certo antes de revogar o errado. A
-    #    tarefa dele continua aberta e Helena segue sem homologação.
-    _entrar(client, team.marcos)
+    # 5. Helena designa o laboratório certo antes de revogar o errado. A
+    #    tarefa continua aberta e ela segue sem homologação.
     designate(
         client, team.process_id, certo_user, 'participating_laboratory', certo
     )
@@ -453,12 +449,10 @@ async def test_bracvam_reprova_o_laboratorio_e_a_estrutura_volta_para_correcao( 
         2,
         'READY',
     )
-    _entrar(client, team.helena)
     assert _tarefas(client, team.process_id, APPROVAL, status='READY') == []
 
-    # 6. Marcos declara que terminou a troca: o ponto conclui e a
-    #    homologação reabre para Helena.
-    _entrar(client, team.marcos)
+    # 6. Helena declara que terminou a troca: o ponto conclui e a
+    #    homologação reabre para ela.
     completed = ok(
         client.post(
             f'/processes/{team.process_id}/participants/roles/'
@@ -467,7 +461,6 @@ async def test_bracvam_reprova_o_laboratorio_e_a_estrutura_volta_para_correcao( 
         )
     )
     assert (completed['run_number'], completed['status']) == (2, 'COMPLETED')
-    _entrar(client, team.helena)
     [task] = _tarefas(client, team.process_id, APPROVAL, status='READY')
     assert task['activity_run_number'] == 2  # noqa: PLR2004
 
@@ -571,8 +564,7 @@ async def test_bracvam_so_aprova_a_estrutura_completa(
     [task] = _tarefas(client, team.process_id, APPROVAL)
     assert task['status'] == 'READY'
 
-    # 3. Marcos designa um terceiro laboratório, que fica sem amostras.
-    _entrar(client, team.marcos)
+    # 3. Helena designa um terceiro laboratório, que fica sem amostras.
     designate(
         client,
         team.process_id,
@@ -580,7 +572,6 @@ async def test_bracvam_so_aprova_a_estrutura_completa(
         'participating_laboratory',
         terceiro,
     )
-    _entrar(client, team.helena)
     pending = _pontos(_painel(client, team.process_id))['sample_definition'][
         'pending'
     ]

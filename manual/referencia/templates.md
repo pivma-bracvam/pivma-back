@@ -102,12 +102,12 @@ flowchart TD
 | `proposal_submission` | 1 | `form` | `proponent` | — | 168 h |
 | `triage_evaluation` | 1 | `form` (sem formulário; decisão própria) | `bracvam` | `proposal_submission` | 72 h |
 | `submission_return_review` | 1 | `return_review` | `proponent` | aberta pela IA ou pela triagem | 168 h |
-| `assign_sponsor` | 2 | `role_assignment` | `proponent` | `triage_evaluation` | — |
-| `assign_group_manager` | 2 | `role_assignment` | `proponent` | `triage_evaluation` | — |
-| `assign_sample_selection_group` | 2 | `role_assignment` | `group_manager` | `assign_group_manager` | — |
-| `assign_lead_laboratory` | 2 | `role_assignment` | `group_manager` | `assign_group_manager` | — |
-| `assign_participating_laboratory` | 2 | `role_assignment` | `group_manager` | `assign_group_manager` | — |
-| `assign_statistician` | 2 | `role_assignment` | `group_manager` | `assign_group_manager` | — |
+| `assign_sponsor` | 2 | `role_assignment` | `bracvam` | `triage_evaluation` | — |
+| `assign_group_manager` | 2 | `role_assignment` | `bracvam` | `triage_evaluation` | — |
+| `assign_sample_selection_group` | 2 | `role_assignment` | `bracvam` | `assign_group_manager` | — |
+| `assign_lead_laboratory` | 2 | `role_assignment` | `bracvam` | `assign_group_manager` | — |
+| `assign_participating_laboratory` | 2 | `role_assignment` | `bracvam` | `assign_group_manager` | — |
+| `assign_statistician` | 2 | `role_assignment` | `bracvam` | `assign_group_manager` | — |
 | `assign_collaborator` | 2 | `role_assignment` | `bracvam` | `assign_group_manager` | — |
 | `assign_adhoc_evaluator` | 2 | `role_assignment` | `bracvam` | `assign_group_manager` | — |
 | `sample_definition` | 2 | `sample_definition` | `sample_selection_group` | `assign_sample_selection_group` e `assign_participating_laboratory` | — |

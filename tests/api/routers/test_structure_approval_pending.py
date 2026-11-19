@@ -36,14 +36,13 @@ async def test_late_additional_invite_does_not_block_structure_approval(
     ctx = await structure_process(session, bracvam_user)
     key = 'assign_statistician'
     previous_runs = [r.id for r in await runs(session, ctx.process_id, key)]
-    authenticate(client, ctx.manager)
+    authenticate(client, bracvam_user)
     invited = create_invite(
         client, ctx.process_id, 'outro.estatistico@example.com', 'statistician'
     )
     assert invited.status_code == HTTPStatus.CREATED, invited.text
     assert invited.json()['status'] == 'pending'
 
-    authenticate(client, bracvam_user)
     assert (await activity(session, ctx.process_id, key)).status == 'COMPLETED'
     assert [
         r.id for r in await runs(session, ctx.process_id, key)
@@ -53,7 +52,6 @@ async def test_late_additional_invite_does_not_block_structure_approval(
     assert approved.status_code == HTTPStatus.OK, approved.text
     assert approved.json()['status'] == 'COMPLETED'
 
-    authenticate(client, ctx.manager)
     [invite] = list_invites(client, ctx.process_id).json()['data']
     assert invite['id'] == invited.json()['id']
     assert invite['status'] == 'pending'

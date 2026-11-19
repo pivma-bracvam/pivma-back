@@ -18,14 +18,14 @@ impedindo a conclusão.
 
 ```mermaid
 flowchart TD
-    T[triage_evaluation] --> S[assign_sponsor<br/>proponente]
-    T --> GM[assign_group_manager<br/>proponente]
-    GM --> SSG[assign_sample_selection_group<br/>Grupo Gestor]
-    GM --> LL[assign_lead_laboratory<br/>Grupo Gestor]
-    GM --> PL[assign_participating_laboratory<br/>Grupo Gestor]
-    GM --> ST[assign_statistician<br/>Grupo Gestor]
-    GM --> CO[assign_collaborator<br/>BraCVAM]
-    GM --> AH[assign_adhoc_evaluator<br/>BraCVAM]
+    T[triage_evaluation] --> S[assign_sponsor]
+    T --> GM[assign_group_manager]
+    GM --> SSG[assign_sample_selection_group]
+    GM --> LL[assign_lead_laboratory]
+    GM --> PL[assign_participating_laboratory]
+    GM --> ST[assign_statistician]
+    GM --> CO[assign_collaborator]
+    GM --> AH[assign_adhoc_evaluator]
     SSG --> SD[sample_definition]
     PL --> SD
     ST --> SP[statistical_plan<br/>Estatístico]
@@ -36,11 +36,9 @@ estatístico. Veja [Enviar o plano estatístico](enviar-o-plano-estatistico.md).
 
 ## Quem pode designar
 
-| Quem | Cargos |
-|---|---|
-| Admin, BraCVAM (`process.participants.manage`) | Todos |
-| `group_manager` efetivo no processo | Todos |
-| `proponent` efetivo | `sponsor` e `group_manager` |
+O BraCVAM executa as oito atividades de atribuição. Designar, convidar,
+reenviar e revogar exigem `process.participants.manage`, que só o
+Administrador e o BraCVAM têm. O Proponente e o Grupo Gestor recebem `403`.
 
 ## Designar uma pessoa já cadastrada
 

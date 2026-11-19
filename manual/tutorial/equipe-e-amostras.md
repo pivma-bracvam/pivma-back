@@ -9,15 +9,14 @@ laboratórios recebem frascos com códigos, sem saber o que há dentro.
 ```mermaid
 sequenceDiagram
     actor A as Administrador
-    actor P as Proponente
-    actor G as Grupo Gestor
+    actor B as BraCVAM
     actor E as Estatístico
     actor S as Seleção de Amostras
     actor L as Laboratório
     participant API
     A->>API: cadastra o laboratório e vincula sua equipe
-    P->>API: indica o patrocinador e o Grupo Gestor
-    G->>API: indica a seleção de amostras, os laboratórios e os especialistas
+    B->>API: indica o patrocinador e o Grupo Gestor
+    B->>API: indica a seleção de amostras, os laboratórios e os especialistas
     E->>API: envia o plano estatístico
     API-->>S: abre a definição das amostras
     S->>API: cadastra substâncias e fichas de segurança
@@ -29,8 +28,7 @@ sequenceDiagram
 ## Os personagens
 
 - **Administrador**: mantém o cadastro de instituições e laboratórios.
-- **Proponente**: indica o patrocinador e quem vai gerir o estudo.
-- **Grupo Gestor**: monta o restante da equipe.
+- **Triador do BraCVAM**: indica todos os cargos do estudo.
 - **Estatístico**: envia o plano estatístico do estudo.
 - **Grupo de Seleção de Amostras**: único que conhece as substâncias.
 - **Laboratório participante**: vai testar as amostras sem saber o que são.
@@ -42,8 +40,8 @@ tutorial continua aquele processo, que já está na Fase 2. Recupere o processo:
 
 ??? example "Como fazer pela API"
     ```bash
-    PROP=$(login proponente senha-segura-123)
-    PID=$(curl -s "$API/processes" -H "Authorization: Bearer $PROP" \
+    BRAC=$(login triador senha-segura-123)
+    PID=$(curl -s "$API/processes" -H "Authorization: Bearer $BRAC" \
       | jq -r '.data[] | select(.title=="Método 3T3 NRU") | .id')
     echo $PID
     ```
@@ -91,11 +89,12 @@ instituição, o laboratório e vincula o técnico.
 
     O vínculo responde `201`.
 
-## 3. O proponente indica o patrocinador e o Grupo Gestor
+## 3. O triador indica o patrocinador e o Grupo Gestor
 
-O proponente tem duas tarefas abertas desde a triagem. Ele indica o
+O triador tem duas tarefas abertas desde a triagem. Ele indica o
 patrocinador e a gestora para o Grupo Gestor. Cada tarefa se fecha sozinha,
-e a gestora passa a ver o processo.
+e a gestora passa a ver o processo. O proponente não indica ninguém: se
+tentasse, a plataforma responderia `403`.
 
 ??? example "Como fazer pela API"
     ```bash
@@ -105,39 +104,39 @@ e a gestora passa a ver o processo.
         -H 'Content-Type: application/json' \
         -d "{\"user_id\":\"$2\",\"role_key\":\"$3\"$LAB_JSON}" -o /dev/null -w '%{http_code}\n'
     }
-    designar $PROP $PATROCINIO_ID sponsor
-    designar $PROP $GESTORA_ID group_manager
+    designar $BRAC $PATROCINIO_ID sponsor
+    designar $BRAC $GESTORA_ID group_manager
     ```
 
-## 4. A gestora monta a equipe
+## 4. O triador completa a equipe
 
-A gestora recebe as tarefas de indicar o restante da equipe. Ela indica a
+Com o Grupo Gestor indicado, o triador recebe as tarefas de indicar o
+restante da equipe. Ele indica a
 responsável pela seleção de amostras, o técnico como laboratório
 participante e como laboratório líder, apontando o laboratório dele, o
 estatístico, a colaboradora e o avaliador ad hoc. O BraCVAM só homologa a
 estrutura com os oito cargos preenchidos.
 
-Se ela tentasse indicar alguém sem vínculo com o laboratório, a plataforma
+Se ele tentasse indicar alguém sem vínculo com o laboratório, a plataforma
 recusaria.
 
 ??? example "Como fazer pela API"
     ```bash
-    GM=$(login gestora senha-segura-123)
-    curl -s "$API/tasks?process_id=$PID&status=READY" -H "Authorization: Bearer $GM" \
+    curl -s "$API/tasks?process_id=$PID&status=READY" -H "Authorization: Bearer $BRAC" \
       | jq '.data[] | .activity_key'
-    designar $GM $SELECAO_ID sample_selection_group
-    designar $GM $TECNICO_ID participating_laboratory $LAB
-    designar $GM $TECNICO_ID lead_laboratory $LAB
-    designar $GM $ESTATISTICO_ID statistician
-    designar $GM $COLABORADORA_ID collaborator
-    designar $GM $AVALIADOR_ID adhoc_evaluator
+    designar $BRAC $SELECAO_ID sample_selection_group
+    designar $BRAC $TECNICO_ID participating_laboratory $LAB
+    designar $BRAC $TECNICO_ID lead_laboratory $LAB
+    designar $BRAC $ESTATISTICO_ID statistician
+    designar $BRAC $COLABORADORA_ID collaborator
+    designar $BRAC $AVALIADOR_ID adhoc_evaluator
     ```
 
     Cada designação responde `201`.
 
 ## 5. O estatístico envia o plano estatístico
 
-Quando a gestora indica o estatístico, ele recebe a tarefa do plano
+Quando o triador indica o estatístico, ele recebe a tarefa do plano
 estatístico. Ele anexa o plano em PDF ou DOCX, escreve um resumo curto e
 envia. Sem o anexo, a plataforma recusa o envio. O BraCVAM confere o plano
 na homologação, junto com a equipe e as amostras.
@@ -220,8 +219,7 @@ BraCVAM confere a equipe e as amostras:
 
 ## O que você viu
 
-- O proponente indica o patrocinador e o gestor; o gestor monta o resto da
-  equipe.
+- O BraCVAM indica todos os cargos; os demais esperam o Grupo Gestor.
 - Laboratórios precisam estar cadastrados e ter pessoas vinculadas.
 - O estatístico envia o plano pelo formulário da tarefa dele.
 - Só o Grupo de Seleção conhece as substâncias.

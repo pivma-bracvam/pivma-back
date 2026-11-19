@@ -76,55 +76,17 @@ async def test_global_permission_authorizes_management_in_any_process(
 
 
 @pytest.mark.asyncio
-async def test_effective_group_manager_authorizes_only_own_process(
+async def test_effective_group_manager_does_not_authorize_management(
     session, user
 ):
-    own_process = await create_process(session)
-    other_process = await create_process(session)
-    assignment = AssignmentFactory(
-        process=own_process,
-        user=user,
-        assigner=user,
-        role_key='group_manager',
-    )
-    session.add(assignment)
-    await session.commit()
-
-    assert await can_manage_participants(session, user.id, own_process.id)
-    assert not await can_manage_participants(
-        session, user.id, other_process.id
-    )
-
-
-@pytest.mark.asyncio
-async def test_revoked_group_manager_does_not_authorize_management(
-    session, user
-):
+    """Só `process.participants.manage` (Admin e BraCVAM) gere
+    participantes (reunião de feedback, 2026-11-18)."""
     process = await create_process(session)
-    assignment = AssignmentFactory(
-        process=process,
-        user=user,
-        assigner=user,
-        role_key='group_manager',
-        revoked_at=datetime.now(timezone.utc),
+    session.add(
+        AssignmentFactory(
+            process=process, user=user, assigner=user, role_key='group_manager'
+        )
     )
-    session.add(assignment)
-    await session.commit()
-
-    assert not await can_manage_participants(session, user.id, process.id)
-
-
-@pytest.mark.asyncio
-async def test_group_manager_cycle_of_inactive_user_does_not_authorize(
-    session, user
-):
-    process = await create_process(session)
-    assignment = AssignmentFactory(
-        process=process, user=user, assigner=user, role_key='group_manager'
-    )
-    session.add(assignment)
-    user.deleted_at = datetime.now(timezone.utc)
-    session.add(user)
     await session.commit()
 
     assert not await can_manage_participants(session, user.id, process.id)

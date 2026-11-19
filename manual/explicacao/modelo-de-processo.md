@@ -73,7 +73,8 @@ abre por evento, quando a IA ou a triagem devolvem a submissão.
 ## Fase 2: composição da governança
 
 A triagem aprovada abre `assign_sponsor` e `assign_group_manager` para o
-proponente. Com o Grupo Gestor designado, abrem as demais atribuições. Na
+BraCVAM, que executa todas as atribuições de cargo. Com o Grupo Gestor
+designado, abrem as demais. Na
 primeira execução, uma atividade de atribuição fecha sozinha numa
 designação ou numa revogação, quando o cargo fica com ao menos uma
 designação ativa e sem convite pendente. `sample_definition` abre quando o

@@ -116,12 +116,10 @@ async def test_invites_envelope(client, session, manager):
 @pytest.mark.asyncio
 async def test_invites_total_counts_only_manageable(client, session):
     process, proponent, _ = await _process_with_members(session, 0)
-    # O proponente gere só `sponsor` e `group_manager` (Spec 028, FR-003).
+    # O proponente não gere nenhum cargo (reunião de feedback, 2026-11-18).
     session.add_all([
         _invite(process, proponent, 'sponsor'),
         _invite(process, proponent, 'group_manager'),
-        _invite(process, proponent, 'statistician'),
-        _invite(process, proponent, 'statistician'),
     ])
     await session.commit()
 
@@ -130,8 +128,8 @@ async def test_invites_total_counts_only_manageable(client, session):
         client, f'/processes/{process.id}/participants/invites', per_page=1
     )
 
-    assert body['pagination']['total_items'] == 2  # noqa: PLR2004
-    assert body['pagination']['total_pages'] == 2  # noqa: PLR2004
+    assert body['pagination']['total_items'] == 0
+    assert body['data'] == []
 
 
 @pytest.mark.asyncio

@@ -163,9 +163,9 @@ Aqui ele aprova.
 
 ## 7. O processo segue para a Fase 2
 
-Com a triagem aprovada, o proponente recebe duas novas tarefas: indicar o
-**patrocinador** e o **Grupo Gestor** do estudo. A partir daí, o Grupo Gestor
-monta o resto da equipe.
+Com a triagem aprovada, o BraCVAM recebe duas novas tarefas: indicar o
+**patrocinador** e o **Grupo Gestor** do estudo. Depois de indicar o Grupo
+Gestor, o BraCVAM monta o resto da equipe.
 
 Tudo o que aconteceu fica registrado na linha do tempo do processo. Cada
 pessoa vê só a parte que lhe diz respeito: o proponente vê a criação e o envio,
@@ -173,7 +173,7 @@ mas não os comentários internos da triagem.
 
 ??? example "Como fazer pela API"
     ```bash
-    curl -s "$API/tasks?process_id=$PID&status=READY" -H "Authorization: Bearer $PROP" \
+    curl -s "$API/tasks?process_id=$PID&status=READY" -H "Authorization: Bearer $BRAC" \
       | jq '.data[] | .activity_key'
     curl -s $API/processes/$PID/timeline -H "Authorization: Bearer $PROP" | jq '.data[] | .event_type'
     ```

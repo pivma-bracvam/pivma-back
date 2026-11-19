@@ -31,7 +31,7 @@ async def test_preview_masks_email_without_authentication(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(
         client, process_id, 'convidado@exemplo.org', 'sponsor'
     )
@@ -61,7 +61,7 @@ async def test_preview_expired_invite_shows_expired_flag(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(
         client, process_id, 'venceu@exemplo.org', 'sponsor'
     )
@@ -85,7 +85,7 @@ async def test_accept_with_matching_email_creates_assignment(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(client, process_id, 'novo@exemplo.org', 'sponsor')
     token = created.json()['token']
 
@@ -122,7 +122,7 @@ async def test_accept_with_existing_account_login_works(
     session.add(existing_user)
     await session.commit()
 
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(
         client, process_id, 'ja-tenho-conta@exemplo.org', 'group_manager'
     )
@@ -141,7 +141,7 @@ async def test_accept_with_mismatched_email_is_forbidden(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(client, process_id, 'alvo@exemplo.org', 'sponsor')
     token = created.json()['token']
     invite_id = created.json()['id']
@@ -154,7 +154,7 @@ async def test_accept_with_mismatched_email_is_forbidden(
     resp = accept_invite_req(client, token)
     assert resp.status_code == HTTPStatus.FORBIDDEN
 
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     preview = client.get(
         f'/processes/{process_id}/participants/invites'
     ).json()['data']
@@ -170,7 +170,7 @@ async def test_accept_expired_invite_is_conflict(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(
         client, process_id, 'expirado@exemplo.org', 'sponsor'
     )
@@ -199,7 +199,7 @@ async def test_accept_already_resolved_invite_is_conflict(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(
         client, process_id, f'{final_status}@exemplo.org', 'sponsor'
     )
@@ -214,7 +214,7 @@ async def test_accept_already_resolved_invite_is_conflict(
         authenticate(client, target_user)
         accept_invite_req(client, token)
     else:
-        authenticate(client, proponente)
+        authenticate(client, bracvam_user)
         client.post(
             f'/processes/{process_id}/participants/invites/{invite_id}/revoke',
             headers=ORIGIN,
@@ -236,7 +236,7 @@ async def test_accept_laboratory_role_without_affiliation_is_conflict(
     gestor = UserFactory()
     session.add(gestor)
     await session.commit()
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     from tests.api.routers.test_participant_router import (  # noqa: PLC0415
         create_participant,
     )
@@ -255,7 +255,7 @@ async def test_accept_laboratory_role_without_affiliation_is_conflict(
     session.add(laboratory)
     await session.commit()
 
-    authenticate(client, gestor)
+    authenticate(client, bracvam_user)
     created = create_invite(
         client,
         process_id,
@@ -274,7 +274,7 @@ async def test_accept_laboratory_role_without_affiliation_is_conflict(
     resp = accept_invite_req(client, token)
     assert resp.status_code == HTTPStatus.CONFLICT
 
-    authenticate(client, gestor)
+    authenticate(client, bracvam_user)
     invites = client.get(
         f'/processes/{process_id}/participants/invites'
     ).json()['data']
@@ -292,7 +292,7 @@ async def test_accept_laboratory_role_with_affiliation_succeeds(
     gestor = UserFactory()
     session.add(gestor)
     await session.commit()
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     from tests.api.routers.test_participant_router import (  # noqa: PLC0415
         create_participant,
     )
@@ -306,7 +306,7 @@ async def test_accept_laboratory_role_with_affiliation_succeeds(
         session, new_user
     )
 
-    authenticate(client, gestor)
+    authenticate(client, bracvam_user)
     created = create_invite(
         client,
         process_id,
@@ -329,7 +329,7 @@ async def test_accept_records_invite_accepted_and_participant_assigned(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(
         client, process_id, 'auditoria@exemplo.org', 'sponsor'
     )
@@ -370,7 +370,7 @@ async def test_accept_closes_activity_when_last_pending_invite(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(client, process_id, 'unico@exemplo.org', 'sponsor')
     token = created.json()['token']
 
@@ -381,7 +381,7 @@ async def test_accept_closes_activity_when_last_pending_invite(
     accept_invite_req(client, token)
 
     # Spec 030: a tarefa é do cargo `proponent`; só ele (e Admin/BraCVAM) a vê.
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     tasks = client.get('/tasks', params={'process_id': process_id}).json()[
         'data'
     ]
@@ -401,7 +401,7 @@ async def test_accept_email_invite_cancels_pending_delivery(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(
         client, process_id, 'aceita@exemplo.org', 'sponsor', channel='email'
     )

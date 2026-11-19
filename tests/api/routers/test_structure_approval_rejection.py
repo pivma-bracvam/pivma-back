@@ -92,7 +92,7 @@ async def test_rejected_point_gets_a_new_run_with_the_reason(
     assert point.status == 'IN_PROGRESS'
     assert (second.run_number, second.status) == (2, 'IN_PROGRESS')
     assert second.execution_reason == f'{REASON} ({LABS})'
-    assert (task.status, task.assigned_role) == ('READY', 'group_manager')
+    assert (task.status, task.assigned_role) == ('READY', 'bracvam')
 
 
 @pytest.mark.asyncio
@@ -276,7 +276,7 @@ async def test_point_owner_reads_the_reason_in_the_timeline(
 ):
     ctx = await _rejected(client, session, bracvam_user, LABS)
 
-    authenticate(client, ctx.manager)
+    authenticate(client, bracvam_user)
     [reopened] = _timeline(client, ctx.process_id, 'ACTIVITY_REOPENED')
     assert reopened['context_data']['reason'] == f'{REASON} ({LABS})'
 

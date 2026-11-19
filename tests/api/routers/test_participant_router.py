@@ -150,9 +150,10 @@ async def test_administrator_creates_valid_individual_assignment(
 
 
 @pytest.mark.asyncio
-async def test_group_manager_creates_valid_assignment_in_own_process(
+async def test_group_manager_cannot_designate_in_own_process(
     session, client, user, other_user
 ):
+    """Só o BraCVAM e o Admin designam (reunião de feedback, 2026-11-18)."""
     process = await create_process(session)
     manager_assignment = AssignmentFactory(
         process=process, user=user, assigner=user, role_key='group_manager'
@@ -164,7 +165,7 @@ async def test_group_manager_creates_valid_assignment_in_own_process(
     response = create_participant(
         client, process.id, other_user.id, 'study_manager'
     )
-    assert response.status_code == HTTPStatus.CREATED
+    assert response.status_code == HTTPStatus.FORBIDDEN
 
 
 @pytest.mark.asyncio
@@ -307,22 +308,25 @@ async def test_sequential_active_duplicate_returns_409(
 
 
 @pytest.mark.asyncio
-async def test_effective_group_manager_completes_valid_revocation(
+async def test_group_manager_cannot_revoke_in_own_process(
     session, client, user, other_user
 ):
     process = await create_process(session)
     manager_assignment = AssignmentFactory(
         process=process, user=user, assigner=user, role_key='group_manager'
     )
-    session.add(manager_assignment)
+    target = AssignmentFactory(
+        process=process,
+        user=other_user,
+        assigner=user,
+        role_key='study_manager',
+    )
+    session.add_all([manager_assignment, target])
     await session.commit()
     authenticate(client, user)
-    created = create_participant(
-        client, process.id, other_user.id, 'study_manager'
-    ).json()
 
-    response = revoke_participant(client, process.id, created['id'])
-    assert response.status_code == HTTPStatus.NO_CONTENT
+    response = revoke_participant(client, process.id, target.id)
+    assert response.status_code == HTTPStatus.FORBIDDEN
 
 
 @pytest.mark.asyncio
@@ -991,27 +995,31 @@ def _task_by_title(client, process_id, title):
 
 
 @pytest.mark.asyncio
-async def test_effective_proponent_designates_sponsor(
-    client, session, bracvam_user
+@pytest.mark.parametrize('role_key', ['sponsor', 'group_manager'])
+async def test_bracvam_designates_sponsor_and_group_manager(
+    client, session, bracvam_user, role_key
 ):
-    """A-P01: Proponente efetivo designa usuário ativo para sponsor."""
-    process_id, proponente = await _process_in_planning_phase(
+    """A-P01/A-P02: o BraCVAM designa o Patrocinador e o Grupo Gestor."""
+    process_id, _proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
     target = UserFactory()
     session.add(target)
     await session.commit()
 
-    authenticate(client, proponente)
-    resp = create_participant(client, process_id, target.id, 'sponsor')
+    authenticate(client, bracvam_user)
+    resp = create_participant(client, process_id, target.id, role_key)
     assert resp.status_code == HTTPStatus.CREATED
 
 
 @pytest.mark.asyncio
-async def test_effective_proponent_designates_group_manager(
-    client, session, bracvam_user
+@pytest.mark.parametrize(
+    'role_key', ['sponsor', 'group_manager', 'statistician']
+)
+async def test_proponent_cannot_designate(
+    client, session, bracvam_user, role_key
 ):
-    """A-P02: Proponente efetivo designa usuário ativo para group_manager."""
+    """A-P03: o Proponente efetivo não designa nenhum cargo."""
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
@@ -1020,24 +1028,7 @@ async def test_effective_proponent_designates_group_manager(
     await session.commit()
 
     authenticate(client, proponente)
-    resp = create_participant(client, process_id, target.id, 'group_manager')
-    assert resp.status_code == HTTPStatus.CREATED
-
-
-@pytest.mark.asyncio
-async def test_proponent_denied_for_role_outside_sponsor_and_group_manager(
-    client, session, bracvam_user
-):
-    """A-P03: Proponente sem autorização genérica é negado p/ statistician."""
-    process_id, proponente = await _process_in_planning_phase(
-        client, session, bracvam_user
-    )
-    target = UserFactory()
-    session.add(target)
-    await session.commit()
-
-    authenticate(client, proponente)
-    resp = create_participant(client, process_id, target.id, 'statistician')
+    resp = create_participant(client, process_id, target.id, role_key)
     assert resp.status_code == HTTPStatus.FORBIDDEN
 
 
@@ -1063,7 +1054,7 @@ async def test_direct_designation_closes_role_assignment_activity(
     )
     assert _task_by_title(client, process_id, 'Definir o Estatístico') is None
 
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     resp = create_participant(client, process_id, target.id, 'group_manager')
     assert resp.status_code == HTTPStatus.CREATED
 
@@ -1071,14 +1062,13 @@ async def test_direct_designation_closes_role_assignment_activity(
         client, process_id, 'Definir os integrantes do Grupo Gestor'
     )
     assert gestor_task['status'] == 'COMPLETED'
-    # Spec 030: a etapa do Estatístico é do cargo `group_manager`.
-    authenticate(client, target)
+    # A etapa do Estatístico é do BraCVAM, como todas as atribuições.
     statistician_task = _task_by_title(
         client, process_id, 'Definir o Estatístico'
     )
     assert statistician_task is not None
     assert statistician_task['status'] == 'READY'
-    assert statistician_task['assigned_role'] == 'group_manager'
+    assert statistician_task['assigned_role'] == 'bracvam'
 
 
 @pytest.mark.asyncio
@@ -1107,7 +1097,7 @@ async def test_second_designation_of_closed_role_is_idempotent(
             )
         )
 
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     resp1 = create_participant(
         client, process_id, first_target.id, 'group_manager'
     )
@@ -1157,7 +1147,7 @@ async def test_multiple_active_designations_for_same_role_are_accepted(
     session.add_all([first_target, second_target])
     await session.commit()
 
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     resp1 = create_participant(client, process_id, first_target.id, 'sponsor')
     resp2 = create_participant(client, process_id, second_target.id, 'sponsor')
     assert resp1.status_code == HTTPStatus.CREATED
@@ -1165,10 +1155,10 @@ async def test_multiple_active_designations_for_same_role_are_accepted(
 
 
 @pytest.mark.asyncio
-async def test_effective_proponent_revokes_own_sponsor_designation(
+async def test_bracvam_revokes_sponsor_designation(
     client, session, bracvam_user
 ):
-    """A-P06: Proponente efetivo revoga designação de sponsor/group_manager."""
+    """A-P06: o BraCVAM revoga a designação de sponsor."""
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
@@ -1176,7 +1166,7 @@ async def test_effective_proponent_revokes_own_sponsor_designation(
     session.add(target)
     await session.commit()
 
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     create_resp = create_participant(client, process_id, target.id, 'sponsor')
     assignment_id = create_resp.json()['id']
 
@@ -1208,7 +1198,6 @@ async def _reopened_role(client, session, bracvam_user, activity_key):
         rejected_points=[{'activity_key': activity_key, 'reason': 'Rever.'}],
     )
     assert response.status_code == HTTPStatus.OK, response.text
-    authenticate(client, ctx.manager)
     return ctx
 
 
@@ -1324,7 +1313,7 @@ async def test_completion_records_who_declared_and_reopens_the_approval(
         )
     )
     assert event.activity_run_id == reopened.id
-    assert event.user_id == ctx.manager.id
+    assert event.user_id == bracvam_user.id
     assert event.context_data == {
         'activity_key': key,
         'role_key': 'participating_laboratory',
@@ -1378,7 +1367,7 @@ async def test_completion_of_a_completed_role_is_refused(
     client, session, bracvam_user
 ):
     ctx = await structure_process(session, bracvam_user)
-    authenticate(client, ctx.manager)
+    authenticate(client, bracvam_user)
 
     response = complete_role(client, ctx.process_id, 'statistician')
 
@@ -1402,22 +1391,12 @@ async def test_completion_by_someone_who_does_not_manage_the_role_is_refused(
 
 
 @pytest.mark.asyncio
-async def test_completion_by_manager_with_current_conflict_is_refused(
+async def test_completion_by_group_manager_is_refused(
     client, session, bracvam_user
 ):
     key = 'assign_statistician'
     ctx = await _reopened_role(client, session, bracvam_user, key)
-    [manager_assignment] = await _active_assignments(
-        session, ctx.process_id, 'group_manager'
-    )
-    declaration = declare_conflict(
-        client,
-        ctx.process_id,
-        manager_assignment.id,
-        True,
-        justification='Tenho conflito neste estudo.',
-    )
-    assert declaration.status_code == HTTPStatus.CREATED, declaration.text
+    authenticate(client, ctx.manager)
 
     response = complete_role(client, ctx.process_id, 'statistician')
 

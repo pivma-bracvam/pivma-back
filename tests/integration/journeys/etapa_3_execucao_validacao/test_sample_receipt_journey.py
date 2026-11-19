@@ -73,7 +73,7 @@ async def _etapa_3_aberta(session, client, bracvam_user):
     """Estado inicial comum: amostras concluídas e estrutura homologada."""
     team = await study_team(session, lab_count=2)
     process_id = open_sample_definition(client, team, bracvam_user)
-    complete_study_team(client, team, process_id)
+    complete_study_team(client, team, process_id, bracvam_user)
     authenticate(client, team.selector)
     team.substances = [
         register_substance(

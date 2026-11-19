@@ -102,11 +102,9 @@ async def test_blind_sample_journey_four_substances_three_labs(  # noqa: PLR0914
         )
     )
 
-    # 3. Proponente designa o Grupo Gestor; o Gestor designa o Grupo de
-    #    Seleção e os três laboratórios participantes.
-    authenticate(client, proponent)
+    # 3. O BraCVAM designa o Grupo Gestor, o Grupo de Seleção e os três
+    #    laboratórios participantes.
     _designate(client, process_id, manager, 'group_manager')
-    authenticate(client, manager)
     _designate(client, process_id, selector, 'sample_selection_group')
     for lab, user in zip(laboratories, lab_users, strict=True):
         _designate(client, process_id, user, 'participating_laboratory', lab)

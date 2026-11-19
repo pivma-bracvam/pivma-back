@@ -60,9 +60,9 @@ phases:
       - key: "assign_sponsor"
         name: "Definir o Patrocinador"
         order_index: 1
-        assigned_role: "proponent"
+        assigned_role: "bracvam"
         access:
-          edit: ["proponent"]
+          edit: ["bracvam"]
           view: []
         activity_type: "role_assignment"
         target_role_key: "sponsor"
@@ -74,9 +74,9 @@ phases:
       - key: "assign_group_manager"
         name: "Definir os integrantes do Grupo Gestor"
         order_index: 2
-        assigned_role: "proponent"
+        assigned_role: "bracvam"
         access:
-          edit: ["proponent"]
+          edit: ["bracvam"]
           view: []
         activity_type: "role_assignment"
         target_role_key: "group_manager"
@@ -88,9 +88,9 @@ phases:
       - key: "assign_sample_selection_group"
         name: "Definir o Grupo de Seleção de Amostras"
         order_index: 3
-        assigned_role: "group_manager"
+        assigned_role: "bracvam"
         access:
-          edit: ["group_manager"]
+          edit: ["bracvam"]
           view: []
         activity_type: "role_assignment"
         target_role_key: "sample_selection_group"
@@ -102,9 +102,9 @@ phases:
       - key: "assign_lead_laboratory"
         name: "Definir o Laboratório Líder"
         order_index: 4
-        assigned_role: "group_manager"
+        assigned_role: "bracvam"
         access:
-          edit: ["group_manager"]
+          edit: ["bracvam"]
           view: []
         activity_type: "role_assignment"
         target_role_key: "lead_laboratory"
@@ -116,9 +116,9 @@ phases:
       - key: "assign_participating_laboratory"
         name: "Definir os Laboratórios Participantes"
         order_index: 5
-        assigned_role: "group_manager"
+        assigned_role: "bracvam"
         access:
-          edit: ["group_manager"]
+          edit: ["bracvam"]
           view: []
         activity_type: "role_assignment"
         target_role_key: "participating_laboratory"
@@ -130,9 +130,9 @@ phases:
       - key: "assign_statistician"
         name: "Definir o Estatístico"
         order_index: 6
-        assigned_role: "group_manager"
+        assigned_role: "bracvam"
         access:
-          edit: ["group_manager"]
+          edit: ["bracvam"]
           view: []
         activity_type: "role_assignment"
         target_role_key: "statistician"

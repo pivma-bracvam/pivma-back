@@ -25,7 +25,7 @@ async def _email_invite(client, session, bracvam_user, email):
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     resp = create_invite(client, process_id, email, 'sponsor', channel='email')
     assert resp.status_code == HTTPStatus.CREATED
     return process_id, resp.json()

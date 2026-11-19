@@ -1,8 +1,6 @@
-"""Spec 028 - `can_manage_role_assignment` (matriz de autorização por papel).
-
-Compõe três funções já existentes (`can_manage_participants`,
-`is_active_effective_proponent`) — ver `research.md` R3 e a seção "Papéis
-Contextuais e Autorização de Designação" do `spec.md`.
+"""`can_manage_role_assignment`: só `process.participants.manage` (Admin e
+BraCVAM) designa os cargos da Fase 2 (reunião de feedback, 2026-11-18;
+substitui a FR-003 da Spec 028).
 """
 
 import pytest
@@ -34,9 +32,6 @@ THE_8_ROLES = (
     'statistician',
     'collaborator',
     'adhoc_evaluator',
-)
-NON_PROPONENT_ROLES = tuple(
-    role for role in THE_8_ROLES if role not in {'sponsor', 'group_manager'}
 )
 
 
@@ -88,55 +83,20 @@ async def test_global_permission_authorizes_every_role(session, role_key):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('process_role', ['group_manager', 'proponent'])
 @pytest.mark.parametrize('role_key', THE_8_ROLES)
-async def test_effective_group_manager_authorizes_every_role(
-    session, role_key
+async def test_process_role_without_permission_is_denied(
+    session, process_role, role_key
 ):
-    """U-A02: group_manager efetivo do processo autoriza qualquer papel."""
+    """Grupo Gestor e Proponente efetivos não designam nenhum dos 8 papéis:
+    só o BraCVAM e o Admin designam (reunião de feedback, 2026-11-18).
+    """
     user = UserFactory()
     session.add(user)
     await session.commit()
     process = await _make_process(session)
     session.add(
-        AssignmentFactory(process=process, user=user, role_key='group_manager')
-    )
-    await session.commit()
-
-    assert await can_manage_role_assignment(
-        session, user.id, process.id, role_key
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize('role_key', ['sponsor', 'group_manager'])
-async def test_effective_proponent_authorizes_sponsor_and_group_manager(
-    session, role_key
-):
-    """U-A03: Proponente efetivo autoriza somente sponsor/group_manager."""
-    user = UserFactory()
-    session.add(user)
-    await session.commit()
-    process = await _make_process(session)
-    session.add(
-        AssignmentFactory(process=process, user=user, role_key='proponent')
-    )
-    await session.commit()
-
-    assert await can_manage_role_assignment(
-        session, user.id, process.id, role_key
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize('role_key', NON_PROPONENT_ROLES)
-async def test_effective_proponent_denied_for_other_roles(session, role_key):
-    """U-A03: Proponente efetivo é negado para os outros 6 papéis."""
-    user = UserFactory()
-    session.add(user)
-    await session.commit()
-    process = await _make_process(session)
-    session.add(
-        AssignmentFactory(process=process, user=user, role_key='proponent')
+        AssignmentFactory(process=process, user=user, role_key=process_role)
     )
     await session.commit()
 
@@ -148,7 +108,7 @@ async def test_effective_proponent_denied_for_other_roles(session, role_key):
 @pytest.mark.asyncio
 @pytest.mark.parametrize('role_key', THE_8_ROLES)
 async def test_user_without_any_authorization_is_denied(session, role_key):
-    """U-A04: sem nenhuma das três autorizações, negado para os 8 papéis."""
+    """U-A04: sem a permissão, negado para os 8 papéis."""
     user = UserFactory()
     session.add(user)
     await session.commit()

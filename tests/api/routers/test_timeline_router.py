@@ -84,6 +84,8 @@ async def test_process_timeline_events_recorded_and_ordered(
     event_types = [e['event_type'] for e in timeline_data['data']]
     assert event_types == [
         'PROCESS_CREATED',
+        # O BraCVAM gere participantes e vê a designação do proponente.
+        'PARTICIPANT_ASSIGNED',
         'FORM_DRAFT_SAVED',
         'SUBMISSION_SUBMITTED',
         # Issue #22 (US3): desbloqueio da triagem pelo motor genérico

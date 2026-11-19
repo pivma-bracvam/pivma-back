@@ -44,10 +44,10 @@ flowchart LR
 | Ator | Como recebe o acesso | O que faz |
 |---|---|---|
 | Usuário sem perfil | Cadastro público | Cria processos (vira `proponent`) e aceita convites |
-| Proponente | Cargo `proponent` no processo que criou | Envia a proposta, responde ao retorno, designa patrocinador e Grupo Gestor |
-| BraCVAM | Perfil global `BraCVAM` | Configura a IA, conduz a triagem, vê todos os processos |
+| Proponente | Cargo `proponent` no processo que criou | Envia a proposta e responde ao retorno |
+| BraCVAM | Perfil global `BraCVAM` | Configura a IA, conduz a triagem, designa os cargos da Fase 2, vê todos os processos |
 | Administrador | Perfil global `Administrador` | Gere contas, perfis, catálogo institucional; vê todos os processos |
-| Grupo Gestor | Cargo `group_manager` no processo | Designa os demais participantes, dispensa e reabre execuções de laboratório |
+| Grupo Gestor | Cargo `group_manager` no processo | Dispensa e reabre execuções de laboratório |
 | Grupo de Seleção de Amostras | Cargo `sample_selection_group` | Cadastra substâncias, SDS e gera os códigos cegos |
 | Laboratório participante | Cargo `participating_laboratory` com vínculo ao laboratório | Executa as atividades do próprio laboratório |
 

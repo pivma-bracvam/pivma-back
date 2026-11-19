@@ -196,7 +196,7 @@ async def test_role_assignment_activities_unlock_on_triage_approval(
     assert approve_resp.json()['process_status'] == 'OPEN'
 
     # 4. As duas atividades sem dependência extra (Patrocinador e Grupo
-    #    Gestor, executadas pelo Proponente) aparecem prontas, sem exigir
+    #    Gestor, executadas pelo BraCVAM) aparecem prontas, sem exigir
     #    formulário; as demais 6 continuam bloqueadas (dependem de
     #    group_manager COMPLETED).
     tasks_after = client.get(
@@ -215,7 +215,7 @@ async def test_role_assignment_activities_unlock_on_triage_approval(
     for t in tasks_after:
         if t['title'] == 'Definir o Patrocinador':
             assert t['status'] == 'READY'
-            assert t['assigned_role'] == 'proponent'
+            assert t['assigned_role'] == 'bracvam'
 
     # 5. Confirmação direta no banco: atividade ativada com o tipo declarado
     #    e nenhum FormInstance criado para ela (Spec 017 FR-005).

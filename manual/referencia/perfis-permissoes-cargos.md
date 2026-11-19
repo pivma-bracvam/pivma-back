@@ -22,8 +22,8 @@ Além das permissões, Administrador e BraCVAM:
 - veem todos os processos e todas as atividades;
 - têm os cargos `admin` e `bracvam` em toda atividade, o que só dá edição onde
   o template lista esses cargos em `edit`.
-- Só o cargo `bracvam` edita a triagem, as atribuições de colaborador e de
-  avaliador ad hoc e a homologação da estrutura (`structure_approval`). O
+- Só o cargo `bracvam` edita a triagem, as oito atribuições de cargo da
+  Fase 2 e a homologação da estrutura (`structure_approval`). O
   Admin vê o painel da homologação, mas não decide (`403`).
 
 Rotas exclusivas do perfil Administrador (`403 admin_only` para os demais):
@@ -60,7 +60,7 @@ aceito. `proponent` é dado a quem cria o processo.
 |---|---|---|---|
 | `proponent` | Proponente | — (criador) | Envia a proposta e responde ao retorno |
 | `sponsor` | Patrocinador | `assign_sponsor` | |
-| `group_manager` | Grupo Gestor | `assign_group_manager` | Gere participantes; dispensa e reabre execuções de laboratório |
+| `group_manager` | Grupo Gestor | `assign_group_manager` | Dispensa e reabre execuções de laboratório |
 | `sample_selection_group` | Grupo de Seleção de Amostras | `assign_sample_selection_group` | Único que vê substâncias, códigos e SDS |
 | `lead_laboratory` | Laboratório líder | `assign_lead_laboratory` | Exige vínculo com o laboratório. Não dá acesso a execuções de laboratório |
 | `participating_laboratory` | Laboratório participante | `assign_participating_laboratory` | Exige vínculo. No máximo uma designação ativa por usuário e processo |
@@ -79,5 +79,3 @@ são designáveis: vêm do perfil global.
 | Quem | Pode designar |
 |---|---|
 | Quem tem `process.participants.manage` (Admin, BraCVAM) | Qualquer cargo |
-| `group_manager` efetivo do processo | Qualquer cargo |
-| `proponent` efetivo do processo | `sponsor` e `group_manager` |

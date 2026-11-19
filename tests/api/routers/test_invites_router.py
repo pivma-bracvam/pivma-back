@@ -67,7 +67,7 @@ async def test_authorized_person_creates_invite_and_receives_token(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
 
     resp = create_invite(
         client, process_id, 'patrocinador@exemplo.org', 'sponsor'
@@ -109,7 +109,7 @@ async def test_second_pending_invite_same_target_is_rejected(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
 
     first = create_invite(client, process_id, 'dup@exemplo.org', 'sponsor')
     assert first.status_code == HTTPStatus.CREATED
@@ -125,7 +125,7 @@ async def test_laboratory_role_invite_without_laboratory_id_is_422(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     resp = create_invite(
         client, process_id, 'lab@exemplo.org', 'lead_laboratory'
     )
@@ -152,27 +152,19 @@ async def test_create_invite_on_deleted_process_is_conflict(client, session):
 async def test_listing_filters_by_per_role_authorization(
     client, session, bracvam_user
 ):
-    """A-I06: listagem retorna só convites cujo papel o usuário autoriza."""
+    """A-I06: listagem retorna só convites que o usuário gere."""
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
-    create_invite(client, process_id, 'a@exemplo.org', 'sponsor')
-
-    # BraCVAM (autorização global) cria um convite para um papel próprio.
-    # `bracvam_user` (fixture) só tem triage.review/IA por padrão — a
-    # permissão genérica de participantes precisa ser concedida à parte,
-    # como qualquer outro teste que a use.
-    await grant_participants_management(session, bracvam_user)
     authenticate(client, bracvam_user)
+    create_invite(client, process_id, 'a@exemplo.org', 'sponsor')
     create_invite(client, process_id, 'b@exemplo.org', 'adhoc_evaluator')
 
-    # Proponente só enxerga o convite do papel que ele próprio autoriza.
+    # O Proponente não gere cargos e não vê convite nenhum.
     authenticate(client, proponente)
     resp = list_invites(client, process_id)
     assert resp.status_code == HTTPStatus.OK
-    roles_seen = {item['role_key'] for item in resp.json()['data']}
-    assert roles_seen == {'sponsor'}
+    assert resp.json()['data'] == []
 
     # BraCVAM (autorização global) enxerga os dois.
     authenticate(client, bracvam_user)
@@ -192,7 +184,7 @@ async def test_resend_generates_new_token_and_expiry(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(client, process_id, 'r@exemplo.org', 'sponsor')
     invite_id = created.json()['id']
     original_token = created.json()['token']
@@ -210,7 +202,7 @@ async def test_previous_token_returns_404_after_resend(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(client, process_id, 'r2@exemplo.org', 'sponsor')
     invite_id = created.json()['id']
     original_token = created.json()['token']
@@ -229,7 +221,7 @@ async def test_resend_of_accepted_invite_is_conflict(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(client, process_id, 'r3@exemplo.org', 'sponsor')
     invite_id = created.json()['id']
     token = created.json()['token']
@@ -240,7 +232,7 @@ async def test_resend_of_accepted_invite_is_conflict(
     authenticate(client, accepted_user)
     client.post(f'/invites/{token}/accept', headers=ORIGIN)
 
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     resp = resend_invite_req(client, process_id, invite_id)
     assert resp.status_code == HTTPStatus.CONFLICT
 
@@ -264,7 +256,7 @@ async def test_resend_after_activity_closed_is_conflict(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
 
     other_target = UserFactory()
     session.add(other_target)
@@ -288,7 +280,7 @@ async def test_revoke_marks_invite_revoked(client, session, bracvam_user):
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(client, process_id, 'r5@exemplo.org', 'sponsor')
     invite_id = created.json()['id']
 
@@ -305,8 +297,7 @@ async def test_accept_and_revoke_pending_sibling_closes_activity(
 
     `adhoc_evaluator` (linhas 7-8 da matriz) só desbloqueia depois que
     `group_manager` fecha (Sequência de Preenchimento) — designa isso
-    primeiro. `bracvam_user` precisa da permissão genérica para gerir os
-    dois papéis usados aqui.
+    primeiro.
     """
     from tests.api.routers.test_participant_router import (  # noqa: PLC0415
         create_participant,
@@ -315,12 +306,11 @@ async def test_accept_and_revoke_pending_sibling_closes_activity(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    await grant_participants_management(session, bracvam_user)
 
     gestor = UserFactory()
     session.add(gestor)
     await session.commit()
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     gestor_resp = create_participant(
         client, process_id, gestor.id, 'group_manager'
     )
@@ -374,7 +364,7 @@ async def test_unauthorized_person_denied_resend_and_revoke(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(client, process_id, 'n7@exemplo.org', 'sponsor')
     invite_id = created.json()['id']
 
@@ -401,7 +391,7 @@ async def test_resend_and_revoke_without_trusted_origin_are_forbidden(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(client, process_id, 'n8@exemplo.org', 'sponsor')
     invite_id = created.json()['id']
 
@@ -440,7 +430,7 @@ async def test_email_invite_returns_token_and_pending_delivery(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
 
     resp = create_invite(
         client, process_id, 'mail@exemplo.org', 'sponsor', channel='email'
@@ -472,7 +462,7 @@ async def test_resend_email_invite_cancels_previous_and_queues_new(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(
         client, process_id, 're@exemplo.org', 'sponsor', channel='email'
     )
@@ -509,7 +499,7 @@ async def test_link_invite_has_no_delivery_and_queues_nothing(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
 
     created = create_invite(
         client, process_id, 'link@exemplo.org', 'sponsor', channel=channel
@@ -544,7 +534,7 @@ async def test_email_invite_without_configuration_is_conflict(  # noqa: PLR0913,
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
 
     resp = create_invite(
         client, process_id, 'off@exemplo.org', 'sponsor', channel='email'
@@ -569,7 +559,7 @@ async def test_resend_email_invite_after_channel_removed_is_conflict(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(
         client, process_id, 'gone@exemplo.org', 'sponsor', channel='email'
     )
@@ -624,7 +614,7 @@ async def test_revoke_email_invite_cancels_pending_delivery(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     created = create_invite(
         client, process_id, 'rev@exemplo.org', 'sponsor', channel='email'
     )
@@ -647,17 +637,14 @@ async def test_listing_shows_delivery_only_for_visible_invites(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     create_invite(
         client, process_id, 'a@exemplo.org', 'sponsor', channel='email'
     )
-    await grant_participants_management(session, bracvam_user)
-    authenticate(client, bracvam_user)
-    create_invite(
-        client, process_id, 'b@exemplo.org', 'adhoc_evaluator', channel='email'
-    )
 
     authenticate(client, proponente)
+    assert list_invites(client, process_id).json()['data'] == []
+    authenticate(client, bracvam_user)
     items = list_invites(client, process_id).json()['data']
 
     assert [(i['role_key'], i['delivery']['status']) for i in items] == [
@@ -678,11 +665,10 @@ async def test_revoking_the_only_invite_keeps_empty_role_open(
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    await grant_participants_management(session, bracvam_user)
     gestor = UserFactory()
     session.add(gestor)
     await session.commit()
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     assert (
         create_participant(client, process_id, gestor.id, 'group_manager')
     ).status_code == HTTPStatus.CREATED

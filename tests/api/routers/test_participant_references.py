@@ -201,7 +201,7 @@ async def test_invite_accept_response_has_refs(client, session, bracvam_user):
     process_id, proponente = await _process_in_planning_phase(
         client, session, bracvam_user
     )
-    authenticate(client, proponente)
+    authenticate(client, bracvam_user)
     token = create_invite(
         client, process_id, 'aceite@exemplo.org', 'sponsor'
     ).json()['token']

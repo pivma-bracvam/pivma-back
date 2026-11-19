@@ -66,7 +66,8 @@ def designate(client, process_id, user, role_key, laboratory=None) -> dict:
 def open_sample_definition(
     client, team, bracvam_user, collection_template_id=None
 ) -> str:
-    """Submissão, triagem aprovada e designações: amostras em andamento.
+    """Submissão, triagem aprovada e designações pelo BraCVAM: amostras em
+    andamento.
 
     Com `collection_template_id`, o proponente vincula o template de coleta
     ao criar o processo (Spec 041).
@@ -97,9 +98,7 @@ def open_sample_definition(
             headers=ORIGIN,
         )
     )
-    authenticate(client, team.proponent)
     designate(client, process_id, team.manager, 'group_manager')
-    authenticate(client, team.manager)
     designate(client, process_id, team.selector, 'sample_selection_group')
     for laboratory, user in zip(
         team.laboratories, team.lab_users, strict=True
@@ -124,16 +123,13 @@ def send_statistical_plan(client, process_id, statistician) -> None:
     ok(client.post(form, json={'values': {}}, headers=ORIGIN))
 
 
-def complete_study_team(client, team, process_id) -> None:
+def complete_study_team(client, team, process_id, bracvam_user) -> None:
     """Designa os cargos que faltam depois de `open_sample_definition`.
 
-    O proponente designa o patrocinador; o Grupo Gestor, que gere os
-    participantes do processo, designa os demais. O Estatístico envia o
-    plano.
+    O BraCVAM designa todos os cargos; o Estatístico envia o plano.
     """
-    authenticate(client, team.proponent)
+    authenticate(client, bracvam_user)
     designate(client, process_id, team.sponsor, 'sponsor')
-    authenticate(client, team.manager)
     designate(client, process_id, team.statistician, 'statistician')
     designate(client, process_id, team.collaborator, 'collaborator')
     designate(client, process_id, team.adhoc, 'adhoc_evaluator')

@@ -323,7 +323,7 @@ async def test_estrutura_trava_quando_a_etapa_3_comeca(
 
     # 5. A equipe fica completa e Beatriz aprova a homologação: a Etapa 3
     #    começa e o template trava.
-    complete_study_team(client, team, process_id)
+    complete_study_team(client, team, process_id, bracvam_user)
     approve_structure(client, process_id, bracvam_user)
     read = client.get(f'{TEMPLATES}/{template["id"]}').json()
     assert read['locked'] is True

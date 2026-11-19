@@ -616,34 +616,24 @@ async def _is_active_user(session: AsyncSession, user_id: UUID) -> bool:
 async def can_manage_participants(
     session: AsyncSession, user_id: UUID, process_id: UUID
 ) -> bool:
-    if await has_permission(session, user_id, PROCESS_PARTICIPANTS_MANAGE):
-        return True
-    return await is_effective_group_manager(session, user_id, process_id)
-
-
-# Papéis cuja gestão (designar/convidar/reenviar/revogar) o Proponente
-# efetivo do processo ganha mesmo sem a autorização genérica de
-# `can_manage_participants` — a única autorização nova da Spec 028 (FR-003).
-# Quem já tem a autorização genérica continua podendo gerir qualquer um dos
-# 8 papéis desta feature, como já valia antes dela (FR-002).
-PROPONENT_MANAGEABLE_ROLE_KEYS = frozenset({'sponsor', GROUP_MANAGER_ROLE_KEY})
+    """Só quem tem `process.participants.manage` (Admin e BraCVAM) gere as
+    designações do processo; Proponente e Grupo Gestor não designam
+    (decisão da reunião de feedback de 2026-11-18).
+    """
+    return await has_permission(session, user_id, PROCESS_PARTICIPANTS_MANAGE)
 
 
 async def can_manage_role_assignment(
-    session: AsyncSession, user_id: UUID, process_id: UUID, role_key: str
+    session: AsyncSession,
+    user_id: UUID,
+    process_id: UUID,
+    role_key: str,  # noqa: ARG001 — mesma regra para todos os cargos
 ) -> bool:
-    """Autorização por papel-alvo para a Spec 028 (FR-001/FR-002/FR-003).
+    """Autorização para designar, convidar, reenviar e revogar um cargo.
 
-    Composição pura de três funções já existentes — nenhuma decisão de
-    autorização nova além da cláusula do Proponente (research.md R3).
+    A regra é a mesma para todos os cargos: `can_manage_participants`.
     """
-    if await can_manage_participants(session, user_id, process_id):
-        return True
-    if role_key in PROPONENT_MANAGEABLE_ROLE_KEYS:
-        return await is_active_effective_proponent(
-            session, user_id, process_id
-        )
-    return False
+    return await can_manage_participants(session, user_id, process_id)
 
 
 async def participant_read_scope(

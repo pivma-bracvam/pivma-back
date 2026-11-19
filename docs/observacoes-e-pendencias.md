@@ -261,3 +261,12 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 ### PENDÊNCIAS
 
 1. **Remoção**: antes do merge da `develop` na `main`, apague `src/pivma/demo_accounts.yaml`, `src/pivma/bootstrap_demo_accounts.py`, o passo 6 de `bootstrap_system.py`, `tests/integration/bootstrap/test_demo_accounts_bootstrap.py` e a seção "Contas de demonstração" do [guia de usuários](../manual/guias/administrar-usuarios-e-acessos.md), além da menção em `manual/referencia/comandos.md`. As contas já criadas no banco de dev continuam lá até a limpeza do banco.
+
+## Quem designa os cargos da Fase 2
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: a matriz de atribuição da Spec 028 (Issue #41) fazia o Proponente designar o Patrocinador e o Grupo Gestor, e o Grupo Gestor designar Grupo de Seleção de Amostras, laboratórios e Estatístico. Colaboradores e especialistas ad hoc ficavam com o BraCVAM. O Plano de Trabalho não diz quem designa esses cargos.
+- **Conflito**: na reunião de feedback de 2026-11-18, a equipe pediu que o BraCVAM designe todos os cargos da Fase 2.
+- **Decisão**: as oito atividades `role_assignment` dos templates têm o BraCVAM como executor. Só quem tem `process.participants.manage` (Administrador e BraCVAM, que têm todas as permissões) designa, convida, reenvia e revoga cargos. O Proponente e o Grupo Gestor deixam de designar. O Grupo Gestor também deixa de ver todos os participantes e os eventos de designação de terceiros. As dependências entre atividades não mudam: as demais designações continuam esperando a do Grupo Gestor.
+- **Validação**: confirmada pelo usuário em 2026-11-18, fora do Spec Kit. Substitui a FR-003 e a matriz de executores da Spec 028.

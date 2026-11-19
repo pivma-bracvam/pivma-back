@@ -160,14 +160,17 @@ async def ai_eval_admin(session):
 
 @pytest_asyncio.fixture
 async def bracvam_user(session):
-    """Usuário do perfil BraCVAM (Spec 014): triagem + config de IA."""
+    """Usuário do perfil BraCVAM (Spec 014): triagem, config de IA e
+    designação dos cargos (`process.participants.manage`, que a migração
+    cria no banco real).
+    """
     from tests.ai_eval_helpers import AI_EVAL_CODES  # noqa: PLC0415
 
     return await _make_rbac_user(
         session,
         system_key='bracvam',
         name='BraCVAM',
-        codes=(*AI_EVAL_CODES, 'triage.review'),
+        codes=(*AI_EVAL_CODES, 'triage.review', 'process.participants.manage'),
     )
 
 

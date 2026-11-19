@@ -1,6 +1,6 @@
 # Enviar o plano estatístico
 
-Quando o Grupo Gestor designa o Estatístico, ele recebe a tarefa
+Quando o BraCVAM designa o Estatístico, ele recebe a tarefa
 `statistical_plan`. O plano é um dos pontos que o BraCVAM confere na
 homologação da estrutura. A rota base do formulário é:
 
