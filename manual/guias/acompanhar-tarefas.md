@@ -61,3 +61,9 @@ responder ao retorno.
 
 Todos os filtros e valores estão em
 [Listagens e referências](../referencia/listagens-e-referencias.md#tarefas).
+
+## Saber o que é novo
+
+`GET /tasks` não diz o que o usuário já viu. Para isso, use a caixa de
+[alerts](../explicacao/alertas.md): cada tarefa nova gera um `task_opened`
+com destino na tarefa, e `unread_count` mostra quantos faltam ler.

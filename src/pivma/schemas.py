@@ -2337,3 +2337,48 @@ class StructureDecisionResponse(BaseModel):
     outcome: StructureOutcome
     status: str = Field(description='Status da homologação após a decisão')
     reopened: list[ReopenedPoint]
+
+
+# ---------------------------------------------------------------------------
+# Spec 047 — Alerts
+# ---------------------------------------------------------------------------
+
+
+class AlertTarget(BaseModel):
+    type: Literal['process', 'task', 'sample_receipt'] = Field(
+        description='Tipo do objeto de destino'
+    )
+    process_id: UUID = Field(description='Processo de origem')
+    id: UUID | None = Field(
+        description='Tarefa ou frasco de destino; nulo quando o destino é o '
+        'processo'
+    )
+
+
+class AlertItem(BaseModel):
+    id: UUID
+    kind: str = Field(description='Tipo do alert')
+    target: AlertTarget
+    params: dict[str, Any] = Field(
+        description='Parâmetros do texto, com chaves fixas por tipo'
+    )
+    read_at: datetime | None = Field(description='Nulo enquanto não lido')
+    created_at: datetime
+
+
+class AlertFilters(BaseModel):
+    unread: bool | None = Field(
+        description='true: só não lidos; false: só lidos; nulo: todos'
+    )
+
+
+class AlertListResponse(ListPage[AlertItem, AlertFilters]):
+    """Caixa de alerts do usuário (Spec 047)."""
+
+    unread_count: int = Field(
+        description='Não lidos do usuário, sem considerar filtro nem página'
+    )
+
+
+class AlertReadAllResponse(BaseModel):
+    updated: int = Field(description='Alerts que passaram a lidos')

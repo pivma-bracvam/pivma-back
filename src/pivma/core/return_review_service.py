@@ -13,7 +13,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from pivma.core import pre_evaluation_service
+from pivma.core import alert_service, pre_evaluation_service
+from pivma.core.authorization import global_cargo_holder_ids
 from pivma.core.database.models import (
     ActivityInstance,
     ActivityRun,
@@ -229,6 +230,19 @@ async def decide_return_review(
                     'cancelled_counts': counts,
                 },
             )
+        )
+        await alert_service.alert_process(
+            session,
+            kind=alert_service.PROCESS_WITHDRAWN,
+            process=process,
+            user_ids=await global_cargo_holder_ids(session, {'bracvam'})
+            | await alert_service.participant_user_ids(
+                session,
+                process_id,
+                exclude_role_keys=['proponent'],
+                effective=False,
+            ),
+            actor_id=user_id,
         )
         await session.commit()
 

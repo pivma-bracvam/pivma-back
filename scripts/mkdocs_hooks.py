@@ -30,6 +30,7 @@ GROUPS = {
     'Process Participants': 'Participantes e convites',
     'Role Assignment Invites': 'Aceite de convite',
     'Tasks': 'Tarefas',
+    'Alerts': 'Alerts',
     'Samples': 'Amostras cegas',
     'Structure Approval': 'Homologação da estrutura',
     'collection-templates': 'Templates de coleta',

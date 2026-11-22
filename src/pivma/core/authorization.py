@@ -1,7 +1,8 @@
 from collections.abc import Iterable, Sequence
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, exists, func, or_, select
+from sqlalchemy import ColumnElement, and_, any_, exists, func, or_, select
+from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -582,6 +583,33 @@ async def global_cargos(session: AsyncSession, user_id: UUID) -> set[str]:
     }
 
 
+async def global_cargo_holder_ids(
+    session: AsyncSession, cargos: Iterable[str]
+) -> set[UUID]:
+    """Quem tem perfil ativo que dá um destes cargos globais (Spec 047)."""
+    system_keys = [
+        key
+        for key, cargo in _GLOBAL_CARGO_BY_SYSTEM_KEY.items()
+        if cargo in cargos
+    ]
+    if not system_keys:
+        return set()
+    return set(
+        await session.scalars(
+            select(UserAccessProfile.user_id)
+            .join(
+                AccessProfile,
+                AccessProfile.id == UserAccessProfile.profile_id,
+            )
+            .where(
+                AccessProfile.system_key.in_(system_keys),
+                UserAccessProfile.deleted_at.is_(None),
+                AccessProfile.deleted_at.is_(None),
+            )
+        )
+    )
+
+
 async def user_cargos(
     session: AsyncSession, user_id: UUID, process_id: UUID
 ) -> set[str]:
@@ -823,3 +851,40 @@ async def can_manage_process_templates(
     if any(p.system_key == ADMINISTRATOR_SYSTEM_KEY for p in profiles):
         return True
     return await has_permission(session, user_id, FORM_TEMPLATES_MANAGE)
+
+
+async def task_can_act_clause(
+    session: AsyncSession, user_id
+) -> ColumnElement[bool]:
+    """O usuário pode agir na atividade da tarefa (Spec 032, R1).
+
+    Mesma regra de `require_activity_access(..., 'edit')`: algum cargo do
+    usuário (atribuição ativa no processo ou cargo global) está em
+    `edit_roles`, e ele não tem conflito de interesse vigente no processo.
+    Na execução de um laboratório, a designação tem de ser por esse
+    laboratório (Spec 036, R8).
+    """
+    by_role = exists(
+        process_cargos_scope(user_id).where(
+            Assignment.process_instance_id
+            == ActivityInstance.process_instance_id,
+            Assignment.role_key == any_(ActivityInstance.edit_roles),
+        )
+    )
+    by_assignment = or_(
+        and_(ActivityRun.laboratory_id.is_(None), by_role),
+        and_(
+            ActivityRun.laboratory_id.is_not(None),
+            laboratory_member_clause(user_id),
+        ),
+    )
+    cargos = await global_cargos(session, user_id)
+    granted = (
+        or_(
+            ActivityInstance.edit_roles.overlap(array(sorted(cargos))),
+            by_assignment,
+        )
+        if cargos
+        else by_assignment
+    )
+    return and_(granted, ~current_conflict_clause(user_id))

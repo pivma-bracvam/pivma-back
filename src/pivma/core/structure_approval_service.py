@@ -17,6 +17,7 @@ from uuid import UUID
 from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pivma.core import alert_service
 from pivma.core.authorization import compute_effectiveness_map
 from pivma.core.collection_template_service import lock_template_row
 from pivma.core.database.models import (
@@ -525,6 +526,15 @@ async def execute_structure_decision(  # noqa: PLR0913, PLR0917
         await _approve(session, process, act, user_id)
         _event(
             session, process_id, run.id, user_id, 'STRUCTURE_APPROVED', context
+        )
+        await alert_service.alert_process(
+            session,
+            kind=alert_service.STRUCTURE_APPROVED,
+            process=process,
+            user_ids=await alert_service.participant_user_ids(
+                session, process_id
+            ),
+            actor_id=user_id,
         )
         reopened = []
     else:

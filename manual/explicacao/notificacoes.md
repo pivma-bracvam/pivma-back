@@ -4,6 +4,9 @@ Usos atuais: convite por e-mail, recuperação de senha, aviso de problema no
 recebimento de amostras, aviso da decisão sobre esse problema e aviso de
 devolução da submissão.
 
+Esta página trata do e-mail. O aviso dentro da plataforma, com estado de
+leitura, é o [alert](alertas.md).
+
 ## Gravar junto, enviar depois
 
 ```mermaid

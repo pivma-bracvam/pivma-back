@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Response
 from sqlalchemy import select
 
+from pivma.core import alert_service
 from pivma.core.authorization import (
     can_manage_participants,
     can_manage_role_assignment,
@@ -312,6 +313,9 @@ async def revoke_participant(
                 assignment, result='success', source='api'
             ),
         )
+    )
+    await alert_service.alert_assignment(
+        session, alert_service.ASSIGNMENT_REVOKED, assignment, current_user.id
     )
     # Na primeira execução, a atribuição fecha na revogação se o cargo
     # continua com alguém designado (Spec 042, research R8 e R14).

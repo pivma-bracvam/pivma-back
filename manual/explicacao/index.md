@@ -13,3 +13,4 @@ um conceito.
 | [Pré-avaliação por IA](pre-avaliacao-ia.md) | Como a IA avalia e por que ela não decide? |
 | [Sessão e segurança](sessao-e-seguranca.md) | Como a sessão é protegida? |
 | [Notificações](notificacoes.md) | Como um e-mail sai sem se perder nem vazar? |
+| [Alerts](alertas.md) | Como cada usuário sabe, dentro da plataforma, o que pede a atenção dele? |

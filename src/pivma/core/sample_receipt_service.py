@@ -23,6 +23,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pivma.core import alert_service
 from pivma.core.attachment_service import (
     attachment_abspath,
     attachment_relpath,
@@ -41,6 +42,7 @@ from pivma.core.database.models import (
     Assignment,
     AuditEvent,
     BlindSampleCode,
+    Laboratory,
     Phase,
     ProcessInstance,
     SampleReceipt,
@@ -663,6 +665,7 @@ async def _open_resolution_run(
     )
     task.set_creation_audit(user_id)
     session.add(task)
+    await alert_service.alert_task_opened(session, task, user_id)
     act.status = 'IN_PROGRESS'
     act.blocked_reason = None
     act.set_update_audit(user_id)
@@ -1020,6 +1023,48 @@ async def _laboratory_emails(
     )
 
 
+async def _alert_laboratory_decision(
+    session: AsyncSession,
+    process: ProcessInstance,
+    items: list[SampleReceiptNonconformity],
+    user_id: UUID,
+) -> None:
+    """Um alert por frasco decidido aos designados do laboratório (Spec 047).
+
+    Leva o código cego e a situação, nunca a orientação, a justificativa
+    nem o código do frasco novo.
+    """
+    laboratory_id = items[0].laboratory_id
+    laboratory = await session.get(Laboratory, laboratory_id)
+    recipients = await alert_service.participant_user_ids(
+        session,
+        process.id,
+        role_keys=[PARTICIPATING_LABORATORY_ROLE_KEY],
+        laboratory_id=laboratory_id,
+    )
+    for item in items:
+        receipt = await session.get(SampleReceipt, item.receipt_id)
+        code = await session.scalar(
+            select(BlindSampleCode.code)
+            .where(BlindSampleCode.id == receipt.blind_sample_code_id)
+            .execution_options(skip_soft_delete_filter=True)
+        )
+        await alert_service.alert_process(
+            session,
+            kind=alert_service.SAMPLE_NONCONFORMITY_DECIDED,
+            process=process,
+            user_ids=recipients,
+            actor_id=user_id,
+            params={
+                'laboratory_name': laboratory.name,
+                'blind_code': code,
+                'vial_status': STATUS_BY_DECISION[item.decision],
+            },
+            target_type=alert_service.TARGET_SAMPLE_RECEIPT,
+            target_id=item.receipt_id,
+        )
+
+
 async def _notify_laboratory(
     session: AsyncSession,
     settings: Settings,
@@ -1130,6 +1175,8 @@ async def decide_nonconformity(  # noqa: PLR0913, PLR0917
         )
     if not await _has_open_nonconformity(session, process_id):
         await _complete_activity_run(session, run, act, user_id)
+    # Antes do e-mail, que retorna cedo sem canal configurado (FR-007).
+    await _alert_laboratory_decision(session, process, decided, user_id)
     await _notify_laboratory(session, settings, process, decided, user_id)
     await session.commit()
     return (await _serialize_nonconformities(session, process_id, [item]))[0]

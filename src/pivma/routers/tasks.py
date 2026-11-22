@@ -4,21 +4,16 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Query
-from sqlalchemy import and_, any_, exists, func, or_, select
-from sqlalchemy.dialects.postgresql import array
+from sqlalchemy import func, select
 from sqlalchemy.orm import aliased, selectinload
 
 from pivma.core.authorization import (
-    current_conflict_clause,
-    global_cargos,
-    laboratory_member_clause,
     laboratory_run_visibility_clause,
-    process_cargos_scope,
+    task_can_act_clause,
 )
 from pivma.core.database.models import (
     ActivityInstance,
     ActivityRun,
-    Assignment,
     EvaluationRun,
     Phase,
     Task,
@@ -70,41 +65,6 @@ def _current_run_clause():
         )
         .scalar_subquery()
     )
-
-
-async def _can_act_clause(session, user_id):
-    """O usuário pode agir na atividade da tarefa (Spec 032, R1).
-
-    Mesma regra de `require_activity_access(..., 'edit')`: algum cargo do
-    usuário (atribuição ativa no processo ou cargo global) está em
-    `edit_roles`, e ele não tem conflito de interesse vigente no processo.
-    Na execução de um laboratório, a designação tem de ser por esse
-    laboratório (Spec 036, R8).
-    """
-    by_role = exists(
-        process_cargos_scope(user_id).where(
-            Assignment.process_instance_id
-            == ActivityInstance.process_instance_id,
-            Assignment.role_key == any_(ActivityInstance.edit_roles),
-        )
-    )
-    by_assignment = or_(
-        and_(ActivityRun.laboratory_id.is_(None), by_role),
-        and_(
-            ActivityRun.laboratory_id.is_not(None),
-            laboratory_member_clause(user_id),
-        ),
-    )
-    cargos = await global_cargos(session, user_id)
-    granted = (
-        or_(
-            ActivityInstance.edit_roles.overlap(array(sorted(cargos))),
-            by_assignment,
-        )
-        if cargos
-        else by_assignment
-    )
-    return and_(granted, ~current_conflict_clause(user_id))
 
 
 async def _facets(session, filtered_ids) -> TaskFacets:
@@ -221,7 +181,7 @@ async def list_tasks(  # noqa: PLR0913, PLR0917
         filtered = filtered.where(
             ActivityInstance.process_instance_id == process_id
         )
-    can_act = await _can_act_clause(session, current_user.id)
+    can_act = await task_can_act_clause(session, current_user.id)
     if actionable:
         filtered = filtered.where(can_act)
     if current_run:

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from pivma.core.database.models import (
     AccessProfile,
     AccessProfilePermission,
+    Alert,
     AuditEvent,
     Permission,
     ProcessInstance,
@@ -125,6 +126,11 @@ async def _delete_race_fixture(
     engine: AsyncEngine, fixture: _RaceFixture
 ) -> None:
     async with AsyncSession(engine, expire_on_commit=False) as cleanup:
+        await cleanup.execute(
+            delete(Alert).where(
+                Alert.process_instance_id == fixture.process_id
+            )
+        )
         await cleanup.execute(
             delete(AuditEvent).where(
                 AuditEvent.process_instance_id == fixture.process_id

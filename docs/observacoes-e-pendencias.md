@@ -277,3 +277,23 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 
 - **Fonte**: o pedido que abriu a Spec 028 fixou o prazo do convite em 1 hora, configurável por `INVITE_EXPIRATION_HOURS`.
 - **Decisão**: em 2026-11-18, o usuário pediu 7 dias. O padrão de `INVITE_EXPIRATION_HOURS` passa a ser 168. Uma implantação que defina a variável continua usando o próprio valor.
+
+## Alerts na plataforma (Spec 047)
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: o RF033 pede notificações sobre "solicitações, pendências, prazos, devolutivas e mudanças de status", e o RF011 pede notificações dos retornos da IA e da validação. O Plano de Trabalho não define canal, texto nem gatilhos.
+- **Conflito**: a base de notificações da Spec 036 só envia e-mail. Os usuários pediram um lugar dentro da plataforma que mostre o que precisa da atenção de cada um, como uma tarefa nova ainda não vista.
+- **Decisão**:
+  1. **Nome e separação**: o aviso dentro da plataforma se chama `alert` e fica fora da tabela `notifications`, que continua sendo a fila de e-mail. Um acontecimento pode gerar e-mail, alert, os dois ou nenhum.
+  2. **Destino**: o alert traz o tipo do objeto e os identificadores, e o front monta a rota. O backend não guarda URL do front.
+  3. **Texto**: o front escreve o texto a partir do tipo e de parâmetros mínimos, só com identificadores e códigos que o destinatário já vê. Os parâmetros seguem as regras de cegamento, de isolamento por laboratório e de autoria oculta.
+  4. **Acesso**: o alert não dá acesso. A rota do destino confere a permissão como hoje.
+  5. **Tarefa concluída**: concluir a tarefa não muda os alerts dela, que seguem lidos ou não lidos como estavam.
+  6. **Autor**: quem fez a ação nunca recebe alert, em nenhum tipo.
+  7. **Primeira entrega**: lista paginada com contador de não lidos, marcar um como lido e marcar todos. Lembretes de prazo, preferências por tipo e e-mail para os novos tipos ficam para depois.
+- **Validação**: confirmada pelo usuário em 2026-11-21. Registrada em `specs/047-alerts/spec.md` (Clarifications).
+
+### DECISÃO TÉCNICA
+
+- **Alcance do BraCVAM**: cada pessoa com o perfil BraCVAM recebe o alert de toda tarefa de triagem, de designação e de homologação, em todos os processos, cerca de onze por processo. A regra é a mesma de `can_act` em `GET /tasks`. A pergunta ficou aberta no `/speckit-clarify` de 2026-11-21, e o usuário decidiu em 2026-11-22 manter a regra até alguém do BraCVAM usar a caixa com dados reais. Um corte futuro fica dentro de `alert_task_opened`, sem mudar o contrato. Detalhe em `specs/047-alerts/research.md` (R13).

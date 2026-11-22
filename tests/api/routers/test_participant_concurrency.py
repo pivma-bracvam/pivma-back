@@ -14,6 +14,7 @@ from pivma.core.database import get_session
 from pivma.core.database.models import (
     AccessProfile,
     AccessProfilePermission,
+    Alert,
     Assignment,
     AuditEvent,
     Permission,
@@ -101,6 +102,9 @@ async def cleanup(
     actor_id, profile_id, permission_id = actor
     target_id, process_id = target
     async with AsyncSession(engine) as session:
+        await session.execute(
+            delete(Alert).where(Alert.process_instance_id == process_id)
+        )
         await session.execute(
             delete(AuditEvent).where(
                 AuditEvent.process_instance_id == process_id

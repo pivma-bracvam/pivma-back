@@ -22,6 +22,7 @@ from pivma.core.database import get_session
 from pivma.core.database.models import (
     AccessProfile,
     AccessProfilePermission,
+    Alert,
     Assignment,
     AuditEvent,
     Institution,
@@ -134,6 +135,7 @@ async def setup(engine) -> dict[str, UUID]:
 async def cleanup(engine, ids: dict) -> None:
     async with AsyncSession(engine) as session:
         for statement in (
+            delete(Alert).where(Alert.process_instance_id == ids['process']),
             delete(AuditEvent).where(
                 AuditEvent.process_instance_id == ids['process']
             ),

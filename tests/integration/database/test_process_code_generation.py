@@ -10,6 +10,7 @@ from pivma.bootstrap_process_templates import bootstrap_all_templates
 from pivma.core import process_engine
 from pivma.core.database.models import (
     ActivityRun,
+    Alert,
     Assignment,
     AuditEvent,
     FormInstance,
@@ -103,6 +104,9 @@ async def test_concurrent_process_creation_yields_distinct_crcodes(
             ProcessInstance.template_version_id == version_id
         )
         async with AsyncSession(engine, expire_on_commit=False) as cleanup:
+            await cleanup.execute(
+                delete(Alert).where(Alert.process_instance_id.in_(process_ids))
+            )
             await cleanup.execute(
                 delete(AuditEvent).where(
                     AuditEvent.process_instance_id.in_(process_ids)
