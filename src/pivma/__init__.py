@@ -11,6 +11,7 @@ from pivma.errors import install_openapi, register_error_handlers
 from pivma.routers import (
     admin_logs,
     ai_evaluations,
+    alerts,
     auth,
     collection_templates,
     forms,
@@ -81,6 +82,7 @@ app.include_router(sample_receipt.router)
 app.include_router(structure_approval.router)
 app.include_router(laboratory_runs.router)
 app.include_router(collection_templates.router)
+app.include_router(alerts.router)
 
 
 @app.get('/')

@@ -31,6 +31,7 @@ from tests.factories.laboratory_run_factory import (
 )
 
 BY_PROCESS = (
+    'alerts',
     'audit_events',
     'laboratory_waivers',
     'blind_sample_codes',

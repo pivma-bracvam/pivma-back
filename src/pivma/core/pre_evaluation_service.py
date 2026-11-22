@@ -23,6 +23,7 @@ from pivma.ai.evaluation_pipeline import (
     run_evaluation_pipeline,
 )
 from pivma.ai.provider import get_model_provider
+from pivma.core import alert_service
 from pivma.core.authorization import has_current_conflict
 from pivma.core.database import engine
 from pivma.core.database.models import (
@@ -226,7 +227,19 @@ async def _execute(session: AsyncSession, run_id: UUID) -> None:  # noqa: PLR091
                 submission_act,
                 run.created_by,
                 task_titles={'triage_evaluation': TRIAGE_TASK_TITLE},
+                automatic=True,
             )
+        # A IA não conta como autor: o proponente recebe (Spec 047, R5).
+        await alert_service.alert_process(
+            session,
+            kind=alert_service.SUBMISSION_STATUS_CHANGED,
+            process=process,
+            user_ids=await alert_service.participant_user_ids(
+                session, process.id, role_keys=['proponent']
+            ),
+            actor_id=None,
+            params={'status': 'in_triage'},
+        )
     else:
         await _return_to_proponent(session, run, failed=False)
 

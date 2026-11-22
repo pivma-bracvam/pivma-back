@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pivma.core import alert_service
 from pivma.core.authorization import (
     LABORATORY_ROLE_KEYS,
     effective_assignment_ids,
@@ -125,6 +126,9 @@ async def create_assignment(  # noqa: PLR0913, PLR0917
                 assignment, result='success', source=source
             ),
         )
+    )
+    await alert_service.alert_assignment(
+        session, alert_service.ASSIGNMENT_CREATED, assignment, actor_id
     )
     await _maybe_close_role_assignment_activity(
         session, process, role_key, actor_id
@@ -306,4 +310,13 @@ async def record_laboratory_validity_changes(
                     'reason': reason,
                 },
             )
+        )
+        await alert_service.alert_assignment(
+            session,
+            alert_service.ASSIGNMENT_EFFECTIVENESS_CHANGED,
+            assignment,
+            actor_id,
+            params={
+                'effective': changes[assignment.id] == EFFECTIVENESS_RESTORED
+            },
         )

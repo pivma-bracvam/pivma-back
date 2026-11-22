@@ -29,6 +29,7 @@ from tests.factories.sample_factory import (
 )
 
 PROCESS_TABLES = (
+    'alerts',
     'audit_events',
     'blind_sample_codes',
     'study_substances',

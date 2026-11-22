@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 from sqlalchemy.sql import ColumnElement
 
+from pivma.core import alert_service
 from pivma.core.authorization import (
     ACTIVITY_CARGOS,
     GLOBAL_ACTIVITY_CARGOS,
@@ -796,6 +797,7 @@ async def _init_first_activity(
     )
     task.set_creation_audit(creator_id)
     session.add(task)
+    await alert_service.alert_task_opened(session, task, creator_id)
 
     f_key = a_data.get('form_template_key')
     if f_key:
@@ -2017,6 +2019,8 @@ async def _activate_activity(  # noqa: PLR0913, PLR0917
     user_id: UUID,
     reason: str,
     task_title: str | None = None,
+    *,
+    automatic: bool = False,
 ) -> ActivityRun:
     """Ativa uma atividade BLOCKED cuja(s) dependência(s) já foram satisfeitas.
 
@@ -2030,7 +2034,8 @@ async def _activate_activity(  # noqa: PLR0913, PLR0917
     execução, nunca reaproveitando a anterior. ``task_title`` permite ao
     chamador preservar um texto de tarefa já em uso (em vez de ``act.name``)
     quando a atividade tinha, antes da Issue #22, um caminho de ativação
-    bespoke com um título próprio.
+    bespoke com um título próprio. ``automatic`` marca a liberação feita pela
+    pré-avaliação por IA: o alert sai sem autor (Spec 047, research R5).
     """
     act.status = 'IN_PROGRESS'
     act.blocked_reason = None
@@ -2070,6 +2075,9 @@ async def _activate_activity(  # noqa: PLR0913, PLR0917
     )
     task.set_creation_audit(user_id)
     session.add(task)
+    await alert_service.alert_task_opened(
+        session, task, None if automatic else user_id
+    )
 
     f_key = a_data.get('form_template_key')
     if f_key:
@@ -2089,12 +2097,14 @@ async def _activate_activity(  # noqa: PLR0913, PLR0917
     return run
 
 
-async def _advance_dependent_activities(
+async def _advance_dependent_activities(  # noqa: PLR0913
     session: AsyncSession,
     process: ProcessInstance,
     completed_act: ActivityInstance,
     user_id: UUID,
     task_titles: dict[str, str] | None = None,
+    *,
+    automatic: bool = False,
 ) -> None:
     """Desbloqueia atividades cuja dependência acabou de ser satisfeita.
 
@@ -2189,6 +2199,7 @@ async def _advance_dependent_activities(
                 f'dependência {completed_act.key!r}.'
             ),
             task_title=(task_titles or {}).get(dependent_act.key),
+            automatic=automatic,
         )
 
         session.add(
@@ -2383,6 +2394,7 @@ async def _start_laboratory_run(
     )
     task.set_creation_audit(user_id)
     session.add(task)
+    await alert_service.alert_task_opened(session, task, user_id)
     f_key = a_data.get('form_template_key')
     if f_key:
         f_template = await session.scalar(
@@ -2775,6 +2787,21 @@ async def waive_laboratory(  # noqa: PLR0913, PLR0917
                 context_data=context,
             )
         )
+    # Um alert por dispensa, para os designados do laboratório (Spec 047).
+    laboratory = await session.get(Laboratory, laboratory_id)
+    await alert_service.alert_process(
+        session,
+        kind=alert_service.LABORATORY_RUN_WAIVED,
+        process=process,
+        user_ids=await alert_service.participant_user_ids(
+            session,
+            process_id,
+            role_keys=['participating_laboratory'],
+            laboratory_id=laboratory_id,
+        ),
+        actor_id=user_id,
+        params={'phase_name': phase.name, 'laboratory_name': laboratory.name},
+    )
     for act in acts:
         await _unblock_laboratory(
             session, process, act, laboratory_id, user_id
@@ -3094,6 +3121,20 @@ async def _finish_laboratory_run(
                 'run_number': run.run_number,
             },
         )
+    )
+    laboratory = await session.get(Laboratory, laboratory_id)
+    await alert_service.alert_process(
+        session,
+        kind=alert_service.LABORATORY_RUN_COMPLETED,
+        process=process,
+        user_ids=await alert_service.participant_user_ids(
+            session, process.id, role_keys=['group_manager', 'study_manager']
+        ),
+        actor_id=user_id,
+        params={
+            'activity_name': act.name,
+            'laboratory_name': laboratory.name,
+        },
     )
     await _unblock_laboratory(session, process, act, laboratory_id, user_id)
     await _refresh_laboratory_activity(session, process, act, user_id)
@@ -3552,6 +3593,7 @@ async def _open_new_submission_run(
     )
     prop_task.set_creation_audit(user_id)
     session.add(prop_task)
+    await alert_service.alert_task_opened(session, prop_task, user_id)
 
     sub_act.status = 'IN_PROGRESS'
     sub_act.set_update_audit(user_id)
@@ -3681,6 +3723,9 @@ async def open_return_review(
     )
     task.set_creation_audit(user_id)
     session.add(task)
+    # Sem autor: os destinatários são proponentes, e a IA grava o proponente
+    # como autor de auditoria (Spec 047, research R5).
+    await alert_service.alert_task_opened(session, task, None)
 
     act.status = 'IN_PROGRESS'
     act.blocked_reason = None
@@ -3820,6 +3865,7 @@ async def _handle_approved_decision(
             context_data={'justification': ctx.justification},
         )
     )
+    await _alert_submission_status(session, ctx, 'approved')
 
     await _advance_dependent_activities(
         session, ctx.process, ctx.triage_act, ctx.user_id
@@ -3842,6 +3888,23 @@ async def _handle_rejected_decision(
             event_type='TRIAGE_REJECTED',
             context_data={'justification': ctx.justification},
         )
+    )
+    await _alert_submission_status(session, ctx, 'rejected')
+
+
+async def _alert_submission_status(
+    session: AsyncSession, ctx: TriageContext, status: str
+) -> None:
+    """Decisão da triagem ao proponente, sem justificativa (Spec 047)."""
+    await alert_service.alert_process(
+        session,
+        kind=alert_service.SUBMISSION_STATUS_CHANGED,
+        process=ctx.process,
+        user_ids=await alert_service.participant_user_ids(
+            session, ctx.process.id, role_keys=[PROPONENT_ROLE_KEY]
+        ),
+        actor_id=ctx.user_id,
+        params={'status': status},
     )
 
 

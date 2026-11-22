@@ -111,6 +111,7 @@ IN_RUN = f'WHERE activity_run_id IN ({RUNS})'
 FORM_TEMPLATES = f"SELECT id FROM form_templates WHERE key = '{FORM_KEY}'"
 # As definições da avaliação entram como `:d`, lidas antes da limpeza.
 PURGE = (
+    f'DELETE FROM alerts {IN_PROCESS}',
     f'DELETE FROM notifications {IN_PROCESS}',
     f'DELETE FROM direct_review_requests {IN_PROCESS}',
     f'DELETE FROM audit_events {IN_PROCESS}',

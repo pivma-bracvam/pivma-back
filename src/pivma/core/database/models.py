@@ -2098,3 +2098,50 @@ class Notification(AuditMixin):
         ),
         Index('ix_notifications_subject', 'subject_type', 'subject_id'),
     )
+
+
+@table_registry.mapped_as_dataclass
+class Alert(AuditMixin):
+    """Aviso de um acontecimento para um usuário, dentro da plataforma.
+
+    Separado da fila de e-mail (`Notification`): guarda o dono, o destino
+    para o front montar a rota e se o dono já leu (Spec 047). Gravado na
+    mesma transação da operação de negócio (FR-003).
+    """
+
+    __tablename__ = 'alerts'
+
+    id: Mapped[UUID] = mapped_column(
+        init=False,
+        primary_key=True,
+        insert_default=uuid4,
+        default_factory=uuid4,
+    )
+    user_id: Mapped[UUID] = mapped_column(ForeignKey('users.id'))
+    kind: Mapped[str] = mapped_column(String(64))
+    target_type: Mapped[str] = mapped_column(String(32))
+    process_instance_id: Mapped[UUID] = mapped_column(
+        ForeignKey('process_instances.id')
+    )
+    target_id: Mapped[UUID | None] = mapped_column(nullable=True, default=None)
+    params: Mapped[dict[str, Any]] = mapped_column(JSONB, default_factory=dict)
+    read_at: Mapped[datetime | None] = mapped_column(
+        nullable=True, default=None
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "(target_type = 'process') = (target_id IS NULL)",
+            name='ck_alerts_target_id_by_type',
+        ),
+        Index(
+            'ix_alerts_user_created',
+            'user_id',
+            column('created_at').desc(),
+        ),
+        Index(
+            'ix_alerts_user_unread',
+            'user_id',
+            postgresql_where=column('read_at').is_(None),
+        ),
+    )
