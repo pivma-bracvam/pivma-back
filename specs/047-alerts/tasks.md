@@ -247,15 +247,15 @@ description: "Lista de tarefas da Spec 047"
 
 ## Phase 9: Polish & Cross-Cutting Concerns
 
-- [ ] T092 [P] Teste em `tests/api/routers/test_alerts_security.py`: nenhum alert gerado nas jornadas tem chave fora da lista do seu tipo em [data-model.md](data-model.md#parâmetros-por-tipo) (SC-002, research R12)
-- [ ] T093 [P] Teste em `tests/api/routers/test_alerts_security.py`: sem `NOTIFICATION_EMAIL_BACKEND`, a devolução gera `task_opened` e a decisão sobre o frasco gera `sample_nonconformity_decided`, sem criar linhas em `notifications` (FR-007)
-- [ ] T094 [P] Página `manual/explicacao/alertas.md` (com `stop-slop`): diferença para o e-mail, tipos, destinatários, destino e o que os parâmetros nunca trazem; incluir no `nav` de `mkdocs.yml`
-- [ ] T095 [P] Rotas em `manual/referencia/rotas.md` e erros novos, se houver, em `manual/referencia/erros.md`
-- [ ] T096 [P] Tipos de alert por gatilho em `manual/referencia/eventos.md`
-- [ ] T097 [P] RF011 e RF033 em `manual/explicacao/escopo.md`, e link para a página de alerts em `manual/explicacao/notificacoes.md` e `manual/guias/acompanhar-tarefas.md`
-- [ ] T098 Rodar o [quickstart.md](quickstart.md) e corrigir o que divergir
-- [ ] T099 `poe lint`, `poe test` e `poe docs-build` verdes; informar só o que rodou
-- [ ] T100 Conferir que a decisão sobre o alcance do BraCVAM (T002) está aplicada em `alert_service.py` e registrada em `docs/observacoes-e-pendencias.md`
+- [X] T092 [P] Teste em `tests/api/routers/test_alerts_security.py`: nenhum alert gerado nas jornadas tem chave fora da lista do seu tipo em [data-model.md](data-model.md#parâmetros-por-tipo) (SC-002, research R12)
+- [X] T093 [P] Teste em `tests/api/routers/test_alerts_security.py`: sem `NOTIFICATION_EMAIL_BACKEND`, a devolução gera `task_opened` e a decisão sobre o frasco gera `sample_nonconformity_decided`, sem criar linhas em `notifications` (FR-007)
+- [X] T094 [P] Página `manual/explicacao/alertas.md` (com `stop-slop`): diferença para o e-mail, tipos, destinatários, destino e o que os parâmetros nunca trazem; incluir no `nav` de `mkdocs.yml`
+- [X] T095 [P] Rotas em `manual/referencia/rotas.md` e erros novos, se houver, em `manual/referencia/erros.md`
+- [X] T096 [P] Tipos de alert por gatilho em `manual/referencia/eventos.md`
+- [X] T097 [P] RF011 e RF033 em `manual/explicacao/escopo.md`, e link para a página de alerts em `manual/explicacao/notificacoes.md` e `manual/guias/acompanhar-tarefas.md`
+- [X] T098 Rodar o [quickstart.md](quickstart.md) e corrigir o que divergir
+- [X] T099 `poe lint`, `poe test` e `poe docs-build` verdes; informar só o que rodou
+- [X] T100 Conferir que a decisão sobre o alcance do BraCVAM (T002) está aplicada em `alert_service.py` e registrada em `docs/observacoes-e-pendencias.md`
 
 ---
 
@@ -314,7 +314,7 @@ description: "Lista de tarefas da Spec 047"
 ## Notas
 
 - T001: em `develop` + spec, `pytest tests/api/routers/test_tasks*.py tests/integration/journeys/etapa_1_submissao_triagem` deu 92 passed. Depois de mover a regra (T057), o mesmo comando deu 92 passed.
-- T002: sem decisão da equipe até a implementação do MVP. `alert_task_opened` segue a regra de `can_act` (research R13).
+- T002: sem decisão até a implementação do MVP; em 2026-11-22 o usuário decidiu manter a regra de `can_act` (research R13).
 - T061: o argumento ficou `automatic: bool = False` em `_activate_activity` e `_advance_dependent_activities`, em vez de `alert_actor_id`. O efeito é o mesmo (autor nulo só na liberação feita pela IA) e os oito chamadores humanos não mudam. Só a chamada do resultado positivo em `pre_evaluation_service` passa `automatic=True`; `request_direct_review` é ação do proponente e mantém o autor.
 - T040 e T062: sem avaliação por IA associada, a proposta enviada vai direto para a triagem, então as jornadas não rodam a IA. A abertura da triagem pela IA está em T046.
 - T043: a aprovação da triagem pela pessoa do BraCVAM é a ação que libera as designações da Fase 2, então serve de exemplo do cenário 5.
@@ -324,3 +324,7 @@ description: "Lista de tarefas da Spec 047"
 - T082: o descarte do frasco dispensa o laboratório sozinho, então a jornada usa o aceite com ressalva antes da dispensa manual. Com o aceite, o lote de A também fecha, e o Grupo Gestor recebe uma conclusão por laboratório.
 - T084: uma decisão vale para todos os frascos do lote com problema; o teste decide uma vez e confere um alert por frasco.
 - T068: a homologação exige a equipe completa, então o teste usa pessoas extras para a designação revogada e para a sem efetividade.
+- T094: a página de rotas é gerada do OpenAPI; a tag `Alerts` entrou em `scripts/mkdocs_hooks.py`. Nenhum código de erro novo, então `erros.md` não mudou. Também saiu de `guias/receber-amostras.md` a frase "Não há central de notificações".
+- T095: `eventos.md` aponta para a tabela de tipos em `explicacao/alertas.md`, que é o lugar único da relação entre gatilho e alert.
+- T098: os passos com `curl` do quickstart não rodaram contra um servidor; as jornadas automatizam os mesmos passos. `poetry run pytest -k alerts` deu 76 passed.
+- T100: decisão de 2026-11-22 registrada em `docs/observacoes-e-pendencias.md` (DECISÃO TÉCNICA), na Clarifications e no research R13. `alert_task_opened` segue a regra de `can_act`, sem mudança.

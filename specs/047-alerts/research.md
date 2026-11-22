@@ -89,6 +89,8 @@ Leitura feita em `feat/047-alerts`, a partir de `develop` no commit `9a60855`.
 - **Decision**: cada função monta os parâmetros com chaves fixas. A lista de cada tipo está em [data-model.md](data-model.md#parâmetros-por-tipo). Nenhuma chave guarda justificativa, parecer, resultado da IA, nome de pessoa, nome químico, CAS ou SDS.
 - **Rationale**: o teste de cegamento e de autoria (SC-002) confere essas chaves por tipo.
 
-## R13. Ponto a validar: alcance do BraCVAM
+## R13. Alcance do BraCVAM
 
-- **PONTO A VALIDAR** (registrado em `docs/observacoes-e-pendencias.md`, seção "Alerts na plataforma", e na tarefa T002): pela regra do R3, cada pessoa com o perfil BraCVAM recebe o alert de toda tarefa de triagem, de designação e de homologação, em todos os processos: cerca de onze por processo. O usuário não respondeu a essa pergunta no clarify de 2026-11-21. O plano segue a regra de `can_act`, que é o que `GET /tasks` mostra hoje. Se a equipe decidir limitar o alcance, a mudança fica dentro de `alert_service`.
+- **Decision**: cada pessoa com o perfil BraCVAM recebe o alert de toda tarefa de triagem, de designação e de homologação, em todos os processos, cerca de onze por processo, pela regra do R3.
+- **Rationale**: o usuário decidiu em 2026-11-22 manter a regra de `can_act`, que é o que `GET /tasks` já mostra, até alguém do BraCVAM usar a caixa com dados reais. Registrado em `docs/observacoes-e-pendencias.md`, seção "Alerts na plataforma".
+- **Alternatives considered**: deixar as oito designações da Fase 2 de fora; criar um responsável do BraCVAM por processo; apagar o alert das colegas quando uma conclui a tarefa. Qualquer corte futuro fica dentro de `alert_task_opened`, sem mudar o contrato.

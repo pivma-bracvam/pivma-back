@@ -36,7 +36,7 @@ flowchart LR
 | RF008 | Anexos | Sim | Campos de arquivo, com tipo e tamanho validados |
 | RF009 | Edição durante a elaboração | Sim | Rascunho; reabertura pela revisão do retorno |
 | RF010 | Versionamento | Sim | Cada reenvio é uma nova execução; as versões devolvidas ficam guardadas com a justificativa (`submission-versions`) |
-| RF011 | Notificação dos retornos | Parcial | A devolução vira tarefa e e-mail ao proponente, pela triagem e pela IA; aprovação, rejeição e resultado positivo da IA não geram aviso |
+| RF011 | Notificação dos retornos | Sim | A devolução vira tarefa, alert e e-mail ao proponente, pela triagem e pela IA; aprovação e rejeição da triagem e ida para a triagem pela IA viram [alert](alertas.md) |
 | RF012 | Gestão eletrônica de documentos | Parcial | Anexos guardados por campo; sem classificação ou busca de documentos |
 | RF013 | Verificação por IA | Sim | Pré-avaliação por critérios |
 | RF014 | Envio para análise | Sim | O envio abre a pré-avaliação ou a triagem |
@@ -68,7 +68,7 @@ flowchart LR
 | RF030 | Visualização do fluxo | Parcial | Estados de fases e atividades, tarefas e linha do tempo; sem rota de visão consolidada das fases |
 | RF031 | Painel de monitoramento | Parcial | Contagens e resumo em `GET /tasks` |
 | RF032 | Comentários | Não | Só comentários nos pareceres de campo da triagem |
-| RF033 | Notificações | Parcial | Base de envio pronta; usada em convites, recuperação de senha, problemas no recebimento de amostras, decisão sobre eles e devolução da submissão; sem central de notificações |
+| RF033 | Notificações | Parcial | Caixa de [alerts](alertas.md) por usuário com tarefas novas, decisões, designações, laboratórios e desistência; e-mail em convites, recuperação de senha, problemas no recebimento de amostras, decisão sobre eles e devolução da submissão; sem lembrete de prazo, preferência por tipo nem aviso em tempo real |
 | RF034 | Logs e auditoria | Sim | Linha do tempo por processo, históricos de RBAC e catálogo, logs estruturados |
 
 Na homologação, o BraCVAM confere as designações ativas, o plano

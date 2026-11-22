@@ -294,6 +294,6 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
   7. **Primeira entrega**: lista paginada com contador de não lidos, marcar um como lido e marcar todos. Lembretes de prazo, preferências por tipo e e-mail para os novos tipos ficam para depois.
 - **Validação**: confirmada pelo usuário em 2026-11-21. Registrada em `specs/047-alerts/spec.md` (Clarifications).
 
-### PENDÊNCIAS
+### DECISÃO TÉCNICA
 
-- **Alcance do BraCVAM**: pela regra de `can_act`, cada pessoa com o perfil BraCVAM recebe o alert de toda tarefa de triagem, de designação e de homologação, em todos os processos: cerca de onze por processo. A pergunta ficou sem resposta no `/speckit-clarify` de 2026-11-21. Até a equipe decidir, a Spec 047 segue a regra de `can_act`, que é o que `GET /tasks` mostra hoje. Detalhe em `specs/047-alerts/research.md` (R13).
+- **Alcance do BraCVAM**: cada pessoa com o perfil BraCVAM recebe o alert de toda tarefa de triagem, de designação e de homologação, em todos os processos, cerca de onze por processo. A regra é a mesma de `can_act` em `GET /tasks`. A pergunta ficou aberta no `/speckit-clarify` de 2026-11-21, e o usuário decidiu em 2026-11-22 manter a regra até alguém do BraCVAM usar a caixa com dados reais. Um corte futuro fica dentro de `alert_task_opened`, sem mudar o contrato. Detalhe em `specs/047-alerts/research.md` (R13).

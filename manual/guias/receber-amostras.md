@@ -132,8 +132,9 @@ laboratório Lab A registrou desvio térmico no frasco K2Z43SQ3."), laboratório
 código, substância (com a reserva), faixa esperada, o registro, as fotos, os
 motivos e, depois da decisão, quem decidiu, a justificativa, a orientação ao
 laboratório e o código novo.
-`status` filtra por `open` ou `resolved`. Não há central de notificações: a
-tarefa e esta lista são o aviso dentro da plataforma.
+`status` filtra por `open` ou `resolved`. O Grupo de Seleção também recebe
+um [alert](../explicacao/alertas.md) `task_opened` da tarefa de resolução, e o
+laboratório recebe `sample_nonconformity_decided` quando o Grupo decide.
 
 ## Grupo de Seleção: decidir
 

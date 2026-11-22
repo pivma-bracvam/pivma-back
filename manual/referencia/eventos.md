@@ -54,6 +54,9 @@ flowchart TD
 | Recebimento de amostras | `SAMPLE_RECEIPT_REGISTERED`, `SAMPLE_RECEIPT_PHOTO_ATTACHED`, `SAMPLE_RECEIPT_RESOLUTION_OPENED`, `SAMPLE_NONCONFORMITY_OPENED`, `SAMPLE_NONCONFORMITY_RESOLVED`, `SAMPLE_VIAL_RESENT` |
 | Notificações | `NOTIFICATION_SENT`, `NOTIFICATION_FAILED`, `NOTIFICATION_CANCELLED` |
 
+Vários desses eventos também geram um [alert](../explicacao/alertas.md#tipos)
+para quem precisa saber. Ler um alert não grava evento aqui.
+
 ## Contexto relevante
 
 | Evento | `context_data` |

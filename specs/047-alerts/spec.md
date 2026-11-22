@@ -36,6 +36,10 @@
 - Q: O que acontece com o alert de tarefa quando alguém conclui a tarefa? → A: Nada. O alert segue lido ou não lido como estava, e o destino mostra a tarefa concluída. É a opção mais simples, e o usuário que quiser limpar a caixa marca todos como lidos.
 - Q: Quem fez a ação que abriu uma tarefa também recebe o alert dessa tarefa? → A: Não. Quem fez a ação nunca recebe alert, em nenhum tipo. O proponente que cria o processo não recebe o alert da própria submissão, e as colegas de quem fez a ação continuam recebendo.
 
+### Session 2026-11-22
+
+- Q: Todas as pessoas do BraCVAM recebem o alert de toda tarefa de triagem, de designação e de homologação? → A: Sim, pela regra de `can_act`. Decidido em 2026-11-22: a regra fica até alguém do BraCVAM usar a caixa com dados reais.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Saber que há uma tarefa nova para mim (Priority: P1)

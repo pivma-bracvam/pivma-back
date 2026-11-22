@@ -43,14 +43,14 @@ Esperado: um `task_opened` com `params.activity_key = "submission_return_review"
 
 Leve um processo até o recebimento de amostras com os laboratórios Demo A e Demo B, e dispense a execução de B.
 
-Esperado: os designados por B recebem `laboratory_run_waived`, e os de A não. Os alerts de A trazem só `laboratory_name` de A, e nenhum alert de laboratório traz nome químico, CAS ou SDS.
+Esperado: os designados por B recebem `laboratory_run_waived`, com `phase_name`, e os de A não. Os alerts de A trazem só `laboratory_name` de A, e nenhum alert de laboratório traz nome químico, CAS ou SDS.
 
 ## Verificação automatizada
 
 ```bash
-poe test -- -k alerts
+poetry run pytest -k alerts
 poe lint
 poe docs-build
 ```
 
-Os testes de jornada ficam em `tests/integration/journeys/`, e os testes focados em `tests/api/routers/test_alerts*.py`.
+Os testes de jornada ficam em `tests/integration/journeys/etapa_*/test_alerts_*_journey.py`, e os testes focados em `tests/api/routers/test_alerts_*.py`, `tests/integration/database/test_alert_service.py` e `tests/integration/migrations/test_alerts_migration.py`.
