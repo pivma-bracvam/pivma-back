@@ -25,6 +25,7 @@ from pivma.routers import (
     return_review,
     sample_receipt,
     samples,
+    sponsor_tracking,
     structure_approval,
     tasks,
     triage,
@@ -83,6 +84,7 @@ app.include_router(structure_approval.router)
 app.include_router(laboratory_runs.router)
 app.include_router(collection_templates.router)
 app.include_router(alerts.router)
+app.include_router(sponsor_tracking.router)
 
 
 @app.get('/')

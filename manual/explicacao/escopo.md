@@ -65,7 +65,7 @@ flowchart LR
 | RF027 | Registro de deliberações | Parcial | Decisões da triagem e da homologação da estrutura com autor, data e justificativa; a homologação guarda os pontos reprovados e os motivos; sem deliberações colegiadas |
 | RF028 | Reuniões e atas | Não | |
 | RF029 | Prazos | Parcial | Prazo por atividade no template; não há prazo por participante nem ajuste manual |
-| RF030 | Visualização do fluxo | Parcial | Estados de fases e atividades, tarefas e linha do tempo; sem rota de visão consolidada das fases |
+| RF030 | Visualização do fluxo | Parcial | Estados de fases e atividades, tarefas e linha do tempo. O Patrocinador vê a fase atual, as atividades em andamento e quem ocupa cada cargo nos processos que patrocina ([guia](../guias/acompanhar-como-patrocinador.md)); para os demais perfis, não há rota de visão consolidada das fases |
 | RF031 | Painel de monitoramento | Parcial | Contagens e resumo em `GET /tasks` |
 | RF032 | Comentários | Não | Só comentários nos pareceres de campo da triagem |
 | RF033 | Notificações | Parcial | Caixa de [alerts](alertas.md) por usuário com tarefas novas, decisões, designações, laboratórios e desistência; e-mail em convites, recuperação de senha, problemas no recebimento de amostras, decisão sobre eles e devolução da submissão; sem lembrete de prazo, preferência por tipo nem aviso em tempo real |

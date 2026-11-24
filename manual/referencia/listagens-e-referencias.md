@@ -47,6 +47,14 @@ curl -s "$API/processes?mine=true&submission_state=draft" -H "Authorization: Bea
 curl -s "$API/processes?mine=true&submission_state=submitted" -H "Authorization: Bearer $TOKEN"
 ```
 
+## Acompanhamento do Patrocinador
+
+`GET /sponsor-tracking/processes` lista os processos em que o usuário tem
+designação ativa de Patrocinador, do mais novo para o mais antigo
+(`sort = {by: created_at, order: desc}`). Não tem filtros
+(`filters_applied: {}`) e inclui os arquivados. Os campos de cada item estão
+no [guia](../guias/acompanhar-como-patrocinador.md).
+
 ## Tarefas
 
 `GET /tasks` lista as tarefas das atividades que o usuário pode ver.

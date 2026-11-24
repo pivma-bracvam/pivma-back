@@ -297,3 +297,17 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 ### DECISÃO TÉCNICA
 
 - **Alcance do BraCVAM**: cada pessoa com o perfil BraCVAM recebe o alert de toda tarefa de triagem, de designação e de homologação, em todos os processos, cerca de onze por processo. A regra é a mesma de `can_act` em `GET /tasks`. A pergunta ficou aberta no `/speckit-clarify` de 2026-11-21, e o usuário decidiu em 2026-11-22 manter a regra até alguém do BraCVAM usar a caixa com dados reais. Um corte futuro fica dentro de `alert_task_opened`, sem mudar o contrato. Detalhe em `specs/047-alerts/research.md` (R13).
+
+## Acompanhamento do patrocinador (Spec 048)
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: em 2026-11-21, o desenvolvedor do front descreveu o item de menu "Acompanhamento" do Patrocinador. A tela lista os processos em que a pessoa é patrocinadora e, no detalhe, mostra código, título, estado, proponente, data da designação, início do processo, fase atual e atividade atual. O Plano de Trabalho não cita o Patrocinador em nenhum RF.
+- **Conflito**: a API não entrega ao Patrocinador o proponente, a fase nem as atividades em andamento. Em `GET /processes/{id}/participants`, quem não gere participantes vê só a própria designação, e nenhuma rota expõe a posição do processo no fluxo a quem não executa a atividade. No deploy de dev, a tela mostra "Não atribuído" e "Ainda não disponível".
+- **Decisão**:
+  1. **Visibilidade**: o Patrocinador pode ver quem ocupa os cargos do processo, inclusive o proponente, porque as pessoas envolvidas se conhecem. O sigilo continua nos dados internos do estudo: amostras, nomes químicos, CAS, SDS, códigos cegos e resultados.
+  2. **Duração**: o acompanhamento vale do início ao fim do processo, inclusive na Fase 3, com o mesmo limite de sigilo.
+  3. **Posição no fluxo**: a API entrega a fase atual e a lista das atividades em andamento. O front decide como exibir.
+  4. **Cartão da lista**: em 2026-11-23, o front pediu "informações úteis no cartão" da lista. Cada item da lista traz a fase atual e a quantidade de atividades em andamento, calculadas pela mesma regra do detalhe, para o front não chamar o detalhe de cada processo.
+  5. **Acesso**: na mesma conversa, o front disse que a tela "é só pra informações" e "não impede de ver nada". A equipe de backend lê isso como tela informativa: o acompanhamento não bloqueia nem libera ação, e o sigilo do item 1 continua.
+- **Validação**: itens 1 a 3 confirmados pelo usuário em 2026-11-23, com o aval da equipe sobre a visibilidade. Itens 4 e 5 decididos pela equipe de backend em 2026-11-23, por serem desenho da API. Registrados em `specs/048-sponsor-tracking/spec.md` (Clarifications).

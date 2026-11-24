@@ -1927,6 +1927,101 @@ class ProcessListResponse(ListPage[ProcessInstanceDetail, ProcessListFilters]):
     """Processos visíveis ao usuário."""
 
 
+# ==========================================
+# ACOMPANHAMENTO DO PATROCINADOR (Spec 048)
+# ==========================================
+# Só os campos do contrato: nada de substância, código cego, formulário,
+# recebimento ou resultado (FR-007). `extra='forbid'` em todos.
+
+
+class TrackingPhase(BaseModel):
+    key: str = Field(description='Chave da fase no template')
+    name: str = Field(description='Nome da fase')
+    order: int = Field(description='Ordem da fase no processo')
+    model_config = ConfigDict(extra='forbid')
+
+
+class SponsoredProcessSummary(BaseModel):
+    id: UUID
+    code: str
+    title: str
+    status: ProcessLifecycle
+    started_at: datetime | None
+    closed_at: datetime | None
+    sponsored_since: datetime = Field(
+        description='Designação ativa mais antiga do usuário como Patrocinador'
+    )
+    current_phase: TrackingPhase | None = Field(
+        description=(
+            'Fase de maior ordem com atividade em andamento; nula sem '
+            'atividade em andamento ou fora de `OPEN`'
+        )
+    )
+    open_activity_count: int = Field(
+        ge=0,
+        description=(
+            'Execuções em andamento, uma por laboratório nas atividades por '
+            'laboratório; zero fora de `OPEN`'
+        ),
+    )
+    model_config = ConfigDict(extra='forbid')
+
+
+class SponsoredProcessListResponse(
+    ListPage[SponsoredProcessSummary, NoFilters]
+):
+    """Processos em que o usuário é Patrocinador, inclusive arquivados."""
+
+
+class TrackingPerson(BaseModel):
+    user: UserRef = Field(description='Pessoa no cargo, sem e-mail')
+    laboratory: LaboratoryRef | None = Field(
+        description='Laboratório da designação; nulo fora dos cargos de lab'
+    )
+    model_config = ConfigDict(extra='forbid')
+
+
+class TrackingRole(BaseModel):
+    role_key: ParticipantRole
+    people: list[TrackingPerson] = Field(
+        description='Quem ocupa o cargo; vazia se ninguém'
+    )
+    model_config = ConfigDict(extra='forbid')
+
+
+class TrackingActivity(BaseModel):
+    key: str = Field(description='Chave da atividade')
+    name: str = Field(description='Nome da atividade')
+    phase_key: str = Field(description='Chave da fase da atividade')
+    started_at: datetime = Field(description='Início da execução aberta')
+    laboratory: LaboratoryRef | None = Field(
+        description='Laboratório da execução; nulo em atividade única'
+    )
+    model_config = ConfigDict(extra='forbid')
+
+
+class SponsorTrackingDetail(BaseModel):
+    id: UUID
+    code: str
+    title: str
+    status: ProcessLifecycle
+    started_at: datetime | None
+    closed_at: datetime | None
+    sponsored_since: datetime | None = Field(
+        description='Nula para Admin e BraCVAM sem designação de Patrocinador'
+    )
+    current_phase: TrackingPhase | None = Field(
+        description='Mesma regra de `SponsoredProcessSummary.current_phase`'
+    )
+    roles: list[TrackingRole] = Field(
+        description='Uma entrada por cargo do catálogo, inclusive os vazios'
+    )
+    open_activities: list[TrackingActivity] = Field(
+        description='Execuções em andamento; vazia fora de `OPEN`'
+    )
+    model_config = ConfigDict(extra='forbid')
+
+
 class SubmissionVersionListResponse(
     ListPage[SubmissionVersionSummary, NoFilters]
 ):
