@@ -1,8 +1,10 @@
-"""Acompanhamento do Patrocinador: lista e detalhe (Spec 048, US1 e US2).
+"""Andamento do processo: lista por cargo e detalhe (Spec 048, US1 e US2).
 
 A jornada fica em
-`tests/integration/journeys/etapa_2_planejamento_preparacao/test_sponsor_tracking_journey.py`.
-Aqui ficam as regras de cada campo, as exclusões, a paginação e os estados.
+`tests/integration/journeys/etapa_2_planejamento_preparacao/test_process_progress_journey.py`.
+Aqui ficam as regras de cada campo, as exclusões, a paginação e os estados,
+vistos pelo Patrocinador. O recorte de cada cargo fica em
+`test_process_progress_visibility.py`.
 """
 
 from datetime import datetime, timedelta
@@ -39,18 +41,19 @@ from tests.factories.structure_approval_factory import (
 )
 from tests.factories.user_factory import UserFactory
 
-LIST = '/sponsor-tracking/processes'
+LIST = '/processes'
+SPONSOR = {'role': 'sponsor'}
 PHASE_2 = 'phase_2_role_assignment'
 PHASE_3 = 'phase_3_validation_execution'
 PER_PAGE = 2
 
 
 def _detail(client, process_id):
-    return client.get(f'{LIST}/{process_id}')
+    return client.get(f'{LIST}/{process_id}/progress')
 
 
 def _items(client, **params):
-    response = client.get(LIST, params=params)
+    response = client.get(LIST, params=SPONSOR | params)
     assert response.status_code == HTTPStatus.OK, response.text
     return response.json()
 
@@ -133,20 +136,26 @@ async def test_lista_traz_campos_do_contrato(client, session, bracvam_user):
     body = _items(client)
 
     (item,) = body['data']
-    assert set(item) == {
-        'id',
-        'code',
-        'title',
-        'status',
-        'started_at',
-        'closed_at',
-        'sponsored_since',
+    assert {
         'current_phase',
         'open_activity_count',
-    }
+        'my_roles',
+    } <= set(item)
     assert set(item['current_phase']) == {'key', 'name', 'order'}
+    assert item['my_roles'] == [
+        {
+            'role_key': 'sponsor',
+            'laboratory': None,
+            'assigned_at': ctx.sponsor_assignment.assigned_at.isoformat(),
+        }
+    ]
     assert body['pagination']['total_items'] == 1
-    assert body['filters_applied'] == {}
+    assert body['filters_applied'] == {
+        'status': None,
+        'mine': False,
+        'role': 'sponsor',
+        'submission_state': None,
+    }
     assert body['sort'] == {'by': 'created_at', 'order': 'desc'}
 
 
@@ -166,9 +175,6 @@ async def test_lista_traz_fase_e_contagem_na_fase_2(
         await _open_runs(session, ctx.process_id)
     )
     assert item['open_activity_count'] >= 1
-    assert item['sponsored_since'] == (
-        ctx.sponsor_assignment.assigned_at.isoformat()
-    )
 
 
 @pytest.mark.asyncio
@@ -271,6 +277,33 @@ async def test_lista_exclui_processo_excluido(
 
 
 @pytest.mark.asyncio
+async def test_lista_sem_filtro_traz_os_dois_processos_com_os_cargos(
+    client, session, process_retirement_factory
+):
+    user = await _new_user(session)
+    other = await process_retirement_factory.draft(await _new_user(session))
+    await grant_cargo(
+        session, process_id=other.id, user=user, role_key='collaborator'
+    )
+    sponsored = await _sponsored_draft(
+        session, process_retirement_factory, user
+    )
+    authenticate(client, user)
+
+    response = client.get(LIST)
+
+    assert response.status_code == HTTPStatus.OK
+    roles = {
+        i['id']: [r['role_key'] for r in i['my_roles']]
+        for i in response.json()['data']
+    }
+    assert roles == {
+        str(other.id): ['collaborator'],
+        str(sponsored.id): ['sponsor'],
+    }
+
+
+@pytest.mark.asyncio
 async def test_lista_mostra_processo_uma_vez_com_dois_cargos(
     client, session, process_retirement_factory
 ):
@@ -285,20 +318,47 @@ async def test_lista_mostra_processo_uma_vez_com_dois_cargos(
 
     assert [i['id'] for i in body['data']] == [str(process.id)]
     assert body['pagination']['total_items'] == 1
+    assert [r['role_key'] for r in body['data'][0]['my_roles']] == [
+        'sponsor',
+        'proponent',
+    ]
 
 
 @pytest.mark.asyncio
-async def test_lista_inclui_processo_arquivado(client, session, bracvam_user):
+async def test_lista_mostra_processo_encerrado_sem_fase(
+    client, session, bracvam_user
+):
     ctx = await _sponsored_planning(session, bracvam_user)
-    await _close(session, ctx.process_id, 'ARCHIVED')
+    await _close(session, ctx.process_id, 'CLOSED')
     authenticate(client, ctx.sponsor)
 
     (item,) = _items(client)['data']
 
-    assert item['status'] == 'ARCHIVED'
+    assert item['status'] == 'CLOSED'
     assert item['closed_at'] is not None
     assert item['current_phase'] is None
     assert item['open_activity_count'] == 0
+
+
+@pytest.mark.asyncio
+async def test_lista_por_cargo_omite_arquivado_como_a_lista_geral(
+    client, session, bracvam_user
+):
+    ctx = await _sponsored_planning(session, bracvam_user)
+    await _close(session, ctx.process_id, 'ARCHIVED')
+    authenticate(client, ctx.sponsor)
+
+    assert _items(client)['data'] == []
+
+
+@pytest.mark.asyncio
+async def test_lista_recusa_cargo_fora_do_catalogo(client, session):
+    authenticate(client, await _new_user(session))
+
+    response = client.get(LIST, params={'role': 'auditor'})
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert response.json()['detail']['code'] == 'validation_error'
 
 
 @pytest.mark.asyncio
@@ -400,6 +460,35 @@ async def test_detalhe_traz_um_cargo_por_participant_role(
 
 
 @pytest.mark.asyncio
+async def test_detalhe_traz_todas_as_fases_com_a_situacao(
+    client, session, bracvam_user
+):
+    ctx = await _sponsored_planning(session, bracvam_user)
+    authenticate(client, ctx.sponsor)
+
+    phases = _detail(client, ctx.process_id).json()['phases']
+
+    stored = (
+        await session.scalars(
+            select(Phase)
+            .where(Phase.process_instance_id == ctx.process_id)
+            .order_by(Phase.order_index)
+            .execution_options(populate_existing=True)
+        )
+    ).all()
+    assert phases == [
+        {
+            'key': p.key,
+            'name': p.name,
+            'order': p.order_index,
+            'status': p.status,
+        }
+        for p in stored
+    ]
+    assert {p['status'] for p in phases} >= {'COMPLETED', 'IN_PROGRESS'}
+
+
+@pytest.mark.asyncio
 async def test_detalhe_traz_proponente_sem_email(
     client, session, bracvam_user
 ):
@@ -474,12 +563,12 @@ async def test_detalhe_traz_dois_patrocinadores_e_cada_um_ve_a_propria_data(
         str(ctx.sponsor.id),
         str(second.id),
     ]
-    assert first_body['sponsored_since'] == (
+    assert [r['assigned_at'] for r in first_body['my_roles']] == [
         ctx.sponsor_assignment.assigned_at.isoformat()
-    )
-    assert second_body['sponsored_since'] == (
+    ]
+    assert [r['assigned_at'] for r in second_body['my_roles']] == [
         second_assignment.assigned_at.isoformat()
-    )
+    ]
 
 
 @pytest.mark.asyncio
@@ -627,7 +716,6 @@ async def test_detalhe_de_processo_aberto_sem_atividade(
 
     assert response.status_code == HTTPStatus.OK
     body = response.json()
-    assert body['status'] == 'OPEN'
     assert body['current_phase'] is None
     assert body['open_activities'] == []
 
@@ -645,8 +733,6 @@ async def test_detalhe_de_processo_encerrado_ou_arquivado_sem_fase(
 
     assert response.status_code == HTTPStatus.OK
     body = response.json()
-    assert body['status'] == status
-    assert body['closed_at'] is not None
     assert body['current_phase'] is None
     assert body['open_activities'] == []
 
@@ -663,4 +749,8 @@ async def test_detalhe_para_admin_e_bracvam_sem_designacao(
     response = _detail(client, ctx.process_id)
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json()['sponsored_since'] is None
+    body = response.json()
+    assert body['my_roles'] == []
+    assert [r['role_key'] for r in body['roles']] == list(
+        get_args(ParticipantRole)
+    )

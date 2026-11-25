@@ -14,6 +14,7 @@ from pivma.core.authorization import (
     can_manage_process_templates,
     effective_laboratory_ids,
     has_permission,
+    has_platform_wide_access,
     has_process_review_access,
     is_process_manager,
     user_cargos,
@@ -56,23 +57,35 @@ from pivma.core.process_engine import (
     list_returned_submission_versions,
     process_visibility_clause,
     proponent_process_clause,
+    role_process_clause,
     submission_state_clause,
     update_form_template_definition,
     update_process_submission,
 )
-from pivma.core.references import template_refs
+from pivma.core.process_progress import (
+    build_progress,
+    current_phase,
+    open_runs,
+    progress_view,
+    viewer_assignments,
+    viewer_roles,
+)
+from pivma.core.references import laboratory_refs, template_refs
 from pivma.dependencies import CurrentUser, Session, TrustedOrigin
 from pivma.schemas import (
     CreateProcessRequest,
     FormFieldUpdateDefinition,
     FormTemplateDetailResponse,
     NoFilters,
+    ParticipantRole,
     PatchSubmissionRequest,
     ProcessInstanceDetail,
     ProcessLifecycle,
     ProcessLifecycleResponse,
     ProcessListFilters,
+    ProcessListItem,
     ProcessListResponse,
+    ProcessProgress,
     ProcessSubmissionResponse,
     ProcessTemplateDetail,
     ProcessTemplateListResponse,
@@ -548,6 +561,7 @@ async def list_processes(  # noqa: PLR0913, PLR0917
     current_user: CurrentUser,
     status: ProcessLifecycle | None = None,
     mine: bool = False,
+    role: ParticipantRole | None = None,
     submission_state: SubmissionState | None = None,
     page: PageQuery = 1,
     per_page: PerPageQuery = 20,
@@ -568,6 +582,8 @@ async def list_processes(  # noqa: PLR0913, PLR0917
         stmt = stmt.where(ProcessInstance.status != STATUS_ARCHIVED)
     if mine:
         stmt = stmt.where(proponent_process_clause(current_user.id))
+    if role:
+        stmt = stmt.where(role_process_clause(current_user.id, role))
     if submission_state:
         stmt = stmt.where(submission_state_clause(submission_state))
 
@@ -585,10 +601,23 @@ async def list_processes(  # noqa: PLR0913, PLR0917
     templates = await template_refs(
         session, (process.template_version_id for process in items)
     )
+    # Andamento da página em lote: três consultas, sem uma por item.
+    platform_wide = await has_platform_wide_access(session, current_user.id)
+    mine_by_process = await viewer_assignments(
+        session, current_user.id, [p.id for p in items]
+    )
+    runs_by_process = await open_runs(session, items)
+    laboratories = await laboratory_refs(
+        session,
+        (a.laboratory_id for rows in mine_by_process.values() for a in rows),
+    )
     detail_items = []
     for process in items:
+        mine_rows = mine_by_process.get(process.id, [])
+        runs = runs_by_process.get(process.id, [])
+        view = progress_view(current_user.id, platform_wide, mine_rows)
         detail_items.append(
-            ProcessInstanceDetail(
+            ProcessListItem(
                 id=process.id,
                 code=process.code,
                 title=process.title,
@@ -601,6 +630,11 @@ async def list_processes(  # noqa: PLR0913, PLR0917
                 available_actions=await available_lifecycle_actions(
                     session, process, current_user.id
                 ),
+                current_phase=current_phase(runs),
+                open_activity_count=sum(
+                    view.sees_run(r.laboratory_id) for r in runs
+                ),
+                my_roles=viewer_roles(mine_rows, laboratories),
             )
         )
 
@@ -610,6 +644,7 @@ async def list_processes(  # noqa: PLR0913, PLR0917
         filters_applied=ProcessListFilters(
             status=status,
             mine=mine,
+            role=role,
             submission_state=submission_state,
         ),
         sort=SortApplied(by='created_at', order='desc'),
@@ -646,6 +681,32 @@ async def get_process(id: UUID, session: Session, current_user: CurrentUser):
         available_actions=await available_lifecycle_actions(
             session, p, current_user.id
         ),
+    )
+
+
+@router.get(
+    '/{id}/progress',
+    response_model=ProcessProgress,
+    status_code=HTTPStatus.OK,
+)
+async def get_process_progress(
+    id: UUID, session: Session, current_user: CurrentUser
+):
+    """Andamento do processo, filtrado pelos cargos do usuário (Spec 048)."""
+    stmt = select(ProcessInstance).where(
+        ProcessInstance.id == id, ProcessInstance.deleted_at.is_(None)
+    )
+    visibility = await process_visibility_clause(session, current_user.id)
+    if visibility is not None:
+        stmt = stmt.where(visibility)
+    process = await session.scalar(stmt)
+    if process is None:
+        raise http_error(HTTPStatus.NOT_FOUND, 'Processo não encontrado.')
+    return await build_progress(
+        session,
+        process,
+        current_user.id,
+        platform_wide=visibility is None,
     )
 
 

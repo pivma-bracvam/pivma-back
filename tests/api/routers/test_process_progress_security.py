@@ -1,8 +1,8 @@
-"""Acompanhamento do Patrocinador: acesso e sigilo (Spec 048, US2 e US3).
+"""Andamento do processo: acesso e sigilo (Spec 048, US3 e US4).
 
-Quem não é Patrocinador recebe o mesmo `404` de um processo inexistente; a
-resposta só tem os campos do contrato; as rotas de dados internos continuam
-recusando o Patrocinador.
+Quem não vê o processo recebe o mesmo `404` de um processo inexistente; a
+resposta só tem os campos do contrato e nenhum cargo vê dado interno do
+estudo; as rotas de dados internos continuam recusando o Patrocinador.
 """
 
 from datetime import datetime
@@ -31,11 +31,11 @@ from tests.factories.structure_approval_factory import (
 from tests.factories.user_factory import UserFactory
 
 ORIGIN = {'Origin': 'https://testserver'}
-LIST = '/sponsor-tracking/processes'
+LIST = '/processes'
 
 
 def _detail(client, process_id):
-    return client.get(f'{LIST}/{process_id}')
+    return client.get(f'{LIST}/{process_id}/progress')
 
 
 async def _new_user(session):
@@ -55,9 +55,11 @@ def _assert_not_found(response):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    'role_key', [r for r in get_args(ParticipantRole) if r != 'sponsor']
+    'role_key',
+    # Cargo de laboratório só vale com vínculo: fica nos testes de recorte.
+    [r for r in get_args(ParticipantRole) if not r.endswith('_laboratory')],
 )
-async def test_detalhe_responde_404_a_outro_cargo(
+async def test_detalhe_abre_para_todo_cargo_do_processo(
     client, session, bracvam_user, role_key
 ):
     ctx = await planning_process(session, bracvam_user)
@@ -66,6 +68,19 @@ async def test_detalhe_responde_404_a_outro_cargo(
         session, process_id=ctx.process_id, user=user, role_key=role_key
     )
     authenticate(client, user)
+
+    response = _detail(client, ctx.process_id)
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    assert [r['role_key'] for r in response.json()['my_roles']] == [role_key]
+
+
+@pytest.mark.asyncio
+async def test_detalhe_responde_404_a_quem_nao_participa(
+    client, session, bracvam_user
+):
+    ctx = await planning_process(session, bracvam_user)
+    authenticate(client, await _new_user(session))
 
     _assert_not_found(_detail(client, ctx.process_id))
 
@@ -88,7 +103,7 @@ async def test_detalhe_responde_404_igual_a_processo_inexistente(
     client, session, bracvam_user
 ):
     ctx = await planning_process(session, bracvam_user)
-    authenticate(client, ctx.collaborator)
+    authenticate(client, await _new_user(session))
 
     existing = _detail(client, ctx.process_id)
     missing = _detail(client, uuid4())
@@ -141,7 +156,9 @@ async def test_consultas_nao_gravam_evento(client, session, bracvam_user):
 
     before = await events()
     authenticate(client, ctx.sponsor)
-    assert client.get(LIST).status_code == HTTPStatus.OK
+    assert client.get(LIST, params={'role': 'sponsor'}).status_code == (
+        HTTPStatus.OK
+    )
     assert _detail(client, ctx.process_id).status_code == HTTPStatus.OK
 
     assert await events() == before
@@ -160,18 +177,20 @@ async def test_detalhe_tem_so_as_chaves_do_contrato(
     body = _detail(client, ctx.process_id).json()
 
     assert set(body) == {
-        'id',
-        'code',
-        'title',
-        'status',
-        'started_at',
-        'closed_at',
-        'sponsored_since',
+        'process_id',
+        'my_roles',
         'current_phase',
+        'phases',
         'roles',
         'open_activities',
     }
     assert set(body['current_phase']) == {'key', 'name', 'order'}
+    assert {frozenset(p) for p in body['phases']} == {
+        frozenset({'key', 'name', 'order', 'status'})
+    }
+    assert {frozenset(r) for r in body['my_roles']} == {
+        frozenset({'role_key', 'laboratory', 'assigned_at'})
+    }
     assert {frozenset(r) for r in body['roles']} == {
         frozenset({'role_key', 'people'})
     }
@@ -196,11 +215,16 @@ def _secrets(substance):
 
 
 @pytest.mark.asyncio
-async def test_detalhe_nao_contem_identidade_da_substancia(
-    client, session, bracvam_user
+@pytest.mark.parametrize(
+    'viewer',
+    ['sponsor', 'proponent', 'manager', 'statistician', 'adhoc', 'lab'],
+)
+async def test_nenhum_cargo_ve_identidade_da_substancia(
+    client, session, bracvam_user, viewer
 ):
     ctx = await structure_process(session, bracvam_user, previous_version=True)
-    authenticate(client, ctx.sponsor)
+    user = ctx.lab_users[1] if viewer == 'lab' else getattr(ctx, viewer)
+    authenticate(client, user)
 
     texts = [client.get(LIST).text, _detail(client, ctx.process_id).text]
 

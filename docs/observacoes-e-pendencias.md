@@ -298,7 +298,7 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 
 - **Alcance do BraCVAM**: cada pessoa com o perfil BraCVAM recebe o alert de toda tarefa de triagem, de designação e de homologação, em todos os processos, cerca de onze por processo. A regra é a mesma de `can_act` em `GET /tasks`. A pergunta ficou aberta no `/speckit-clarify` de 2026-11-21, e o usuário decidiu em 2026-11-22 manter a regra até alguém do BraCVAM usar a caixa com dados reais. Um corte futuro fica dentro de `alert_task_opened`, sem mudar o contrato. Detalhe em `specs/047-alerts/research.md` (R13).
 
-## Acompanhamento do patrocinador (Spec 048)
+## Andamento do processo (Spec 048)
 
 ### DIVERGÊNCIA REGISTRADA
 
@@ -310,4 +310,15 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
   3. **Posição no fluxo**: a API entrega a fase atual e a lista das atividades em andamento. O front decide como exibir.
   4. **Cartão da lista**: em 2026-11-23, o front pediu "informações úteis no cartão" da lista. Cada item da lista traz a fase atual e a quantidade de atividades em andamento, calculadas pela mesma regra do detalhe, para o front não chamar o detalhe de cada processo.
   5. **Acesso**: na mesma conversa, o front disse que a tela "é só pra informações" e "não impede de ver nada". A equipe de backend lê isso como tela informativa: o acompanhamento não bloqueia nem libera ação, e o sigilo do item 1 continua.
-- **Validação**: itens 1 a 3 confirmados pelo usuário em 2026-11-23, com o aval da equipe sobre a visibilidade. Itens 4 e 5 decididos pela equipe de backend em 2026-11-23, por serem desenho da API. Registrados em `specs/048-sponsor-tracking/spec.md` (Clarifications).
+- **Validação**: itens 1 a 3 confirmados pelo usuário em 2026-11-23, com o aval da equipe sobre a visibilidade. Itens 4 e 5 decididos pela equipe de backend em 2026-11-23, por serem desenho da API. Registrados em `specs/048-process-progress/spec.md` (Clarifications).
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: na revisão da PR #83, em 2026-11-25, o coordenador da equipe apontou que outros cargos também precisam acompanhar o processo, a começar pelo proponente. Rotas próprias de cada cargo multiplicariam os endpoints. O Plano de Trabalho prevê páginas de monitoramento para a BraCVAM, os laboratórios, o estatístico, os especialistas "e às demais partes interessadas", e o RF030 pede a visão das etapas sem restringir o cargo.
+- **Conflito**: a primeira versão da Spec 048 criou `/sponsor-tracking`, só para o Patrocinador, porque a decisão de 2026-11-23 não dizia o que os outros cargos podem ver.
+- **Decisão**:
+  1. **Rotas**: a lista fica em `GET /processes`, com o filtro `role` e os campos `current_phase`, `open_activity_count` e `my_roles`. O andamento fica em `GET /processes/{id}/progress`, aberto a quem vê o processo. `/sponsor-tracking` sai.
+  2. **Recorte por cargo**: uma regra só, em `pivma.core.process_progress`, decide as pessoas e as execuções que cada cargo vê. Admin, BraCVAM, Grupo Gestor, Gerente do Estudo e Patrocinador veem tudo. Proponente, Estatístico, Colaborador, Grupo de Seleção e Observador regulatório veem a coordenação (Grupo Gestor, Gerente do Estudo, Patrocinador e proponente), o próprio cargo e as execuções de atividade única. O laboratório participante vê também a própria equipe e a própria execução. Avaliador ad hoc e revisor por pares não veem o proponente nem outro avaliador. Com mais de um cargo, vale a união.
+  3. **Fases**: o andamento traz todas as fases com a situação, igual para todos os cargos.
+  4. **Arquivados**: a lista segue a regra de `GET /processes` e esconde os arquivados de quem não tem acesso de revisão. O Patrocinador deixa de ver o processo arquivado na lista.
+- **Validação**: o usuário pediu em 2026-11-25 que o backend liberasse todos os cargos relevantes pelas práticas usuais de sigilo. Os critérios vieram das regras já vigentes: isolamento por laboratório (constituição III, RF044), revisão cega (RF050) e autoria oculta da triagem (Spec 046). Registrado em `specs/048-process-progress/spec.md` (Clarifications).

@@ -1,13 +1,19 @@
 ---
 
+> As fases 1 a 6 registram a primeira versão, com as rotas
+> `/sponsor-tracking`. A fase 7 registra o redesenho de 2026-11-25, que trocou
+> essas rotas por `GET /processes` e `GET /processes/{id}/progress` e abriu o
+> andamento a todos os cargos. Os caminhos e nomes das fases 1 a 6 valem para
+> a versão anterior.
+
 description: "Tarefas da Spec 048, acompanhamento do Patrocinador"
 ---
 
-# Tasks: Acompanhamento do Patrocinador
+# Tasks: Andamento do processo por cargo
 
-**Input**: documentos de `specs/048-sponsor-tracking/`
+**Input**: documentos de `specs/048-process-progress/`
 
-**Prerequisites**: [plan.md](plan.md), [spec.md](spec.md), [research.md](research.md), [data-model.md](data-model.md), [contracts/sponsor-tracking.md](contracts/sponsor-tracking.md), [quickstart.md](quickstart.md)
+**Prerequisites**: [plan.md](plan.md), [spec.md](spec.md), [research.md](research.md), [data-model.md](data-model.md), [contracts/process-progress.md](contracts/process-progress.md), [quickstart.md](quickstart.md)
 
 **Tests**: obrigatórios (AGENTS.md, constituição V). Cada história começa pela
 jornada, depois os testes focados, depois a implementação. Os testes da
@@ -273,3 +279,41 @@ Task: "T039 a T045 em tests/api/routers/test_sponsor_tracking_security.py"
 - `CANCELLED` sem exclusão não existe hoje (`delete_process` é o único caminho), por isso não há teste de `200` para `CANCELLED`. A regra `status != 'OPEN'` de T022 e T049 cobre o caso se ele surgir.
 - FR-008 aceita `403` ou `404` porque cada rota interna já escolhe um dos dois hoje, e esta feature não as muda. O teste prova a recusa e a ausência de dado interno, não o código de cada rota.
 - Commit ao fim de cada fase, só quando o usuário pedir.
+
+## Phase 7: Redesenho por cargo (2026-11-25)
+
+**Goal**: uma lista e um andamento para todos os cargos, com recorte por cargo (Clarifications de 2026-11-25, FR-012, FR-013, US4).
+
+### Testes
+
+- [X] T062 [P] [US1] Adaptar os testes de lista ao filtro `role` de `GET /processes`, com `my_roles` no lugar de `sponsored_since`, a lista sem filtro com os dois cargos, o arquivado fora do filtro e `role` fora do catálogo com `422`, em `tests/api/routers/test_process_progress.py`
+- [X] T063 [P] [US2] Adaptar os testes de detalhe a `GET /processes/{id}/progress` e acrescentar as fases com a situação e `my_roles` vazio para Admin e BraCVAM, em `tests/api/routers/test_process_progress.py`
+- [X] T064 [P] [US3] Trocar o `404` por cargo pelo `200` a todo cargo do processo e pelo `404` a quem não participa, e procurar os dados da substância nas respostas de cada cargo, em `tests/api/routers/test_process_progress_security.py`
+- [X] T065 [P] [US4] Provar o recorte de coordenação, cargos de apoio, proponente, laboratório participante, avaliadores e união de cargos, a fase igual para todos e o cartão do laboratório igual ao andamento dele, em `tests/api/routers/test_process_progress_visibility.py`
+- [X] T066 [US4] Jornada do proponente e da laboratória na Fase 3 e jornadas da Patrocinadora nas rotas novas, em `tests/integration/journeys/etapa_2_planejamento_preparacao/test_process_progress_journey.py`
+
+### Implementação
+
+- [X] T067 Criar `ProgressView`, `progress_view`, `viewer_assignments`, `viewer_roles`, `open_runs`, `current_phase` e `build_progress` em `src/pivma/core/process_progress.py`
+- [X] T068 Criar `role_process_clause` e fazer `proponent_process_clause` usá-la em `src/pivma/core/process_engine.py`
+- [X] T069 Trocar os schemas `Sponsored*` e `Tracking*` por `ProgressPhase`, `ProgressPhaseStatus`, `ViewerRole`, `ProcessListItem`, `ProgressPerson`, `ProgressRole`, `ProgressActivity` e `ProcessProgress`, e acrescentar `role` a `ProcessListFilters`, em `src/pivma/schemas.py`
+- [X] T070 Acrescentar o filtro `role` e os campos do item a `GET /processes` e criar `GET /processes/{id}/progress` em `src/pivma/routers/processes.py`
+- [X] T071 Remover `src/pivma/routers/sponsor_tracking.py` e o registro em `src/pivma/__init__.py`
+
+### Documentação
+
+- [X] T072 [P] Trocar o guia do Patrocinador por `manual/guias/acompanhar-andamento.md`, com a tabela de recorte, e atualizar `manual/guias/index.md` e `mkdocs.yml`
+- [X] T073 [P] Atualizar `manual/referencia/listagens-e-referencias.md`, `manual/referencia/perfis-permissoes-cargos.md` e o RF030 em `manual/explicacao/escopo.md`
+- [X] T074 [P] Registrar a decisão em `docs/observacoes-e-pendencias.md` e atualizar spec, plan, research, data-model, contracts e quickstart em `specs/048-process-progress/`
+- [X] T075 Rodar `poe lint`, `poe test` e `poe docs-build`
+
+| Requisito | Tarefas da fase 7 |
+|---|---|
+| FR-001, FR-002 | T062, T068, T070 |
+| FR-003 a FR-006 | T063, T067 |
+| FR-007, FR-008 | T064 |
+| FR-009 | T064 |
+| FR-011 | T072, T073 |
+| FR-012 | T065, T066, T067 |
+| FR-013 | T063, T067 |
+| SC-006 | T065, T066 |

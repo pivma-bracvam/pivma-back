@@ -86,6 +86,7 @@ async def test_processes_envelope_default_filters(client, session):
     assert body['filters_applied'] == {
         'status': None,
         'mine': False,
+        'role': None,
         'submission_state': None,
     }
     assert body['sort'] == {'by': 'created_at', 'order': 'desc'}
@@ -144,6 +145,7 @@ async def test_processes_filters_echoed(client, session):
     assert body['filters_applied'] == {
         'status': None,
         'mine': True,
+        'role': None,
         'submission_state': 'draft',
     }
 

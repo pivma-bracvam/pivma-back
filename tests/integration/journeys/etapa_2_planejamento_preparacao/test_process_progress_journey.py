@@ -1,4 +1,4 @@
-"""Jornadas do acompanhamento do Patrocinador (Spec 048).
+"""Jornadas do andamento do processo (Spec 048).
 
 Personas:
 
@@ -7,8 +7,10 @@ Personas:
 - Paula, a Patrocinadora. Quer saber em que ponto estão os processos que
   patrocina: quem participa, a fase atual e o que está em andamento. Não vê
   nome químico, CAS, código cego nem o conteúdo dos formulários.
-- O proponente, que submete o processo, e o Colaborador do mesmo processo,
-  que não acompanha por esta tela.
+- Pedro, o proponente, que submete o processo e acompanha o andamento sem
+  saber quem avalia nem quais laboratórios testam o método.
+- Lara, de um dos laboratórios participantes, que acompanha só a própria
+  execução.
 
 Estado inicial comum: ambiente com os templates padrão; o proponente
 submete o processo do template 1 pela API pública, Helena aprova a triagem e
@@ -23,12 +25,15 @@ Jornadas:
 2. Paula acompanha o processo da Fase 2 à Fase 3: vê o proponente e a
    equipe, as atividades em andamento e, depois da homologação, um
    recebimento por laboratório. O cartão da lista mostra a mesma fase do
-   detalhe. O Colaborador não abre o detalhe (US2).
+   detalhe (US2).
 3. Paula acompanha a Fase 3 sem ver nada do estudo, e as rotas de amostras
    e de formulário continuam fechadas para ela (US3).
+4. Na mesma Fase 3, Pedro e Lara abrem o andamento: os dois veem a mesma
+   fase de Paula, mas Pedro não vê avaliador nem laboratório, e Lara vê só
+   o próprio laboratório (US4).
 
 Os desvios (cada cargo, cada estado, paginação) ficam nos testes focados de
-`tests/api/routers/test_sponsor_tracking*.py`.
+`tests/api/routers/test_process_progress*.py`.
 """
 
 from http import HTTPStatus
@@ -49,7 +54,8 @@ from tests.integration.journeys.sample_steps import (
     study_team,
 )
 
-LIST = '/sponsor-tracking/processes'
+LIST = '/processes'
+SPONSOR = {'role': 'sponsor'}
 PHASE_2 = 'phase_2_role_assignment'
 PHASE_3 = 'phase_3_validation_execution'
 
@@ -59,12 +65,15 @@ def _attachments_dir(tmp_path, monkeypatch):
     monkeypatch.setenv('ATTACHMENTS_DIR', str(tmp_path / 'attach'))
 
 
-def _cartoes(client):
-    return {item['id']: item for item in ok(client.get(LIST))['data']}
+def _cartoes(client, params=SPONSOR):
+    return {
+        item['id']: item
+        for item in ok(client.get(LIST, params=params))['data']
+    }
 
 
 def _detalhe(client, process_id):
-    return ok(client.get(f'{LIST}/{process_id}'))
+    return ok(client.get(f'{LIST}/{process_id}/progress'))
 
 
 def _pessoas(detalhe):
@@ -72,7 +81,7 @@ def _pessoas(detalhe):
 
 
 def _cartao_igual_ao_detalhe(client, process_id, detalhe):
-    cartao = _cartoes(client)[process_id]
+    cartao = _cartoes(client, params={})[process_id]
     assert cartao['current_phase'] == detalhe['current_phase']
     assert cartao['open_activity_count'] == len(detalhe['open_activities'])
 
@@ -108,8 +117,9 @@ async def test_patrocinadora_ve_so_os_processos_que_patrocina(
     designacao = designate(client, patrocinado, team.sponsor, 'sponsor')
     designate(client, outro, team.sponsor, 'collaborator')
 
-    # 3. Paula abre o acompanhamento e vê só o processo que patrocina, com a
-    #    data da designação, a fase atual e as atividades em andamento.
+    # 3. Paula filtra os processos em que é Patrocinadora e vê só o que
+    #    patrocina, com a data da designação, a fase atual e as atividades
+    #    em andamento.
     authenticate(client, team.sponsor)
     cartoes = _cartoes(client)
     assert list(cartoes) == [patrocinado]
@@ -118,7 +128,9 @@ async def test_patrocinadora_ve_so_os_processos_que_patrocina(
     assert cartao['title'] == 'Estudo cego de irritação ocular'
     assert cartao['status'] == 'OPEN'
     assert cartao['started_at'] is not None
-    assert cartao['sponsored_since'] == designacao['assigned_at']
+    assert [(r['role_key'], r['assigned_at']) for r in cartao['my_roles']] == [
+        ('sponsor', designacao['assigned_at'])
+    ]
     assert cartao['current_phase']['key'] == PHASE_2
     assert cartao['open_activity_count'] >= 1
 
@@ -130,9 +142,9 @@ async def test_patrocinadora_ve_so_os_processos_que_patrocina(
     )
     assert revogada.status_code == HTTPStatus.NO_CONTENT, revogada.text
 
-    # 5. Paula consulta de novo e a lista está vazia.
+    # 5. Paula consulta de novo e a lista de patrocínios está vazia.
     authenticate(client, team.sponsor)
-    assert ok(client.get(LIST))['data'] == []
+    assert ok(client.get(LIST, params=SPONSOR))['data'] == []
 
 
 @pytest.mark.asyncio
@@ -149,7 +161,7 @@ async def test_patrocinadora_acompanha_da_fase_2_a_fase_3(
     # 2. Paula abre o detalhe: vê o proponente e o Grupo Gestor, sem e-mail,
     #    e as atividades em andamento da Fase 2.
     authenticate(client, team.sponsor)
-    resposta = client.get(f'{LIST}/{process_id}')
+    resposta = client.get(f'{LIST}/{process_id}/progress')
     detalhe = ok(resposta)
     pessoas = _pessoas(detalhe)
     assert [p['user']['id'] for p in pessoas['proponent']] == [
@@ -181,12 +193,6 @@ async def test_patrocinadora_acompanha_da_fase_2_a_fase_3(
     )
     assert recebimentos == sorted(lab.name for lab in team.laboratories)
     _cartao_igual_ao_detalhe(client, process_id, detalhe)
-
-    # 5. O Colaborador do mesmo processo não abre o acompanhamento.
-    authenticate(client, team.collaborator)
-    negado = client.get(f'{LIST}/{process_id}')
-    assert negado.status_code == HTTPStatus.NOT_FOUND
-    assert negado.json()['detail']['code'] == 'not_found'
 
 
 @pytest.mark.asyncio
@@ -224,7 +230,10 @@ async def test_patrocinadora_acompanha_sem_ver_o_estudo(
 
     # 2. Paula abre a lista e o detalhe: nenhum dado do estudo aparece.
     authenticate(client, team.sponsor)
-    respostas = [client.get(LIST), client.get(f'{LIST}/{process_id}')]
+    respostas = [
+        client.get(LIST, params=SPONSOR),
+        client.get(f'{LIST}/{process_id}/progress'),
+    ]
     for resposta in respostas:
         assert resposta.status_code == HTTPStatus.OK
         for segredo in segredos:
@@ -239,3 +248,49 @@ async def test_patrocinadora_acompanha_sem_ver_o_estudo(
         }, caminho
         for segredo in segredos:
             assert segredo not in negado.text, segredo
+
+
+@pytest.mark.asyncio
+async def test_proponente_e_laboratorio_acompanham_com_recorte(
+    session, client, bracvam_user
+):
+    team = await study_team(session, lab_count=2)
+
+    # 1. Processo na Fase 3 com a equipe completa e um recebimento aberto
+    #    por laboratório.
+    process_id = open_sample_definition(client, team, bracvam_user)
+    complete_study_team(client, team, process_id, bracvam_user)
+    _abre_fase_3(client, team, process_id, bracvam_user, [substance_payload()])
+    authenticate(client, team.sponsor)
+    da_patrocinadora = _detalhe(client, process_id)
+
+    # 2. Pedro abre o andamento: vê a mesma fase de Paula, o Grupo Gestor e a
+    #    Patrocinadora, sem o avaliador ad hoc e sem nenhum laboratório.
+    authenticate(client, team.proponent)
+    do_proponente = _detalhe(client, process_id)
+    assert do_proponente['current_phase'] == da_patrocinadora['current_phase']
+    pessoas = _pessoas(do_proponente)
+    assert [p['user']['id'] for p in pessoas['sponsor']] == [
+        str(team.sponsor.id)
+    ]
+    assert 'adhoc_evaluator' not in pessoas
+    assert 'participating_laboratory' not in pessoas
+    assert all(
+        a['laboratory'] is None for a in do_proponente['open_activities']
+    )
+    _cartao_igual_ao_detalhe(client, process_id, do_proponente)
+
+    # 3. Lara abre o andamento: vê a própria equipe e o próprio recebimento,
+    #    e nada do outro laboratório.
+    lara, outro = team.lab_users[1], team.laboratories[0]
+    authenticate(client, lara)
+    da_lara = _detalhe(client, process_id)
+    assert da_lara['current_phase'] == da_patrocinadora['current_phase']
+    recebimentos = [
+        a['laboratory']['id']
+        for a in da_lara['open_activities']
+        if a['key'] == 'sample_receipt'
+    ]
+    assert recebimentos == [str(team.laboratories[1].id)]
+    assert outro.name not in str(da_lara)
+    _cartao_igual_ao_detalhe(client, process_id, da_lara)
