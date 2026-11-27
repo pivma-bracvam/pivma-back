@@ -59,7 +59,7 @@ aceito. `proponent` é dado a quem cria o processo.
 | Cargo | Nome | Atividade que o designa | Observação |
 |---|---|---|---|
 | `proponent` | Proponente | — (criador) | Envia a proposta e responde ao retorno |
-| `sponsor` | Patrocinador | `assign_sponsor` | |
+| `sponsor` | Patrocinador | `assign_sponsor` | Vê todas as pessoas e execuções no [andamento do processo](../guias/acompanhar-andamento.md#o-que-cada-cargo-ve). Não acessa as atividades |
 | `group_manager` | Grupo Gestor | `assign_group_manager` | Dispensa e reabre execuções de laboratório |
 | `sample_selection_group` | Grupo de Seleção de Amostras | `assign_sample_selection_group` | Único que vê substâncias, códigos e SDS |
 | `lead_laboratory` | Laboratório líder | `assign_lead_laboratory` | Exige vínculo com o laboratório. Não dá acesso a execuções de laboratório |

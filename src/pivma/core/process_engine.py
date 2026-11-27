@@ -185,10 +185,15 @@ async def process_visibility_clause(
 
 def proponent_process_clause(user_id: UUID) -> ColumnElement:
     """Processos em que o usuário tem o cargo de proponente ativo."""
+    return role_process_clause(user_id, PROPONENT_ROLE_KEY)
+
+
+def role_process_clause(user_id: UUID, role_key: str) -> ColumnElement:
+    """Processos em que o usuário tem o cargo `role_key` efetivo."""
     return exists(
         process_cargos_scope(user_id).where(
             Assignment.process_instance_id == ProcessInstance.id,
-            Assignment.role_key == PROPONENT_ROLE_KEY,
+            Assignment.role_key == role_key,
         )
     )
 

@@ -33,12 +33,16 @@ o mais antigo.
 |---|---|---|
 | `status` | `OPEN`, `CLOSED`, `CANCELLED`, `ARCHIVED` | todos, menos `ARCHIVED` |
 | `mine` | `true`: só onde o usuário tem o cargo `proponent` ativo | `false` |
+| `role` | um cargo do catálogo: só onde o usuário tem esse cargo efetivo | todos |
 | `submission_state` | `draft`, `submitted` | todos |
 
 `draft` traz as submissões que nunca foram enviadas. `submitted` traz as que
 foram enviadas ao menos uma vez, inclusive as devolvidas pela triagem ou pela
-IA. Os filtros se combinam e `filters_applied` devolve os três. Valor inválido
-responde `422`.
+IA. Os filtros se combinam e `filters_applied` devolve os quatro. Valor
+inválido responde `422`.
+
+Cada item traz também `current_phase`, `open_activity_count` e `my_roles`,
+descritos no [guia de andamento](../guias/acompanhar-andamento.md#meus-processos).
 
 Para as listas do proponente:
 

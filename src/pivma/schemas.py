@@ -1911,6 +1911,9 @@ class ProcessListFilters(BaseModel):
     mine: bool = Field(
         description='Só processos em que o usuário é o proponente'
     )
+    role: ParticipantRole | None = Field(
+        description='Só processos em que o usuário tem este cargo efetivo'
+    )
     submission_state: SubmissionState | None = Field(
         description=(
             'Estado da submissão: `draft` nunca foi enviada; `submitted` '
@@ -1923,7 +1926,125 @@ class ProcessTemplateListResponse(ListPage[ProcessTemplateSummary, NoFilters]):
     """Templates de processo ativos."""
 
 
-class ProcessListResponse(ListPage[ProcessInstanceDetail, ProcessListFilters]):
+# ==========================================
+# ANDAMENTO DO PROCESSO (Spec 048)
+# ==========================================
+# Só os campos do contrato: nada de substância, código cego, formulário,
+# recebimento ou resultado (FR-007). `extra='forbid'` em todos.
+
+PhaseStatus = Literal['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']
+ActivityStatus = Literal['BLOCKED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']
+
+
+class ProgressPhase(BaseModel):
+    key: str = Field(description='Chave da fase no template')
+    name: str = Field(description='Nome da fase')
+    order: int = Field(description='Ordem da fase no processo')
+    model_config = ConfigDict(extra='forbid')
+
+
+class ViewerRole(BaseModel):
+    role_key: ParticipantRole
+    laboratory: LaboratoryRef | None = Field(
+        description='Laboratório da designação; nulo fora dos cargos de lab'
+    )
+    assigned_at: datetime = Field(description='Data da designação')
+    model_config = ConfigDict(extra='forbid')
+
+
+class ProcessListItem(ProcessInstanceDetail):
+    current_phase: ProgressPhase | None = Field(
+        description=(
+            'Fase de maior ordem com atividade em andamento; nula sem '
+            'atividade em andamento ou fora de `OPEN`'
+        )
+    )
+    open_activity_count: int = Field(
+        ge=0,
+        description=(
+            'Execuções em andamento que o usuário vê; zero fora de `OPEN`'
+        ),
+    )
+    my_roles: list[ViewerRole] = Field(
+        description='Designações efetivas do usuário no processo'
+    )
+
+
+class ProgressPerson(BaseModel):
+    user: UserRef = Field(description='Pessoa no cargo, sem e-mail')
+    laboratory: LaboratoryRef | None = Field(
+        description='Laboratório da designação; nulo fora dos cargos de lab'
+    )
+    model_config = ConfigDict(extra='forbid')
+
+
+class ProgressRole(BaseModel):
+    role_key: ParticipantRole
+    occupied: bool = Field(
+        description=(
+            'Se alguém ocupa o cargo, mesmo que o usuário não veja quem'
+        )
+    )
+    people: list[ProgressPerson] = Field(
+        description='Quem ocupa o cargo e o usuário pode ver'
+    )
+    model_config = ConfigDict(extra='forbid')
+
+
+class ProgressRun(BaseModel):
+    started_at: datetime = Field(description='Início da execução aberta')
+    laboratory: LaboratoryRef | None = Field(
+        description='Laboratório da execução; nulo em atividade única'
+    )
+    model_config = ConfigDict(extra='forbid')
+
+
+class ProgressActivity(BaseModel):
+    key: str = Field(description='Chave da atividade')
+    name: str = Field(description='Nome da atividade')
+    status: ActivityStatus = Field(description='Situação da atividade')
+    conditional: bool = Field(
+        description=(
+            'Só abre se algo acontecer (retorno da submissão, problema no '
+            'recebimento); `BLOCKED` aqui não é uma etapa certa'
+        )
+    )
+    open_runs: list[ProgressRun] = Field(
+        description=(
+            'Execuções em andamento que o usuário vê; vazia fora de `OPEN`'
+        )
+    )
+    model_config = ConfigDict(extra='forbid')
+
+
+class ProgressPhaseStatus(ProgressPhase):
+    status: PhaseStatus = Field(description='Situação da fase')
+    activities: list[ProgressActivity] = Field(
+        description='Atividades da fase, na ordem do template'
+    )
+
+
+class ProcessProgress(BaseModel):
+    process_id: UUID
+    my_roles: list[ViewerRole] = Field(
+        description='Designações efetivas do usuário no processo'
+    )
+    current_phase: ProgressPhase | None = Field(
+        description='Mesma regra de `ProcessListItem.current_phase`'
+    )
+    phases: list[ProgressPhaseStatus] = Field(
+        description='Todas as fases do processo, em ordem, com as atividades'
+    )
+    roles: list[ProgressRole] = Field(
+        description=(
+            'Os cargos que o usuário pode ver, na ordem do catálogo, '
+            'inclusive os vazios'
+        )
+    )
+    model_config = ConfigDict(extra='forbid')
+
+
+class ProcessListResponse(ListPage[ProcessListItem, ProcessListFilters]):
     """Processos visíveis ao usuário."""
 
 

@@ -16,6 +16,7 @@ navegador, troque por `credentials: 'include'` e envie o `Origin` do frontend.
 | [Definir amostras cegas](definir-amostras-cegas.md) | Grupo de Seleção de Amostras |
 | [Montar um template de coleta](montar-template-de-coleta.md) | BraCVAM, Administrador |
 | [Receber amostras](receber-amostras.md) | Laboratório participante, Grupo de Seleção de Amostras |
+| [Acompanhar o andamento de um processo](acompanhar-andamento.md) | Todos os cargos do processo |
 | [Configurar a pré-avaliação por IA](configurar-avaliacao-ia.md) | BraCVAM |
 | [Administrar usuários e acessos](administrar-usuarios-e-acessos.md) | Administrador |
 | [Operar em produção](operar-em-producao.md) | Quem implanta |
