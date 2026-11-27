@@ -25,6 +25,9 @@ Além das permissões, Administrador e BraCVAM:
 - Só o cargo `bracvam` edita a triagem, as oito atribuições de cargo da
   Fase 2 e a homologação da estrutura (`structure_approval`). O
   Admin vê o painel da homologação, mas não decide (`403`).
+- O cargo `proponent` vê a triagem (`triage_evaluation`) do próprio
+  processo: a tarefa e as decisões com a justificativa, sem o autor. Ele não
+  edita, e as rotas da triagem respondem `403` sem `triage.review`.
 
 Rotas exclusivas do perfil Administrador (`403 admin_only` para os demais):
 reprocessar pré-avaliação e os logs administrativos.

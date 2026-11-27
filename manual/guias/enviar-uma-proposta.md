@@ -45,7 +45,8 @@ curl -s $FORM -H "Authorization: Bearer $TOKEN"
 ```
 
 Traz `fields` (definição de cada campo: tipo, obrigatoriedade, opções,
-seção), `values` (o que já foi salvo), `reviews` (pareceres desta execução),
+seção), `values` (o que já foi salvo), `reviews` (pareceres desta execução,
+depois que a triagem decide),
 `previous_reviews` (pareceres da execução anterior) e `is_submitted`.
 
 Depois de `REVISE`, `reviews` volta vazio e você lê em `previous_reviews` o que

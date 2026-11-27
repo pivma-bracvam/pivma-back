@@ -40,8 +40,9 @@ curl -s -X POST $API/processes/$PID/return-review -H "Authorization: Bearer $TOK
 
 A escolha vale uma vez por retorno: a segunda responde `409`.
 
-`GET .../return-review` só responde enquanto o retorno está pendente. Depois
-de `REVISE`, leia os pareceres da triagem em `previous_reviews`, no
+`GET .../return-review` só responde enquanto o retorno está pendente. Você só
+lê os pareceres da triagem depois que ela decide; enquanto o triador os
+edita, `reviews` vem vazio. Depois de `REVISE`, leia-os em `previous_reviews`, no
 [formulário](enviar-uma-proposta.md#2-ler-o-formulario), e consulte as rodadas
 antigas em [`submission-versions`](enviar-uma-proposta.md#6-consultar-versoes-devolvidas).
 

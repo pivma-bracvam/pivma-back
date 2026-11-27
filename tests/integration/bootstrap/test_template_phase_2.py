@@ -30,10 +30,10 @@ TEMPLATE_FILES = {
     'test_short_form': '05_test_short_form.yaml',
 }
 NEW_VERSIONS = {
-    'pre_validated_method': 6,
-    'scope_extension': 6,
-    'me_too_validation': 6,
-    'validated_method_dossier': 8,
+    'pre_validated_method': 7,
+    'scope_extension': 7,
+    'me_too_validation': 7,
+    'validated_method_dossier': 9,
 }
 PHASE_2 = 'phase_2_role_assignment'
 COMPARED_KEYS = (

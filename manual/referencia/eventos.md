@@ -25,6 +25,12 @@ flowchart TD
     P -->|não| V[Visível]
 ```
 
+- `FIELD_REVIEWED` só aparece para quem tem a permissão `triage.review`.
+- `INVITE_CREATED`, `INVITE_RESENT` e `INVITE_REVOKED` só aparecem para quem
+  gerencia participantes. `INVITE_ACCEPTED` aparece também para quem aceitou.
+- `NOTIFICATION_*` do envio de um convite por e-mail só aparece para quem
+  gerencia participantes. O cancelamento no aceite traz o autor do aceite.
+
 - `LABORATORY_WAIVED` só aparece para o gestor do processo.
 - `STRUCTURE_APPROVED` e `STRUCTURE_REJECTED` seguem a homologação da
   estrutura: só Admin e BraCVAM os veem. `ACTIVITY_REOPENED` segue o ponto
@@ -34,6 +40,17 @@ flowchart TD
   `sample_receipt_resolution`: Grupo de Seleção, Admin e BraCVAM. Nenhum
   laboratório os vê.
 - A paginação é feita depois do filtro: o total conta só o que o usuário vê.
+
+## Quando `user_id` vem nulo
+
+| Quem lê | Eventos sem autor |
+|---|---|
+| Sem `triage.review` | `TRIAGE_APPROVED`, `TRIAGE_REJECTED`, `REVISION_REQUESTED`, `RETURN_REVIEW_OPENED` e `AI_CRITERION_FEEDBACK_RECORDED` |
+| Só com `adhoc_evaluator` e `peer_reviewer` no processo | Todo evento cujo autor é o proponente ou outro avaliador cego do processo, com a designação ativa ou revogada |
+
+Com outro cargo no processo, o avaliador cego recebe os autores que esse
+cargo vê. Sem cargo efetivo no processo, quem não é Admin nem BraCVAM recebe
+os eventos com o cegamento. O banco guarda o autor de todo evento; só a resposta o omite.
 
 ## Tipos
 
@@ -63,7 +80,8 @@ para quem precisa saber. Ler um alert não grava evento aqui.
 |---|---|
 | `PROCESS_CREATED` | `code`, `title` e, se o processo nasce com template de coleta, `collection_template_id` |
 | `REVISION_REQUESTED` | `source`: `AI_PRE_EVALUATION` ou `TRIAGE` |
-| `RETURN_REVIEW_OPENED` | `source`, `run_number`; `user_id` vem nulo para quem não tem a permissão `triage.review`, porque o proponente não vê quem devolveu a submissão |
+| `TRIAGE_APPROVED` / `TRIAGE_REJECTED` | `justification` |
+| `RETURN_REVIEW_OPENED` | `source`, `run_number` |
 | `RETURN_REVIEW_CANCELLED` | `source`, `run_number`; o autor é o administrador que reprocessou a pré-avaliação |
 | `STRUCTURE_APPROVED` | `decision_id`, `justification` |
 | `STRUCTURE_REJECTED` | `decision_id`, `justification`, `rejected_points` (`[{activity_key, reason}]`) |

@@ -6,7 +6,7 @@ process_template:
   name: "[TESTE] Formulário Curto"
   description: "Tipo temporário, só para testes da equipe. Usa um formulário curto e será removido. Não use para propostas reais."
   display_order: 5
-  version: 2
+  version: 3
   is_active: true
 
 phases:
@@ -31,7 +31,7 @@ phases:
         assigned_role: "bracvam"
         access:
           edit: ["bracvam"]
-          view: []
+          view: ["proponent"]
         sla_hours: 72  # 3 dias corridos para a triagem decidir (Spec 018)
         dependencies:
           - required_activity_key: "proposal_submission"

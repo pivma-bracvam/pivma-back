@@ -110,36 +110,37 @@ async def test_task_list_hides_tasks_of_activities_without_view(
     assert resp.json()['data'] == []
 
 
+def _roles(client, process_id):
+    return {
+        t['assigned_role']
+        for t in client.get(
+            '/tasks', params={'process_id': process_id}
+        ).json()['data']
+    }
+
+
 @pytest.mark.asyncio
-async def test_task_list_shows_triage_task_to_bracvam_not_to_proponent(
+async def test_task_list_shows_triage_task_to_proponent_not_to_sponsor(
     client, session, bracvam_user
 ):
-    proponent, _, process_id = await _submitted_process_with_sponsor(
+    """Spec 049: o proponente vê a triagem; o patrocinador, não."""
+    _, sponsor, process_id = await _submitted_process_with_sponsor(
         client, session
     )
     _submit(client, process_id)
 
-    roles = {
-        t['assigned_role']
-        for t in client.get(
-            '/tasks', params={'process_id': process_id}
-        ).json()['data']
-    }
-    assert roles == {'proponent'}
+    assert _roles(client, process_id) == {'proponent', 'bracvam'}
 
     authenticate(client, bracvam_user)
-    roles = {
-        t['assigned_role']
-        for t in client.get(
-            '/tasks', params={'process_id': process_id}
-        ).json()['data']
-    }
-    assert roles == {'proponent', 'bracvam'}
+    assert _roles(client, process_id) == {'proponent', 'bracvam'}
+
+    authenticate(client, sponsor)
+    assert _roles(client, process_id) == set()
 
 
 @pytest.mark.asyncio
 async def test_task_detail_404_without_view(client, session, bracvam_user):
-    proponent, _, process_id = await _submitted_process_with_sponsor(
+    _, sponsor, process_id = await _submitted_process_with_sponsor(
         client, session
     )
     _submit(client, process_id)
@@ -152,7 +153,7 @@ async def test_task_detail_404_without_view(client, session, bracvam_user):
         if t['assigned_role'] == 'bracvam'
     )
 
-    authenticate(client, proponent)
+    authenticate(client, sponsor)
     resp = client.get(f'/tasks/{triage_task_id}')
 
     assert resp.status_code == HTTPStatus.NOT_FOUND

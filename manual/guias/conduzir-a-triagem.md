@@ -40,10 +40,13 @@ curl -s -X POST $API/processes/$PID/triage/reviews -H "Authorization: Bearer $TO
   -d '{"reviews":[{"field_key":"method_title","status":"CONFORME","comments":"Claro."}]}'
 ```
 
-`status` é texto livre; a API não valida os valores. Os pareceres aparecem em
-`reviews` na leitura do formulário. Depois da escolha `REVISE`, passam para
-`previous_reviews` e continuam na versão devolvida. O proponente não vê quem
-avaliou.
+`status` é texto livre; a API não valida os valores. Você lê os pareceres em
+`reviews` na leitura do formulário enquanto os edita. O proponente só os
+recebe depois da decisão. Depois da escolha `REVISE`, eles passam para
+`previous_reviews` e continuam na versão devolvida.
+
+O proponente acompanha a triagem: vê a tarefa e, na linha do tempo, a decisão
+com a justificativa. Ele não vê quem avaliou nem os eventos `FIELD_REVIEWED`.
 
 ## 4. Dar retorno sobre a IA (opcional)
 
@@ -54,6 +57,9 @@ curl -s -X POST $API/processes/$PID/pre-evaluation/$RUN_ID/feedback \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"items":[{"item_id":"…","verdict":"disagree","reason":"Critério mal aplicado."}]}'
 ```
+
+O proponente vê o evento `AI_CRITERION_FEEDBACK_RECORDED` na linha do tempo,
+sem o autor.
 
 `verdict`: `agree`, `disagree` ou `inconclusive`. O retorno não muda o
 resultado da IA; ele alimenta `GET /ai-evaluations/agreement-metrics`.

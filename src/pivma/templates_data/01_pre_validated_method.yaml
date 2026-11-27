@@ -3,7 +3,7 @@ process_template:
   name: "Método Novo"
   description: "Método em desenvolvimento ou já desenvolvido, cujo processo de validação ainda não foi executado."
   display_order: 1
-  version: 6
+  version: 7
   is_active: true
 
 phases:
@@ -28,7 +28,7 @@ phases:
         assigned_role: "bracvam"
         access:
           edit: ["bracvam"]
-          view: []
+          view: ["proponent"]
         sla_hours: 72  # 3 dias corridos para a triagem decidir (Spec 018)
         dependencies:
           - required_activity_key: "proposal_submission"

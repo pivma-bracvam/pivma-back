@@ -13,6 +13,7 @@ from pivma.core.database.models import (
     EvaluationRunItem,
     ProcessInstance,
     ReviewerFeedback,
+    User,
 )
 from tests.ai_eval_helpers import (
     NON_COMPLIANT_STATEMENT,
@@ -125,3 +126,61 @@ async def test_feedback_blocked_by_conflict_of_interest(
         headers=ORIGIN,
     )
     assert resp.status_code == HTTPStatus.FORBIDDEN
+
+
+def _feedback_events(client, process_id):
+    response = client.get(
+        f'/processes/{process_id}/timeline', params={'per_page': 100}
+    )
+    assert response.status_code == HTTPStatus.OK, response.text
+    events = [
+        e
+        for e in response.json()['data']
+        if e['event_type'] == 'AI_CRITERION_FEEDBACK_RECORDED'
+    ]
+    return response, events
+
+
+async def _feedback_recorded(client, session, ai_eval_admin):
+    process_id, run_id, item = await _run_with_item(
+        client, session, ai_eval_admin
+    )
+    authenticate(client, ai_eval_admin)
+    response = client.post(
+        f'/processes/{process_id}/pre-evaluation/{run_id}/feedback',
+        json={'items': [{'item_id': str(item.id), 'verdict': 'agree'}]},
+        headers=ORIGIN,
+    )
+    assert response.status_code == HTTPStatus.OK, response.text
+    process = await session.get(ProcessInstance, process_id)
+    return process_id, process.created_by
+
+
+@pytest.mark.asyncio
+async def test_proponent_gets_no_author_of_ai_feedback(
+    client, ai_eval_admin, session, fake_provider
+):
+    """Spec 049 (#81): o feedback sobre a IA não identifica o triador."""
+    del fake_provider
+    process_id, proponent_id = await _feedback_recorded(
+        client, session, ai_eval_admin
+    )
+    authenticate(client, await session.get(User, proponent_id))
+
+    response, [event] = _feedback_events(client, process_id)
+
+    assert event['user_id'] is None
+    assert str(ai_eval_admin.id) not in response.text
+
+
+@pytest.mark.asyncio
+async def test_reviewer_keeps_author_of_ai_feedback(
+    client, ai_eval_admin, session, fake_provider
+):
+    del fake_provider
+    process_id, _ = await _feedback_recorded(client, session, ai_eval_admin)
+    authenticate(client, ai_eval_admin)
+
+    _, [event] = _feedback_events(client, process_id)
+
+    assert event['user_id'] == str(ai_eval_admin.id)

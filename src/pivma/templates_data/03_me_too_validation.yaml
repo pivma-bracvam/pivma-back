@@ -3,7 +3,7 @@ process_template:
   name: "Método Similar"
   description: "Método de ensaio estrutural e funcionalmente semelhante a um método de referência já validado e aceito, podendo ser candidato a um processo de validação baseado em padrões de desempenho (performance standards)."
   display_order: 4
-  version: 6
+  version: 7
   is_active: true
 
 phases:
@@ -28,7 +28,7 @@ phases:
         assigned_role: "bracvam"
         access:
           edit: ["bracvam"]
-          view: []
+          view: ["proponent"]
         sla_hours: 72  # 3 dias corridos para a triagem decidir (Spec 018)
         dependencies:
           - required_activity_key: "proposal_submission"

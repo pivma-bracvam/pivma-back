@@ -22,7 +22,9 @@ from pivma.core.attachment_service import (
     store_upload,
     validate_extension,
 )
+from pivma.core.authorization import has_process_review_access
 from pivma.core.database.models import (
+    ActivityRun,
     Artifact,
     AuditEvent,
     FormField,
@@ -190,15 +192,35 @@ async def get_activity_form(
 
     attachments = await _attachments_by_field_key(session, form_inst, fields)
 
-    reviews_dict: dict[str, FieldReviewSummary] = {}
-    for fr in form_inst.reviews:
-        if fr.deleted_at is None and fr.form_field_id in field_map:
-            fld = field_map[fr.form_field_id]
-            reviews_dict[fld.field_key] = FieldReviewSummary(
-                status=fr.status,
-                comments=fr.comments,
-                reviewed_at=fr.reviewed_at,
+    reviews = [
+        fr
+        for fr in form_inst.reviews
+        if fr.deleted_at is None and fr.form_field_id in field_map
+    ]
+    # Sem `triage.review`, só os pareceres de triagem já decidida: o rascunho
+    # do triador fica com ele (Spec 049, mesmo critério de
+    # `submission_run_reviews`).
+    if reviews and not await has_process_review_access(
+        session, current_user.id
+    ):
+        decided = set(
+            await session.scalars(
+                select(ActivityRun.id).where(
+                    ActivityRun.id.in_({fr.activity_run_id for fr in reviews}),
+                    ActivityRun.status == 'COMPLETED',
+                )
             )
+        )
+        reviews = [fr for fr in reviews if fr.activity_run_id in decided]
+
+    reviews_dict: dict[str, FieldReviewSummary] = {}
+    for fr in reviews:
+        fld = field_map[fr.form_field_id]
+        reviews_dict[fld.field_key] = FieldReviewSummary(
+            status=fr.status,
+            comments=fr.comments,
+            reviewed_at=fr.reviewed_at,
+        )
 
     previous_reviews = (
         await submission_run_reviews(session, id, run.run_number - 1)

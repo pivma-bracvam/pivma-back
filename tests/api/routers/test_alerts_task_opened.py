@@ -296,3 +296,17 @@ async def test_receipt_problem_alerts_selection_group_once(session, client):
     assert len(resolution) == 1
     task = await _task_of(session, ctx.process_id, 'sample_receipt_resolution')
     assert resolution[0].target_id == task.id
+
+
+@pytest.mark.asyncio
+async def test_proponent_gets_no_alert_for_triage_task_they_only_view(
+    client, session, bracvam_user
+):
+    """Spec 049: o alert segue `edit_roles`, não a visão da triagem."""
+    proponent, pid = await _created_process(client, session)
+
+    _submit(client, pid)
+
+    assert 'triage_evaluation' not in _keys(
+        await alerts_for(session, proponent, TASK_OPENED)
+    )

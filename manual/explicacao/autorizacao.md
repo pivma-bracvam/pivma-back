@@ -51,8 +51,28 @@ concede edição a `bracvam`.
 
 Quem tem atribuição no processo vê o cabeçalho dele. Formulários, versões,
 anexos, pré-avaliação, tarefas e eventos da linha do tempo seguem a concessão
-de ver de cada atividade. O proponente, por exemplo, vê a própria submissão,
-mas não vê os eventos da triagem.
+de ver de cada atividade. O proponente, por exemplo, vê a própria submissão e
+a triagem, mas não vê as atividades de designação da Fase 2.
+
+## Quem aparece na linha do tempo
+
+A linha do tempo guarda o autor de cada evento, mas a resposta o omite
+(`user_id` nulo) em dois casos:
+
+- Sem a permissão `triage.review`, você não vê quem decidiu a triagem:
+  `TRIAGE_APPROVED`, `TRIAGE_REJECTED`, `REVISION_REQUESTED`,
+  `RETURN_REVIEW_OPENED` e o retorno sobre a IA
+  (`AI_CRITERION_FEEDBACK_RECORDED`) chegam sem autor. Os pareceres por campo
+  (`FIELD_REVIEWED`) nem chegam.
+- Com só os cargos de revisão cega no processo (`adhoc_evaluator`,
+  `peer_reviewer`), você não vê o proponente nem os outros avaliadores
+  cegos, mesmo com a designação deles já revogada. Seus próprios eventos
+  trazem o seu id. Com outro cargo no processo, como `group_manager`, vale a
+  união: você vê o que esse cargo vê.
+
+Os convites ficam com quem gerencia participantes, inclusive os eventos do
+envio por e-mail (`NOTIFICATION_*`). Os demais recebem só o próprio
+`INVITE_ACCEPTED`.
 
 ## `404` em vez de `403`
 

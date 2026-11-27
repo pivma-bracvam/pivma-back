@@ -236,7 +236,7 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
 ### PENDÊNCIAS
 
 - A varredura de execuções presas (`_sweep_stale_runs`) lê `in_progress` sem travar a execução. Ela roda só na inicialização e pega execuções com mais de 15 minutos, então disputa com `_execute` só se outra instância seguir rodando essa execução. Fica fora da Spec 046.
-- `GET .../form` devolve `reviews` sem conferir se a triagem já decidiu, então o proponente lê pareceres ainda em edição. O comportamento já existia, o triador lê o próprio rascunho no mesmo campo, e a mudança aguarda decisão da equipe.
+- `GET .../form` devolve `reviews` sem conferir se a triagem já decidiu. Decidida em 2026-11-27 e levada à Spec 049 (seção "Visibilidade da triagem e cegamento na linha do tempo").
 - `_execute` lê o processo sem trava, e a exclusão do processo não trava a `EvaluationRun`. Se as duas operações se cruzarem no fim da pré-avaliação, o retorno pode abrir em um processo excluído e o aviso sair. A janela é curta e a corrida já existia; a correção mudaria a decisão R8 da Spec 030. Fica fora da Spec 046.
 
 ## Formulário de teste
@@ -335,3 +335,35 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
   5. **Acúmulo de cargos**: fica com a issue #85. A união em `ProgressView` continua, porque é correta com um cargo só, e o teste do avaliador com outro cargo sai.
   6. **Matriz de acesso**: fica para uma spec própria, registrada na issue #87. Ela reescreve a autorização de `/tasks`, da linha do tempo e de `/participants`, e o formato depende das respostas do BraCVAM e da escolha entre resolver as concessões pela versão do template ou migrá-las. O modo de acompanhamento em `/tasks` não entra: repetiria as atividades que o andamento já traz. O resumo por tipo de atividade (ponto 4 da revisão) fica para a mesma spec. Motivos em `specs/048-process-progress/research.md` (R12).
 - **Validação**: itens 1 a 6 decididos pelo usuário em 2026-11-27, sobre a análise da revisão. Registrados em `specs/048-process-progress/spec.md` (Clarifications).
+
+## Visibilidade da triagem e cegamento na linha do tempo (Spec 049)
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: a issue #81 pede que o proponente veja a triagem e a migração de dados de `view_roles` nos processos já criados. A issue #84 aponta que a linha do tempo entrega a qualquer participante os convites e o autor dos eventos do processo. A pendência da Spec 046 aponta pareceres em rascunho em `GET .../form`.
+- **Conflito**: a Spec 046 esconde do proponente o autor só em `RETURN_REVIEW_OPENED`. A Spec 048 aplica cegamento e isolamento por laboratório no andamento, e a linha do tempo não. A migração pedida na #81 contraria a regra de 2026-10-24, de que o banco do deploy de dev é descartável e a produção começa vazia.
+- **Decisão**:
+  1. **Visão da triagem**: o proponente ganha `view` em `triage_evaluation` nos cinco templates. `edit` continua só com a BraCVAM.
+  2. **Autor da triagem**: quem não tem `triage.review` recebe `user_id` nulo em `TRIAGE_APPROVED`, `TRIAGE_REJECTED`, `REVISION_REQUESTED`, `FIELD_REVIEWED` e `RETURN_REVIEW_OPENED`. O autor segue gravado.
+  3. **`FIELD_REVIEWED`**: sai da linha do tempo de quem não tem `triage.review`. O evento só conta campos revisados antes da decisão.
+  4. **Pareceres em rascunho**: `reviews` em `GET .../form` mostra só pareceres de triagem concluída para quem não tem `triage.review`. O triador segue lendo o próprio rascunho.
+  5. **Convites**: os quatro eventos de convite seguem a regra dos eventos de designação. Quem gerencia participantes vê todos; os demais veem só o aceite do próprio convite.
+  6. **Cegamento**: quem só tem cargos de revisão cega (`adhoc_evaluator`, `peer_reviewer`) não recebe o `user_id` do proponente nem de outro avaliador. Com outro cargo no processo, vale a união, como no andamento.
+  7. **Migração**: uma migração de dados concede a visão do item 1 às triagens dos processos já criados, como pede a #81. Ela é só um acréscimo à concessão, então vale a exceção à regra de 2026-10-24.
+- **Validação**: itens 1 a 7 aprovados pelo usuário em 2026-11-27. Registrado em `specs/049-triage-timeline-visibility/spec.md` (Clarifications).
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: revisão do Codex na PR da Spec 049, em 2026-11-27.
+- **Conflito**: `AI_CRITERION_FEEDBACK_RECORDED` vai na execução da submissão e entregava ao proponente o `user_id` do triador. O `NOTIFICATION_CANCELLED` do convite por e-mail aceito trazia a quem não gerencia participantes o id de quem aceitou. Com a designação revogada durante a leitura, o cegamento falhava aberto.
+- **Decisão**:
+  1. **Retorno sobre a IA**: `AI_CRITERION_FEEDBACK_RECORDED` chega sem autor a quem não tem `triage.review`.
+  2. **Envio do convite**: os `NOTIFICATION_*` com `subject_type` de convite seguem o item 5 acima, só para quem gerencia participantes.
+  3. **Sem cargo**: quem não tem acesso amplo nem cargo efetivo recebe a linha do tempo com o cegamento.
+  4. **União de cargos**: continua no código, e o teste sai, como na decisão 5 da Spec 048 (issue #85).
+  5. **Downgrade**: a migração não despublica as versões novas dos templates, como nas mudanças de template anteriores. Os dados do preview são descartáveis.
+- **Validação**: itens 1 a 5 aprovados pelo usuário em 2026-11-27.
+
+### PENDÊNCIA
+
+- **Parecer depois da decisão**: `save_field_reviews` e `execute_triage_decision` (`src/pivma/core/process_engine.py`) leem a execução aberta da triagem sem trava comum. Um parecer salvo ao mesmo tempo que a decisão pode gravar depois dela, e `reviews` e `previous_reviews` o publicam ao proponente, porque a execução já está `COMPLETED`. A corrida vem da Spec 030. A correção trava a execução da triagem com `FOR UPDATE` nas duas rotas. Saiu da revisão do Codex na PR da Spec 049.
