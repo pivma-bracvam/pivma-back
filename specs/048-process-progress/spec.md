@@ -42,6 +42,12 @@
 - Q: As fases entram no detalhe? → A: Sim, todas, com a situação, iguais para todos os cargos. Atende o RF030.
 - Q: A lista por cargo mostra os arquivados? → A: Segue a regra de `GET /processes`: arquivado só com `status=ARCHIVED`, para quem tem acesso de revisão.
 
+### Session 2026-11-27
+
+- Q: O andamento mostra os próximos passos? → A: Sim. Cada fase lista as próprias atividades com a situação, e as que só abrem por evento (revisão do retorno, problema no recebimento) vêm marcadas como condicionais. As execuções abertas ficam dentro da atividade, e a lista plana de execuções sai. Pedido da revisão da PR #83 (2026-11-27), confirmado pelo usuário.
+- Q: Como mostrar um cargo ocupado por alguém que o usuário não pode ver? → A: Cada cargo traz se está ocupado, sem contar pessoas. Pedido da mesma revisão.
+- Q: A matriz de acesso central entra nesta spec? → A: Não. Fica para uma spec própria, registrada numa issue. Decisão do usuário em 2026-11-27; motivos em [research.md](research.md#r12-o-que-fica-para-a-matriz-de-acesso).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Ver os processos em que tenho um cargo (Priority: P1)
@@ -138,8 +144,8 @@ O proponente, os laboratórios, os cargos de apoio e os avaliadores abrem o mesm
 - **FR-002**: `GET /processes` DEVE aceitar o filtro `role`, que deixa só os processos em que o usuário tem esse cargo efetivo. Designações revogadas, convites pendentes e processos excluídos não contam. A lista mantém o envelope, a ordenação e a regra de arquivados atuais.
 - **FR-003**: O andamento DEVE trazer as pessoas designadas nos cargos que o usuário vê, com nome de usuário e nome completo, sem e-mail. Pessoas de cargos por laboratório DEVEM vir com o laboratório.
 - **FR-004**: O sistema DEVE entregar a fase atual do processo (chave, nome e ordem), definida como a fase de maior ordem com atividade em andamento, pela mesma regra na lista e no andamento e igual para todos os cargos. Sem atividade em andamento, a fase atual vem vazia.
-- **FR-005**: O andamento DEVE trazer as execuções em andamento que o usuário vê, cada uma com chave, nome, fase e data de abertura. Execuções por laboratório DEVEM vir uma por laboratório, com o nome do laboratório.
-- **FR-006**: Em processo encerrado ou arquivado, a fase atual DEVE vir vazia, a lista de atividades em andamento vazia e a quantidade zero.
+- **FR-005**: O andamento DEVE trazer as execuções em andamento que o usuário vê, dentro da atividade de cada uma, com a data de abertura. Execuções por laboratório DEVEM vir uma por laboratório, com o nome do laboratório.
+- **FR-006**: Em processo encerrado ou arquivado, a fase atual DEVE vir vazia, nenhuma atividade DEVE trazer execução aberta e a quantidade DEVE ser zero.
 - **FR-007**: O acompanhamento NÃO DEVE expor a nenhum cargo amostras, nomes químicos, CAS, SDS, códigos cegos, contagens de amostras, valores ou anexos de formulários, plano estatístico, resultados, pareceres, decisões e justificativas.
 - **FR-008**: O acompanhamento NÃO DEVE ampliar o acesso às atividades: as rotas de leitura de formulário de atividade, amostras, recebimento e homologação DEVEM continuar recusando o Patrocinador com `403` ou `404`, como hoje, e as ações sobre execuções de laboratório (dispensa e reabertura) também.
 - **FR-009**: Quem não vê o processo em `GET /processes/{id}` DEVE receber `404` ao consultar o andamento. Administrador e BraCVAM abrem qualquer processo.
@@ -147,6 +153,8 @@ O proponente, os laboratórios, os cargos de apoio e os avaliadores abrem o mesm
 - **FR-011**: O manual DEVE descrever o andamento e o que cada cargo vê.
 - **FR-012**: O sistema DEVE aplicar o recorte por cargo das Clarifications de 2026-11-25 numa regra só, usada pela lista e pelo andamento.
 - **FR-013**: O andamento DEVE trazer todas as fases do processo, em ordem, com a situação (`NOT_STARTED`, `IN_PROGRESS`, `COMPLETED` ou `CANCELLED`), iguais para todos os cargos.
+- **FR-014**: Cada fase do andamento DEVE listar as próprias atividades, na ordem do template, com a situação (`BLOCKED`, `IN_PROGRESS`, `COMPLETED` ou `CANCELLED`) e a marca de condicional, iguais para todos os cargos.
+- **FR-015**: Cada cargo do andamento DEVE dizer se está ocupado, mesmo quando o usuário não vê quem o ocupa, sem contar pessoas.
 
 ### Key Entities
 

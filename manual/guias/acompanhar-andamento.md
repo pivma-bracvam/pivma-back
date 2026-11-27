@@ -2,7 +2,8 @@
 
 Quem tem cargo num processo acompanha em que ponto ele está por duas leituras:
 a lista de processos e o andamento de um processo. As duas mostram a fase
-atual e as atividades em andamento. Cada cargo vê só as pessoas e as execuções
+atual e as execuções em andamento, e o andamento lista também as atividades de
+cada fase com a situação. Cada cargo vê só as pessoas e as execuções
 que a [tabela de recorte](#o-que-cada-cargo-ve) libera. O acompanhamento não
 muda o acesso às atividades: as rotas de amostras, de formulário e de execução
 de laboratório seguem as regras de cada uma.
@@ -39,23 +40,46 @@ A resposta traz:
 
 - `my_roles`: as designações do usuário no processo, como na lista.
 - `current_phase`: a fase de maior ordem que tem atividade em andamento.
-- `phases`: todas as fases do processo, em ordem, com `key`, `name`, `order` e
-  `status` (`NOT_STARTED`, `IN_PROGRESS`, `COMPLETED` ou `CANCELLED`).
-- `roles`: os cargos que o usuário pode ver, na ordem do catálogo, com as
-  pessoas que o ocupam (`user` sem e-mail e, nos cargos de laboratório,
-  `laboratory`). Um cargo visível sem ninguém vem com `people: []`.
-- `open_activities`: as execuções em andamento que o usuário vê, com `key`,
-  `name`, `phase_key`, `started_at` e `laboratory`. Na Fase 3 há uma linha
-  por laboratório. Uma execução reaberta aparece com a data da reabertura, e
-  o laboratório dispensado não aparece.
+- `phases`: todas as fases do processo, em ordem, com `key`, `name`, `order`,
+  `status` (`NOT_STARTED`, `IN_PROGRESS`, `COMPLETED` ou `CANCELLED`) e
+  `activities`.
+- `phases[].activities`: as atividades da fase, na ordem do template, com
+  `key`, `name`, `status`, `conditional` e `open_runs`.
+- `roles`: os cargos que o usuário pode ver, na ordem do catálogo, com
+  `occupied` e as pessoas que o ocupam (`user` sem e-mail e, nos cargos de
+  laboratório, `laboratory`).
 
-`current_phase` e `phases` são iguais para todos os cargos. O item da lista e
-o andamento usam a mesma regra: `open_activity_count` é igual ao tamanho de
-`open_activities` para o mesmo usuário.
+Cada atividade tem uma destas situações:
 
-`current_phase` vem nulo, e `open_activities` vazia, quando o processo está
-aberto sem atividade em andamento (no template 1, depois do último
-recebimento confirmado) e quando está encerrado ou arquivado.
+| `status` | Significado |
+|---|---|
+| `COMPLETED` | Concluída |
+| `IN_PROGRESS` | Em andamento; na Fase 3, enquanto algum laboratório não concluiu |
+| `BLOCKED` | Ainda espera outra atividade, ou, se `conditional`, o evento que a abre |
+| `CANCELLED` | Cancelada com o processo |
+
+`conditional: true` marca as atividades que só abrem se algo acontecer: a
+revisão do retorno da submissão e a resolução de problemas no recebimento de
+amostras. Com `BLOCKED`, elas não são uma etapa certa do processo.
+
+`open_runs` traz as execuções em andamento da atividade que o usuário vê, com
+`started_at` e `laboratory`. Na Fase 3 há uma por laboratório. Uma execução
+reaberta aparece com a data da reabertura, e o laboratório dispensado não
+aparece.
+
+`occupied` diz se alguém ocupa o cargo, mesmo quando o usuário não pode ver
+quem. O laboratório participante, por exemplo, vê `lead_laboratory` com
+`occupied: true` e `people: []` quando o líder é de outro laboratório. Um
+cargo sem ninguém vem com `occupied: false`.
+
+`current_phase`, as fases e a situação das atividades são iguais para todos os
+cargos. O item da lista e o andamento usam a mesma regra:
+`open_activity_count` é igual ao total de `open_runs` do andamento para o
+mesmo usuário.
+
+`current_phase` vem nulo, e `open_runs` vazia em todas as atividades, quando o
+processo está aberto sem atividade em andamento (no template 1, depois do
+último recebimento confirmado) e quando está encerrado ou arquivado.
 
 ## O que cada cargo vê
 

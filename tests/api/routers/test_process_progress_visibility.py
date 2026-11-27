@@ -11,6 +11,7 @@ from typing import get_args
 import pytest
 
 from pivma.schemas import ParticipantRole
+from tests.api.routers.test_process_progress import open_runs_of
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.participant_factory import grant_cargo
 from tests.factories.structure_approval_factory import structure_process
@@ -58,11 +59,21 @@ def _people(body):
     }
 
 
+def _situations(body):
+    """Fases e atividades com a situação, sem as execuções."""
+    return [
+        (
+            p['key'],
+            p['status'],
+            [(a['key'], a['status']) for a in p['activities']],
+        )
+        for p in body['phases']
+    ]
+
+
 def _run_labs(body):
     return {
-        a['laboratory']['id']
-        for a in body['open_activities']
-        if a['laboratory']
+        a['laboratory']['id'] for a in open_runs_of(body) if a['laboratory']
     }
 
 
@@ -136,7 +147,13 @@ async def test_laboratorio_ve_so_a_propria_equipe_e_a_propria_execucao(
 
     people = _people(body)
     assert people['participating_laboratory'] == [str(ctx.lab_users[1].id)]
-    assert people['lead_laboratory'] == []
+    # O líder é de outro laboratório: o cargo aparece ocupado, sem o nome.
+    lead = next(r for r in body['roles'] if r['role_key'] == 'lead_laboratory')
+    assert lead == {
+        'role_key': 'lead_laboratory',
+        'occupied': True,
+        'people': [],
+    }
     assert _run_labs(body) == {str(own_lab.id)}
     assert other_lab.name not in str(body)
     assert body['my_roles'][0]['laboratory']['id'] == str(own_lab.id)
@@ -152,8 +169,8 @@ async def test_laboratorio_e_patrocinador_veem_a_mesma_fase(
     sponsor = _progress(client, ctx, ctx.sponsor)
 
     assert lab['current_phase'] == sponsor['current_phase']
-    assert lab['phases'] == sponsor['phases']
-    assert len(lab['open_activities']) < len(sponsor['open_activities'])
+    assert _situations(lab) == _situations(sponsor)
+    assert len(open_runs_of(lab)) < len(open_runs_of(sponsor))
 
 
 @pytest.mark.asyncio
@@ -168,7 +185,7 @@ async def test_cartao_do_laboratorio_conta_so_o_que_ele_ve(
     )
 
     (item,) = response.json()['data']
-    assert item['open_activity_count'] == len(detail['open_activities'])
+    assert item['open_activity_count'] == len(open_runs_of(detail))
     assert item['current_phase'] == detail['current_phase']
 
 
@@ -196,18 +213,13 @@ async def test_avaliador_nao_ve_o_proponente_nem_outro_avaliador(
 
 
 @pytest.mark.asyncio
-async def test_avaliador_com_outro_cargo_ve_a_uniao(
+async def test_coordenacao_ve_ocupado_so_onde_ha_pessoa(
     client, session, bracvam_user
 ):
     ctx = await _phase_3(session, bracvam_user)
-    await grant_cargo(
-        session,
-        process_id=ctx.process_id,
-        user=ctx.adhoc,
-        role_key='collaborator',
-    )
 
-    people = _people(_progress(client, ctx, ctx.adhoc))
+    roles = _progress(client, ctx, ctx.sponsor)['roles']
 
-    assert people['proponent'] == [str(ctx.proponent.id)]
-    assert people['adhoc_evaluator'] == [str(ctx.adhoc.id)]
+    # Quem vê todas as pessoas vê `occupied` igual a ter alguém na lista.
+    assert all(r['occupied'] == bool(r['people']) for r in roles)
+    assert not all(r['occupied'] for r in roles)

@@ -1933,6 +1933,7 @@ class ProcessTemplateListResponse(ListPage[ProcessTemplateSummary, NoFilters]):
 # recebimento ou resultado (FR-007). `extra='forbid'` em todos.
 
 PhaseStatus = Literal['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']
+ActivityStatus = Literal['BLOCKED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']
 
 
 class ProgressPhase(BaseModel):
@@ -1940,10 +1941,6 @@ class ProgressPhase(BaseModel):
     name: str = Field(description='Nome da fase')
     order: int = Field(description='Ordem da fase no processo')
     model_config = ConfigDict(extra='forbid')
-
-
-class ProgressPhaseStatus(ProgressPhase):
-    status: PhaseStatus = Field(description='Situação da fase')
 
 
 class ViewerRole(BaseModel):
@@ -1983,8 +1980,21 @@ class ProgressPerson(BaseModel):
 
 class ProgressRole(BaseModel):
     role_key: ParticipantRole
+    occupied: bool = Field(
+        description=(
+            'Se alguém ocupa o cargo, mesmo que o usuário não veja quem'
+        )
+    )
     people: list[ProgressPerson] = Field(
-        description='Quem ocupa o cargo e o usuário pode ver; vazia se ninguém'
+        description='Quem ocupa o cargo e o usuário pode ver'
+    )
+    model_config = ConfigDict(extra='forbid')
+
+
+class ProgressRun(BaseModel):
+    started_at: datetime = Field(description='Início da execução aberta')
+    laboratory: LaboratoryRef | None = Field(
+        description='Laboratório da execução; nulo em atividade única'
     )
     model_config = ConfigDict(extra='forbid')
 
@@ -1992,12 +2002,26 @@ class ProgressRole(BaseModel):
 class ProgressActivity(BaseModel):
     key: str = Field(description='Chave da atividade')
     name: str = Field(description='Nome da atividade')
-    phase_key: str = Field(description='Chave da fase da atividade')
-    started_at: datetime = Field(description='Início da execução aberta')
-    laboratory: LaboratoryRef | None = Field(
-        description='Laboratório da execução; nulo em atividade única'
+    status: ActivityStatus = Field(description='Situação da atividade')
+    conditional: bool = Field(
+        description=(
+            'Só abre se algo acontecer (retorno da submissão, problema no '
+            'recebimento); `BLOCKED` aqui não é uma etapa certa'
+        )
+    )
+    open_runs: list[ProgressRun] = Field(
+        description=(
+            'Execuções em andamento que o usuário vê; vazia fora de `OPEN`'
+        )
     )
     model_config = ConfigDict(extra='forbid')
+
+
+class ProgressPhaseStatus(ProgressPhase):
+    status: PhaseStatus = Field(description='Situação da fase')
+    activities: list[ProgressActivity] = Field(
+        description='Atividades da fase, na ordem do template'
+    )
 
 
 class ProcessProgress(BaseModel):
@@ -2009,17 +2033,12 @@ class ProcessProgress(BaseModel):
         description='Mesma regra de `ProcessListItem.current_phase`'
     )
     phases: list[ProgressPhaseStatus] = Field(
-        description='Todas as fases do processo, em ordem'
+        description='Todas as fases do processo, em ordem, com as atividades'
     )
     roles: list[ProgressRole] = Field(
         description=(
             'Os cargos que o usuário pode ver, na ordem do catálogo, '
             'inclusive os vazios'
-        )
-    )
-    open_activities: list[ProgressActivity] = Field(
-        description=(
-            'Execuções em andamento que o usuário vê; vazia fora de `OPEN`'
         )
     )
     model_config = ConfigDict(extra='forbid')

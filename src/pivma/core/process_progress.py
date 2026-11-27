@@ -1,9 +1,11 @@
 """Andamento do processo por cargo (Spec 048).
 
 `ProgressView` é a única regra de quem vê quais pessoas e quais execuções no
-andamento. A lista (`GET /processes`) e o detalhe
-(`GET /processes/{id}/progress`) usam as mesmas funções, para que o cartão e
-o detalhe mostrem a mesma fase e a mesma contagem.
+andamento. Todo participante vê as fases e as atividades com a situação: elas
+vêm do template e não dizem quem fez nem o conteúdo. A lista
+(`GET /processes`) e o detalhe (`GET /processes/{id}/progress`) usam as
+mesmas funções, para que o cartão e o detalhe mostrem a mesma fase e a mesma
+contagem.
 
 Ninguém vê aqui dado interno do estudo (FR-007), e o andamento não muda o
 acesso às atividades (FR-008).
@@ -35,7 +37,7 @@ from pivma.core.database.models import (
     ProcessInstance,
     User,
 )
-from pivma.core.process_engine import STATUS_OPEN
+from pivma.core.process_engine import EVENT_OPENED_ACTIVITY_TYPES, STATUS_OPEN
 from pivma.core.references import laboratory_refs
 from pivma.schemas import (
     LaboratoryRef,
@@ -46,6 +48,7 @@ from pivma.schemas import (
     ProgressPhase,
     ProgressPhaseStatus,
     ProgressRole,
+    ProgressRun,
     UserRef,
     ViewerRole,
 )
@@ -170,8 +173,7 @@ async def open_runs(
     rows = await session.execute(
         select(
             ActivityInstance.process_instance_id,
-            ActivityInstance.key,
-            ActivityInstance.name,
+            ActivityInstance.id.label('activity_id'),
             Phase.key.label('phase_key'),
             Phase.name.label('phase_name'),
             Phase.order_index.label('phase_order'),
@@ -187,6 +189,9 @@ async def open_runs(
         .where(
             ActivityInstance.process_instance_id.in_(process_ids),
             ActivityRun.status == RUN_IN_PROGRESS,
+            ActivityRun.deleted_at.is_(None),
+            ActivityInstance.deleted_at.is_(None),
+            Phase.deleted_at.is_(None),
         )
         .order_by(
             Phase.order_index,
@@ -225,11 +230,26 @@ async def build_progress(
         process.id, []
     )
     view = progress_view(user_id, platform_wide, mine)
-    phases = await session.scalars(
-        select(Phase)
-        .where(Phase.process_instance_id == process.id)
-        .order_by(Phase.order_index, Phase.id)
+    phases = list(
+        await session.scalars(
+            select(Phase)
+            .where(
+                Phase.process_instance_id == process.id,
+                Phase.deleted_at.is_(None),
+            )
+            .order_by(Phase.order_index, Phase.id)
+        )
     )
+    activities: dict[UUID, list[ActivityInstance]] = defaultdict(list)
+    for activity in await session.scalars(
+        select(ActivityInstance)
+        .where(
+            ActivityInstance.process_instance_id == process.id,
+            ActivityInstance.deleted_at.is_(None),
+        )
+        .order_by(ActivityInstance.order_index, ActivityInstance.id)
+    ):
+        activities[activity.phase_id].append(activity)
     assignments = (
         await session.execute(
             select(Assignment, User)
@@ -244,6 +264,8 @@ async def build_progress(
             .order_by(Assignment.assigned_at, Assignment.id)
         )
     ).all()
+    # O cargo aparece ocupado mesmo quando o usuário não vê quem o ocupa.
+    occupied = {a.role_key for a, _ in assignments}
     assignments = [
         (a, u)
         for a, u in assignments
@@ -251,6 +273,9 @@ async def build_progress(
     ]
     runs = (await open_runs(session, [process])).get(process.id, [])
     visible_runs = [r for r in runs if view.sees_run(r.laboratory_id)]
+    runs_by_activity: dict[UUID, list[Row]] = defaultdict(list)
+    for run in visible_runs:
+        runs_by_activity[run.activity_id].append(run)
     laboratories = await laboratory_refs(
         session,
         [a.laboratory_id for a, _ in assignments]
@@ -281,22 +306,35 @@ async def build_progress(
                 name=phase.name,
                 order=phase.order_index,
                 status=phase.status,
+                activities=[
+                    ProgressActivity(
+                        key=activity.key,
+                        name=activity.name,
+                        status=activity.status,
+                        conditional=(
+                            activity.activity_type
+                            in EVENT_OPENED_ACTIVITY_TYPES
+                        ),
+                        open_runs=[
+                            ProgressRun(
+                                started_at=run.started_at,
+                                laboratory=laboratories.get(run.laboratory_id),
+                            )
+                            for run in runs_by_activity[activity.id]
+                        ],
+                    )
+                    for activity in activities[phase.id]
+                ],
             )
             for phase in phases
         ],
         roles=[
-            ProgressRole(role_key=role_key, people=people[role_key])
+            ProgressRole(
+                role_key=role_key,
+                occupied=role_key in occupied,
+                people=people[role_key],
+            )
             for role_key in get_args(ParticipantRole)
             if view.sees_role(role_key)
-        ],
-        open_activities=[
-            ProgressActivity(
-                key=run.key,
-                name=run.name,
-                phase_key=run.phase_key,
-                started_at=run.started_at,
-                laboratory=laboratories.get(run.laboratory_id),
-            )
-            for run in visible_runs
         ],
     )

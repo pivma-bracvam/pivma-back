@@ -23,13 +23,14 @@ Os schemas do andamento têm `model_config = ConfigDict(extra='forbid')`.
 | Schema | Campos |
 |---|---|
 | `ProgressPhase` | `key`, `name`, `order` |
-| `ProgressPhaseStatus` | `ProgressPhase` + `status` (`NOT_STARTED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`) |
+| `ProgressPhaseStatus` | `ProgressPhase` + `status` (`NOT_STARTED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`) + `activities` |
 | `ViewerRole` | `role_key` (`ParticipantRole`), `laboratory` (`LaboratoryRef` ou nulo), `assigned_at` |
 | `ProcessListItem` | `ProcessInstanceDetail` + `current_phase`, `open_activity_count` (≥ 0), `my_roles` |
 | `ProgressPerson` | `user` (`UserRef`, sem e-mail), `laboratory` |
-| `ProgressRole` | `role_key`, `people` |
-| `ProgressActivity` | `key`, `name`, `phase_key`, `started_at`, `laboratory` |
-| `ProcessProgress` | `process_id`, `my_roles`, `current_phase`, `phases`, `roles`, `open_activities` |
+| `ProgressRole` | `role_key`, `occupied`, `people` |
+| `ProgressActivity` | `key`, `name`, `status` (`BLOCKED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`), `conditional`, `open_runs` |
+| `ProgressRun` | `started_at`, `laboratory` |
+| `ProcessProgress` | `process_id`, `my_roles`, `current_phase`, `phases`, `roles` |
 
 `ProcessListFilters` ganha `role` (`ParticipantRole` ou nulo), e
 `ProcessListResponse` passa a listar `ProcessListItem`.

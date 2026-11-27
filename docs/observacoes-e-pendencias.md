@@ -322,3 +322,16 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
   3. **Fases**: o andamento traz todas as fases com a situação, igual para todos os cargos.
   4. **Arquivados**: a lista segue a regra de `GET /processes` e esconde os arquivados de quem não tem acesso de revisão. O Patrocinador deixa de ver o processo arquivado na lista.
 - **Validação**: o usuário pediu em 2026-11-25 que o backend liberasse todos os cargos relevantes pelas práticas usuais de sigilo. Os critérios vieram das regras já vigentes: isolamento por laboratório (constituição III, RF044), revisão cega (RF050) e autoria oculta da triagem (Spec 046). Registrado em `specs/048-process-progress/spec.md` (Clarifications).
+
+### DIVERGÊNCIA REGISTRADA
+
+- **Fonte**: na segunda revisão da PR #83, em 2026-11-27, o coordenador da equipe registrou cinco pontos em `specs/048-process-progress/revisao-acompanhamento.md`: quatro regras de visibilidade divergentes, regras fixas no código, próximos passos ausentes (RF030), detalhe por cargo e correções pontuais. A proposta central é uma matriz de acesso declarada como dado, lida por `/progress`, `/tasks`, linha do tempo e `/participants`.
+- **Conflito**: o andamento listava só as execuções abertas, e o RF030 pede também as etapas pendentes e futuras. Um cargo visível vinha com `people: []` quando o usuário não via quem o ocupava, como o líder de outro laboratório.
+- **Decisão**:
+  1. **Atividades por fase**: cada fase do andamento lista as próprias atividades com a situação e a marca `conditional`, iguais para todos os cargos. As execuções abertas ficam em `open_runs`, dentro da atividade, e `open_activities` sai.
+  2. **Cargo ocupado**: cada cargo traz `occupied`, sem contagem de pessoas, que identificaria laboratórios.
+  3. **Exclusão lógica**: as consultas do andamento filtram `deleted_at` de fase, atividade e execução de forma explícita, além do filtro global do ORM.
+  4. **Alerts**: o argumento de que os alerts usam a regra de `/tasks` sai da justificativa da Spec 048. Os destinatários saem de `can_act`, que parte de `edit_roles`.
+  5. **Acúmulo de cargos**: fica com a issue #85. A união em `ProgressView` continua, porque é correta com um cargo só, e o teste do avaliador com outro cargo sai.
+  6. **Matriz de acesso**: fica para uma spec própria, registrada numa issue. Ela reescreve a autorização de `/tasks`, da linha do tempo e de `/participants`, e o formato depende das respostas do BraCVAM e da escolha entre resolver as concessões pela versão do template ou migrá-las. O modo de acompanhamento em `/tasks` não entra: repetiria as atividades que o andamento já traz. O resumo por tipo de atividade (ponto 4 da revisão) fica para a mesma spec. Motivos em `specs/048-process-progress/research.md` (R12).
+- **Validação**: itens 1 a 6 decididos pelo usuário em 2026-11-27, sobre a análise da revisão. Registrados em `specs/048-process-progress/spec.md` (Clarifications).

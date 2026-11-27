@@ -42,8 +42,8 @@ ao andamento.
    aparece com `my_roles`, `current_phase.key == 'phase_2_role_assignment'`
    e `open_activity_count` maior que zero.
 5. Chame `GET /processes/{id}/progress`: `roles` traz o proponente,
-   `phases` traz as fases com a situação e `open_activities` lista os
-   `assign_*` abertos.
+   `phases` traz as fases com as atividades e a situação, e os `assign_*`
+   abertos aparecem com `open_runs`.
 6. Como proponente, chame a mesma rota: a fase é a mesma, e não há avaliador
    nem laboratório em `roles`.
 

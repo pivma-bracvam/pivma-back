@@ -40,6 +40,7 @@ from http import HTTPStatus
 
 import pytest
 
+from tests.api.routers.test_process_progress import open_runs_of
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.sample_factory import VALID_CAS, substance_payload
 from tests.factories.submission_factory import submission_values
@@ -83,7 +84,7 @@ def _pessoas(detalhe):
 def _cartao_igual_ao_detalhe(client, process_id, detalhe):
     cartao = _cartoes(client, params={})[process_id]
     assert cartao['current_phase'] == detalhe['current_phase']
-    assert cartao['open_activity_count'] == len(detalhe['open_activities'])
+    assert cartao['open_activity_count'] == len(open_runs_of(detalhe))
 
 
 def _abre_fase_3(client, team, process_id, bracvam_user, substancias):
@@ -172,7 +173,7 @@ async def test_patrocinadora_acompanha_da_fase_2_a_fase_3(
     ]
     assert '"email"' not in resposta.text
     assert detalhe['current_phase']['key'] == PHASE_2
-    atividades = detalhe['open_activities']
+    atividades = open_runs_of(detalhe)
     assert 'sample_definition' in {a['key'] for a in atividades}
     assert {a['phase_key'] for a in atividades} == {PHASE_2}
     _cartao_igual_ao_detalhe(client, process_id, detalhe)
@@ -188,7 +189,7 @@ async def test_patrocinadora_acompanha_da_fase_2_a_fase_3(
     assert detalhe['current_phase']['key'] == PHASE_3
     recebimentos = sorted(
         a['laboratory']['name']
-        for a in detalhe['open_activities']
+        for a in open_runs_of(detalhe)
         if a['key'] == 'sample_receipt'
     )
     assert recebimentos == sorted(lab.name for lab in team.laboratories)
@@ -275,9 +276,7 @@ async def test_proponente_e_laboratorio_acompanham_com_recorte(
     ]
     assert 'adhoc_evaluator' not in pessoas
     assert 'participating_laboratory' not in pessoas
-    assert all(
-        a['laboratory'] is None for a in do_proponente['open_activities']
-    )
+    assert all(a['laboratory'] is None for a in open_runs_of(do_proponente))
     _cartao_igual_ao_detalhe(client, process_id, do_proponente)
 
     # 3. Lara abre o andamento: vê a própria equipe e o próprio recebimento,
@@ -288,7 +287,7 @@ async def test_proponente_e_laboratorio_acompanham_com_recorte(
     assert da_lara['current_phase'] == da_patrocinadora['current_phase']
     recebimentos = [
         a['laboratory']['id']
-        for a in da_lara['open_activities']
+        for a in open_runs_of(da_lara)
         if a['key'] == 'sample_receipt'
     ]
     assert recebimentos == [str(team.laboratories[1].id)]

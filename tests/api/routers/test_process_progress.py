@@ -21,7 +21,10 @@ from pivma.core.database.models import (
     Phase,
     ProcessInstance,
 )
-from pivma.core.process_engine import delete_process
+from pivma.core.process_engine import (
+    EVENT_OPENED_ACTIVITY_TYPES,
+    delete_process,
+)
 from pivma.schemas import ParticipantRole
 from tests.api.routers.test_rbac_router import authenticate
 from tests.factories.invite_factory import InviteFactory
@@ -50,6 +53,16 @@ PER_PAGE = 2
 
 def _detail(client, process_id):
     return client.get(f'{LIST}/{process_id}/progress')
+
+
+def open_runs_of(body):
+    """Execuções abertas do detalhe, com a chave da atividade e da fase."""
+    return [
+        {'key': activity['key'], 'phase_key': phase['key'], **run}
+        for phase in body['phases']
+        for activity in phase['activities']
+        for run in activity['open_runs']
+    ]
 
 
 def _items(client, **params):
@@ -476,7 +489,9 @@ async def test_detalhe_traz_todas_as_fases_com_a_situacao(
             .execution_options(populate_existing=True)
         )
     ).all()
-    assert phases == [
+    assert [
+        {k: p[k] for k in ('key', 'name', 'order', 'status')} for p in phases
+    ] == [
         {
             'key': p.key,
             'name': p.name,
@@ -486,6 +501,85 @@ async def test_detalhe_traz_todas_as_fases_com_a_situacao(
         for p in stored
     ]
     assert {p['status'] for p in phases} >= {'COMPLETED', 'IN_PROGRESS'}
+
+
+async def _stored_activities(session, process_id):
+    """Atividades do processo por fase, na ordem do template."""
+    rows = await session.execute(
+        select(Phase.key, ActivityInstance)
+        .join(Phase, Phase.id == ActivityInstance.phase_id)
+        .where(ActivityInstance.process_instance_id == process_id)
+        .order_by(Phase.order_index, ActivityInstance.order_index)
+        .execution_options(populate_existing=True)
+    )
+    grouped = {}
+    for phase_key, activity in rows:
+        grouped.setdefault(phase_key, []).append(activity)
+    return grouped
+
+
+@pytest.mark.asyncio
+async def test_detalhe_lista_as_atividades_de_cada_fase_com_a_situacao(
+    client, session, bracvam_user
+):
+    ctx = await _sponsored_planning(session, bracvam_user)
+    authenticate(client, ctx.sponsor)
+
+    phases = _detail(client, ctx.process_id).json()['phases']
+
+    stored = await _stored_activities(session, ctx.process_id)
+    assert {
+        p['key']: [(a['key'], a['status']) for a in p['activities']]
+        for p in phases
+    } == {
+        phase.key: [(a.key, a.status) for a in stored.get(phase.key, [])]
+        for phase in (
+            await session.scalars(
+                select(Phase).where(
+                    Phase.process_instance_id == ctx.process_id
+                )
+            )
+        )
+    }
+    statuses = {a['status'] for p in phases for a in p['activities']}
+    # Concluídas, em andamento e as que ainda esperam outra (RF030).
+    assert statuses >= {'COMPLETED', 'IN_PROGRESS', 'BLOCKED'}
+
+
+@pytest.mark.asyncio
+async def test_detalhe_marca_so_as_atividades_condicionais(
+    client, session, bracvam_user
+):
+    ctx = await structure_process(session, bracvam_user, previous_version=True)
+    authenticate(client, ctx.sponsor)
+
+    phases = _detail(client, ctx.process_id).json()['phases']
+
+    conditional = {
+        a['key'] for p in phases for a in p['activities'] if a['conditional']
+    }
+    stored = await _stored_activities(session, ctx.process_id)
+    assert conditional == {
+        a.key
+        for activities in stored.values()
+        for a in activities
+        if a.activity_type in EVENT_OPENED_ACTIVITY_TYPES
+    }
+    assert 'submission_return_review' in conditional
+
+
+@pytest.mark.asyncio
+async def test_detalhe_ignora_execucao_excluida(client, session, bracvam_user):
+    ctx = await _sponsored_planning(session, bracvam_user)
+    for _, run in await _open_runs(session, ctx.process_id):
+        run.set_deletion_audit(bracvam_user.id)
+    await session.commit()
+    authenticate(client, ctx.sponsor)
+
+    body = _detail(client, ctx.process_id).json()
+
+    assert body['current_phase'] is None
+    assert open_runs_of(body) == []
 
 
 @pytest.mark.asyncio
@@ -620,11 +714,11 @@ async def test_detalhe_na_fase_2_lista_execucoes_abertas(
         session, ctx.process_id, PHASE_2
     )
     assert (
-        sorted((a['key'], a['started_at']) for a in body['open_activities'])
+        sorted((a['key'], a['started_at']) for a in open_runs_of(body))
         == expected
     )
-    assert {a['phase_key'] for a in body['open_activities']} == {PHASE_2}
-    assert {a['laboratory'] for a in body['open_activities']} == {None}
+    assert {a['phase_key'] for a in open_runs_of(body)} == {PHASE_2}
+    assert {a['laboratory'] for a in open_runs_of(body)} == {None}
 
 
 @pytest.mark.asyncio
@@ -641,7 +735,7 @@ async def test_detalhe_na_fase_3_traz_uma_execucao_por_laboratorio(
     assert body['current_phase']['key'] == PHASE_3
     receipts = [
         a['laboratory']['name']
-        for a in body['open_activities']
+        for a in open_runs_of(body)
         if a['key'] == 'sample_receipt'
     ]
     assert receipts == sorted(lab.name for lab in ctx.laboratories)
@@ -662,7 +756,7 @@ async def _lab_process_with_sponsor(session):
 def _receipt_labs(body):
     return [
         a['laboratory']['id']
-        for a in body['open_activities']
+        for a in open_runs_of(body)
         if a['key'] == 'receipt'
     ]
 
@@ -695,7 +789,7 @@ async def test_detalhe_mostra_execucao_reaberta_com_data_da_reabertura(
 
     lab_0 = [
         a
-        for a in body['open_activities']
+        for a in open_runs_of(body)
         if a['key'] == 'receipt'
         and a['laboratory']['id'] == str(ctx.labs[0].id)
     ]
@@ -717,7 +811,7 @@ async def test_detalhe_de_processo_aberto_sem_atividade(
     assert response.status_code == HTTPStatus.OK
     body = response.json()
     assert body['current_phase'] is None
-    assert body['open_activities'] == []
+    assert open_runs_of(body) == []
 
 
 @pytest.mark.asyncio
@@ -734,7 +828,7 @@ async def test_detalhe_de_processo_encerrado_ou_arquivado_sem_fase(
     assert response.status_code == HTTPStatus.OK
     body = response.json()
     assert body['current_phase'] is None
-    assert body['open_activities'] == []
+    assert open_runs_of(body) == []
 
 
 @pytest.mark.asyncio

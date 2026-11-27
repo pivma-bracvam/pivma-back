@@ -83,7 +83,7 @@ src/pivma/
 ├── routers/processes.py              # filtro role, campos do item, GET /{id}/progress
 └── schemas.py                        # ProgressPhase, ProgressPhaseStatus, ViewerRole,
                                       # ProcessListItem, ProgressPerson, ProgressRole,
-                                      # ProgressActivity, ProcessProgress
+                                      # ProgressActivity, ProgressRun, ProcessProgress
 
 tests/
 ├── api/routers/test_process_progress.py             # lista, filtro, andamento, fases, estados

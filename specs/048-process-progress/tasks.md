@@ -317,3 +317,35 @@ Task: "T039 a T045 em tests/api/routers/test_sponsor_tracking_security.py"
 | FR-012 | T065, T066, T067 |
 | FR-013 | T063, T067 |
 | SC-006 | T065, T066 |
+
+## Phase 8: Revisão de 2026-11-27
+
+Ajustes 3 e 5 da revisão da PR #83 (`revisao-acompanhamento.md`). A matriz de
+acesso fica para uma spec própria ([R12](research.md#r12-o-que-fica-para-a-matriz-de-acesso)).
+
+### Testes
+
+- [X] T076 [P] [US2] `test_detalhe_lista_as_atividades_de_cada_fase_com_a_situacao`: cada fase traz as `ActivityInstance` dela, na ordem do template, com o `status` gravado, e há atividades `COMPLETED`, `IN_PROGRESS` e `BLOCKED`, em `tests/api/routers/test_process_progress.py`
+- [X] T077 [P] [US2] `test_detalhe_marca_so_as_atividades_condicionais`: `conditional` vale só para os tipos de `EVENT_OPENED_ACTIVITY_TYPES`, em `tests/api/routers/test_process_progress.py`
+- [X] T078 [P] [US2] `test_detalhe_ignora_execucao_excluida`: execução aberta excluída não aparece em `open_runs` nem define a fase atual, em `tests/api/routers/test_process_progress.py`
+- [X] T079 [P] [US4] O laboratório participante vê `lead_laboratory` com `occupied: true` e `people: []` quando o líder é de outro laboratório, e `test_coordenacao_ve_ocupado_so_onde_ha_pessoa` prova `occupied == bool(people)` para quem vê todos, em `tests/api/routers/test_process_progress_visibility.py`
+- [X] T080 [P] [US3] Atualizar as chaves do contrato com `activities`, `open_runs` e `occupied`, sem `open_activities`, em `tests/api/routers/test_process_progress_security.py`
+- [X] T081 Remover `test_avaliador_com_outro_cargo_ve_a_uniao` (caso que a #85 proíbe) e ler as execuções por `open_runs_of` nos testes e na jornada
+
+### Implementação
+
+- [X] T082 Criar `ProgressRun` e `ActivityStatus`, trocar `ProgressActivity` por `key`, `name`, `status`, `conditional` e `open_runs`, pôr `activities` em `ProgressPhaseStatus`, `occupied` em `ProgressRole` e tirar `open_activities` de `ProcessProgress`, em `src/pivma/schemas.py`
+- [X] T083 Montar as atividades por fase, agrupar as execuções visíveis por atividade, calcular `occupied` antes do recorte e filtrar `deleted_at` de fase, atividade e execução, em `src/pivma/core/process_progress.py`
+
+### Documentação
+
+- [X] T084 [P] Atualizar `manual/guias/acompanhar-andamento.md`
+- [X] T085 [P] Registrar a decisão em `docs/observacoes-e-pendencias.md` e atualizar spec (FR-005, FR-006, FR-014, FR-015), research (R1, R6, R10 a R12), data-model, contracts e quickstart
+- [X] T086 Rodar `poe lint`, `poe test` e `poe docs-build`
+
+| Requisito | Tarefas da fase 8 |
+|---|---|
+| FR-005, FR-006 | T078, T081, T083 |
+| FR-014 | T076, T077, T082, T083 |
+| FR-015 | T079, T082, T083 |
+

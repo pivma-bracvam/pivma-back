@@ -55,19 +55,27 @@ FR-013).
   "my_roles": [{"role_key": "sponsor", "laboratory": null, "assigned_at": "2026-11-21T10:15:00Z"}],
   "current_phase": {"key": "phase_3_validation_execution", "name": "Fase 3", "order": 3},
   "phases": [
-    {"key": "phase_1_submission", "name": "Fase 1", "order": 1, "status": "COMPLETED"},
-    {"key": "phase_2_role_assignment", "name": "Fase 2", "order": 2, "status": "COMPLETED"},
-    {"key": "phase_3_validation_execution", "name": "Fase 3", "order": 3, "status": "IN_PROGRESS"}
+    {"key": "phase_1_submission", "name": "Fase 1", "order": 1, "status": "COMPLETED", "activities": [
+      {"key": "proposal_submission", "name": "Submissão da proposta", "status": "COMPLETED", "conditional": false, "open_runs": []},
+      {"key": "submission_return_review", "name": "Revisão do Retorno", "status": "BLOCKED", "conditional": true, "open_runs": []}
+    ]},
+    {"key": "phase_3_validation_execution", "name": "Fase 3", "order": 3, "status": "IN_PROGRESS", "activities": [
+      {"key": "sample_receipt", "name": "Recebimento das amostras", "status": "IN_PROGRESS", "conditional": false, "open_runs": [
+        {"started_at": "2026-11-24T09:00:00Z", "laboratory": {"id": "…", "name": "Lab A", "…": "…"}}
+      ]}
+    ]}
   ],
   "roles": [
-    {"role_key": "group_manager", "people": [{"user": {"id": "…", "username": "gestor", "full_name": "Ana"}, "laboratory": null}]},
-    {"role_key": "proponent", "people": [{"user": {"id": "…", "username": "pedro", "full_name": "Pedro"}, "laboratory": null}]}
-  ],
-  "open_activities": [
-    {"key": "sample_receipt", "name": "Recebimento das amostras", "phase_key": "phase_3_validation_execution", "started_at": "2026-11-24T09:00:00Z", "laboratory": {"id": "…", "name": "Lab A", "…": "…"}}
+    {"role_key": "group_manager", "occupied": true, "people": [{"user": {"id": "…", "username": "gestor", "full_name": "Ana"}, "laboratory": null}]},
+    {"role_key": "proponent", "occupied": true, "people": [{"user": {"id": "…", "username": "pedro", "full_name": "Pedro"}, "laboratory": null}]},
+    {"role_key": "study_manager", "occupied": false, "people": []}
   ]
 }
 ```
+
+A lista de atividades e a situação são iguais para todos os cargos;
+`open_runs` e `people` seguem o recorte. `occupied` vale mesmo quando
+`people` vem vazia pelo recorte.
 
 | Situação | Resposta |
 |---|---|

@@ -30,9 +30,10 @@ leitura do processo, então fica sob `/processes/{id}`.
   dentro de um parâmetro. A tarefa não traz quem ocupa os cargos, e as fases
   sem tarefa não aparecem: o front teria de cruzar `/tasks`,
   `/participants` e o template, e o cartão da lista pediria uma chamada por
-  processo. Os alerts (Spec 047) reaproveitam a regra de `can_act` de
-  `/tasks`, mais um motivo para não mexer nela. Decidido pelo usuário em
-  2026-11-25.
+  processo. Decidido pelo usuário em 2026-11-25. Os alerts (Spec 047) não
+  pesam nessa escolha: os destinatários saem de `can_act`, que parte de
+  `edit_roles`, e não mudam quando a visibilidade de `/tasks` muda
+  (correção da revisão de 2026-11-27).
 - Ampliar `GET /processes/{id}/participants`: resolve as pessoas, mas não a
   fase nem as atividades. A rota traz `assigned_by` e a declaração de
   conflito, que o recorte teria de esconder campo a campo, e
@@ -121,8 +122,9 @@ processos da página, separa os `OPEN` e busca, numa consulta, as execuções `A
 'IN_PROGRESS'` desses processos, unidas a `ActivityInstance` e `Phase`, com
 `Laboratory` em junção externa. A ordem é `Phase.order_index`,
 `ActivityInstance.order_index`, nome do laboratório e `ActivityRun.id`, para
-ser determinística. Cada linha vira uma atividade em andamento: `key`, `name`,
-`phase_key`, `started_at` (da execução) e `laboratory`. A fase atual de um
+ser determinística. Cada linha vira uma execução aberta, com `started_at` e
+`laboratory`, dentro da atividade dela em `phases[].activities[].open_runs`
+([R10](#r10-atividades-de-cada-fase)). A fase atual de um
 processo é a de maior `order_index` entre as linhas dele, inclusive as que o
 usuário não vê, e fica nula quando ele não tem linha. O andamento e a
 contagem da lista mostram só as linhas que o recorte libera. A lista chama a função com os processos `OPEN` da página e
@@ -217,3 +219,101 @@ Com mais de um cargo, vale a união. A própria designação aparece sempre.
   veria nada.
 - Responder `403` a cargos sem recorte próprio: todo cargo do processo tem o
   que ver, ao menos a fase e a coordenação.
+
+## R10. Atividades de cada fase
+
+**Decision**: cada item de `phases` traz `activities`, as `ActivityInstance`
+da fase na ordem do template, com `key`, `name`, `status` (`BLOCKED`,
+`IN_PROGRESS`, `COMPLETED` ou `CANCELLED`, o valor gravado), `conditional` e
+`open_runs`. `conditional` é verdadeiro quando o `activity_type` está em
+`EVENT_OPENED_ACTIVITY_TYPES` (`src/pivma/core/process_engine.py`): a revisão
+do retorno e a resolução de problemas no recebimento. A lista plana
+`open_activities` sai; as mesmas execuções passam a vir em `open_runs`, dentro
+da atividade. A lista de atividades e a situação são iguais para todos os
+cargos; `open_runs` segue o recorte de R9.
+
+**Rationale**: o RF030 pede as etapas concluídas, em andamento, pendentes e
+futuras. Com só as execuções abertas, o front não via o que vem depois dentro
+da fase e teria de cruzar a resposta com o template. A atividade guarda a
+situação (`ActivityInstance.status`), então basta uma consulta. Nomes e
+situação vêm do template e do motor, sem conteúdo nem autoria, no mesmo nível
+de `current_phase`, que já é igual para todos. A marca `conditional` evita que
+o front mostre como etapa certa uma atividade que só abre se algo der errado.
+Manter `open_activities` ao lado das atividades repetiria as mesmas execuções
+em dois lugares.
+
+**Alternatives considered**:
+
+- Manter `open_activities` e acrescentar `activities`: a mesma execução em
+  dois campos.
+- Calcular a situação da atividade por laboratório para o laboratório que
+  olha: a situação deixaria de ser igual para todos, e o laboratório já vê a
+  própria execução em `open_runs`.
+
+## R11. Cargo ocupado
+
+**Decision**: cada item de `roles` traz `occupied`, verdadeiro quando há
+designação efetiva no cargo, vista ou não pelo usuário. `people` continua com
+só quem o recorte libera.
+
+**Rationale**: com o recorte, um cargo visível podia vir com `people: []`
+estando ocupado. O laboratório participante via `lead_laboratory` vazio quando
+o líder era de outro laboratório, e o front mostraria "Não atribuído". O
+booleano não conta pessoas: com dois ou três laboratórios, uma contagem
+indicaria quem é quem.
+
+**Alternatives considered**:
+
+- Uma contagem por cargo: identifica laboratórios.
+- Esconder o cargo quando o usuário não vê ninguém nele: o laboratório
+  deixaria de saber que há um líder.
+
+## R12. O que fica para a matriz de acesso
+
+A revisão de 2026-11-27 (`revisao-acompanhamento.md`) propõe uma matriz de
+acesso central, declarada como dado, lida por `/progress`, `/tasks`, linha do
+tempo e `/participants`, com testes gerados dela. Esta spec não a implementa.
+
+**Decision**: a matriz vira uma spec própria, registrada numa issue. Esta spec
+mantém `ProgressView` como a regra do andamento e corrige os pontos 3 e 5 da
+revisão (R10, R11 e o filtro explícito de `deleted_at`).
+
+**Rationale**:
+
+- **Escopo**: a matriz reescreve a autorização de `/tasks`, a parte mais
+  sensível do backend, e mexe na linha do tempo e em `/participants`. Numa PR
+  de acompanhamento, uma regressão de sigilo ficaria escondida entre mudanças
+  de outra natureza.
+- **Formato antes das respostas**: o BraCVAM ainda não respondeu às perguntas
+  de acesso. Se a resposta depender da fase ou da situação da atividade, o
+  esquema cargo × atividade × nível não comporta, e a matriz teria de ser
+  refeita. A própria revisão deixa aberta a decisão de resolver as concessões
+  pela versão do template ou copiá-las e migrar.
+- **Sem duplicar rotas**: a revisão sugere que `/tasks` ganhe um modo de
+  acompanhamento. Com as atividades de cada fase em `/progress` (R10), esse
+  modo entregaria as mesmas atividades com a situação por outra rota.
+- **Troca local depois**: o recorte do andamento mora só em `ProgressView`.
+  Quando a matriz existir, a classe passa a lê-la, sem mudar o contrato.
+- **Front**: a matriz não muda o contrato. O front não ganha nem perde nada
+  com ela nesta entrega.
+
+**O que a matriz deve resolver**, para a issue:
+
+- a divergência entre `/progress` e `/tasks`: o Patrocinador vê as execuções
+  de todos os laboratórios no andamento e nenhuma tarefa em `/tasks`;
+- os grupos fixos `FULL_VIEW_ROLES`, `COORDINATION_ROLES` e
+  `BLIND_REVIEW_ROLES`, que pedem deploy a cada mudança;
+- a linha do tempo (#84) usando a mesma regra, em vez de copiar a de
+  `ProgressView`;
+- o nível de resumo por tipo de atividade, montado por lista de campos
+  permitidos, quando a execução nos laboratórios e a revisão por pares
+  existirem (ponto 4 da revisão);
+- a escolha entre resolver pela versão do template e migrar as concessões
+  copiadas.
+
+**Acúmulo de cargos**: a #85 limita a pessoa a um cargo ativo por processo. A
+união em `ProgressView` continua correta com um cargo só e cobre Admin e
+BraCVAM com cargo no processo, então o código fica. O teste
+`test_avaliador_com_outro_cargo_ve_a_uniao` sai, porque descrevia o caso que a
+#85 proíbe.
+

@@ -182,17 +182,25 @@ async def test_detalhe_tem_so_as_chaves_do_contrato(
         'current_phase',
         'phases',
         'roles',
-        'open_activities',
     }
     assert set(body['current_phase']) == {'key', 'name', 'order'}
     assert {frozenset(p) for p in body['phases']} == {
-        frozenset({'key', 'name', 'order', 'status'})
+        frozenset({'key', 'name', 'order', 'status', 'activities'})
+    }
+    activities = [a for p in body['phases'] for a in p['activities']]
+    assert {frozenset(a) for a in activities} == {
+        frozenset({'key', 'name', 'status', 'conditional', 'open_runs'})
+    }
+    runs = [r for a in activities for r in a['open_runs']]
+    assert runs
+    assert {frozenset(r) for r in runs} == {
+        frozenset({'started_at', 'laboratory'})
     }
     assert {frozenset(r) for r in body['my_roles']} == {
         frozenset({'role_key', 'laboratory', 'assigned_at'})
     }
     assert {frozenset(r) for r in body['roles']} == {
-        frozenset({'role_key', 'people'})
+        frozenset({'role_key', 'occupied', 'people'})
     }
     people = [p for r in body['roles'] for p in r['people']]
     assert {frozenset(p) for p in people} == {
@@ -200,9 +208,6 @@ async def test_detalhe_tem_so_as_chaves_do_contrato(
     }
     assert {frozenset(p['user']) for p in people} == {
         frozenset({'id', 'username', 'full_name'})
-    }
-    assert {frozenset(a) for a in body['open_activities']} == {
-        frozenset({'key', 'name', 'phase_key', 'started_at', 'laboratory'})
     }
 
 
