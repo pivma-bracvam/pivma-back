@@ -46,7 +46,7 @@
 
 - Q: O andamento mostra os próximos passos? → A: Sim. Cada fase lista as próprias atividades com a situação, e as que só abrem por evento (revisão do retorno, problema no recebimento) vêm marcadas como condicionais. As execuções abertas ficam dentro da atividade, e a lista plana de execuções sai. Pedido da revisão da PR #83 (2026-11-27), confirmado pelo usuário.
 - Q: Como mostrar um cargo ocupado por alguém que o usuário não pode ver? → A: Cada cargo traz se está ocupado, sem contar pessoas. Pedido da mesma revisão.
-- Q: A matriz de acesso central entra nesta spec? → A: Não. Fica para uma spec própria, registrada numa issue. Decisão do usuário em 2026-11-27; motivos em [research.md](research.md#r12-o-que-fica-para-a-matriz-de-acesso).
+- Q: A matriz de acesso central entra nesta spec? → A: Não. Fica para uma spec própria, registrada na issue #87. Decisão do usuário em 2026-11-27; motivos em [research.md](research.md#r12-o-que-fica-para-a-matriz-de-acesso).
 
 ## User Scenarios & Testing *(mandatory)*
 

@@ -321,7 +321,7 @@ Task: "T039 a T045 em tests/api/routers/test_sponsor_tracking_security.py"
 ## Phase 8: Revisão de 2026-11-27
 
 Ajustes 3 e 5 da revisão da PR #83 (`revisao-acompanhamento.md`). A matriz de
-acesso fica para uma spec própria ([R12](research.md#r12-o-que-fica-para-a-matriz-de-acesso)).
+acesso fica para uma spec própria (#87) ([R12](research.md#r12-o-que-fica-para-a-matriz-de-acesso)).
 
 ### Testes
 

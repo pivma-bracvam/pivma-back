@@ -274,7 +274,7 @@ A revisão de 2026-11-27 (`revisao-acompanhamento.md`) propõe uma matriz de
 acesso central, declarada como dado, lida por `/progress`, `/tasks`, linha do
 tempo e `/participants`, com testes gerados dela. Esta spec não a implementa.
 
-**Decision**: a matriz vira uma spec própria, registrada numa issue. Esta spec
+**Decision**: a matriz vira uma spec própria, registrada na issue #87. Esta spec
 mantém `ProgressView` como a regra do andamento e corrige os pontos 3 e 5 da
 revisão (R10, R11 e o filtro explícito de `deleted_at`).
 
