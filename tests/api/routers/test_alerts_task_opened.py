@@ -29,7 +29,9 @@ from tests.api.routers.test_sample_receipt_router import lab_ready, register
 from tests.factories.alert_factory import alerts_for, same_profile_user
 from tests.factories.laboratory_run_factory import (
     complete_lab,
+    freeze_samples,
     frozen_lab_process,
+    lab_view_only,
     reopen,
     runs_by_lab,
     tasks_of,
@@ -189,6 +191,17 @@ async def test_two_qualifying_cargos_give_one_alert(session):
 
     keys = _keys(await alerts_for(session, ctx.lab_users[0], TASK_OPENED))
     assert keys.count('receipt') == 1
+
+
+@pytest.mark.asyncio
+async def test_lab_user_without_edit_role_gets_no_task_alert(session):
+    """Issue #86: o alert segue `edit_roles` na execução do laboratório."""
+    ctx = await frozen_lab_process(session, lab_count=1, freeze=False)
+    await lab_view_only(session, ctx.process_id)
+    await freeze_samples(session, ctx)
+
+    keys = _keys(await alerts_for(session, ctx.lab_users[0], TASK_OPENED))
+    assert 'receipt' not in keys
 
 
 @pytest.mark.asyncio

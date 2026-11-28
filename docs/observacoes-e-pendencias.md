@@ -364,6 +364,10 @@ Nomes no código: tabelas `collection_templates` e `collection_template_columns`
   5. **Downgrade**: a migração não despublica as versões novas dos templates, como nas mudanças de template anteriores. Os dados do preview são descartáveis.
 - **Validação**: itens 1 a 5 aprovados pelo usuário em 2026-11-27.
 
+### DECISÃO TÉCNICA
+
+- **`can_act` na execução de laboratório (issue #86)**: em 2026-11-28, o usuário pediu a correção na mesma PR da Spec 049, fora do Spec Kit. `task_can_act_clause` aceitava qualquer membro do laboratório da execução sem conferir `edit_roles`, e `require_laboratory_run_access` confere. A cláusula passa a exigir os dois, e `can_act`, `actionable=true` e os destinatários de `task_opened` voltam a seguir a rota de ação. Hoje a divergência não aparece: `validate_execution_scopes` recusa atividade por laboratório que `participating_laboratory` não edita. Os testes mudam `edit_roles` da instância direto no banco para provar a regra sem essa validação.
+
 ### PENDÊNCIA
 
 - **Parecer depois da decisão**: `save_field_reviews` e `execute_triage_decision` (`src/pivma/core/process_engine.py`) leem a execução aberta da triagem sem trava comum. Um parecer salvo ao mesmo tempo que a decisão pode gravar depois dela, e `reviews` e `previous_reviews` o publicam ao proponente, porque a execução já está `COMPLETED`. A corrida vem da Spec 030. A correção trava a execução da triagem com `FOR UPDATE` nas duas rotas. Saiu da revisão do Codex na PR da Spec 049.

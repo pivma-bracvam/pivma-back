@@ -9,11 +9,13 @@ from tests.factories.laboratory_run_factory import (
     all_labs_done,
     complete_lab,
     frozen_lab_process,
+    lab_view_only,
     reopen,
     runs_by_lab,
     tasks_of,
     waive,
 )
+from tests.factories.participant_factory import grant_cargo
 
 
 def _receipt_tasks(client, user):
@@ -40,6 +42,52 @@ async def test_lab_user_can_act_on_own_task(client, session):
     tasks = _receipt_tasks(client, ctx.lab_users[0])
 
     assert [task['can_act'] for task in tasks] == [True]
+
+
+@pytest.mark.asyncio
+async def test_lab_user_without_edit_role_cannot_act(client, session):
+    """Issue #86: ser do laboratório não basta sem cargo em `edit_roles`."""
+    ctx = await frozen_lab_process(session)
+    await lab_view_only(session, ctx.process_id)
+
+    tasks = _receipt_tasks(client, ctx.lab_users[0])
+
+    assert [task['can_act'] for task in tasks] == [False]
+
+
+@pytest.mark.asyncio
+async def test_lab_user_without_edit_role_has_no_actionable_task(
+    client, session
+):
+    """Issue #86: a caixa de ação segue `can_act`."""
+    ctx = await frozen_lab_process(session)
+    await lab_view_only(session, ctx.process_id)
+    authenticate(client, ctx.lab_users[0])
+
+    resp = client.get(
+        '/tasks', params={'activity_key': 'receipt', 'actionable': 'true'}
+    )
+
+    assert resp.status_code == HTTPStatus.OK
+    assert resp.json()['data'] == []
+
+
+@pytest.mark.asyncio
+async def test_lab_user_with_other_edit_role_can_act(client, session):
+    """Issue #86: membro do laboratório com outro cargo em `edit_roles`."""
+    ctx = await frozen_lab_process(session)
+    await lab_view_only(session, ctx.process_id)
+    await grant_cargo(
+        session,
+        process_id=ctx.process_id,
+        user=ctx.lab_users[0],
+        role_key='group_manager',
+    )
+
+    by_lab = _by_lab(_receipt_tasks(client, ctx.lab_users[0]))
+
+    assert by_lab[str(ctx.labs[0].id)]['can_act'] is True
+    assert by_lab[str(ctx.labs[1].id)]['can_act'] is False
 
 
 def _by_lab(tasks):

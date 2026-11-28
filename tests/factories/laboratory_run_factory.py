@@ -214,6 +214,19 @@ async def activity(session, process_id, key) -> ActivityInstance:
     )
 
 
+async def lab_view_only(session, process_id, key='receipt') -> None:
+    """Tira o laboratório de `edit_roles` e o deixa em `view_roles` (#86).
+
+    `validate_execution_scopes` recusa esse template, então o teste muda a
+    instância direto no banco para provar que `can_act` não depende dessa
+    validação.
+    """
+    act = await activity(session, process_id, key)
+    act.edit_roles = ['group_manager', 'admin']
+    act.view_roles = [LAB_ROLE]
+    await session.commit()
+
+
 async def runs_by_lab(session, process_id, key) -> dict:
     """Execução vigente (maior número) de cada laboratório na atividade."""
     act = await activity(session, process_id, key)

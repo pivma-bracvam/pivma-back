@@ -861,8 +861,9 @@ async def task_can_act_clause(
     Mesma regra de `require_activity_access(..., 'edit')`: algum cargo do
     usuário (atribuição ativa no processo ou cargo global) está em
     `edit_roles`, e ele não tem conflito de interesse vigente no processo.
-    Na execução de um laboratório, a designação tem de ser por esse
-    laboratório (Spec 036, R8).
+    Na execução de um laboratório, o usuário também tem de ser desse
+    laboratório (Spec 036, R8), como em `require_laboratory_run_access`
+    (issue #86).
     """
     by_role = exists(
         process_cargos_scope(user_id).where(
@@ -875,6 +876,7 @@ async def task_can_act_clause(
         and_(ActivityRun.laboratory_id.is_(None), by_role),
         and_(
             ActivityRun.laboratory_id.is_not(None),
+            by_role,
             laboratory_member_clause(user_id),
         ),
     )
