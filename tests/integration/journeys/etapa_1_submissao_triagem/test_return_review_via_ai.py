@@ -37,9 +37,13 @@ from tests.integration.journeys.conftest import (
 
 
 def _pending(client, pid):
-    """Chaves das atividades com tarefa `READY` visível ao usuário logado."""
+    """Chaves das tarefas `READY` em que o usuário logado pode agir.
+
+    O proponente vê a triagem sem poder agir nela (Spec 049).
+    """
     response = client.get(
-        '/tasks', params={'process_id': pid, 'status': 'READY'}
+        '/tasks',
+        params={'process_id': pid, 'status': 'READY', 'actionable': True},
     )
     assert response.status_code == HTTPStatus.OK, response.text
     return {task['activity_key'] for task in response.json()['data']}

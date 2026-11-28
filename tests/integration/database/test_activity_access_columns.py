@@ -150,7 +150,7 @@ async def test_phase1_access_matrix_on_instantiation(session):
 
     assert activities['proposal_submission'].edit_roles == ['proponent']
     assert activities['triage_evaluation'].edit_roles == ['bracvam']
-    assert 'proponent' not in activities['triage_evaluation'].view_roles
+    assert 'proponent' in activities['triage_evaluation'].view_roles
 
 
 @pytest.mark.asyncio

@@ -5,7 +5,9 @@ from http import HTTPStatus
 import pytest
 
 from pivma.bootstrap_process_templates import bootstrap_all_templates
+from tests.api.routers.test_participant_router import create_participant
 from tests.api.routers.test_rbac_router import authenticate
+from tests.factories.structure_approval_factory import runs
 from tests.factories.submission_factory import submission_values
 from tests.factories.user_factory import UserFactory
 
@@ -102,15 +104,16 @@ async def test_process_timeline_events_recorded_and_ordered(
 
 
 @pytest.mark.asyncio
-async def test_timeline_hides_events_of_activities_without_view(
+async def test_timeline_hides_events_of_activities_without_view_after_triage(
     client, session, bracvam_user
 ):
-    """Spec 030 (FR-021): eventos da triagem não chegam ao proponente."""
+    """Spec 030 (FR-021): eventos de `assign_sponsor` não chegam ao
+    proponente, que não tem visão dessa atividade."""
     await bootstrap_all_templates(session)
     proponente = UserFactory()
-    session.add(proponente)
+    sponsor = UserFactory()
+    session.add_all([proponente, sponsor])
     await session.commit()
-    origin = {'Origin': 'https://testserver'}
 
     authenticate(client, proponente)
     process_id = client.post(
@@ -127,26 +130,27 @@ async def test_timeline_hides_events_of_activities_without_view(
     decision = client.post(
         f'/processes/{process_id}/triage/decision',
         json={'outcome': 'APPROVED', 'justification': 'Aprovado.'},
-        headers=origin,
+        headers=TRUSTED_ORIGIN,
     )
     assert decision.status_code == HTTPStatus.OK, decision.text
+    designated = create_participant(client, process_id, sponsor.id, 'sponsor')
+    assert designated.status_code == HTTPStatus.CREATED, designated.text
 
-    bracvam_events = client.get(f'/processes/{process_id}/timeline').json()[
-        'data'
-    ]
-    triage_run_ids = {
-        e['activity_run_id']
-        for e in bracvam_events
-        if e['event_type'] == 'TRIAGE_APPROVED'
+    sponsor_run_ids = {
+        str(run.id)
+        for run in await runs(session, process_id, 'assign_sponsor')
     }
-    assert triage_run_ids
+    bracvam_events = client.get(
+        f'/processes/{process_id}/timeline', params={'per_page': 100}
+    ).json()['data']
+    assert {e['activity_run_id'] for e in bracvam_events} & sponsor_run_ids
 
     authenticate(client, proponente)
-    proponent_events = client.get(f'/processes/{process_id}/timeline').json()[
-        'data'
-    ]
+    proponent_events = client.get(
+        f'/processes/{process_id}/timeline', params={'per_page': 100}
+    ).json()['data']
     assert not {e['activity_run_id'] for e in proponent_events} & (
-        triage_run_ids
+        sponsor_run_ids
     )
     assert any(
         e['event_type'] == 'SUBMISSION_SUBMITTED' for e in (proponent_events)

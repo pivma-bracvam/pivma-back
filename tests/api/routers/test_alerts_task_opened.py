@@ -29,7 +29,9 @@ from tests.api.routers.test_sample_receipt_router import lab_ready, register
 from tests.factories.alert_factory import alerts_for, same_profile_user
 from tests.factories.laboratory_run_factory import (
     complete_lab,
+    freeze_samples,
     frozen_lab_process,
+    lab_view_only,
     reopen,
     runs_by_lab,
     tasks_of,
@@ -192,6 +194,17 @@ async def test_two_qualifying_cargos_give_one_alert(session):
 
 
 @pytest.mark.asyncio
+async def test_lab_user_without_edit_role_gets_no_task_alert(session):
+    """Issue #86: o alert segue `edit_roles` na execução do laboratório."""
+    ctx = await frozen_lab_process(session, lab_count=1, freeze=False)
+    await lab_view_only(session, ctx.process_id)
+    await freeze_samples(session, ctx)
+
+    keys = _keys(await alerts_for(session, ctx.lab_users[0], TASK_OPENED))
+    assert 'receipt' not in keys
+
+
+@pytest.mark.asyncio
 async def test_deactivated_account_gets_no_task_alert(session):
     """FR-004."""
     ctx = await frozen_lab_process(session, lab_count=1, freeze=False)
@@ -296,3 +309,17 @@ async def test_receipt_problem_alerts_selection_group_once(session, client):
     assert len(resolution) == 1
     task = await _task_of(session, ctx.process_id, 'sample_receipt_resolution')
     assert resolution[0].target_id == task.id
+
+
+@pytest.mark.asyncio
+async def test_proponent_gets_no_alert_for_triage_task_they_only_view(
+    client, session, bracvam_user
+):
+    """Spec 049: o alert segue `edit_roles`, não a visão da triagem."""
+    proponent, pid = await _created_process(client, session)
+
+    _submit(client, pid)
+
+    assert 'triage_evaluation' not in _keys(
+        await alerts_for(session, proponent, TASK_OPENED)
+    )

@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from pivma.core.authorization import (
     COLLECTION_TEMPLATES_MANAGE,
+    PROPONENT_ROLE_KEY,
     can_manage_participants,
     can_manage_process_templates,
     effective_laboratory_ids,
@@ -22,6 +23,7 @@ from pivma.core.authorization import (
 from pivma.core.database.models import (
     ActivityInstance,
     ActivityRun,
+    Assignment,
     AuditEvent,
     CollectionTemplate,
     FormTemplate,
@@ -36,6 +38,7 @@ from pivma.core.errors import (
     form_field_errors,
     http_error,
 )
+from pivma.core.invite_service import INVITE_SUBJECT
 from pivma.core.listing import (
     PageQuery,
     PerPageQuery,
@@ -63,6 +66,7 @@ from pivma.core.process_engine import (
     update_process_submission,
 )
 from pivma.core.process_progress import (
+    BLIND_REVIEW_ROLES,
     build_progress,
     current_phase,
     open_runs,
@@ -111,6 +115,33 @@ PARTICIPANT_EVENT_TYPES = frozenset({
     # Spec 035: perda e volta da validade de designação laboratorial.
     'PARTICIPANT_EFFECTIVENESS_LOST',
     'PARTICIPANT_EFFECTIVENESS_RESTORED',
+})
+# Spec 049: quem não tem `triage.review` não vê quem decidiu a triagem
+# nem os pareceres por campo.
+TRIAGE_AUTHOR_EVENTS = frozenset({
+    'TRIAGE_APPROVED',
+    'TRIAGE_REJECTED',
+    'REVISION_REQUESTED',
+    'RETURN_REVIEW_OPENED',
+    # Vai na execução da submissão, que o proponente vê.
+    'AI_CRITERION_FEEDBACK_RECORDED',
+})
+FIELD_REVIEWED_EVENT = 'FIELD_REVIEWED'
+# Spec 049 (#84): só quem gerencia participantes lê os convites; o convidado
+# vê o próprio aceite.
+INVITE_EVENT_TYPES = frozenset({
+    'INVITE_CREATED',
+    'INVITE_RESENT',
+    'INVITE_REVOKED',
+    'INVITE_ACCEPTED',
+})
+INVITE_ACCEPTED_EVENT = 'INVITE_ACCEPTED'
+# O envio do convite por e-mail segue a regra do convite: o cancelamento
+# no aceite traz quem aceitou.
+NOTIFICATION_EVENT_TYPES = frozenset({
+    'NOTIFICATION_SENT',
+    'NOTIFICATION_FAILED',
+    'NOTIFICATION_CANCELLED',
 })
 
 
@@ -221,7 +252,11 @@ async def _visible_events(
     current_user: UserModel,
     process_id,
     events: list[AuditEvent],
+    *,
+    reviews_triage: bool,
 ) -> list[AuditEvent]:
+    if not reviews_triage:
+        events = [e for e in events if e.event_type != FIELD_REVIEWED_EVENT]
     events = await _events_of_visible_activities(
         session, current_user.id, process_id, events
     )
@@ -240,8 +275,50 @@ async def _visible_events(
             context = event.context_data or {}
             if context.get('participant_user_id') != str(current_user.id):
                 continue
+        if event.event_type in INVITE_EVENT_TYPES and (
+            event.event_type != INVITE_ACCEPTED_EVENT
+            or event.user_id != current_user.id
+        ):
+            continue
+        if (
+            event.event_type in NOTIFICATION_EVENT_TYPES
+            and (event.context_data or {}).get('subject_type')
+            == INVITE_SUBJECT
+        ):
+            continue
         visible.append(event)
     return visible
+
+
+async def _blind_hidden_authors(
+    session: Session, current_user: UserModel, process_id: UUID
+) -> set[UUID]:
+    """Autores que o avaliador cego não pode identificar (Spec 049, RF050).
+
+    Só para quem tem apenas cargos de revisão cega no processo: o proponente
+    e os demais avaliadores cegos, com a designação ativa ou revogada.
+    A decisão é a do `ProgressView` (Spec 048): quem não vê o cargo de
+    proponente no andamento não vê o autor. Com outro cargo, vale a união.
+    Sem cargo nenhum, o cegamento vale: a designação pode ter sido revogada
+    depois da autorização desta leitura.
+    """
+    if await has_platform_wide_access(session, current_user.id):
+        return set()
+    assignments = await viewer_assignments(
+        session, current_user.id, [process_id]
+    )
+    view = progress_view(
+        current_user.id, False, assignments.get(process_id, [])
+    )
+    if view.sees_role(PROPONENT_ROLE_KEY):
+        return set()
+    authors = await session.scalars(
+        select(Assignment.user_id).where(
+            Assignment.process_instance_id == process_id,
+            Assignment.role_key.in_({PROPONENT_ROLE_KEY, *BLIND_REVIEW_ROLES}),
+        )
+    )
+    return set(authors) - {current_user.id}
 
 
 def _template_ref(
@@ -916,13 +993,17 @@ async def get_process_timeline(
     events = list((await session.execute(events_stmt)).scalars().all())
     # O filtro de visibilidade roda em Python: a página vem depois dele,
     # para o total refletir só o que o usuário vê (Spec 033, R2).
+    # Sem `triage.review`, a triagem chega sem autor e sem os pareceres
+    # (Spec 046, FR-006; Spec 049).
+    reviews_triage = await has_process_review_access(session, current_user.id)
     events, total = paginate_items(
-        await _visible_events(session, current_user, id, events),
+        await _visible_events(
+            session, current_user, id, events, reviews_triage=reviews_triage
+        ),
         page,
         per_page,
     )
-    # O proponente não vê quem devolveu a submissão (Spec 046, FR-006).
-    shows_evaluator = await has_process_review_access(session, current_user.id)
+    hidden_authors = await _blind_hidden_authors(session, current_user, id)
 
     return TimelineListResponse(
         data=[
@@ -930,10 +1011,13 @@ async def get_process_timeline(
                 id=e.id,
                 event_type=e.event_type,
                 user_id=(
-                    e.user_id
-                    if shows_evaluator
-                    or e.event_type != 'RETURN_REVIEW_OPENED'
-                    else None
+                    None
+                    if e.user_id in hidden_authors
+                    or (
+                        not reviews_triage
+                        and e.event_type in TRIAGE_AUTHOR_EVENTS
+                    )
+                    else e.user_id
                 ),
                 activity_run_id=e.activity_run_id,
                 occurred_at=e.occurred_at,

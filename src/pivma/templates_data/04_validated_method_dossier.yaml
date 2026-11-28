@@ -3,7 +3,7 @@ process_template:
   name: "Método Novo – Dossiê Completo"
   description: "Método novo já desenvolvido, com protocolo estabelecido e processo de validação concluído, cujo dossiê está disponível para avaliação por pares."
   display_order: 2
-  version: 8
+  version: 9
   is_active: true
 
 phases:
@@ -29,7 +29,7 @@ phases:
         assigned_role: "bracvam"
         access:
           edit: ["bracvam"]
-          view: []
+          view: ["proponent"]
         sla_hours: 72  # 3 dias corridos para a triagem decidir (Spec 018)
         dependencies:
           - required_activity_key: "proposal_submission"

@@ -105,7 +105,7 @@ baixa nem envia resultados (RF042).
 |---|---|---|---|
 | RF048 | Designação de avaliadores ad hoc | Parcial | Cargo `adhoc_evaluator` designável; nenhuma atividade de avaliação |
 | RF049 | Distribuição dos materiais | Não | |
-| RF050 | Revisão cega | Parcial | Só o cegamento das amostras; o gabarito das substâncias fica restrito ao Grupo de Seleção |
+| RF050 | Revisão cega | Parcial | Cegamento das amostras: o gabarito das substâncias fica restrito ao Grupo de Seleção. Na linha do tempo e no andamento, avaliador ad hoc e revisor por pares não veem o proponente nem os outros avaliadores. Não há atividade de avaliação |
 | RF051–RF054 | Pareceres e consolidação | Não | |
 | RF055–RF059 | Análise estatística | Não | O Estatístico envia o plano estatístico na Etapa 2, e o BraCVAM o confere na homologação da estrutura; não há tratamento estatístico dos resultados |
 | RF060 | Validação final | Não | |
